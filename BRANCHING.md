@@ -41,4 +41,9 @@ Sur **`develop`** et **`release`** :
 - Pas de force-push
 - Restrict direct pushes (équipe seulement / personne)
 
+## CI actuelle
+
+Workflow : `.github/workflows/ci-develop.yml`  
+Triggers : `push` et `pull_request` vers **`develop`** (JDK 21 + Postgres 16 + `mvn test` / `package`).
+
 Ticket : **SCRUM-71** — suites CI : **SCRUM-72+** / Azure : **SCRUM-76+**.

@@ -140,6 +140,15 @@ Détail JDBC + variables `SPRING_DATASOURCE_*` : **[DATABASE.md](./DATABASE.md)*
 - Tables métier préfixées : `front_` (app learning) ou `back_` (admin)  
   → détail et exemples : **[DATABASE.md](./DATABASE.md)**
 - API : `/api/ext/**` pour learning, `/api/int/**` pour admin
+- CORS local (profil `local`) : `http://localhost:4200` et `http://localhost:4201`  
+  → `appv4.cors.allowed-origins` dans `application-local.yml`
+
+## Smoke hello
+
+Avec Postgres + `.\mvnw.cmd spring-boot:run` :
+
+- [http://localhost:8080/api/ext/hello](http://localhost:8080/api/ext/hello) → `{"text":"hello learning"}`
+- [http://localhost:8080/api/int/hello](http://localhost:8080/api/int/hello) → `{"text":"admin-helloworld"}`
 
 ## Tickets liés
 
@@ -152,6 +161,5 @@ Détail JDBC + variables `SPRING_DATASOURCE_*` : **[DATABASE.md](./DATABASE.md)*
 
 ## Prochaines étapes
 
-1. Documenter / appliquer la convention `front_` / `back_` (SCRUM-36)
-2. Bootstrap Java 21 + Spring Boot hexagonale (SCRUM-35)
-3. Angular `learning` + `admin` (SCRUM-34)
+1. Angular `learning` + `admin` consommant `/api/ext/hello` et `/api/int/hello` (SCRUM-34)
+2. Erreurs ProblemDetail + OpenAPI (socle shared)

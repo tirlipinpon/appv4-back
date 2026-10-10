@@ -163,3 +163,8 @@ Avec Postgres + `.\mvnw.cmd spring-boot:run` :
 
 1. Angular `learning` + `admin` consommant `/api/ext/hello` et `/api/int/hello` (SCRUM-34)
 2. Erreurs ProblemDetail + OpenAPI (socle shared)
+
+## Branches & deploiement
+
+Voir **[BRANCHING.md](./BRANCHING.md)** : `feature/*` ? `develop` (CI) ? `release` (CD Azure).
+

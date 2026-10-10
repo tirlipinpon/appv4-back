@@ -1,0 +1,33 @@
+# MVP local — PostgreSQL only (SCRUM-37 / SCRUM-42)
+# Usage:
+#   1. Copy .env.example to .env
+#   2. docker compose up -d
+#   3. docker compose ps
+
+services:
+  postgres:
+    # Official Postgres image, Alpine = lighter for local dev
+    image: postgres:16-alpine
+    container_name: appv4-postgres
+    restart: unless-stopped
+    ports:
+      # host:container — Spring will connect to localhost:5432
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-appv4}
+      POSTGRES_USER: ${POSTGRES_USER:-appv4}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-appv4}
+    volumes:
+      # Named volume keeps data between docker compose down/up
+      - appv4_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Compose waits until DB accepts connections
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appv4} -d ${POSTGRES_DB:-appv4}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  appv4_pgdata:
+    name: appv4_pgdata

@@ -166,5 +166,6 @@ Avec Postgres + `.\mvnw.cmd spring-boot:run` :
 
 ## Branches & deploiement
 
-Voir **[BRANCHING.md](./BRANCHING.md)** : `feature/*` ? `develop` (CI) ? `release` (CD Azure).
+Voir **[BRANCHING.md](./BRANCHING.md)** : `feature/*` → **PR** → `develop` (CI) → **PR** → `release` (CD Azure).  
+Important : le passage `develop` → `release` passe **toujours** par une Pull Request.
 

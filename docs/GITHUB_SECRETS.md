@@ -31,8 +31,10 @@ Création : repo → **Settings → Environments → New environment** → nom `
 | Nom | Scope | Description |
 |-----|-------|-------------|
 | `AZURE_DEPLOY_ENABLED` | Repository ou Environment `production` | Mettre `true` **seulement** après provision Azure (SCRUM-76+) |
-| `AZURE_WEBAPP_NAME` | Environment `production` | Nom App Service / Container App backend |
-| `AZURE_RESOURCE_GROUP` | Environment `production` | Resource group Azure |
+| `AZURE_WEBAPP_NAME` | Environment `production` | Nom App Service backend (`app-appv4-back-prod`, ADR-001) |
+| `AZURE_RESOURCE_GROUP` | Environment `production` | Resource group (`rg-appv4-prod`, ADR-001) |
+
+Choix d’hébergement figés dans [`ADR-001-azure-hosting.md`](ADR-001-azure-hosting.md) : **App Service** (back) + **Postgres Flexible** + **Static Web Apps** (fronts).
 
 ## Comment créer le service principal (rappel)
 

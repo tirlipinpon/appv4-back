@@ -1,0 +1,106 @@
+# CD Azure — déclenché uniquement après merge vers release (via PR develop → release).
+# Squelette SCRUM-74 : build OK ; deploy activé quand les secrets (SCRUM-75) + Azure (SCRUM-76+) sont prêts.
+name: CD release (backend)
+
+on:
+  push:
+    branches:
+      - release
+      - "release/**"
+  workflow_dispatch:
+
+concurrency:
+  group: cd-back-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: appv4
+          POSTGRES_USER: appv4
+          POSTGRES_PASSWORD: appv4
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U appv4 -d appv4"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/appv4
+      SPRING_DATASOURCE_USERNAME: appv4
+      SPRING_DATASOURCE_PASSWORD: appv4
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Make Maven wrapper executable
+        run: chmod +x mvnw
+
+      - name: Run tests
+        run: ./mvnw -B test
+
+      - name: Package
+        run: ./mvnw -B -DskipTests package
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: appv4-back-jar
+          path: target/*.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    # Déployer seulement si le flag repo est activé (après provision Azure SCRUM-76+).
+    if: ${{ vars.AZURE_DEPLOY_ENABLED == 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: appv4-back-jar
+          path: dist
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure App Service / Container Apps
+        env:
+          AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
+          SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
+          SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "SCRUM-76+ : brancher ici le deploy réel (az webapp deploy / Container Apps)."
+          echo "Artefacts présents :"
+          ls -la dist
+          # Exemple (à adapter après ADR SCRUM-76) :
+          # JAR=$(ls dist/*.jar | head -n1)
+          # az webapp deploy --resource-group "$AZURE_RESOURCE_GROUP" \
+          #   --name "$AZURE_WEBAPP_NAME" --src-path "$JAR" --type jar
+          exit 1

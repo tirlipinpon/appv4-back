@@ -32,19 +32,26 @@ feature/*  --PR(+CI)-->  develop  --PR(+CI)-->  release  --CD-->  Azure
 - Ne **pas** déployer Azure depuis `develop` ou une `feature/*`
 - CI rouge = pas de merge
 
-## Protections GitHub (obligatoires)
+## Protections GitHub (obligatoires) — déjà activées
 
-Sur **`develop`** et **`release`** :
+Sur **`develop`** et **`release`** (ruleset + branch protection) :
 
-- Require a pull request before merging
-- Require status checks to pass (CI)
-- Pas de force-push
-- Restrict direct pushes (équipe seulement / personne)
+- Merge **uniquement via PR** (pas de push direct)
+- Status check obligatoire : **`lint-test-build`** (Checkstyle + tests + package)
+- CI rouge ⇒ bouton merge bloqué
+- Pas de force-push / suppression de branche
 
-## CI actuelle
+## CI actuelle (gate avant merge humain)
 
 Workflow : `.github/workflows/ci-develop.yml`  
-Triggers : `push` et `pull_request` vers **`develop`** (JDK 21 + Postgres 16 + `mvn test` / `package`).
+Triggers : `push` / `pull_request` vers **`develop`**, et `pull_request` vers **`release`** / **`release/**`.
+
+Obligatoire (CI rouge = **pas de merge**) :
+1. **Lint** — Checkstyle (`./mvnw checkstyle:check`)
+2. **Tests** — `./mvnw test`
+3. **Package** — `./mvnw package`
+
+> En Java, le « linter » standard côté Maven est **Checkstyle** (style / imports / naming). SpotBugs / PMD existent aussi pour la qualité, hors scope actuel.
 
 ## CD release (squelette)
 

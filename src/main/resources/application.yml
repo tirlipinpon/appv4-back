@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: appv4-back
+  # Profil par défaut pour le MVP local (surchargeable via SPRING_PROFILES_ACTIVE)
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway est l'autorité du schéma — Hibernate ne crée / ne modifie pas les tables
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+
+server:
+  port: ${SERVER_PORT:8080}

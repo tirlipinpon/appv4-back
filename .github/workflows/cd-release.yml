@@ -1,5 +1,5 @@
-# CD Azure — déclenché uniquement après merge vers release (via PR develop → release).
-# Squelette SCRUM-74 : build OK ; deploy activé quand les secrets (SCRUM-75) + Azure (SCRUM-76+) sont prêts.
+# CD Azure — déclenché après merge vers release (PR develop → release).
+# SCRUM-80 : deploy réel App Service (gate AZURE_DEPLOY_ENABLED).
 name: CD release (backend)
 
 on:
@@ -64,7 +64,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: appv4-back-jar
-          path: target/*.jar
+          path: |
+            target/appv4-back-*.jar
+            !target/*.original
           if-no-files-found: error
           retention-days: 7
 
@@ -72,13 +74,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: production
-    # Déployer seulement si le flag repo est activé (après provision Azure SCRUM-76+).
     if: ${{ vars.AZURE_DEPLOY_ENABLED == 'true' }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Download JAR artifact
         uses: actions/download-artifact@v4
         with:
@@ -90,20 +88,16 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Azure App Service / Container Apps
+      - name: Deploy JAR to App Service
         env:
           AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
-          SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
-          SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
         run: |
           set -euo pipefail
-          echo "SCRUM-76+ : brancher ici le deploy réel (az webapp deploy / Container Apps)."
-          echo "Artefacts présents :"
-          ls -la dist
-          # Exemple (à adapter après ADR SCRUM-76) :
-          # JAR=$(ls dist/*.jar | head -n1)
-          # az webapp deploy --resource-group "$AZURE_RESOURCE_GROUP" \
-          #   --name "$AZURE_WEBAPP_NAME" --src-path "$JAR" --type jar
-          exit 1
+          JAR=$(ls dist/appv4-back-*.jar | head -n1)
+          echo "Deploying $JAR → $AZURE_WEBAPP_NAME ($AZURE_RESOURCE_GROUP)"
+          az webapp deploy \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_WEBAPP_NAME" \
+            --src-path "$JAR" \
+            --type jar

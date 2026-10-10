@@ -50,8 +50,9 @@ Coller le JSON produit dans le secret `AZURE_CREDENTIALS` (Environment `producti
 ## Checklist avant premier vrai deploy
 
 1. Azure provisionné (SCRUM-76+)
-2. Environment `production` créé (+ reviewers)
-3. Secrets ci-dessus renseignés
-4. Variables `AZURE_*` renseignées
-5. `AZURE_DEPLOY_ENABLED=true`
-6. PR `develop` → `release` mergée → CD build + deploy
+2. Environment GitHub `production` créé
+3. Secrets ci-dessus renseignés (`AZURE_CREDENTIALS` au minimum pour le CD)
+4. Variables `AZURE_DEPLOY_ENABLED=true`, `AZURE_RESOURCE_GROUP`, `AZURE_WEBAPP_NAME`
+5. PR `develop` → `release` mergée → CD build + deploy
+
+Voir aussi [`CD-RELEASE-SCRUM-80.md`](CD-RELEASE-SCRUM-80.md).

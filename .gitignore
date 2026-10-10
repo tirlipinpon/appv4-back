@@ -1,0 +1,29 @@
+# Local env (secrets)
+.env
+
+# Maven / Java
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/maven-wrapper.jar
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated
+.springBeans
+.sts4-cache
+
+# Build / logs
+build/
+*.class
+*.log
+HELP.md

@@ -1,5 +1,2 @@
-/**
- * Adaptateur JPA : Entity, JpaRepository, PersistenceAdapter, mapper.
- * À implémenter avec la migration Flyway hello (prochaine SCRUM).
- */
+/** Adaptateur JPA : Entity, JpaRepository, PersistenceAdapter, mapper. */
 package com.appv4.hello.infrastructure.adapter.out.persistence;

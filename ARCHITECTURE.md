@@ -88,8 +88,9 @@ Une feature ne contient que ce dont elle a besoin. Pas de dossiers vides “pour
 | Port out | `hello.application.port.out.HelloMessageRepository` |
 | Command / Result | `GetHelloMessageCommand` / `HelloMessageResult` |
 | Service | `hello.application.service.GetHelloMessageService` |
-| Adapter JPA | `hello.infrastructure.adapter.out.persistence` (prochaine SCRUM) |
-| Controllers | `/api/ext/hello`, `/api/int/hello` (prochaines SCRUM) |
+| Adapter JPA | `HelloMessagePersistenceAdapter` (+ Entity / JpaRepository / Mapper) |
+| Controllers | `ExtHelloController` `/api/ext/hello`, `IntHelloController` `/api/int/hello` |
+| Migration | `V1__create_hello_messages.sql` |
 
 ## Point d’entrée
 

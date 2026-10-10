@@ -1,5 +1,9 @@
 # Local env (secrets)
 .env
+.env.*
+!.env.example
+*.local
+infra/azure/*.local.*
 
 # Maven / Java
 target/

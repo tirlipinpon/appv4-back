@@ -32,14 +32,14 @@ feature/*  --PR(+CI)-->  develop  --PR(+CI)-->  release  --CD-->  Azure
 - Ne **pas** déployer Azure depuis `develop` ou une `feature/*`
 - CI rouge = pas de merge
 
-## Protections GitHub (obligatoires)
+## Protections GitHub (obligatoires) — déjà activées
 
-Sur **`develop`** et **`release`** :
+Sur **`develop`** et **`release`** (ruleset + branch protection) :
 
-- Require a pull request before merging
-- Require status checks to pass (CI)
-- Pas de force-push
-- Restrict direct pushes (équipe seulement / personne)
+- Merge **uniquement via PR** (pas de push direct)
+- Status check obligatoire : **`lint-test-build`** (Checkstyle + tests + package)
+- CI rouge ⇒ bouton merge bloqué
+- Pas de force-push / suppression de branche
 
 ## CI actuelle (gate avant merge humain)
 

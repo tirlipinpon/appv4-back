@@ -94,14 +94,12 @@ frontend_attempts   ❌ mauvais préfixe (utiliser front_)
 
 Les tables gérées par l’outil de migration (ex. `flyway_schema_history`) **n’ont pas** besoin du préfixe `front_` / `back_` : ce ne sont pas des tables métier applicatives.
 
-## MVP smoke (prochaine migration)
+## MVP smoke (migration V1)
 
-Pour prouver la chaîne DB → Java → Angular, on créera notamment :
+Migration : `db/migration/V1__create_hello_messages.sql`
 
-- `front_hello_messages` — seed : `hello learning`
-- `back_hello_messages` — seed : `admin-helloworld`
-
-Voir sous-tâche **SCRUM-49**.
+- `front_hello_messages` — seed : `hello learning` → `GET /api/ext/hello`
+- `back_hello_messages` — seed : `admin-helloworld` → `GET /api/int/hello`
 
 ## Checklist avant de créer une table
 

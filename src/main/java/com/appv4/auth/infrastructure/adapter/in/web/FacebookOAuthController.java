@@ -42,31 +42,25 @@ public class FacebookOAuthController {
 
 	@GetMapping("/authorize-url")
 	@Operation(operationId = "getFacebookAuthorizeUrl", summary = "URL d'autorisation Facebook")
-	public ResponseEntity<AuthorizeUrlResponse> authorizeUrl(@RequestParam String redirectUri) {
+	public ResponseEntity<AuthorizeUrlResponse> getFacebookAuthorizeUrl(
+			@RequestParam String redirectUri) {
 		String url = buildFacebookAuthorizeUrlUseCase.build(redirectUri);
 		return ResponseEntity.ok(new AuthorizeUrlResponse(url));
 	}
 
 	@PostMapping
 	@Operation(operationId = "loginWithFacebook", summary = "Échanger le code Facebook contre un JWT")
-	public ResponseEntity<JwtTokenResponse> login(@Valid @RequestBody FacebookLoginRequest request) {
+	public ResponseEntity<JwtTokenResponse> loginWithFacebook(
+			@Valid @RequestBody FacebookLoginRequest request) {
 		JwtTokenResult result = loginWithFacebookUseCase.login(
 				request.authorizationCode(),
 				request.redirectUri());
 		return ResponseEntity.ok(new JwtTokenResponse(result.token(), result.expiresAtEpochSeconds()));
 	}
 
-	@Schema(name = "AuthorizeUrlResponse")
-	public record AuthorizeUrlResponse(String authorizationUrl) {
-	}
-
 	@Schema(name = "FacebookLoginRequest")
 	public record FacebookLoginRequest(
 			@NotBlank String authorizationCode,
 			@NotBlank String redirectUri) {
-	}
-
-	@Schema(name = "JwtTokenResponse")
-	public record JwtTokenResponse(String token, long expiresAtEpochSeconds) {
 	}
 }

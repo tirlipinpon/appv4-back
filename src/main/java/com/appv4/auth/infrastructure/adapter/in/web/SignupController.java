@@ -39,7 +39,7 @@ public class SignupController {
 
 	@PostMapping
 	@Operation(operationId = "signupWithEmail", summary = "Inscription email / mot de passe")
-	public ResponseEntity<JwtTokenResponse> signup(@Valid @RequestBody SignupRequest request) {
+	public ResponseEntity<JwtTokenResponse> signupWithEmail(@Valid @RequestBody SignupRequest request) {
 		JwtTokenResult result = signupWithEmailUseCase.signup(
 				request.email(),
 				request.password(),
@@ -53,9 +53,5 @@ public class SignupController {
 			@NotBlank @Email String email,
 			@NotBlank String password,
 			String displayName) {
-	}
-
-	@Schema(name = "JwtTokenResponse")
-	public record JwtTokenResponse(String token, long expiresAtEpochSeconds) {
 	}
 }

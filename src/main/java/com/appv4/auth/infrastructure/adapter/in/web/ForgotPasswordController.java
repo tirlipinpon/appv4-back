@@ -34,16 +34,13 @@ public class ForgotPasswordController {
 
 	@PostMapping
 	@Operation(operationId = "forgotPassword", summary = "Demander un lien de réinitialisation")
-	public ResponseEntity<MessageResponse> forgot(@Valid @RequestBody ForgotPasswordRequest request) {
+	public ResponseEntity<AuthMessageResponse> forgotPassword(
+			@Valid @RequestBody ForgotPasswordRequest request) {
 		String message = forgotPasswordUseCase.requestReset(request.email());
-		return ResponseEntity.ok(new MessageResponse(message));
+		return ResponseEntity.ok(new AuthMessageResponse(message));
 	}
 
 	@Schema(name = "ForgotPasswordRequest")
 	public record ForgotPasswordRequest(@NotBlank @Email String email) {
-	}
-
-	@Schema(name = "AuthMessageResponse")
-	public record MessageResponse(String message) {
 	}
 }

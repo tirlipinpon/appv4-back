@@ -1,6 +1,7 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
+import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -10,7 +11,7 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 
 /**
- * Adaptateur JPA — {@code back_password_reset_tokens} (SCRUM-108).
+ * Adaptateur JPA — {@code back_password_reset_tokens} (SCRUM-108 / SCRUM-111).
  */
 @Component
 public class PasswordResetTokenPersistenceAdapter implements PasswordResetTokenPort {
@@ -42,6 +43,24 @@ public class PasswordResetTokenPersistenceAdapter implements PasswordResetTokenP
 		entity.setUser(user);
 		entity.setTokenHash(tokenHash);
 		entity.setExpiresAt(expiresAt);
+		tokenRepository.save(entity);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<ValidResetToken> findValidByTokenHash(String tokenHash) {
+		return tokenRepository.findValidByTokenHash(tokenHash, Instant.now())
+				.map(entity -> new ValidResetToken(entity.getId(), entity.getUser().getId()));
+	}
+
+	@Override
+	@Transactional
+	public void markUsed(long tokenId) {
+		BackPasswordResetTokenEntity entity = tokenRepository.findById(tokenId)
+				.orElseThrow(() -> new AuthDomainException(
+						HttpStatus.BAD_REQUEST.value(),
+						"Lien invalide ou expiré"));
+		entity.setUsedAt(Instant.now());
 		tokenRepository.save(entity);
 	}
 }

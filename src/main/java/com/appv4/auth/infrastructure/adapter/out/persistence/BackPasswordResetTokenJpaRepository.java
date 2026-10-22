@@ -1,6 +1,8 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -14,6 +16,16 @@ public interface BackPasswordResetTokenJpaRepository extends JpaRepository<BackP
 
 	@Query("select t from BackPasswordResetTokenEntity t where t.user.id = :userId and t.usedAt is null")
 	List<BackPasswordResetTokenEntity> findUnusedByUserId(@Param("userId") Long userId);
+
+	@Query("""
+			select t from BackPasswordResetTokenEntity t
+			where t.tokenHash = :tokenHash
+			  and t.usedAt is null
+			  and t.expiresAt > :now
+			""")
+	Optional<BackPasswordResetTokenEntity> findValidByTokenHash(
+			@Param("tokenHash") String tokenHash,
+			@Param("now") Instant now);
 
 	@Modifying(clearAutomatically = true)
 	@Query("""

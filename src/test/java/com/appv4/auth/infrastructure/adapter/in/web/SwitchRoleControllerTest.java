@@ -99,7 +99,7 @@ class SwitchRoleControllerTest {
 
 	private static UsernamePasswordAuthenticationToken parentAndTeacher() {
 		return new UsernamePasswordAuthenticationToken(
-				new AuthenticatedUser(7L, "both@example.com", "teacher"),
+				new AuthenticatedUser(7L, "both@example.com", "teacher", List.of("parent", "teacher")),
 				null,
 				List.of(new SimpleGrantedAuthority("ROLE_USER")));
 	}

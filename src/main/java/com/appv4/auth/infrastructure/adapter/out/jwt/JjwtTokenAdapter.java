@@ -2,7 +2,9 @@ package com.appv4.auth.infrastructure.adapter.out.jwt;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 import javax.crypto.SecretKey;
@@ -50,9 +52,10 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 	 * @param userId     id {@code back_users.id}
 	 * @param email      email du compte
 	 * @param activeRole espace choisi, ou {@code null} pour omettre le claim
+	 * @param roles      espaces accordés, claim {@code roles} (peut être vide)
 	 */
 	@Override
-	public JwtTokenResult encode(long userId, String email, String activeRole) {
+	public JwtTokenResult encode(long userId, String email, String activeRole, List<String> roles) {
 		Instant now = Instant.now();
 		Instant expiresAt = now.plusSeconds(properties.getExpirationMinutes() * 60);
 		JwtBuilder builder = Jwts.builder()
@@ -65,6 +68,7 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 		if (activeRole != null && !activeRole.isBlank()) {
 			builder.claim("activeRole", activeRole);
 		}
+		builder.claim("roles", roles == null ? List.of() : roles);
 		String token = builder.signWith(secretKey).compact();
 		return new JwtTokenResult(token, expiresAt.getEpochSecond());
 	}
@@ -93,9 +97,23 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 			if (activeRole != null && activeRole.isBlank()) {
 				activeRole = null;
 			}
-			return Optional.of(new AuthenticatedUser(userId, email, activeRole));
+			return Optional.of(new AuthenticatedUser(userId, email, activeRole, readRoles(claims)));
 		} catch (JwtException | IllegalArgumentException ex) {
 			return Optional.empty();
 		}
+	}
+
+	private static List<String> readRoles(Claims claims) {
+		Object raw = claims.get("roles");
+		if (!(raw instanceof List<?> list)) {
+			return List.of();
+		}
+		List<String> roles = new ArrayList<>();
+		for (Object item : list) {
+			if (item instanceof String value && !value.isBlank()) {
+				roles.add(value);
+			}
+		}
+		return List.copyOf(roles);
 	}
 }

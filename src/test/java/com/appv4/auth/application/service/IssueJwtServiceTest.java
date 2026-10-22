@@ -1,5 +1,6 @@
 package com.appv4.auth.application.service;
 
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.never;
@@ -33,7 +34,7 @@ class IssueJwtServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new IssueJwtService(jwtTokenEncoder, activeRolePort);
-		when(jwtTokenEncoder.encode(eq(1L), eq("a@b.com"), nullable(String.class)))
+		when(jwtTokenEncoder.encode(eq(1L), eq("a@b.com"), nullable(String.class), anyList()))
 				.thenReturn(new JwtTokenResult("jwt", 10L));
 	}
 
@@ -45,7 +46,7 @@ class IssueJwtServiceTest {
 		service.issue(1L, "a@b.com");
 
 		verify(activeRolePort).saveLastActiveRole(1L, "parent");
-		verify(jwtTokenEncoder).encode(1L, "a@b.com", "parent");
+		verify(jwtTokenEncoder).encode(1L, "a@b.com", "parent", List.of("parent"));
 	}
 
 	@Test
@@ -56,7 +57,7 @@ class IssueJwtServiceTest {
 		service.issue(1L, "a@b.com");
 
 		verify(activeRolePort, never()).saveLastActiveRole(eq(1L), nullable(String.class));
-		verify(jwtTokenEncoder).encode(1L, "a@b.com", "teacher");
+		verify(jwtTokenEncoder).encode(1L, "a@b.com", "teacher", List.of("parent", "teacher"));
 	}
 
 	@Test
@@ -67,7 +68,7 @@ class IssueJwtServiceTest {
 		service.issue(1L, "a@b.com");
 
 		verify(activeRolePort, never()).saveLastActiveRole(eq(1L), nullable(String.class));
-		verify(jwtTokenEncoder).encode(1L, "a@b.com", null);
+		verify(jwtTokenEncoder).encode(1L, "a@b.com", null, List.of("parent", "teacher"));
 	}
 
 	@Test
@@ -78,7 +79,7 @@ class IssueJwtServiceTest {
 		service.issue(1L, "a@b.com");
 
 		verify(activeRolePort).saveLastActiveRole(1L, "parent");
-		verify(jwtTokenEncoder).encode(1L, "a@b.com", "parent");
+		verify(jwtTokenEncoder).encode(1L, "a@b.com", "parent", List.of("parent"));
 	}
 
 	@Test
@@ -89,6 +90,6 @@ class IssueJwtServiceTest {
 		service.issue(1L, "a@b.com");
 
 		verify(activeRolePort).saveLastActiveRole(1L, null);
-		verify(jwtTokenEncoder).encode(1L, "a@b.com", null);
+		verify(jwtTokenEncoder).encode(1L, "a@b.com", null, List.of());
 	}
 }

@@ -1,5 +1,6 @@
 package com.appv4.auth.application.port.out;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -19,8 +20,12 @@ public interface JwtTokenDecoder {
 	 * Identité extraite d'un JWT valide.
 	 *
 	 * <p>{@code activeRole} est {@code null} quand le jeton ne choisit pas d'espace
-	 * (deux rôles sans souvenir, ou ancien jeton).
+	 * (deux rôles sans souvenir, ou ancien jeton). {@code roles} liste les espaces
+	 * déjà accordés ; vide si le claim est absent.
 	 */
-	record AuthenticatedUser(long userId, String email, String activeRole) {
+	record AuthenticatedUser(long userId, String email, String activeRole, List<String> roles) {
+		public AuthenticatedUser {
+			roles = roles == null ? List.of() : List.copyOf(roles);
+		}
 	}
 }

@@ -15,7 +15,8 @@ import com.appv4.auth.application.result.JwtTokenResult;
  * <p><b>Business :</b> un seul rôle → on y va et on s'en souvient. Deux rôles
  * et un souvenir encore valide → on le reprend. Deux rôles sans souvenir
  * valide → le jeton ne choisit pas d'espace (le front montrera le choix).
- * <p><b>Technique :</b> claim {@code activeRole} omis quand il n'y a pas d'espace.
+ * <p><b>Technique :</b> claim {@code roles} = espaces accordés. {@code activeRole}
+ * est omis quand il n'y a pas d'espace choisi.
  * <p><b>Métier / flow :</b> appelé après login email, login social et inscription,
  * une fois les rôles écrits.
  */
@@ -32,8 +33,9 @@ public class IssueJwtService implements IssueJwtUseCase {
 	@Override
 	@Transactional
 	public JwtTokenResult issue(long userId, String email) {
-		String activeRole = resolveAndRemember(userId);
-		return jwtTokenEncoder.encode(userId, email, activeRole);
+		List<String> spaces = activeRolePort.findSpaceRoles(userId);
+		String activeRole = resolveAndRemember(userId, spaces);
+		return jwtTokenEncoder.encode(userId, email, activeRole, spaces);
 	}
 
 	/**
@@ -41,8 +43,7 @@ public class IssueJwtService implements IssueJwtUseCase {
 	 *
 	 * @return {@code parent}, {@code teacher}, ou {@code null} si le front doit choisir
 	 */
-	private String resolveAndRemember(long userId) {
-		List<String> spaces = activeRolePort.findSpaceRoles(userId);
+	private String resolveAndRemember(long userId, List<String> spaces) {
 		String last = activeRolePort.findLastActiveRole(userId).orElse(null);
 		if (spaces.size() == 1) {
 			String only = spaces.get(0);

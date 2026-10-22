@@ -38,17 +38,19 @@ Maven n’a **pas** besoin d’être installé globalement : le wrapper `mvnw` /
 ### Lancer l’API (profil `local`)
 
 1. Postgres Docker doit tourner (`docker compose up -d`)
-2. `.env` aligné (ou valeurs par défaut `appv4` / `appv4`)
-3. Démarrer Spring :
+2. Copier `.env.example` → `.env` et renseigner les secrets (ex. `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`)
+3. Démarrer Spring **depuis la racine `appv4-back`** (le `.env` est chargé automatiquement) :
 
 ```bash
 cd C:\Users\tonys\Desktop\appv4\appv4-back
 .\mvnw.cmd spring-boot:run
 ```
 
+Plus besoin d’exporter manuellement les variables du `.env` en PowerShell : `DotEnvEnvironmentPostProcessor` les injecte au boot. Les variables déjà définies dans l’OS / CI restent prioritaires.
+
 4. Vérifier : [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health) → `{"status":"UP"}`
 
-Config : `application.yml` + `application-local.yml` (datasource JDBC).
+Config : `application.yml` + `application-local.yml` (datasource JDBC) + `.env` local.
 
 ## PostgreSQL local (MVP)
 

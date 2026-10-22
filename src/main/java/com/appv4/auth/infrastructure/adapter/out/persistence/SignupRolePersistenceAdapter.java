@@ -1,0 +1,45 @@
+package com.appv4.auth.infrastructure.adapter.out.persistence;
+
+import org.springframework.stereotype.Component;
+
+import com.appv4.auth.application.port.out.SignupRolePort;
+
+/**
+ * Écrit le rôle parent et la demande professeur (SCRUM-121).
+ *
+ * <p><b>Business :</b> le professeur n'est pas accordé ici.
+ * <p><b>Technique :</b> insert JPA, en respectant l'unicité (user, rôle)
+ * et une seule demande {@code pending} par compte.
+ */
+@Component
+public class SignupRolePersistenceAdapter implements SignupRolePort {
+
+	static final String PARENT = "parent";
+	static final String PENDING = "pending";
+
+	private final BackUserRoleJpaRepository roleRepository;
+	private final BackTeacherRoleRequestJpaRepository requestRepository;
+
+	public SignupRolePersistenceAdapter(
+			BackUserRoleJpaRepository roleRepository,
+			BackTeacherRoleRequestJpaRepository requestRepository) {
+		this.roleRepository = roleRepository;
+		this.requestRepository = requestRepository;
+	}
+
+	@Override
+	public void grantParent(long userId) {
+		if (roleRepository.existsByUserIdAndRole(userId, PARENT)) {
+			return;
+		}
+		roleRepository.save(new BackUserRoleEntity(userId, PARENT));
+	}
+
+	@Override
+	public void requestTeacher(long userId) {
+		if (requestRepository.existsByUserIdAndStatus(userId, PENDING)) {
+			return;
+		}
+		requestRepository.save(new BackTeacherRoleRequestEntity(userId, PENDING));
+	}
+}

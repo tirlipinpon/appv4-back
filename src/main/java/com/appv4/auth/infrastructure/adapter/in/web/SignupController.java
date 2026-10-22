@@ -38,7 +38,7 @@ public class SignupController {
 	}
 
 	@PostMapping
-	@Operation(summary = "Inscription email / mot de passe")
+	@Operation(operationId = "signupWithEmail", summary = "Inscription email / mot de passe")
 	public ResponseEntity<JwtTokenResponse> signup(@Valid @RequestBody SignupRequest request) {
 		JwtTokenResult result = signupWithEmailUseCase.signup(
 				request.email(),

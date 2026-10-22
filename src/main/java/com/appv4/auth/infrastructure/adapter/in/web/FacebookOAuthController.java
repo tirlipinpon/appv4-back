@@ -41,14 +41,14 @@ public class FacebookOAuthController {
 	}
 
 	@GetMapping("/authorize-url")
-	@Operation(summary = "URL d'autorisation Facebook")
+	@Operation(operationId = "getFacebookAuthorizeUrl", summary = "URL d'autorisation Facebook")
 	public ResponseEntity<AuthorizeUrlResponse> authorizeUrl(@RequestParam String redirectUri) {
 		String url = buildFacebookAuthorizeUrlUseCase.build(redirectUri);
 		return ResponseEntity.ok(new AuthorizeUrlResponse(url));
 	}
 
 	@PostMapping
-	@Operation(summary = "Échanger le code Facebook contre un JWT")
+	@Operation(operationId = "loginWithFacebook", summary = "Échanger le code Facebook contre un JWT")
 	public ResponseEntity<JwtTokenResponse> login(@Valid @RequestBody FacebookLoginRequest request) {
 		JwtTokenResult result = loginWithFacebookUseCase.login(
 				request.authorizationCode(),

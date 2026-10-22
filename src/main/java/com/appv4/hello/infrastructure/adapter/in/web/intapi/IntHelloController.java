@@ -32,7 +32,7 @@ public class IntHelloController {
 	}
 
 	@GetMapping("/hello")
-	@Operation(summary = "Hello admin (JWT requis)")
+	@Operation(operationId = "getAdminHello", summary = "Hello admin (JWT requis)")
 	public ResponseEntity<HelloMessageResponse> hello() {
 		HelloMessageResult result = getHelloMessageUseCase.execute(
 				new GetHelloMessageCommand(HelloAudience.ADMIN));

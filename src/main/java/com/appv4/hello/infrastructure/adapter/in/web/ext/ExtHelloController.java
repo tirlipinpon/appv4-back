@@ -29,7 +29,7 @@ public class ExtHelloController {
 	}
 
 	@GetMapping("/hello")
-	@Operation(summary = "Hello learning (public)")
+	@Operation(operationId = "getLearningHello", summary = "Hello learning (public)")
 	public ResponseEntity<HelloMessageResponse> hello() {
 		HelloMessageResult result = getHelloMessageUseCase.execute(
 				new GetHelloMessageCommand(HelloAudience.LEARNING));

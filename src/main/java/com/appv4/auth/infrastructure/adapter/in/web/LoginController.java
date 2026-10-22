@@ -37,7 +37,7 @@ public class LoginController {
 	}
 
 	@PostMapping
-	@Operation(summary = "Connexion email / mot de passe")
+	@Operation(operationId = "loginWithEmail", summary = "Connexion email / mot de passe")
 	@ApiResponse(responseCode = "200", description = "JWT émis")
 	@ApiResponse(
 			responseCode = "401",

@@ -39,14 +39,14 @@ public class AppleOAuthController {
 	}
 
 	@GetMapping("/authorize-url")
-	@Operation(summary = "URL d'autorisation Apple")
+	@Operation(operationId = "getAppleAuthorizeUrl", summary = "URL d'autorisation Apple")
 	public ResponseEntity<AuthorizeUrlResponse> authorizeUrl(@RequestParam String redirectUri) {
 		String url = buildAppleAuthorizeUrlUseCase.build(redirectUri);
 		return ResponseEntity.ok(new AuthorizeUrlResponse(url));
 	}
 
 	@PostMapping
-	@Operation(summary = "Échanger le code Apple contre un JWT")
+	@Operation(operationId = "loginWithApple", summary = "Échanger le code Apple contre un JWT")
 	public ResponseEntity<JwtTokenResponse> login(@Valid @RequestBody AppleLoginRequest request) {
 		JwtTokenResult result = loginWithAppleUseCase.login(
 				request.authorizationCode(),

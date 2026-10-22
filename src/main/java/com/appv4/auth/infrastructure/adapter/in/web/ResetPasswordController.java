@@ -34,7 +34,7 @@ public class ResetPasswordController {
 	}
 
 	@PostMapping
-	@Operation(summary = "Appliquer un nouveau mot de passe via jeton")
+	@Operation(operationId = "resetPassword", summary = "Appliquer un nouveau mot de passe via jeton")
 	public ResponseEntity<MessageResponse> reset(@Valid @RequestBody ResetPasswordRequest request) {
 		resetPasswordUseCase.reset(request.token(), request.newPassword());
 		return ResponseEntity.ok(new MessageResponse(ResetPasswordService.SUCCESS_MESSAGE));

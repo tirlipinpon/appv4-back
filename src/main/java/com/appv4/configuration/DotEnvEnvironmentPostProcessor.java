@@ -7,6 +7,8 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
@@ -19,35 +21,59 @@ import org.springframework.core.env.MapPropertySource;
  * <p><b>Business :</b> en local, les secrets (Google OAuth, JWT, Postgres) restent dans
  * {@code .env} (hors git) sans coller un script PowerShell avant chaque {@code spring-boot:run}.
  *
- * <p><b>Technique :</b> {@link EnvironmentPostProcessor} exécuté très tôt. Les variables
- * déjà présentes dans l'environnement OS / CI <b>gagnent</b> (on ne les écrase pas).
+ * <p><b>Technique :</b> {@link EnvironmentPostProcessor} exécuté très tôt. Injecte aussi
+ * {@link System#setProperty} pour que les placeholders {@code ${GOOGLE_CLIENT_ID:}} du yaml
+ * se résolvent. Les variables déjà présentes dans l'environnement OS / CI <b>gagnent</b>.
  *
- * <p><b>Métier / flow :</b> infra de boot — pas un port métier. Fichier cherché dans
- * {@code user.dir} (répertoire d'où tu lances Maven), typiquement {@code appv4-back/.env}.
+ * <p><b>Métier / flow :</b> infra de boot — pas un port métier. Cherche {@code .env} dans
+ * {@code user.dir} (répertoire d'où tu lances Maven).
  */
 public class DotEnvEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
+
+	private static final Log LOG = LogFactory.getLog(DotEnvEnvironmentPostProcessor.class);
 
 	static final String PROPERTY_SOURCE_NAME = "dotenv";
 
 	@Override
 	public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-		Path envFile = Path.of(System.getProperty("user.dir"), ".env");
-		if (!Files.isRegularFile(envFile)) {
+		Path envFile = resolveEnvFile();
+		if (envFile == null) {
+			LOG.debug("Aucun fichier .env trouvé (user.dir=" + System.getProperty("user.dir") + ")");
 			return;
 		}
 		Map<String, Object> values = parseDotEnv(envFile);
 		if (values.isEmpty()) {
 			return;
 		}
-		// Ne pas écraser ce qui est déjà défini (env OS, -D, CI)
-		values.entrySet().removeIf(e -> {
-			String key = e.getKey();
-			return environment.getProperty(key) != null || System.getenv(key) != null;
-		});
-		if (values.isEmpty()) {
+		Map<String, Object> toApply = new LinkedHashMap<>();
+		for (Map.Entry<String, Object> entry : values.entrySet()) {
+			String key = entry.getKey();
+			if (System.getenv(key) != null) {
+				continue;
+			}
+			if (System.getProperty(key) != null) {
+				continue;
+			}
+			toApply.put(key, entry.getValue());
+			System.setProperty(key, String.valueOf(entry.getValue()));
+		}
+		if (toApply.isEmpty()) {
 			return;
 		}
-		environment.getPropertySources().addFirst(new MapPropertySource(PROPERTY_SOURCE_NAME, values));
+		environment.getPropertySources().addFirst(new MapPropertySource(PROPERTY_SOURCE_NAME, toApply));
+		LOG.info("Fichier .env chargé (" + toApply.size() + " variables) : " + envFile.toAbsolutePath());
+	}
+
+	private static Path resolveEnvFile() {
+		Path fromUserDir = Path.of(System.getProperty("user.dir", "."), ".env");
+		if (Files.isRegularFile(fromUserDir)) {
+			return fromUserDir;
+		}
+		Path fromCwd = Path.of(".env").toAbsolutePath().normalize();
+		if (Files.isRegularFile(fromCwd)) {
+			return fromCwd;
+		}
+		return null;
 	}
 
 	static Map<String, Object> parseDotEnv(Path envFile) {

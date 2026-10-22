@@ -251,6 +251,7 @@ public class AuthConfiguration {
 	 *   <li>Signup email/mdp public (SCRUM-105)</li>
 	 *   <li>Login email/mdp public (SCRUM-117)</li>
 	 *   <li>Forgot / reset-password publics (SCRUM-108 / SCRUM-111)</li>
+	 *   <li>OpenAPI / Swagger UI publics (SCRUM-147) — UI off hors local</li>
 	 *   <li>{@code /api/int/**} authentifié (admin)</li>
 	 * </ul>
 	 */
@@ -266,6 +267,8 @@ public class AuthConfiguration {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/actuator/health", "/actuator/info").permitAll()
 						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+						.requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
+						.requestMatchers("/swagger-ui.html", "/swagger-ui/**").permitAll()
 						.requestMatchers("/api/ext/**").permitAll()
 						.requestMatchers("/api/int/auth/oauth/google", "/api/int/auth/oauth/google/**")
 						.permitAll()

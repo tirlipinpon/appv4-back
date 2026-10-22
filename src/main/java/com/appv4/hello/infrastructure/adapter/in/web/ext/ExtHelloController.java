@@ -11,11 +11,15 @@ import com.appv4.hello.application.result.HelloMessageResult;
 import com.appv4.hello.domain.model.HelloAudience;
 import com.appv4.hello.infrastructure.adapter.in.web.HelloMessageResponse;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 /**
  * API learning — {@code GET /api/ext/hello}.
  */
 @RestController
 @RequestMapping("/api/ext")
+@Tag(name = "Hello — learning")
 public class ExtHelloController {
 
 	private final GetHelloMessageUseCase getHelloMessageUseCase;
@@ -25,6 +29,7 @@ public class ExtHelloController {
 	}
 
 	@GetMapping("/hello")
+	@Operation(summary = "Hello learning (public)")
 	public ResponseEntity<HelloMessageResponse> hello() {
 		HelloMessageResult result = getHelloMessageUseCase.execute(
 				new GetHelloMessageCommand(HelloAudience.LEARNING));

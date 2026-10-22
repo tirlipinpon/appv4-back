@@ -26,6 +26,14 @@ management:
 server:
   port: ${SERVER_PORT:8080}
 
+# OpenAPI (SCRUM-147) — Swagger UI off hors local ; /v3/api-docs reste utile pour le contrat
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: false
+    path: /swagger-ui.html
+
 # JWT admin (/api/int) — surcharger via APPV4_JWT_SECRET en prod (min. 32 octets)
 # Google OAuth (SCRUM-96) — GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET hors git
 appv4:

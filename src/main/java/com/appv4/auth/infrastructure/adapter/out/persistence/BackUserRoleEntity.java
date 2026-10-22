@@ -46,6 +46,10 @@ public class BackUserRoleEntity {
 		this.role = role;
 	}
 
+	public String getRole() {
+		return role;
+	}
+
 	@PrePersist
 	void onCreate() {
 		if (createdAt == null) {

@@ -31,6 +31,8 @@ import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
 import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
 import com.appv4.auth.application.port.in.ResetPasswordUseCase;
 import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
+import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
+import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
@@ -49,6 +51,7 @@ import com.appv4.auth.application.service.LoginWithFacebookService;
 import com.appv4.auth.application.service.LoginWithGoogleService;
 import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
+import com.appv4.auth.application.service.SwitchActiveRoleService;
 import com.appv4.auth.infrastructure.adapter.in.web.JwtAuthenticationFilter;
 import com.appv4.auth.infrastructure.adapter.out.apple.HttpAppleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.facebook.HttpFacebookOAuthClient;
@@ -110,8 +113,8 @@ public class AuthConfiguration {
 	 * Port métier « émettre un JWT » — les use cases login/oauth appelleront ça plus tard.
 	 */
 	@Bean
-	IssueJwtUseCase issueJwtUseCase(JjwtTokenAdapter jjwtTokenAdapter) {
-		return new IssueJwtService(jjwtTokenAdapter);
+	IssueJwtUseCase issueJwtUseCase(JjwtTokenAdapter jjwtTokenAdapter, ActiveRolePort activeRolePort) {
+		return new IssueJwtService(jjwtTokenAdapter, activeRolePort);
 	}
 
 	@Bean
@@ -207,6 +210,16 @@ public class AuthConfiguration {
 			PasswordEncoder passwordEncoder,
 			IssueJwtUseCase issueJwtUseCase) {
 		return new LoginWithEmailService(authUserAccountPort, passwordEncoder, issueJwtUseCase);
+	}
+
+	/**
+	 * Changement d'espace (SCRUM-124) — vérifie le rôle tenu, met à jour le souvenir, nouveau JWT.
+	 */
+	@Bean
+	SwitchActiveRoleUseCase switchActiveRoleUseCase(
+			ActiveRolePort activeRolePort,
+			IssueJwtUseCase issueJwtUseCase) {
+		return new SwitchActiveRoleService(activeRolePort, issueJwtUseCase);
 	}
 
 	@Bean

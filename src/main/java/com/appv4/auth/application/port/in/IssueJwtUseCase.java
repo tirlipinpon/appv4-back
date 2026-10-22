@@ -5,8 +5,10 @@ import com.appv4.auth.application.result.JwtTokenResult;
 /**
  * Port <b>entrant</b> (hexagonal) : cas d'usage « donner un JWT à un user authentifié ».
  *
- * <p>Aujourd'hui surtout utilisé par les tests. Demain : appelé après login email/mdp
- * ou après callback Google/Facebook/Apple.
+ * <p><b>Business :</b> le jeton dit dans quel espace revenir après reconnexion.
+ * <p><b>Technique :</b> claim {@code activeRole} calculé depuis les rôles et
+ * {@code last_active_role}.
+ * <p><b>Métier / flow :</b> appelé après login email, login social et inscription.
  */
 public interface IssueJwtUseCase {
 

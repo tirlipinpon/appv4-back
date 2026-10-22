@@ -1,7 +1,10 @@
 package com.appv4.auth.infrastructure.adapter.out.jwt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +28,7 @@ class JjwtTokenAdapterTest {
 
 	@Test
 	void encodeThenDecodeReturnsSameUser() {
-		JwtTokenResult issued = adapter.encode(42L, "marie@example.com");
+		JwtTokenResult issued = adapter.encode(42L, "marie@example.com", null, List.of());
 
 		assertTrue(issued.token() != null && !issued.token().isBlank());
 		assertTrue(issued.expiresAtEpochSeconds() > 0);
@@ -35,11 +38,24 @@ class JjwtTokenAdapterTest {
 		JwtTokenDecoder.AuthenticatedUser user = decoded.get();
 		assertEquals(42L, user.userId());
 		assertEquals("marie@example.com", user.email());
+		assertNull(user.activeRole());
+		assertEquals(List.of(), user.roles());
+	}
+
+	@Test
+	void encodePutsActiveRoleClaimWhenSpaceIsChosen() {
+		JwtTokenResult issued = adapter.encode(
+				7L, "prof@example.com", "teacher", List.of("parent", "teacher"));
+
+		var decoded = adapter.decode(issued.token());
+		assertTrue(decoded.isPresent());
+		assertEquals("teacher", decoded.get().activeRole());
+		assertEquals(List.of("parent", "teacher"), decoded.get().roles());
 	}
 
 	@Test
 	void decodeRejectsTamperedToken() {
-		JwtTokenResult issued = adapter.encode(1L, "a@b.com");
+		JwtTokenResult issued = adapter.encode(1L, "a@b.com", "parent", List.of("parent"));
 		String tampered = issued.token() + "x";
 
 		assertTrue(adapter.decode(tampered).isEmpty());

@@ -20,20 +20,26 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.appv4.auth.application.port.in.BuildAppleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.BuildFacebookAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.BuildGoogleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
+import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
 import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
+import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
+import com.appv4.auth.application.service.BuildAppleAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildFacebookAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildGoogleAuthorizeUrlService;
 import com.appv4.auth.application.service.IssueJwtService;
+import com.appv4.auth.application.service.LoginWithAppleService;
 import com.appv4.auth.application.service.LoginWithFacebookService;
 import com.appv4.auth.application.service.LoginWithGoogleService;
 import com.appv4.auth.infrastructure.adapter.in.web.JwtAuthenticationFilter;
+import com.appv4.auth.infrastructure.adapter.out.apple.HttpAppleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.facebook.HttpFacebookOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.google.HttpGoogleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
@@ -63,7 +69,8 @@ import com.appv4.configuration.CorsProperties;
 @EnableConfigurationProperties({
 		JwtProperties.class,
 		GoogleOAuthProperties.class,
-		FacebookOAuthProperties.class })
+		FacebookOAuthProperties.class,
+		AppleOAuthProperties.class })
 public class AuthConfiguration {
 
 	/**
@@ -145,6 +152,26 @@ public class AuthConfiguration {
 		return new LoginWithFacebookService(facebookOAuthClient, authUserAccountPort, issueJwtUseCase);
 	}
 
+	@Bean
+	AppleOAuthClient appleOAuthClient(
+			AppleOAuthProperties appleOAuthProperties,
+			RestClient.Builder restClientBuilder) {
+		return new HttpAppleOAuthClient(appleOAuthProperties, restClientBuilder);
+	}
+
+	@Bean
+	BuildAppleAuthorizeUrlUseCase buildAppleAuthorizeUrlUseCase(AppleOAuthProperties appleOAuthProperties) {
+		return new BuildAppleAuthorizeUrlService(appleOAuthProperties);
+	}
+
+	@Bean
+	LoginWithAppleUseCase loginWithAppleUseCase(
+			AppleOAuthClient appleOAuthClient,
+			AuthUserAccountPort authUserAccountPort,
+			IssueJwtUseCase issueJwtUseCase) {
+		return new LoginWithAppleService(appleOAuthClient, authUserAccountPort, issueJwtUseCase);
+	}
+
 	/**
 	 * Règles de sécurité HTTP.
 	 *
@@ -154,7 +181,7 @@ public class AuthConfiguration {
 	 *   <li>health/info publics : pour Docker / Azure / monitoring</li>
 	 *   <li>OPTIONS publics : préflight CORS navigateur</li>
 	 *   <li>{@code /api/ext/**} public temporairement (learning)</li>
-	 *   <li>OAuth Google / Facebook publics : authorize-url + échange code</li>
+	 *   <li>OAuth Google / Facebook / Apple publics : authorize-url + échange code</li>
 	 *   <li>{@code /api/int/**} authentifié (admin)</li>
 	 * </ul>
 	 */
@@ -175,7 +202,9 @@ public class AuthConfiguration {
 						.permitAll()
 						.requestMatchers("/api/int/auth/oauth/facebook", "/api/int/auth/oauth/facebook/**")
 						.permitAll()
-						// Plus tard : signup / login email / forgot / apple en permitAll
+						.requestMatchers("/api/int/auth/oauth/apple", "/api/int/auth/oauth/apple/**")
+						.permitAll()
+						// Plus tard : signup / login email / forgot en permitAll
 						.requestMatchers("/api/int/**").authenticated()
 						.anyRequest().permitAll())
 				.httpBasic(AbstractHttpConfigurer::disable)

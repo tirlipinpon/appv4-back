@@ -40,4 +40,9 @@ appv4:
     facebook:
       app-id: ${FACEBOOK_APP_ID:}
       app-secret: ${FACEBOOK_APP_SECRET:}
+    apple:
+      client-id: ${APPLE_CLIENT_ID:}
+      team-id: ${APPLE_TEAM_ID:}
+      key-id: ${APPLE_KEY_ID:}
+      private-key: ${APPLE_PRIVATE_KEY:}
 

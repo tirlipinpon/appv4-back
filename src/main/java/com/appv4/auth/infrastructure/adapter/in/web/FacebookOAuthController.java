@@ -1,0 +1,63 @@
+package com.appv4.auth.infrastructure.adapter.in.web;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.appv4.auth.application.port.in.BuildFacebookAuthorizeUrlUseCase;
+import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
+import com.appv4.auth.application.result.JwtTokenResult;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+
+/**
+ * Endpoints publics OAuth Facebook (SCRUM-99).
+ *
+ * <p><b>Business :</b> même flux SPA que Google — bouton FE → Facebook → callback → JWT.
+ * <p><b>Technique :</b> {@code GET .../authorize-url} + {@code POST .../facebook}.
+ * Redirect FE typique : {@code http://localhost:4201/auth/callback/facebook}.
+ */
+@RestController
+@RequestMapping("/api/int/auth/oauth/facebook")
+public class FacebookOAuthController {
+
+	private final BuildFacebookAuthorizeUrlUseCase buildFacebookAuthorizeUrlUseCase;
+	private final LoginWithFacebookUseCase loginWithFacebookUseCase;
+
+	public FacebookOAuthController(
+			BuildFacebookAuthorizeUrlUseCase buildFacebookAuthorizeUrlUseCase,
+			LoginWithFacebookUseCase loginWithFacebookUseCase) {
+		this.buildFacebookAuthorizeUrlUseCase = buildFacebookAuthorizeUrlUseCase;
+		this.loginWithFacebookUseCase = loginWithFacebookUseCase;
+	}
+
+	@GetMapping("/authorize-url")
+	public ResponseEntity<AuthorizeUrlResponse> authorizeUrl(@RequestParam String redirectUri) {
+		String url = buildFacebookAuthorizeUrlUseCase.build(redirectUri);
+		return ResponseEntity.ok(new AuthorizeUrlResponse(url));
+	}
+
+	@PostMapping
+	public ResponseEntity<JwtTokenResponse> login(@Valid @RequestBody FacebookLoginRequest request) {
+		JwtTokenResult result = loginWithFacebookUseCase.login(
+				request.authorizationCode(),
+				request.redirectUri());
+		return ResponseEntity.ok(new JwtTokenResponse(result.token(), result.expiresAtEpochSeconds()));
+	}
+
+	public record AuthorizeUrlResponse(String authorizationUrl) {
+	}
+
+	public record FacebookLoginRequest(
+			@NotBlank String authorizationCode,
+			@NotBlank String redirectUri) {
+	}
+
+	public record JwtTokenResponse(String token, long expiresAtEpochSeconds) {
+	}
+}

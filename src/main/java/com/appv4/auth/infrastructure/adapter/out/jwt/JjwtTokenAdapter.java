@@ -13,6 +13,7 @@ import com.appv4.auth.application.result.JwtTokenResult;
 import com.appv4.auth.infrastructure.config.JwtProperties;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -46,22 +47,25 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 	/**
 	 * Crée un JWT signé.
 	 *
-	 * @param userId id {@code back_users.id}
-	 * @param email  email normalisé (minuscules côté métier plus tard)
+	 * @param userId     id {@code back_users.id}
+	 * @param email      email du compte
+	 * @param activeRole espace choisi, ou {@code null} pour omettre le claim
 	 */
 	@Override
-	public JwtTokenResult encode(long userId, String email) {
+	public JwtTokenResult encode(long userId, String email, String activeRole) {
 		Instant now = Instant.now();
 		Instant expiresAt = now.plusSeconds(properties.getExpirationMinutes() * 60);
-		String token = Jwts.builder()
+		JwtBuilder builder = Jwts.builder()
 				.issuer(properties.getIssuer())
 				// subject = identifiant principal du token (convention JWT)
 				.subject(Long.toString(userId))
 				.claim("email", email)
 				.issuedAt(Date.from(now))
-				.expiration(Date.from(expiresAt))
-				.signWith(secretKey)
-				.compact();
+				.expiration(Date.from(expiresAt));
+		if (activeRole != null && !activeRole.isBlank()) {
+			builder.claim("activeRole", activeRole);
+		}
+		String token = builder.signWith(secretKey).compact();
 		return new JwtTokenResult(token, expiresAt.getEpochSecond());
 	}
 
@@ -85,7 +89,11 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 			if (email == null || email.isBlank()) {
 				return Optional.empty();
 			}
-			return Optional.of(new AuthenticatedUser(userId, email));
+			String activeRole = claims.get("activeRole", String.class);
+			if (activeRole != null && activeRole.isBlank()) {
+				activeRole = null;
+			}
+			return Optional.of(new AuthenticatedUser(userId, email, activeRole));
 		} catch (JwtException | IllegalArgumentException ex) {
 			return Optional.empty();
 		}

@@ -16,9 +16,11 @@ public interface JwtTokenDecoder {
 	Optional<AuthenticatedUser> decode(String rawToken);
 
 	/**
-	 * Identité extraite d'un JWT valide (claims sub / email).
-	 * Les rôles métier (parent/teacher/admin) arriveront plus tard.
+	 * Identité extraite d'un JWT valide.
+	 *
+	 * <p>{@code activeRole} est {@code null} quand le jeton ne choisit pas d'espace
+	 * (deux rôles sans souvenir, ou ancien jeton).
 	 */
-	record AuthenticatedUser(long userId, String email) {
+	record AuthenticatedUser(long userId, String email, String activeRole) {
 	}
 }

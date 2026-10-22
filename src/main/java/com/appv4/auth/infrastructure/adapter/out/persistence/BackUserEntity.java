@@ -41,6 +41,10 @@ public class BackUserEntity {
 	@Column(name = "is_active", nullable = false)
 	private boolean active = true;
 
+	/** Dernier espace ouvert : {@code parent}, {@code teacher}, ou null (SCRUM-124). */
+	@Column(name = "last_active_role", length = 32)
+	private String lastActiveRole;
+
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 
@@ -97,6 +101,14 @@ public class BackUserEntity {
 
 	public void setActive(boolean active) {
 		this.active = active;
+	}
+
+	public String getLastActiveRole() {
+		return lastActiveRole;
+	}
+
+	public void setLastActiveRole(String lastActiveRole) {
+		this.lastActiveRole = lastActiveRole;
 	}
 
 	public Instant getCreatedAt() {

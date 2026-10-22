@@ -37,6 +37,7 @@ import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
+import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.service.BuildAppleAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildFacebookAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildGoogleAuthorizeUrlService;
@@ -190,9 +191,11 @@ public class AuthConfiguration {
 	@Bean
 	SignupWithEmailUseCase signupWithEmailUseCase(
 			AuthUserAccountPort authUserAccountPort,
+			SignupRolePort signupRolePort,
 			PasswordEncoder passwordEncoder,
 			IssueJwtUseCase issueJwtUseCase) {
-		return new SignupWithEmailService(authUserAccountPort, passwordEncoder, issueJwtUseCase);
+		return new SignupWithEmailService(
+				authUserAccountPort, signupRolePort, passwordEncoder, issueJwtUseCase);
 	}
 
 	/**

@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserSignupState;
 
@@ -31,6 +32,9 @@ class SignupControllerTest {
 	@MockBean
 	private AuthUserAccountPort authUserAccountPort;
 
+	@MockBean
+	private SignupRolePort signupRolePort;
+
 	@Test
 	void signupReturnsCreatedAndJwt() throws Exception {
 		when(authUserAccountPort.findSignupStateByEmail("new@example.com")).thenReturn(Optional.empty());
@@ -40,9 +44,8 @@ class SignupControllerTest {
 
 		mockMvc.perform(post("/api/int/auth/signup")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("""
-								{"email":"new@example.com","password":"Secret1!","displayName":"New"}
-								"""))
+						.content("{\"email\":\"new@example.com\",\"password\":\"Secret1!\","
+								+ "\"displayName\":\"New\",\"roles\":[\"parent\"]}"))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.token").isNotEmpty())
 				.andExpect(jsonPath("$.expiresAtEpochSeconds").isNumber());
@@ -56,9 +59,8 @@ class SignupControllerTest {
 
 		mockMvc.perform(post("/api/int/auth/signup")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("""
-								{"email":"social@example.com","password":"Secret1!","displayName":"S"}
-								"""))
+						.content("{\"email\":\"social@example.com\",\"password\":\"Secret1!\","
+								+ "\"displayName\":\"S\",\"roles\":[\"parent\"]}"))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Google")));
 	}

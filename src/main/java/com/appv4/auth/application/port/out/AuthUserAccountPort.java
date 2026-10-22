@@ -42,6 +42,11 @@ public interface AuthUserAccountPort {
 	 */
 	void updatePasswordHash(long userId, String passwordHash);
 
+	/**
+	 * Compte actif pour login email/mdp (SCRUM-117) — inclut le hash (peut être null si social pur).
+	 */
+	Optional<AuthUserLoginCandidate> findLoginCandidateByEmail(String email);
+
 	record AuthUserAccount(long id, String email, String displayName, boolean active) {
 	}
 
@@ -50,5 +55,8 @@ public interface AuthUserAccountPort {
 			String email,
 			boolean hasPassword,
 			List<String> socialProviders) {
+	}
+
+	record AuthUserLoginCandidate(long id, String email, String passwordHash, boolean active) {
 	}
 }

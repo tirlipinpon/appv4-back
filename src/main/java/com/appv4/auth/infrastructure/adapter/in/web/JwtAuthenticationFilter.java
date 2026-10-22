@@ -17,7 +17,17 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * Lit {@code Authorization: Bearer} et peuple le SecurityContext.
+ * Filtre HTTP exécuté sur chaque requête.
+ *
+ * <p><b>Métier :</b> si le front envoie un jeton de session (JWT), on reconnaît
+ * l'utilisateur pour cette requête. Sinon on ne bloque pas ici : c'est
+ * {@code SecurityFilterChain} qui renverra 401 sur {@code /api/int/**}.
+ *
+ * <p><b>Technique :</b> pattern {@link OncePerRequestFilter} (une fois par requête).
+ * Header attendu : {@code Authorization: Bearer eyJhbGciOi...}
+ *
+ * <p>Si le token est invalide / expiré : on n'authentifie pas (Optional vide)
+ * → la chaîne Security traitera la requête comme anonyme.
  */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -34,8 +44,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			FilterChain filterChain) throws ServletException, IOException {
 		String header = request.getHeader(HttpHeaders.AUTHORIZATION);
 		if (header != null && header.startsWith("Bearer ")) {
+			// "Bearer " = 7 caractères → le reste est le JWT brut
 			String raw = header.substring(7).trim();
 			jwtTokenDecoder.decode(raw).ifPresent(user -> {
+				// Objet Spring Security = « cet utilisateur est authentifié pour cette requête »
 				var auth = new UsernamePasswordAuthenticationToken(
 						user,
 						null,
@@ -43,6 +55,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 				SecurityContextHolder.getContext().setAuthentication(auth);
 			});
 		}
+		// Toujours continuer la chaîne (controllers, autres filtres…)
 		filterChain.doFilter(request, response);
 	}
 }

@@ -15,7 +15,10 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
 /**
- * Entité JPA — {@code back_user_identities}.
+ * Mapping JPA de {@code back_user_identities}.
+ *
+ * <p><b>Métier :</b> « ce compte Google/Facebook/Apple est lié à tel {@code back_users} ».
+ * {@code provider_subject} = l'id stable chez le provider (pas l'email, qui peut changer).
  */
 @Entity
 @Table(

@@ -12,7 +12,13 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 /**
- * Entité JPA — {@code back_users}.
+ * Mapping JPA de la table {@code back_users}.
+ *
+ * <p><b>Métier :</b> un compte admin (parent/prof). Pas encore de signup ici :
+ * la table est créée pour les prochains tickets ; Hibernate valide le schéma.
+ *
+ * <p><b>Important :</b> ce n'est PAS un objet du domaine hexagonal — c'est un
+ * adaptateur persistence. Le domaine aura un modèle {@code User} plus tard.
  */
 @Entity
 @Table(name = "back_users")
@@ -25,6 +31,7 @@ public class BackUserEntity {
 	@Column(nullable = false, unique = true, length = 320)
 	private String email;
 
+	/** Hash BCrypt/Argon2 — jamais le mot de passe en clair. NULL si compte social pur. */
 	@Column(name = "password_hash", length = 255)
 	private String passwordHash;
 

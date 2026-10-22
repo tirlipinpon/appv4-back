@@ -27,8 +27,14 @@ server:
   port: ${SERVER_PORT:8080}
 
 # JWT admin (/api/int) — surcharger via APPV4_JWT_SECRET en prod (min. 32 octets)
+# Google OAuth (SCRUM-96) — GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET hors git
 appv4:
   jwt:
     secret: ${APPV4_JWT_SECRET:appv4-local-dev-jwt-secret-change-me-32b}
     issuer: ${APPV4_JWT_ISSUER:appv4-back}
     expiration-minutes: ${APPV4_JWT_EXPIRATION_MINUTES:480}
+  oauth:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+

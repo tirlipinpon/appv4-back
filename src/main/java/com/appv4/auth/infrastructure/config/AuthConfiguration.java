@@ -15,13 +15,21 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.appv4.auth.application.port.in.BuildGoogleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
+import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
+import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.GoogleOAuthClient;
+import com.appv4.auth.application.service.BuildGoogleAuthorizeUrlService;
 import com.appv4.auth.application.service.IssueJwtService;
+import com.appv4.auth.application.service.LoginWithGoogleService;
 import com.appv4.auth.infrastructure.adapter.in.web.JwtAuthenticationFilter;
+import com.appv4.auth.infrastructure.adapter.out.google.HttpGoogleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
 import com.appv4.configuration.CorsProperties;
 
@@ -46,7 +54,7 @@ import com.appv4.configuration.CorsProperties;
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({ JwtProperties.class, GoogleOAuthProperties.class })
 public class AuthConfiguration {
 
 	/**
@@ -82,6 +90,31 @@ public class AuthConfiguration {
 		return new JwtAuthenticationFilter(jjwtTokenAdapter);
 	}
 
+	@Bean
+	RestClient.Builder restClientBuilder() {
+		return RestClient.builder();
+	}
+
+	@Bean
+	GoogleOAuthClient googleOAuthClient(
+			GoogleOAuthProperties googleOAuthProperties,
+			RestClient.Builder restClientBuilder) {
+		return new HttpGoogleOAuthClient(googleOAuthProperties, restClientBuilder);
+	}
+
+	@Bean
+	BuildGoogleAuthorizeUrlUseCase buildGoogleAuthorizeUrlUseCase(GoogleOAuthProperties googleOAuthProperties) {
+		return new BuildGoogleAuthorizeUrlService(googleOAuthProperties);
+	}
+
+	@Bean
+	LoginWithGoogleUseCase loginWithGoogleUseCase(
+			GoogleOAuthClient googleOAuthClient,
+			AuthUserAccountPort authUserAccountPort,
+			IssueJwtUseCase issueJwtUseCase) {
+		return new LoginWithGoogleService(googleOAuthClient, authUserAccountPort, issueJwtUseCase);
+	}
+
 	/**
 	 * Règles de sécurité HTTP.
 	 *
@@ -91,6 +124,7 @@ public class AuthConfiguration {
 	 *   <li>health/info publics : pour Docker / Azure / monitoring</li>
 	 *   <li>OPTIONS publics : préflight CORS navigateur</li>
 	 *   <li>{@code /api/ext/**} public temporairement (learning)</li>
+	 *   <li>OAuth Google public (SCRUM-96) : authorize-url + échange code</li>
 	 *   <li>{@code /api/int/**} authentifié (admin)</li>
 	 * </ul>
 	 */
@@ -107,8 +141,8 @@ public class AuthConfiguration {
 						.requestMatchers("/actuator/health", "/actuator/info").permitAll()
 						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 						.requestMatchers("/api/ext/**").permitAll()
-						// Plus tard (signup/login/oauth/forgot) : ajouter ici en permitAll
-						// .requestMatchers("/api/int/auth/signup", "/api/int/auth/login", ...).permitAll()
+						.requestMatchers("/api/int/auth/oauth/google", "/api/int/auth/oauth/google/**").permitAll()
+						// Plus tard : signup / login email / forgot en permitAll
 						.requestMatchers("/api/int/**").authenticated()
 						.anyRequest().permitAll())
 				.httpBasic(AbstractHttpConfigurer::disable)

@@ -117,6 +117,18 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 		userRepository.save(user);
 	}
 
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<AuthUserLoginCandidate> findLoginCandidateByEmail(String email) {
+		return userRepository.findByEmail(email)
+				.filter(BackUserEntity::isActive)
+				.map(user -> new AuthUserLoginCandidate(
+						user.getId(),
+						user.getEmail(),
+						user.getPasswordHash(),
+						user.isActive()));
+	}
+
 	private AuthUserAccount toAccount(BackUserEntity user) {
 		return new AuthUserAccount(user.getId(), user.getEmail(), user.getDisplayName(), user.isActive());
 	}

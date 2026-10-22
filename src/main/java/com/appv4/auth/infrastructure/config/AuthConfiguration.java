@@ -26,6 +26,7 @@ import com.appv4.auth.application.port.in.BuildGoogleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
+import com.appv4.auth.application.port.in.LoginWithEmailUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
 import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
 import com.appv4.auth.application.port.in.ResetPasswordUseCase;
@@ -42,6 +43,7 @@ import com.appv4.auth.application.service.BuildGoogleAuthorizeUrlService;
 import com.appv4.auth.application.service.ForgotPasswordService;
 import com.appv4.auth.application.service.IssueJwtService;
 import com.appv4.auth.application.service.LoginWithAppleService;
+import com.appv4.auth.application.service.LoginWithEmailService;
 import com.appv4.auth.application.service.LoginWithFacebookService;
 import com.appv4.auth.application.service.LoginWithGoogleService;
 import com.appv4.auth.application.service.ResetPasswordService;
@@ -193,6 +195,17 @@ public class AuthConfiguration {
 		return new SignupWithEmailService(authUserAccountPort, passwordEncoder, issueJwtUseCase);
 	}
 
+	/**
+	 * Login email/mdp (SCRUM-117) — BCrypt + JWT ; 401 message unique si échec.
+	 */
+	@Bean
+	LoginWithEmailUseCase loginWithEmailUseCase(
+			AuthUserAccountPort authUserAccountPort,
+			PasswordEncoder passwordEncoder,
+			IssueJwtUseCase issueJwtUseCase) {
+		return new LoginWithEmailService(authUserAccountPort, passwordEncoder, issueJwtUseCase);
+	}
+
 	@Bean
 	PasswordResetMailPort passwordResetMailPort() {
 		return new LoggingPasswordResetMailAdapter();
@@ -236,6 +249,7 @@ public class AuthConfiguration {
 	 *   <li>{@code /api/ext/**} public temporairement (learning)</li>
 	 *   <li>OAuth Google / Facebook / Apple publics : authorize-url + échange code</li>
 	 *   <li>Signup email/mdp public (SCRUM-105)</li>
+	 *   <li>Login email/mdp public (SCRUM-117)</li>
 	 *   <li>Forgot / reset-password publics (SCRUM-108 / SCRUM-111)</li>
 	 *   <li>{@code /api/int/**} authentifié (admin)</li>
 	 * </ul>
@@ -260,9 +274,9 @@ public class AuthConfiguration {
 						.requestMatchers("/api/int/auth/oauth/apple", "/api/int/auth/oauth/apple/**")
 						.permitAll()
 						.requestMatchers("/api/int/auth/signup").permitAll()
+						.requestMatchers("/api/int/auth/login").permitAll()
 						.requestMatchers("/api/int/auth/forgot-password").permitAll()
 						.requestMatchers("/api/int/auth/reset-password").permitAll()
-						// Plus tard : login email en permitAll
 						.requestMatchers("/api/int/**").authenticated()
 						.anyRequest().permitAll())
 				.httpBasic(AbstractHttpConfigurer::disable)

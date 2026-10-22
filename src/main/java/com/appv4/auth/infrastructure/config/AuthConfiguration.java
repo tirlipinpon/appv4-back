@@ -27,6 +27,7 @@ import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
 import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
+import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
@@ -38,6 +39,7 @@ import com.appv4.auth.application.service.IssueJwtService;
 import com.appv4.auth.application.service.LoginWithAppleService;
 import com.appv4.auth.application.service.LoginWithFacebookService;
 import com.appv4.auth.application.service.LoginWithGoogleService;
+import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.infrastructure.adapter.in.web.JwtAuthenticationFilter;
 import com.appv4.auth.infrastructure.adapter.out.apple.HttpAppleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.facebook.HttpFacebookOAuthClient;
@@ -173,6 +175,17 @@ public class AuthConfiguration {
 	}
 
 	/**
+	 * Inscription email/mdp (SCRUM-105) — hash BCrypt + JWT.
+	 */
+	@Bean
+	SignupWithEmailUseCase signupWithEmailUseCase(
+			AuthUserAccountPort authUserAccountPort,
+			PasswordEncoder passwordEncoder,
+			IssueJwtUseCase issueJwtUseCase) {
+		return new SignupWithEmailService(authUserAccountPort, passwordEncoder, issueJwtUseCase);
+	}
+
+	/**
 	 * Règles de sécurité HTTP.
 	 *
 	 * <ul>
@@ -182,6 +195,7 @@ public class AuthConfiguration {
 	 *   <li>OPTIONS publics : préflight CORS navigateur</li>
 	 *   <li>{@code /api/ext/**} public temporairement (learning)</li>
 	 *   <li>OAuth Google / Facebook / Apple publics : authorize-url + échange code</li>
+	 *   <li>Signup email/mdp public (SCRUM-105)</li>
 	 *   <li>{@code /api/int/**} authentifié (admin)</li>
 	 * </ul>
 	 */
@@ -204,7 +218,8 @@ public class AuthConfiguration {
 						.permitAll()
 						.requestMatchers("/api/int/auth/oauth/apple", "/api/int/auth/oauth/apple/**")
 						.permitAll()
-						// Plus tard : signup / login email / forgot en permitAll
+						.requestMatchers("/api/int/auth/signup").permitAll()
+						// Plus tard : login email / forgot en permitAll
 						.requestMatchers("/api/int/**").authenticated()
 						.anyRequest().permitAll())
 				.httpBasic(AbstractHttpConfigurer::disable)

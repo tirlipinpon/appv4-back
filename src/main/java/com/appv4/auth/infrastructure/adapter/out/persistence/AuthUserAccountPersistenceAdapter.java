@@ -1,5 +1,6 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
@@ -39,6 +40,19 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public Optional<AuthUserSignupState> findSignupStateByEmail(String email) {
+		return userRepository.findByEmail(email).map(user -> {
+			boolean hasPassword = user.getPasswordHash() != null && !user.getPasswordHash().isBlank();
+			List<String> providers = identityRepository.findByUserId(user.getId()).stream()
+					.map(BackUserIdentityEntity::getProvider)
+					.sorted()
+					.toList();
+			return new AuthUserSignupState(user.getId(), user.getEmail(), hasPassword, providers);
+		});
+	}
+
+	@Override
 	@Transactional
 	public AuthUserAccount createWithIdentity(
 			String email,
@@ -61,6 +75,17 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 		identityRepository.save(identity);
 
 		return toAccount(saved);
+	}
+
+	@Override
+	@Transactional
+	public AuthUserAccount createWithPassword(String email, String displayName, String passwordHash) {
+		BackUserEntity user = new BackUserEntity();
+		user.setEmail(email);
+		user.setDisplayName(displayName);
+		user.setActive(true);
+		user.setPasswordHash(passwordHash);
+		return toAccount(userRepository.save(user));
 	}
 
 	@Override

@@ -32,8 +32,8 @@ public class IntHelloController {
 	}
 
 	@GetMapping("/hello")
-	@Operation(summary = "Hello admin (JWT requis)")
-	public ResponseEntity<HelloMessageResponse> hello() {
+	@Operation(operationId = "getAdminHello", summary = "Hello admin (JWT requis)")
+	public ResponseEntity<HelloMessageResponse> getAdminHello() {
 		HelloMessageResult result = getHelloMessageUseCase.execute(
 				new GetHelloMessageCommand(HelloAudience.ADMIN));
 		return ResponseEntity.ok(new HelloMessageResponse(result.text()));

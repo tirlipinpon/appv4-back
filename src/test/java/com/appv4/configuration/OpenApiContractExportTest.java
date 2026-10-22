@@ -42,9 +42,14 @@ class OpenApiContractExportTest {
 				.contains("/api/int/hello")
 				.contains("/api/ext/hello");
 
-		Path out = Path.of("target", "openapi.json");
-		Files.createDirectories(out.getParent());
-		Files.writeString(out, body);
-		assertThat(out).exists().isRegularFile();
+		// Artefact CI (target/) + contrat versionné pour le front (openapi/)
+		Path targetOut = Path.of("target", "openapi.json");
+		Path repoOut = Path.of("openapi", "openapi.json");
+		Files.createDirectories(targetOut.getParent());
+		Files.createDirectories(repoOut.getParent());
+		Files.writeString(targetOut, body);
+		Files.writeString(repoOut, body);
+		assertThat(targetOut).exists().isRegularFile();
+		assertThat(repoOut).exists().isRegularFile();
 	}
 }

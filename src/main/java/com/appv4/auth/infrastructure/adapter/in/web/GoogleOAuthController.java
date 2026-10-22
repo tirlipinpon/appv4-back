@@ -44,32 +44,25 @@ public class GoogleOAuthController {
 	}
 
 	@GetMapping("/authorize-url")
-	@Operation(summary = "URL d'autorisation Google")
-	public ResponseEntity<AuthorizeUrlResponse> authorizeUrl(@RequestParam String redirectUri) {
+	@Operation(operationId = "getGoogleAuthorizeUrl", summary = "URL d'autorisation Google")
+	public ResponseEntity<AuthorizeUrlResponse> getGoogleAuthorizeUrl(@RequestParam String redirectUri) {
 		String url = buildGoogleAuthorizeUrlUseCase.build(redirectUri);
 		return ResponseEntity.ok(new AuthorizeUrlResponse(url));
 	}
 
 	@PostMapping
-	@Operation(summary = "Échanger le code Google contre un JWT")
-	public ResponseEntity<JwtTokenResponse> login(@Valid @RequestBody GoogleLoginRequest request) {
+	@Operation(operationId = "loginWithGoogle", summary = "Échanger le code Google contre un JWT")
+	public ResponseEntity<JwtTokenResponse> loginWithGoogle(
+			@Valid @RequestBody GoogleLoginRequest request) {
 		JwtTokenResult result = loginWithGoogleUseCase.login(
 				request.authorizationCode(),
 				request.redirectUri());
 		return ResponseEntity.ok(new JwtTokenResponse(result.token(), result.expiresAtEpochSeconds()));
 	}
 
-	@Schema(name = "AuthorizeUrlResponse")
-	public record AuthorizeUrlResponse(String authorizationUrl) {
-	}
-
 	@Schema(name = "GoogleLoginRequest")
 	public record GoogleLoginRequest(
 			@NotBlank String authorizationCode,
 			@NotBlank String redirectUri) {
-	}
-
-	@Schema(name = "JwtTokenResponse")
-	public record JwtTokenResponse(String token, long expiresAtEpochSeconds) {
 	}
 }

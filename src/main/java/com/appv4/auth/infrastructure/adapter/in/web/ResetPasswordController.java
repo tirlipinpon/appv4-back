@@ -34,19 +34,16 @@ public class ResetPasswordController {
 	}
 
 	@PostMapping
-	@Operation(summary = "Appliquer un nouveau mot de passe via jeton")
-	public ResponseEntity<MessageResponse> reset(@Valid @RequestBody ResetPasswordRequest request) {
+	@Operation(operationId = "resetPassword", summary = "Appliquer un nouveau mot de passe via jeton")
+	public ResponseEntity<AuthMessageResponse> resetPassword(
+			@Valid @RequestBody ResetPasswordRequest request) {
 		resetPasswordUseCase.reset(request.token(), request.newPassword());
-		return ResponseEntity.ok(new MessageResponse(ResetPasswordService.SUCCESS_MESSAGE));
+		return ResponseEntity.ok(new AuthMessageResponse(ResetPasswordService.SUCCESS_MESSAGE));
 	}
 
 	@Schema(name = "ResetPasswordRequest")
 	public record ResetPasswordRequest(
 			@NotBlank String token,
 			@NotBlank String newPassword) {
-	}
-
-	@Schema(name = "AuthMessageResponse")
-	public record MessageResponse(String message) {
 	}
 }

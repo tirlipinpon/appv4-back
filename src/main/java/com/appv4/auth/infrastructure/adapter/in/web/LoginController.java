@@ -37,13 +37,13 @@ public class LoginController {
 	}
 
 	@PostMapping
-	@Operation(summary = "Connexion email / mot de passe")
+	@Operation(operationId = "loginWithEmail", summary = "Connexion email / mot de passe")
 	@ApiResponse(responseCode = "200", description = "JWT émis")
 	@ApiResponse(
 			responseCode = "401",
 			description = "Email ou mdp invalide (message unique anti-énumération)",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
-	public ResponseEntity<JwtTokenResponse> login(@Valid @RequestBody LoginRequest request) {
+	public ResponseEntity<JwtTokenResponse> loginWithEmail(@Valid @RequestBody LoginRequest request) {
 		JwtTokenResult result = loginWithEmailUseCase.login(request.email(), request.password());
 		return ResponseEntity.ok(new JwtTokenResponse(result.token(), result.expiresAtEpochSeconds()));
 	}
@@ -52,9 +52,5 @@ public class LoginController {
 	public record LoginRequest(
 			@NotBlank @Email String email,
 			@NotBlank String password) {
-	}
-
-	@Schema(name = "JwtTokenResponse")
-	public record JwtTokenResponse(String token, long expiresAtEpochSeconds) {
 	}
 }

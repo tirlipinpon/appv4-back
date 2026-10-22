@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
 import com.appv4.auth.application.result.JwtTokenResult;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -25,6 +28,7 @@ import jakarta.validation.constraints.NotBlank;
  */
 @RestController
 @RequestMapping("/api/int/auth/signup")
+@Tag(name = "Auth — signup email")
 public class SignupController {
 
 	private final SignupWithEmailUseCase signupWithEmailUseCase;
@@ -34,6 +38,7 @@ public class SignupController {
 	}
 
 	@PostMapping
+	@Operation(summary = "Inscription email / mot de passe")
 	public ResponseEntity<JwtTokenResponse> signup(@Valid @RequestBody SignupRequest request) {
 		JwtTokenResult result = signupWithEmailUseCase.signup(
 				request.email(),
@@ -43,12 +48,14 @@ public class SignupController {
 				.body(new JwtTokenResponse(result.token(), result.expiresAtEpochSeconds()));
 	}
 
+	@Schema(name = "SignupRequest")
 	public record SignupRequest(
 			@NotBlank @Email String email,
 			@NotBlank String password,
 			String displayName) {
 	}
 
+	@Schema(name = "JwtTokenResponse")
 	public record JwtTokenResponse(String token, long expiresAtEpochSeconds) {
 	}
 }

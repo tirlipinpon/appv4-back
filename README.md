@@ -151,6 +151,8 @@ Avec Postgres + `.\mvnw.cmd spring-boot:run` :
 
 - [http://localhost:8080/api/ext/hello](http://localhost:8080/api/ext/hello) → `{"text":"hello learning"}`
 - [http://localhost:8080/api/int/hello](http://localhost:8080/api/int/hello) → `{"text":"admin-helloworld"}`
+- OpenAPI (SCRUM-147) : [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs)
+- Swagger UI (profil `local` seulement) : [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
 
 ## Tickets liés
 

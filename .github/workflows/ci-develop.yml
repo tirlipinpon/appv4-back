@@ -50,5 +50,13 @@ jobs:
       - name: Run tests
         run: ./mvnw -B test
 
+      - name: Upload OpenAPI contract
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-json
+          path: target/openapi.json
+          if-no-files-found: error
+
       - name: Package
         run: ./mvnw -B -DskipTests package

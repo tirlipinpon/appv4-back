@@ -26,6 +26,11 @@ appv4:
       token-ttl: 45m
       frontend-reset-url: http://localhost:4201/reset-password
 
+# Swagger UI uniquement en local (SCRUM-147)
+springdoc:
+  swagger-ui:
+    enabled: true
+
 logging:
   level:
     org.hibernate.SQL: INFO

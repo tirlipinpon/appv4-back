@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * Mappe les erreurs métier auth → HTTP + corps JSON simple.
  */
@@ -28,6 +30,7 @@ public class AuthExceptionHandler {
 		return ResponseEntity.badRequest().body(new ErrorBody("Requête invalide"));
 	}
 
+	@Schema(name = "AuthErrorBody")
 	public record ErrorBody(String message) {
 	}
 }

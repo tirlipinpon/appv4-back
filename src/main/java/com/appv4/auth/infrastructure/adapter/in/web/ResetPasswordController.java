@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.appv4.auth.application.port.in.ResetPasswordUseCase;
 import com.appv4.auth.application.service.ResetPasswordService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
@@ -21,6 +24,7 @@ import jakarta.validation.constraints.NotBlank;
  */
 @RestController
 @RequestMapping("/api/int/auth/reset-password")
+@Tag(name = "Auth — password reset")
 public class ResetPasswordController {
 
 	private final ResetPasswordUseCase resetPasswordUseCase;
@@ -30,16 +34,19 @@ public class ResetPasswordController {
 	}
 
 	@PostMapping
+	@Operation(summary = "Appliquer un nouveau mot de passe via jeton")
 	public ResponseEntity<MessageResponse> reset(@Valid @RequestBody ResetPasswordRequest request) {
 		resetPasswordUseCase.reset(request.token(), request.newPassword());
 		return ResponseEntity.ok(new MessageResponse(ResetPasswordService.SUCCESS_MESSAGE));
 	}
 
+	@Schema(name = "ResetPasswordRequest")
 	public record ResetPasswordRequest(
 			@NotBlank String token,
 			@NotBlank String newPassword) {
 	}
 
+	@Schema(name = "AuthMessageResponse")
 	public record MessageResponse(String message) {
 	}
 }

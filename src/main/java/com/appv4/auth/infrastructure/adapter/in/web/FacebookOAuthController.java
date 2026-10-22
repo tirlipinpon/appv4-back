@@ -12,6 +12,9 @@ import com.appv4.auth.application.port.in.BuildFacebookAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
 import com.appv4.auth.application.result.JwtTokenResult;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
@@ -24,6 +27,7 @@ import jakarta.validation.constraints.NotBlank;
  */
 @RestController
 @RequestMapping("/api/int/auth/oauth/facebook")
+@Tag(name = "Auth — OAuth Facebook")
 public class FacebookOAuthController {
 
 	private final BuildFacebookAuthorizeUrlUseCase buildFacebookAuthorizeUrlUseCase;
@@ -37,12 +41,14 @@ public class FacebookOAuthController {
 	}
 
 	@GetMapping("/authorize-url")
+	@Operation(summary = "URL d'autorisation Facebook")
 	public ResponseEntity<AuthorizeUrlResponse> authorizeUrl(@RequestParam String redirectUri) {
 		String url = buildFacebookAuthorizeUrlUseCase.build(redirectUri);
 		return ResponseEntity.ok(new AuthorizeUrlResponse(url));
 	}
 
 	@PostMapping
+	@Operation(summary = "Échanger le code Facebook contre un JWT")
 	public ResponseEntity<JwtTokenResponse> login(@Valid @RequestBody FacebookLoginRequest request) {
 		JwtTokenResult result = loginWithFacebookUseCase.login(
 				request.authorizationCode(),
@@ -50,14 +56,17 @@ public class FacebookOAuthController {
 		return ResponseEntity.ok(new JwtTokenResponse(result.token(), result.expiresAtEpochSeconds()));
 	}
 
+	@Schema(name = "AuthorizeUrlResponse")
 	public record AuthorizeUrlResponse(String authorizationUrl) {
 	}
 
+	@Schema(name = "FacebookLoginRequest")
 	public record FacebookLoginRequest(
 			@NotBlank String authorizationCode,
 			@NotBlank String redirectUri) {
 	}
 
+	@Schema(name = "JwtTokenResponse")
 	public record JwtTokenResponse(String token, long expiresAtEpochSeconds) {
 	}
 }

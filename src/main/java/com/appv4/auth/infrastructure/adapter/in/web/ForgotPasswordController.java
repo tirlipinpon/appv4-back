@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -20,6 +23,7 @@ import jakarta.validation.constraints.NotBlank;
  */
 @RestController
 @RequestMapping("/api/int/auth/forgot-password")
+@Tag(name = "Auth — password reset")
 public class ForgotPasswordController {
 
 	private final ForgotPasswordUseCase forgotPasswordUseCase;
@@ -29,14 +33,17 @@ public class ForgotPasswordController {
 	}
 
 	@PostMapping
+	@Operation(summary = "Demander un lien de réinitialisation")
 	public ResponseEntity<MessageResponse> forgot(@Valid @RequestBody ForgotPasswordRequest request) {
 		String message = forgotPasswordUseCase.requestReset(request.email());
 		return ResponseEntity.ok(new MessageResponse(message));
 	}
 
+	@Schema(name = "ForgotPasswordRequest")
 	public record ForgotPasswordRequest(@NotBlank @Email String email) {
 	}
 
+	@Schema(name = "AuthMessageResponse")
 	public record MessageResponse(String message) {
 	}
 }

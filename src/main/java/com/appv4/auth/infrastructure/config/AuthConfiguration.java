@@ -23,6 +23,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.appv4.auth.application.port.in.BuildAppleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.BuildFacebookAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.BuildGoogleAuthorizeUrlUseCase;
+import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
@@ -32,9 +33,12 @@ import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
+import com.appv4.auth.application.port.out.PasswordResetMailPort;
+import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 import com.appv4.auth.application.service.BuildAppleAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildFacebookAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildGoogleAuthorizeUrlService;
+import com.appv4.auth.application.service.ForgotPasswordService;
 import com.appv4.auth.application.service.IssueJwtService;
 import com.appv4.auth.application.service.LoginWithAppleService;
 import com.appv4.auth.application.service.LoginWithFacebookService;
@@ -45,6 +49,7 @@ import com.appv4.auth.infrastructure.adapter.out.apple.HttpAppleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.facebook.HttpFacebookOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.google.HttpGoogleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
+import com.appv4.auth.infrastructure.adapter.out.mail.LoggingPasswordResetMailAdapter;
 import com.appv4.configuration.CorsProperties;
 
 /**
@@ -72,7 +77,8 @@ import com.appv4.configuration.CorsProperties;
 		JwtProperties.class,
 		GoogleOAuthProperties.class,
 		FacebookOAuthProperties.class,
-		AppleOAuthProperties.class })
+		AppleOAuthProperties.class,
+		PasswordResetProperties.class })
 public class AuthConfiguration {
 
 	/**
@@ -185,6 +191,27 @@ public class AuthConfiguration {
 		return new SignupWithEmailService(authUserAccountPort, passwordEncoder, issueJwtUseCase);
 	}
 
+	@Bean
+	PasswordResetMailPort passwordResetMailPort() {
+		return new LoggingPasswordResetMailAdapter();
+	}
+
+	/**
+	 * Forgot-password (SCRUM-108) — jeton hashé + lien (log local).
+	 */
+	@Bean
+	ForgotPasswordUseCase forgotPasswordUseCase(
+			AuthUserAccountPort authUserAccountPort,
+			PasswordResetTokenPort passwordResetTokenPort,
+			PasswordResetMailPort passwordResetMailPort,
+			PasswordResetProperties passwordResetProperties) {
+		return new ForgotPasswordService(
+				authUserAccountPort,
+				passwordResetTokenPort,
+				passwordResetMailPort,
+				passwordResetProperties);
+	}
+
 	/**
 	 * Règles de sécurité HTTP.
 	 *
@@ -219,7 +246,8 @@ public class AuthConfiguration {
 						.requestMatchers("/api/int/auth/oauth/apple", "/api/int/auth/oauth/apple/**")
 						.permitAll()
 						.requestMatchers("/api/int/auth/signup").permitAll()
-						// Plus tard : login email / forgot en permitAll
+						.requestMatchers("/api/int/auth/forgot-password").permitAll()
+						// Plus tard : login email / reset-password en permitAll
 						.requestMatchers("/api/int/**").authenticated()
 						.anyRequest().permitAll())
 				.httpBasic(AbstractHttpConfigurer::disable)

@@ -21,6 +21,10 @@ appv4:
     allowed-origins:
       - http://localhost:4200
       - http://localhost:4201
+  auth:
+    password-reset:
+      token-ttl: 45m
+      frontend-reset-url: http://localhost:4201/reset-password
 
 logging:
   level:

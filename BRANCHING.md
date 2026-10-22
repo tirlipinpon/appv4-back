@@ -34,12 +34,12 @@ feature/*  --PR(+CI)-->  develop  --PR(+CI)-->  release  --CD-->  Azure
 
 ## Protections GitHub (obligatoires) — déjà activées
 
-Sur **`develop`** et **`release`** (ruleset + branch protection) :
+Sur **`develop`** et **`release`** :
 
-- Merge **uniquement via PR** (pas de push direct)
-- Status check obligatoire : **`lint-test-build`** (Checkstyle + tests + package)
+- **Ruleset** « Gate CI before merge » : status check obligatoire **`lint-test-build`** (une seule fois — ne pas aussi l’exiger dans la branch protection classique, sinon GitHub affiche 2–3 checks « Expected » du même nom)
+- Branch protection classique : PR obligatoire, pas de force-push / suppression (sans re-déclarer le même check)
 - CI rouge ⇒ bouton merge bloqué
-- Pas de force-push / suppression de branche
+
 
 ## CI actuelle (gate avant merge humain)
 

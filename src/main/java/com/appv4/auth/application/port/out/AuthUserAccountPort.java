@@ -37,6 +37,11 @@ public interface AuthUserAccountPort {
 	 */
 	void linkIdentity(long userId, String provider, String providerSubject, String emailAtProvider);
 
+	/**
+	 * Met à jour le hash mdp (SCRUM-111 renew) — ne touche pas email / display_name / identities.
+	 */
+	void updatePasswordHash(long userId, String passwordHash);
+
 	record AuthUserAccount(long id, String email, String displayName, boolean active) {
 	}
 

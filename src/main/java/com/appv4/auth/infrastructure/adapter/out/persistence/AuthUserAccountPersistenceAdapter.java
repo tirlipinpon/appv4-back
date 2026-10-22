@@ -106,6 +106,17 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 		identityRepository.save(identity);
 	}
 
+	@Override
+	@Transactional
+	public void updatePasswordHash(long userId, String passwordHash) {
+		BackUserEntity user = userRepository.findById(userId)
+				.orElseThrow(() -> new AuthDomainException(
+						HttpStatus.INTERNAL_SERVER_ERROR.value(),
+						"User introuvable pour renew mdp"));
+		user.setPasswordHash(passwordHash);
+		userRepository.save(user);
+	}
+
 	private AuthUserAccount toAccount(BackUserEntity user) {
 		return new AuthUserAccount(user.getId(), user.getEmail(), user.getDisplayName(), user.isActive());
 	}

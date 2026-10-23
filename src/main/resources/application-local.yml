@@ -25,6 +25,10 @@ appv4:
     password-reset:
       token-ttl: 45m
       frontend-reset-url: http://localhost:4201/reset-password
+    # Compte admin local (SCRUM-142). Le clair reste dans .env, pas dans git.
+    admin-seed:
+      email: ${APPV4_ADMIN_EMAIL:}
+      password: ${APPV4_ADMIN_PASSWORD:}
 
 # Swagger UI uniquement en local (SCRUM-147)
 springdoc:

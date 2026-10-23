@@ -1,0 +1,113 @@
+package com.appv4.auth.application.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.port.out.ActiveRolePort;
+import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
+import com.appv4.auth.application.port.out.TeacherModerationPort;
+import com.appv4.auth.application.port.out.TeacherRequestView;
+
+@ExtendWith(MockitoExtension.class)
+class TeacherModerationServiceTest {
+
+	@Mock
+	private ActiveRolePort activeRolePort;
+
+	@Mock
+	private TeacherModerationPort teacherModerationPort;
+
+	@Mock
+	private TeacherApprovedMailPort teacherApprovedMailPort;
+
+	private TeacherModerationService service;
+
+	@BeforeEach
+	void setUp() {
+		service = new TeacherModerationService(activeRolePort, teacherModerationPort, teacherApprovedMailPort);
+	}
+
+	@Test
+	void parentCannotList() {
+		when(activeRolePort.hasAdminRole(2L)).thenReturn(false);
+
+		assertThatThrownBy(() -> service.list(2L))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherModerationService.FORBIDDEN);
+		verify(teacherModerationPort, never()).findPendingAndApproved();
+	}
+
+	@Test
+	void adminListsPendingAndApproved() {
+		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+		TeacherRequestView pending = view(4L, "pending", null);
+		when(teacherModerationPort.findPendingAndApproved()).thenReturn(List.of(pending));
+
+		assertThat(service.list(1L)).containsExactly(pending);
+	}
+
+	@Test
+	void approveGrantsTeacherAndSendsMailOnce() {
+		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+		TeacherRequestView pending = view(4L, "pending", null);
+		when(teacherModerationPort.findById(4L)).thenReturn(Optional.of(pending));
+
+		TeacherRequestView approved = service.approve(1L, 4L);
+
+		assertThat(approved.status()).isEqualTo("approved");
+		assertThat(approved.reviewedAt()).isNotNull();
+		verify(teacherModerationPort).markApproved(eq(4L), any(Instant.class));
+		verify(teacherModerationPort).grantTeacher(9L);
+		verify(teacherApprovedMailPort).sendTeacherApproved("prof@example.com");
+	}
+
+	@Test
+	void secondApproveDoesNotSendMailAgain() {
+		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+		TeacherRequestView already = view(4L, "approved", Instant.parse("2026-10-23T10:00:00Z"));
+		when(teacherModerationPort.findById(4L)).thenReturn(Optional.of(already));
+
+		TeacherRequestView result = service.approve(1L, 4L);
+
+		assertThat(result).isEqualTo(already);
+		verify(teacherModerationPort).grantTeacher(9L);
+		verify(teacherModerationPort, never()).markApproved(eq(4L), any());
+		verify(teacherApprovedMailPort, never()).sendTeacherApproved(any());
+	}
+
+	@Test
+	void unknownRequestIsNotFound() {
+		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+		when(teacherModerationPort.findById(99L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.approve(1L, 99L))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherModerationService.NOT_FOUND);
+	}
+
+	private static TeacherRequestView view(long id, String status, Instant reviewedAt) {
+		return new TeacherRequestView(
+				id,
+				9L,
+				"prof@example.com",
+				status,
+				Instant.parse("2026-10-23T09:00:00Z"),
+				reviewedAt);
+	}
+}

@@ -1,5 +1,6 @@
 package com.appv4.auth.application.service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -15,8 +16,8 @@ import com.appv4.auth.application.result.JwtTokenResult;
  * <p><b>Business :</b> un seul rôle → on y va et on s'en souvient. Deux rôles
  * et un souvenir encore valide → on le reprend. Deux rôles sans souvenir
  * valide → le jeton ne choisit pas d'espace (le front montrera le choix).
- * <p><b>Technique :</b> claim {@code roles} = espaces accordés. {@code activeRole}
- * est omis quand il n'y a pas d'espace choisi.
+ * <p><b>Technique :</b> claim {@code roles} = espaces accordés, plus {@code admin}
+ * si ce rôle est tenu. {@code activeRole} est omis quand il n'y a pas d'espace choisi.
  * <p><b>Métier / flow :</b> appelé après login email, login social et inscription,
  * une fois les rôles écrits.
  */
@@ -35,8 +36,12 @@ public class IssueJwtService implements IssueJwtUseCase {
 	public JwtTokenResult issue(long userId, String email) {
 		List<String> spaces = activeRolePort.findSpaceRoles(userId);
 		String activeRole = resolveAndRemember(userId, spaces);
+		List<String> roles = new ArrayList<>(spaces);
+		if (activeRolePort.hasAdminRole(userId)) {
+			roles.add(ActiveRoles.ADMIN);
+		}
 		boolean pendingTeacher = spaces.isEmpty() && activeRolePort.hasPendingTeacherRequest(userId);
-		return jwtTokenEncoder.encode(userId, email, activeRole, spaces, pendingTeacher);
+		return jwtTokenEncoder.encode(userId, email, activeRole, roles, pendingTeacher);
 	}
 
 	/**

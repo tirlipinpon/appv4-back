@@ -84,6 +84,18 @@ class IssueJwtServiceTest {
 	}
 
 	@Test
+	void adminRoleIsAddedWithoutChoosingASpace() {
+		when(activeRolePort.findSpaceRoles(1L)).thenReturn(List.of());
+		when(activeRolePort.findLastActiveRole(1L)).thenReturn(Optional.empty());
+		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+
+		service.issue(1L, "a@b.com");
+
+		verify(activeRolePort, never()).saveLastActiveRole(eq(1L), nullable(String.class));
+		verify(jwtTokenEncoder).encode(1L, "a@b.com", null, List.of("admin"), false);
+	}
+
+	@Test
 	void memoryIsClearedWhenNoSpaceRoleRemains() {
 		when(activeRolePort.findSpaceRoles(1L)).thenReturn(List.of());
 		when(activeRolePort.findLastActiveRole(1L)).thenReturn(Optional.of("parent"));

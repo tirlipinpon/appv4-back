@@ -35,7 +35,8 @@ public class IssueJwtService implements IssueJwtUseCase {
 	public JwtTokenResult issue(long userId, String email) {
 		List<String> spaces = activeRolePort.findSpaceRoles(userId);
 		String activeRole = resolveAndRemember(userId, spaces);
-		return jwtTokenEncoder.encode(userId, email, activeRole, spaces);
+		boolean pendingTeacher = spaces.isEmpty() && activeRolePort.hasPendingTeacherRequest(userId);
+		return jwtTokenEncoder.encode(userId, email, activeRole, spaces, pendingTeacher);
 	}
 
 	/**

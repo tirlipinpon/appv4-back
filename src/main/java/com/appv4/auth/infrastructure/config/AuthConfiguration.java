@@ -23,6 +23,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.appv4.auth.application.port.in.BuildAppleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.BuildFacebookAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.BuildGoogleAuthorizeUrlUseCase;
+import com.appv4.auth.application.port.in.CompleteRolesUseCase;
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
@@ -43,6 +44,7 @@ import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.service.BuildAppleAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildFacebookAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildGoogleAuthorizeUrlService;
+import com.appv4.auth.application.service.CompleteRolesService;
 import com.appv4.auth.application.service.ForgotPasswordService;
 import com.appv4.auth.application.service.IssueJwtService;
 import com.appv4.auth.application.service.LoginWithAppleService;
@@ -194,11 +196,20 @@ public class AuthConfiguration {
 	@Bean
 	SignupWithEmailUseCase signupWithEmailUseCase(
 			AuthUserAccountPort authUserAccountPort,
-			SignupRolePort signupRolePort,
 			PasswordEncoder passwordEncoder,
 			IssueJwtUseCase issueJwtUseCase) {
-		return new SignupWithEmailService(
-				authUserAccountPort, signupRolePort, passwordEncoder, issueJwtUseCase);
+		return new SignupWithEmailService(authUserAccountPort, passwordEncoder, issueJwtUseCase);
+	}
+
+	/**
+	 * Choix de rôle après création du compte (SCRUM-153), email ou réseau social.
+	 */
+	@Bean
+	CompleteRolesUseCase completeRolesUseCase(
+			ActiveRolePort activeRolePort,
+			SignupRolePort signupRolePort,
+			IssueJwtUseCase issueJwtUseCase) {
+		return new CompleteRolesService(activeRolePort, signupRolePort, issueJwtUseCase);
 	}
 
 	/**

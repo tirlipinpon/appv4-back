@@ -20,6 +20,8 @@ public interface ActiveRolePort {
 	 */
 	List<String> findSpaceRoles(long userId);
 
+	boolean hasPendingTeacherRequest(long userId);
+
 	/** Dernier espace mémorisé, vide si la colonne est null. */
 	Optional<String> findLastActiveRole(long userId);
 

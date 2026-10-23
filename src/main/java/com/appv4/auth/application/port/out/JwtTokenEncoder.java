@@ -12,14 +12,18 @@ import com.appv4.auth.application.result.JwtTokenResult;
  *
  * <p><b>Technique :</b> le domaine ne connaît pas JJWT ; l'impl est
  * {@code JjwtTokenAdapter}. Claims : {@code sub}, {@code email}, {@code roles}
- * (espaces déjà accordés), et {@code activeRole} seulement quand un espace est choisi.
+ * (espaces déjà accordés), {@code activeRole} seulement quand un espace est choisi,
+ * et {@code pendingTeacher} quand une demande professeur est en attente sans rôle d'espace.
  */
 public interface JwtTokenEncoder {
 
 	/**
-	 * @param activeRole {@code parent}, {@code teacher}, ou {@code null} pour ne pas
-	 *                   prétendre un espace
-	 * @param roles      espaces accordés, pour que le front sache s'il peut changer
+	 * @param activeRole     {@code parent}, {@code teacher}, ou {@code null} pour ne pas
+	 *                       prétendre un espace
+	 * @param roles          espaces accordés, pour que le front sache s'il peut changer
+	 * @param pendingTeacher vrai si une demande professeur est en attente et qu'aucun
+	 *                       rôle d'espace n'est accordé
 	 */
-	JwtTokenResult encode(long userId, String email, String activeRole, List<String> roles);
+	JwtTokenResult encode(
+			long userId, String email, String activeRole, List<String> roles, boolean pendingTeacher);
 }

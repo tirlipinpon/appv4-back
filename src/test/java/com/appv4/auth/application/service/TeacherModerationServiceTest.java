@@ -92,6 +92,45 @@ class TeacherModerationServiceTest {
 	}
 
 	@Test
+	void revokeRemovesTheTeacherRole() {
+		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+		when(activeRolePort.findLastActiveRole(9L)).thenReturn(Optional.of("teacher"));
+		when(activeRolePort.findSpaceRoles(9L)).thenReturn(List.of());
+		TeacherRequestView approved = view(4L, "approved", Instant.parse("2026-10-23T10:00:00Z"));
+		when(teacherModerationPort.findById(4L)).thenReturn(Optional.of(approved));
+
+		TeacherRequestView revoked = service.revoke(1L, 4L);
+
+		assertThat(revoked.status()).isEqualTo("revoked");
+		verify(teacherModerationPort).markRevoked(eq(4L), any(Instant.class));
+		verify(teacherModerationPort).revokeTeacher(9L);
+		verify(activeRolePort).saveLastActiveRole(9L, null);
+	}
+
+	@Test
+	void approveAgainAfterRevokeSendsMail() {
+		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+		TeacherRequestView revoked = view(4L, "revoked", Instant.parse("2026-10-23T11:00:00Z"));
+		when(teacherModerationPort.findById(4L)).thenReturn(Optional.of(revoked));
+
+		TeacherRequestView approved = service.approve(1L, 4L);
+
+		assertThat(approved.status()).isEqualTo("approved");
+		verify(teacherModerationPort).grantTeacher(9L);
+		verify(teacherApprovedMailPort).sendTeacherApproved("prof@example.com");
+	}
+
+	@Test
+	void pendingCannotBeRevoked() {
+		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+		when(teacherModerationPort.findById(4L)).thenReturn(Optional.of(view(4L, "pending", null)));
+
+		assertThatThrownBy(() -> service.revoke(1L, 4L))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherModerationService.NOT_REVOKABLE);
+	}
+
+	@Test
 	void unknownRequestIsNotFound() {
 		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
 		when(teacherModerationPort.findById(99L)).thenReturn(Optional.empty());

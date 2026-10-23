@@ -17,7 +17,7 @@ import com.appv4.auth.application.port.out.TeacherRequestView;
  * Accepter une demande professeur (SCRUM-142).
  *
  * <p><b>Business :</b> dire oui donne l'espace professeur et prévient la personne.
- * Un deuxième oui ne crée pas un deuxième rôle, et ne renvoie pas l'email.
+ * Révoquer retire cet espace. Un oui déjà donné peut revenir, et l'inverse.
  * <p><b>Technique :</b> le contrôle admin lit la base, pas seulement le jeton.
  * <p><b>Métier / flow :</b> port in de la page de modération.
  */
@@ -26,8 +26,10 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 	static final String FORBIDDEN = "Réservé à l'admin.";
 	static final String NOT_FOUND = "Demande introuvable.";
 	static final String NOT_ACCEPTABLE = "Cette demande ne peut pas être acceptée.";
+	static final String NOT_REVOKABLE = "Cette demande ne peut pas être révoquée.";
 	private static final String PENDING = "pending";
 	private static final String APPROVED = "approved";
+	private static final String REVOKED = "revoked";
 
 	private final ActiveRolePort activeRolePort;
 	private final TeacherModerationPort teacherModerationPort;
@@ -59,9 +61,40 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 			teacherModerationPort.grantTeacher(current.userId());
 			return current;
 		}
-		if (!PENDING.equals(current.status())) {
+		if (!PENDING.equals(current.status()) && !REVOKED.equals(current.status())) {
 			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), NOT_ACCEPTABLE);
 		}
+		return markApproved(current, requestId);
+	}
+
+	@Override
+	@Transactional
+	public TeacherRequestView revoke(long callerId, long requestId) {
+		requireAdmin(callerId);
+		TeacherRequestView current = teacherModerationPort.findById(requestId)
+				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), NOT_FOUND));
+		if (REVOKED.equals(current.status())) {
+			teacherModerationPort.revokeTeacher(current.userId());
+			forgetTeacherSpace(current.userId());
+			return current;
+		}
+		if (!APPROVED.equals(current.status())) {
+			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), NOT_REVOKABLE);
+		}
+		Instant reviewedAt = Instant.now();
+		teacherModerationPort.markRevoked(requestId, reviewedAt);
+		teacherModerationPort.revokeTeacher(current.userId());
+		forgetTeacherSpace(current.userId());
+		return new TeacherRequestView(
+				current.id(),
+				current.userId(),
+				current.email(),
+				REVOKED,
+				current.createdAt(),
+				reviewedAt);
+	}
+
+	private TeacherRequestView markApproved(TeacherRequestView current, long requestId) {
 		Instant reviewedAt = Instant.now();
 		teacherModerationPort.markApproved(requestId, reviewedAt);
 		teacherModerationPort.grantTeacher(current.userId());
@@ -73,6 +106,16 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 				APPROVED,
 				current.createdAt(),
 				reviewedAt);
+	}
+
+	/** Si l'espace ouvert était professeur, on l'oublie. Parent reste le souvenir s'il est seul. */
+	private void forgetTeacherSpace(long userId) {
+		String last = activeRolePort.findLastActiveRole(userId).orElse(null);
+		if (!ActiveRoles.TEACHER.equals(last)) {
+			return;
+		}
+		var spaces = activeRolePort.findSpaceRoles(userId);
+		activeRolePort.saveLastActiveRole(userId, spaces.size() == 1 ? spaces.get(0) : null);
 	}
 
 	private void requireAdmin(long callerId) {

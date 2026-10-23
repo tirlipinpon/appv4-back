@@ -20,6 +20,11 @@ public interface TeacherModerationPort {
 
 	void markApproved(long requestId, Instant reviewedAt);
 
+	void markRevoked(long requestId, Instant reviewedAt);
+
 	/** Ajoute {@code teacher} s'il n'est pas déjà là. */
 	void grantTeacher(long userId);
+
+	/** Retire {@code teacher}. Le rôle parent, s'il existe, reste. */
+	void revokeTeacher(long userId);
 }

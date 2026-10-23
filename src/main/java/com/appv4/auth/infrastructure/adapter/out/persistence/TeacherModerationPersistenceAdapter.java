@@ -25,6 +25,7 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 
 	private static final String PENDING = "pending";
 	private static final String APPROVED = "approved";
+	private static final String REVOKED = "revoked";
 
 	private final BackTeacherRoleRequestJpaRepository requestRepository;
 	private final BackUserJpaRepository userRepository;
@@ -41,7 +42,7 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 
 	@Override
 	public List<TeacherRequestView> findPendingAndApproved() {
-		return requestRepository.findByStatusInOrderByCreatedAtAsc(List.of(PENDING, APPROVED)).stream()
+		return requestRepository.findByStatusInOrderByCreatedAtAsc(List.of(PENDING, APPROVED, REVOKED)).stream()
 				.map(this::toView)
 				.toList();
 	}
@@ -57,6 +58,16 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), "Demande introuvable."));
 		entity.setStatus(APPROVED);
 		entity.setReviewedAt(reviewedAt);
+		entity.setRevokedAt(null);
+		requestRepository.save(entity);
+	}
+
+	@Override
+	public void markRevoked(long requestId, Instant revokedAt) {
+		BackTeacherRoleRequestEntity entity = requestRepository.findById(requestId)
+				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), "Demande introuvable."));
+		entity.setStatus(REVOKED);
+		entity.setRevokedAt(revokedAt);
 		requestRepository.save(entity);
 	}
 
@@ -68,16 +79,23 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 		roleRepository.save(new BackUserRoleEntity(userId, ActiveRoles.TEACHER));
 	}
 
+	@Override
+	public void revokeTeacher(long userId) {
+		roleRepository.deleteByUserIdAndRole(userId, ActiveRoles.TEACHER);
+	}
+
 	private TeacherRequestView toView(BackTeacherRoleRequestEntity entity) {
-		String email = userRepository.findById(entity.getUserId())
-				.map(BackUserEntity::getEmail)
-				.orElse("");
+		BackUserEntity user = userRepository.findById(entity.getUserId()).orElse(null);
+		String email = user == null ? "" : user.getEmail();
+		String displayName = user == null || user.getDisplayName() == null ? "" : user.getDisplayName();
 		return new TeacherRequestView(
 				entity.getId(),
 				entity.getUserId(),
 				email,
+				displayName,
 				entity.getStatus(),
 				entity.getCreatedAt(),
-				entity.getReviewedAt());
+				entity.getReviewedAt(),
+				entity.getRevokedAt());
 	}
 }

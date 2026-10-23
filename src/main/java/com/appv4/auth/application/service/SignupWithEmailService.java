@@ -2,7 +2,6 @@ package com.appv4.auth.application.service;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
@@ -13,7 +12,6 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
-import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserSignupState;
 import com.appv4.auth.application.result.JwtTokenResult;
@@ -23,31 +21,26 @@ import com.appv4.auth.application.result.JwtTokenResult;
  *
  * <p><b>Business :</b> 1 email = 1 compte. Si un compte social existe déjà →
  * refus avec message orientant vers social / mot de passe oublié.
- * <p><b>Rôles :</b> parent est écrit tout de suite. teacher = demande pending,
- * jamais une ligne de rôle teacher (SCRUM-121).
+ * Le rôle n'est pas choisi ici (SCRUM-153).
  */
 public class SignupWithEmailService implements SignupWithEmailUseCase {
 
 	private final AuthUserAccountPort authUserAccountPort;
-	private final SignupRolePort signupRolePort;
 	private final PasswordEncoder passwordEncoder;
 	private final IssueJwtUseCase issueJwtUseCase;
 
 	public SignupWithEmailService(
 			AuthUserAccountPort authUserAccountPort,
-			SignupRolePort signupRolePort,
 			PasswordEncoder passwordEncoder,
 			IssueJwtUseCase issueJwtUseCase) {
 		this.authUserAccountPort = authUserAccountPort;
-		this.signupRolePort = signupRolePort;
 		this.passwordEncoder = passwordEncoder;
 		this.issueJwtUseCase = issueJwtUseCase;
 	}
 
 	@Override
 	@Transactional
-	public JwtTokenResult signup(String email, String password, String displayName, List<String> roles) {
-		Set<String> chosen = SignupRoles.normalizeOrThrow(roles);
+	public JwtTokenResult signup(String email, String password, String displayName) {
 		String normalizedEmail = normalizeEmail(email);
 		PasswordRules.validateOrThrow(password);
 		String name = resolveDisplayName(displayName, normalizedEmail);
@@ -56,12 +49,6 @@ public class SignupWithEmailService implements SignupWithEmailUseCase {
 
 		String hash = passwordEncoder.encode(password);
 		AuthUserAccount account = authUserAccountPort.createWithPassword(normalizedEmail, name, hash);
-		if (chosen.contains(SignupRoles.PARENT)) {
-			signupRolePort.grantParent(account.id());
-		}
-		if (chosen.contains(SignupRoles.TEACHER)) {
-			signupRolePort.requestTeacher(account.id());
-		}
 		return issueJwtUseCase.issue(account.id(), account.email());
 	}
 

@@ -28,7 +28,7 @@ class JjwtTokenAdapterTest {
 
 	@Test
 	void encodeThenDecodeReturnsSameUser() {
-		JwtTokenResult issued = adapter.encode(42L, "marie@example.com", null, List.of());
+		JwtTokenResult issued = adapter.encode(42L, "marie@example.com", null, List.of(), false);
 
 		assertTrue(issued.token() != null && !issued.token().isBlank());
 		assertTrue(issued.expiresAtEpochSeconds() > 0);
@@ -45,7 +45,7 @@ class JjwtTokenAdapterTest {
 	@Test
 	void encodePutsActiveRoleClaimWhenSpaceIsChosen() {
 		JwtTokenResult issued = adapter.encode(
-				7L, "prof@example.com", "teacher", List.of("parent", "teacher"));
+				7L, "prof@example.com", "teacher", List.of("parent", "teacher"), false);
 
 		var decoded = adapter.decode(issued.token());
 		assertTrue(decoded.isPresent());
@@ -55,7 +55,7 @@ class JjwtTokenAdapterTest {
 
 	@Test
 	void decodeRejectsTamperedToken() {
-		JwtTokenResult issued = adapter.encode(1L, "a@b.com", "parent", List.of("parent"));
+		JwtTokenResult issued = adapter.encode(1L, "a@b.com", "parent", List.of("parent"), false);
 		String tampered = issued.token() + "x";
 
 		assertTrue(adapter.decode(tampered).isEmpty());

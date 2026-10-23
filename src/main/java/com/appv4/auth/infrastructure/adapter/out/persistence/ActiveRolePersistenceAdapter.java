@@ -23,12 +23,15 @@ public class ActiveRolePersistenceAdapter implements ActiveRolePort {
 
 	private final BackUserJpaRepository userRepository;
 	private final BackUserRoleJpaRepository roleRepository;
+	private final BackTeacherRoleRequestJpaRepository requestRepository;
 
 	public ActiveRolePersistenceAdapter(
 			BackUserJpaRepository userRepository,
-			BackUserRoleJpaRepository roleRepository) {
+			BackUserRoleJpaRepository roleRepository,
+			BackTeacherRoleRequestJpaRepository requestRepository) {
 		this.userRepository = userRepository;
 		this.roleRepository = roleRepository;
+		this.requestRepository = requestRepository;
 	}
 
 	@Override
@@ -38,6 +41,11 @@ public class ActiveRolePersistenceAdapter implements ActiveRolePort {
 				.filter(ActiveRoles::isSpace)
 				.distinct()
 				.toList();
+	}
+
+	@Override
+	public boolean hasPendingTeacherRequest(long userId) {
+		return requestRepository.existsByUserIdAndStatus(userId, "pending");
 	}
 
 	@Override

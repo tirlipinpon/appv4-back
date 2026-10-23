@@ -55,7 +55,8 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 	 * @param roles      espaces accordés, claim {@code roles} (peut être vide)
 	 */
 	@Override
-	public JwtTokenResult encode(long userId, String email, String activeRole, List<String> roles) {
+	public JwtTokenResult encode(
+			long userId, String email, String activeRole, List<String> roles, boolean pendingTeacher) {
 		Instant now = Instant.now();
 		Instant expiresAt = now.plusSeconds(properties.getExpirationMinutes() * 60);
 		JwtBuilder builder = Jwts.builder()
@@ -69,6 +70,9 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 			builder.claim("activeRole", activeRole);
 		}
 		builder.claim("roles", roles == null ? List.of() : roles);
+		if (pendingTeacher) {
+			builder.claim("pendingTeacher", true);
+		}
 		String token = builder.signWith(secretKey).compact();
 		return new JwtTokenResult(token, expiresAt.getEpochSecond());
 	}
@@ -97,7 +101,9 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 			if (activeRole != null && activeRole.isBlank()) {
 				activeRole = null;
 			}
-			return Optional.of(new AuthenticatedUser(userId, email, activeRole, readRoles(claims)));
+			boolean pendingTeacher = Boolean.TRUE.equals(claims.get("pendingTeacher", Boolean.class));
+			return Optional.of(new AuthenticatedUser(
+					userId, email, activeRole, readRoles(claims), pendingTeacher));
 		} catch (JwtException | IllegalArgumentException ex) {
 			return Optional.empty();
 		}

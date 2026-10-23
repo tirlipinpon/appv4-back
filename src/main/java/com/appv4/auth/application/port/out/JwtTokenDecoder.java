@@ -23,7 +23,12 @@ public interface JwtTokenDecoder {
 	 * (deux rôles sans souvenir, ou ancien jeton). {@code roles} liste les espaces
 	 * déjà accordés ; vide si le claim est absent.
 	 */
-	record AuthenticatedUser(long userId, String email, String activeRole, List<String> roles) {
+	record AuthenticatedUser(
+			long userId,
+			String email,
+			String activeRole,
+			List<String> roles,
+			boolean pendingTeacher) {
 		public AuthenticatedUser {
 			roles = roles == null ? List.of() : List.copyOf(roles);
 		}

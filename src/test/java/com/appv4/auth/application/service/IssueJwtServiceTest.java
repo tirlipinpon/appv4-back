@@ -1,5 +1,6 @@
 package com.appv4.auth.application.service;
 
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -34,7 +35,7 @@ class IssueJwtServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new IssueJwtService(jwtTokenEncoder, activeRolePort);
-		when(jwtTokenEncoder.encode(eq(1L), eq("a@b.com"), nullable(String.class), anyList()))
+		when(jwtTokenEncoder.encode(eq(1L), eq("a@b.com"), nullable(String.class), anyList(), anyBoolean()))
 				.thenReturn(new JwtTokenResult("jwt", 10L));
 	}
 
@@ -46,7 +47,7 @@ class IssueJwtServiceTest {
 		service.issue(1L, "a@b.com");
 
 		verify(activeRolePort).saveLastActiveRole(1L, "parent");
-		verify(jwtTokenEncoder).encode(1L, "a@b.com", "parent", List.of("parent"));
+		verify(jwtTokenEncoder).encode(1L, "a@b.com", "parent", List.of("parent"), false);
 	}
 
 	@Test
@@ -57,7 +58,7 @@ class IssueJwtServiceTest {
 		service.issue(1L, "a@b.com");
 
 		verify(activeRolePort, never()).saveLastActiveRole(eq(1L), nullable(String.class));
-		verify(jwtTokenEncoder).encode(1L, "a@b.com", "teacher", List.of("parent", "teacher"));
+		verify(jwtTokenEncoder).encode(1L, "a@b.com", "teacher", List.of("parent", "teacher"), false);
 	}
 
 	@Test
@@ -68,7 +69,7 @@ class IssueJwtServiceTest {
 		service.issue(1L, "a@b.com");
 
 		verify(activeRolePort, never()).saveLastActiveRole(eq(1L), nullable(String.class));
-		verify(jwtTokenEncoder).encode(1L, "a@b.com", null, List.of("parent", "teacher"));
+		verify(jwtTokenEncoder).encode(1L, "a@b.com", null, List.of("parent", "teacher"), false);
 	}
 
 	@Test
@@ -79,7 +80,7 @@ class IssueJwtServiceTest {
 		service.issue(1L, "a@b.com");
 
 		verify(activeRolePort).saveLastActiveRole(1L, "parent");
-		verify(jwtTokenEncoder).encode(1L, "a@b.com", "parent", List.of("parent"));
+		verify(jwtTokenEncoder).encode(1L, "a@b.com", "parent", List.of("parent"), false);
 	}
 
 	@Test
@@ -90,6 +91,6 @@ class IssueJwtServiceTest {
 		service.issue(1L, "a@b.com");
 
 		verify(activeRolePort).saveLastActiveRole(1L, null);
-		verify(jwtTokenEncoder).encode(1L, "a@b.com", null, List.of());
+		verify(jwtTokenEncoder).encode(1L, "a@b.com", null, List.of(), false);
 	}
 }

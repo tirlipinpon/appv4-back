@@ -85,9 +85,10 @@ class TeacherModerationServiceTest {
 
 		TeacherRequestView result = service.approve(1L, 4L);
 
-		assertThat(result).isEqualTo(already);
+		assertThat(result.status()).isEqualTo("approved");
+		assertThat(result.reviewedAt()).isAfter(already.reviewedAt());
+		verify(teacherModerationPort).markApproved(eq(4L), any(Instant.class));
 		verify(teacherModerationPort).grantTeacher(9L);
-		verify(teacherModerationPort, never()).markApproved(eq(4L), any());
 		verify(teacherApprovedMailPort, never()).sendTeacherApproved(any());
 	}
 

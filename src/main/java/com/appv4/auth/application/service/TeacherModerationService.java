@@ -58,8 +58,7 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 		TeacherRequestView current = teacherModerationPort.findById(requestId)
 				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), NOT_FOUND));
 		if (APPROVED.equals(current.status())) {
-			teacherModerationPort.grantTeacher(current.userId());
-			return current;
+			return revalidate(current, requestId);
 		}
 		if (!PENDING.equals(current.status()) && !REVOKED.equals(current.status())) {
 			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), NOT_ACCEPTABLE);
@@ -91,6 +90,21 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 				current.email(),
 				current.displayName(),
 				REVOKED,
+				current.createdAt(),
+				reviewedAt);
+	}
+
+	/** Un oui déjà posé : on rafraîchit la date, sans renvoyer l'email. */
+	private TeacherRequestView revalidate(TeacherRequestView current, long requestId) {
+		Instant reviewedAt = Instant.now();
+		teacherModerationPort.markApproved(requestId, reviewedAt);
+		teacherModerationPort.grantTeacher(current.userId());
+		return new TeacherRequestView(
+				current.id(),
+				current.userId(),
+				current.email(),
+				current.displayName(),
+				APPROVED,
 				current.createdAt(),
 				reviewedAt);
 	}

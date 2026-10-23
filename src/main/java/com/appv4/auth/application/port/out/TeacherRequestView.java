@@ -15,5 +15,6 @@ public record TeacherRequestView(
 		String displayName,
 		String status,
 		Instant createdAt,
-		Instant reviewedAt) {
+		Instant reviewedAt,
+		Instant revokedAt) {
 }

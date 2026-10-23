@@ -80,8 +80,8 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 		if (!APPROVED.equals(current.status())) {
 			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), NOT_REVOKABLE);
 		}
-		Instant reviewedAt = Instant.now();
-		teacherModerationPort.markRevoked(requestId, reviewedAt);
+		Instant revokedAt = Instant.now();
+		teacherModerationPort.markRevoked(requestId, revokedAt);
 		teacherModerationPort.revokeTeacher(current.userId());
 		forgetTeacherSpace(current.userId());
 		return new TeacherRequestView(
@@ -91,7 +91,8 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 				current.displayName(),
 				REVOKED,
 				current.createdAt(),
-				reviewedAt);
+				current.reviewedAt(),
+				revokedAt);
 	}
 
 	/** Un oui déjà posé : on rafraîchit la date, sans renvoyer l'email. */
@@ -106,7 +107,8 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 				current.displayName(),
 				APPROVED,
 				current.createdAt(),
-				reviewedAt);
+				reviewedAt,
+				null);
 	}
 
 	private TeacherRequestView markApproved(TeacherRequestView current, long requestId) {
@@ -121,7 +123,8 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 				current.displayName(),
 				APPROVED,
 				current.createdAt(),
-				reviewedAt);
+				reviewedAt,
+				null);
 	}
 
 	/** Si l'espace ouvert était professeur, on l'oublie. Parent reste le souvenir s'il est seul. */

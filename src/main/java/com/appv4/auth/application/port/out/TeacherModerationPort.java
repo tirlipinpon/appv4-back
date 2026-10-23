@@ -18,9 +18,11 @@ public interface TeacherModerationPort {
 
 	Optional<TeacherRequestView> findById(long requestId);
 
+	/** Passe à approved, pose la date du oui, efface la date du retrait. */
 	void markApproved(long requestId, Instant reviewedAt);
 
-	void markRevoked(long requestId, Instant reviewedAt);
+	/** Passe à revoked et pose la date du retrait. La date du oui reste. */
+	void markRevoked(long requestId, Instant revokedAt);
 
 	/** Ajoute {@code teacher} s'il n'est pas déjà là. */
 	void grantTeacher(long userId);

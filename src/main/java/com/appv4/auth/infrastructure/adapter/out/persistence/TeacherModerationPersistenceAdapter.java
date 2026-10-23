@@ -58,15 +58,16 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), "Demande introuvable."));
 		entity.setStatus(APPROVED);
 		entity.setReviewedAt(reviewedAt);
+		entity.setRevokedAt(null);
 		requestRepository.save(entity);
 	}
 
 	@Override
-	public void markRevoked(long requestId, Instant reviewedAt) {
+	public void markRevoked(long requestId, Instant revokedAt) {
 		BackTeacherRoleRequestEntity entity = requestRepository.findById(requestId)
 				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), "Demande introuvable."));
 		entity.setStatus(REVOKED);
-		entity.setReviewedAt(reviewedAt);
+		entity.setRevokedAt(revokedAt);
 		requestRepository.save(entity);
 	}
 
@@ -94,6 +95,7 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 				displayName,
 				entity.getStatus(),
 				entity.getCreatedAt(),
-				entity.getReviewedAt());
+				entity.getReviewedAt(),
+				entity.getRevokedAt());
 	}
 }

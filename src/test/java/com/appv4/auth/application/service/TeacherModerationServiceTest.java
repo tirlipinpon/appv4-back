@@ -103,6 +103,8 @@ class TeacherModerationServiceTest {
 		TeacherRequestView revoked = service.revoke(1L, 4L);
 
 		assertThat(revoked.status()).isEqualTo("revoked");
+		assertThat(revoked.reviewedAt()).isEqualTo(approved.reviewedAt());
+		assertThat(revoked.revokedAt()).isNotNull();
 		verify(teacherModerationPort).markRevoked(eq(4L), any(Instant.class));
 		verify(teacherModerationPort).revokeTeacher(9L);
 		verify(activeRolePort).saveLastActiveRole(9L, null);
@@ -149,6 +151,7 @@ class TeacherModerationServiceTest {
 				"Prof Test",
 				status,
 				Instant.parse("2026-10-23T09:00:00Z"),
-				reviewedAt);
+				reviewedAt,
+				null);
 	}
 }

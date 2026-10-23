@@ -33,8 +33,13 @@ public class BackTeacherRoleRequestEntity {
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 
+	/** Date du dernier oui. Pas écrasée quand on révoque. */
 	@Column(name = "reviewed_at")
 	private Instant reviewedAt;
+
+	/** Date du retrait. Null tant que la demande n'est pas révoquée. */
+	@Column(name = "revoked_at")
+	private Instant revokedAt;
 
 	protected BackTeacherRoleRequestEntity() {
 	}
@@ -70,6 +75,14 @@ public class BackTeacherRoleRequestEntity {
 
 	public void setReviewedAt(Instant reviewedAt) {
 		this.reviewedAt = reviewedAt;
+	}
+
+	public Instant getRevokedAt() {
+		return revokedAt;
+	}
+
+	public void setRevokedAt(Instant revokedAt) {
+		this.revokedAt = revokedAt;
 	}
 
 	@PrePersist

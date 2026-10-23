@@ -91,7 +91,13 @@ public class TeacherRequestModerationController {
 
 	private static TeacherRequestItem toItem(TeacherRequestView view) {
 		return new TeacherRequestItem(
-				view.id(), view.email(), view.displayName(), view.status(), view.createdAt(), view.reviewedAt());
+				view.id(),
+				view.email(),
+				view.displayName(),
+				view.status(),
+				view.createdAt(),
+				view.reviewedAt(),
+				view.revokedAt());
 	}
 
 	private static AuthenticatedUser currentUser() {
@@ -109,7 +115,8 @@ public class TeacherRequestModerationController {
 			String displayName,
 			String status,
 			Instant createdAt,
-			Instant reviewedAt) {
+			Instant reviewedAt,
+			Instant revokedAt) {
 	}
 
 	@Schema(name = "TeacherRequestListResponse")

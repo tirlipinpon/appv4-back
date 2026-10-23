@@ -33,6 +33,7 @@ import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
 import com.appv4.auth.application.port.in.ResetPasswordUseCase;
 import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
 import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
+import com.appv4.auth.application.port.in.TeacherModerationUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
@@ -41,6 +42,8 @@ import com.appv4.auth.application.port.out.GoogleOAuthClient;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 import com.appv4.auth.application.port.out.SignupRolePort;
+import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
+import com.appv4.auth.application.port.out.TeacherModerationPort;
 import com.appv4.auth.application.service.BuildAppleAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildFacebookAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildGoogleAuthorizeUrlService;
@@ -54,12 +57,14 @@ import com.appv4.auth.application.service.LoginWithGoogleService;
 import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
+import com.appv4.auth.application.service.TeacherModerationService;
 import com.appv4.auth.infrastructure.adapter.in.web.JwtAuthenticationFilter;
 import com.appv4.auth.infrastructure.adapter.out.apple.HttpAppleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.facebook.HttpFacebookOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.google.HttpGoogleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
 import com.appv4.auth.infrastructure.adapter.out.mail.LoggingPasswordResetMailAdapter;
+import com.appv4.auth.infrastructure.adapter.out.mail.LoggingTeacherApprovedMailAdapter;
 import com.appv4.configuration.CorsProperties;
 
 /**
@@ -236,6 +241,23 @@ public class AuthConfiguration {
 	@Bean
 	PasswordResetMailPort passwordResetMailPort() {
 		return new LoggingPasswordResetMailAdapter();
+	}
+
+	/**
+	 * Modération des demandes professeur (SCRUM-142).
+	 * Le rôle admin est relu en base. L'email part au moment du oui.
+	 */
+	@Bean
+	TeacherApprovedMailPort teacherApprovedMailPort() {
+		return new LoggingTeacherApprovedMailAdapter();
+	}
+
+	@Bean
+	TeacherModerationUseCase teacherModerationUseCase(
+			ActiveRolePort activeRolePort,
+			TeacherModerationPort teacherModerationPort,
+			TeacherApprovedMailPort teacherApprovedMailPort) {
+		return new TeacherModerationService(activeRolePort, teacherModerationPort, teacherApprovedMailPort);
 	}
 
 	/**

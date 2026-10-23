@@ -44,6 +44,34 @@ public class BackTeacherRoleRequestEntity {
 		this.status = status;
 	}
 
+	public Long getId() {
+		return id;
+	}
+
+	public long getUserId() {
+		return userId;
+	}
+
+	public String getStatus() {
+		return status;
+	}
+
+	public void setStatus(String status) {
+		this.status = status;
+	}
+
+	public Instant getCreatedAt() {
+		return createdAt;
+	}
+
+	public Instant getReviewedAt() {
+		return reviewedAt;
+	}
+
+	public void setReviewedAt(Instant reviewedAt) {
+		this.reviewedAt = reviewedAt;
+	}
+
 	@PrePersist
 	void onCreate() {
 		if (createdAt == null) {

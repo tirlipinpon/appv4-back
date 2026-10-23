@@ -1,6 +1,7 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.http.HttpHeaders;
@@ -10,6 +11,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.appv4.auth.application.port.out.JwtTokenDecoder;
+import com.appv4.auth.application.service.ActiveRoles;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -48,10 +50,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			String raw = header.substring(7).trim();
 			jwtTokenDecoder.decode(raw).ifPresent(user -> {
 				// Objet Spring Security = « cet utilisateur est authentifié pour cette requête »
-				var auth = new UsernamePasswordAuthenticationToken(
-						user,
-						null,
-						List.of(new SimpleGrantedAuthority("ROLE_USER")));
+				List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+				authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+				if (user.roles().contains(ActiveRoles.ADMIN)) {
+					authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+				}
+				var auth = new UsernamePasswordAuthenticationToken(user, null, authorities);
 				SecurityContextHolder.getContext().setAuthentication(auth);
 			});
 		}

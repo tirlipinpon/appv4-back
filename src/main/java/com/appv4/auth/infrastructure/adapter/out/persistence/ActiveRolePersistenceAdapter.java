@@ -49,6 +49,19 @@ public class ActiveRolePersistenceAdapter implements ActiveRolePort {
 	}
 
 	@Override
+	public boolean hasAdminRole(long userId) {
+		return roleRepository.existsByUserIdAndRole(userId, ActiveRoles.ADMIN);
+	}
+
+	@Override
+	public void grantAdmin(long userId) {
+		if (roleRepository.existsByUserIdAndRole(userId, ActiveRoles.ADMIN)) {
+			return;
+		}
+		roleRepository.save(new BackUserRoleEntity(userId, ActiveRoles.ADMIN));
+	}
+
+	@Override
 	public Optional<String> findLastActiveRole(long userId) {
 		return userRepository.findById(userId)
 				.map(BackUserEntity::getLastActiveRole)

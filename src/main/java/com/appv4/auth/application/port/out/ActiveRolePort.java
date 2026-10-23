@@ -22,6 +22,12 @@ public interface ActiveRolePort {
 
 	boolean hasPendingTeacherRequest(long userId);
 
+	/** Vrai si ce compte a le rôle {@code admin} (modération, pas un espace). */
+	boolean hasAdminRole(long userId);
+
+	/** Accorde {@code admin} une seule fois. Le signup ne le fait jamais. */
+	void grantAdmin(long userId);
+
 	/** Dernier espace mémorisé, vide si la colonne est null. */
 	Optional<String> findLastActiveRole(long userId);
 

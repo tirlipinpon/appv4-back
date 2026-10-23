@@ -145,6 +145,7 @@ class TeacherModerationServiceTest {
 				id,
 				9L,
 				"prof@example.com",
+				"Prof Test",
 				status,
 				Instant.parse("2026-10-23T09:00:00Z"),
 				reviewedAt);

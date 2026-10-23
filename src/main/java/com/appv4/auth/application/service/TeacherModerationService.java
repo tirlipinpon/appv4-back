@@ -89,6 +89,7 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 				current.id(),
 				current.userId(),
 				current.email(),
+				current.displayName(),
 				REVOKED,
 				current.createdAt(),
 				reviewedAt);
@@ -103,6 +104,7 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 				current.id(),
 				current.userId(),
 				current.email(),
+				current.displayName(),
 				APPROVED,
 				current.createdAt(),
 				reviewedAt);

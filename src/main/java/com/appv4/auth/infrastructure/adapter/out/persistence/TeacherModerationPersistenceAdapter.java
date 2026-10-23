@@ -84,13 +84,14 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 	}
 
 	private TeacherRequestView toView(BackTeacherRoleRequestEntity entity) {
-		String email = userRepository.findById(entity.getUserId())
-				.map(BackUserEntity::getEmail)
-				.orElse("");
+		BackUserEntity user = userRepository.findById(entity.getUserId()).orElse(null);
+		String email = user == null ? "" : user.getEmail();
+		String displayName = user == null || user.getDisplayName() == null ? "" : user.getDisplayName();
 		return new TeacherRequestView(
 				entity.getId(),
 				entity.getUserId(),
 				email,
+				displayName,
 				entity.getStatus(),
 				entity.getCreatedAt(),
 				entity.getReviewedAt());

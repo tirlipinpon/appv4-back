@@ -16,4 +16,6 @@ public interface TeacherModerationUseCase {
 	List<TeacherRequestView> list(long callerId);
 
 	TeacherRequestView approve(long callerId, long requestId);
+
+	TeacherRequestView revoke(long callerId, long requestId);
 }

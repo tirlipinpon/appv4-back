@@ -17,11 +17,12 @@ import com.appv4.auth.application.service.LocalAdminSeed;
  * Au démarrage local, pose le compte qui ouvre la modération (SCRUM-142).
  *
  * <p><b>Business :</b> ce compte n'existe pas en production.
- * <p><b>Technique :</b> profil {@code local} seulement. Email et mot de passe viennent du {@code .env}.
+ * <p><b>Technique :</b> profil {@code local} seulement, et jamais pendant les tests
+ * ({@code test}). Email et mot de passe viennent du {@code .env}.
  * <p><b>Métier / flow :</b> boot → {@link LocalAdminSeed} → login email habituel.
  */
 @Component
-@Profile("local")
+@Profile("local & !test")
 public class LocalAdminSeedRunner implements ApplicationRunner {
 
 	private static final Logger LOG = LoggerFactory.getLogger(LocalAdminSeedRunner.class);

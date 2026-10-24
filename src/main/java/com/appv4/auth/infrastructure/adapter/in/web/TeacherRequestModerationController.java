@@ -74,8 +74,30 @@ public class TeacherRequestModerationController {
 		return ResponseEntity.ok(toItem(teacherModerationUseCase.approve(currentUser().userId(), id)));
 	}
 
+	@PostMapping("/{id}/revoke")
+	@Operation(operationId = "revokeTeacherRequest", summary = "Reprendre un rôle professeur déjà accepté")
+	@ApiResponse(responseCode = "200", description = "Demande révoquée")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le compte n'est pas admin",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Demande inconnue",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherRequestItem> revoke(@PathVariable long id) {
+		return ResponseEntity.ok(toItem(teacherModerationUseCase.revoke(currentUser().userId(), id)));
+	}
+
 	private static TeacherRequestItem toItem(TeacherRequestView view) {
-		return new TeacherRequestItem(view.id(), view.email(), view.status(), view.createdAt(), view.reviewedAt());
+		return new TeacherRequestItem(
+				view.id(),
+				view.email(),
+				view.displayName(),
+				view.status(),
+				view.createdAt(),
+				view.reviewedAt(),
+				view.revokedAt());
 	}
 
 	private static AuthenticatedUser currentUser() {
@@ -90,9 +112,11 @@ public class TeacherRequestModerationController {
 	public record TeacherRequestItem(
 			long id,
 			String email,
+			String displayName,
 			String status,
 			Instant createdAt,
-			Instant reviewedAt) {
+			Instant reviewedAt,
+			Instant revokedAt) {
 	}
 
 	@Schema(name = "TeacherRequestListResponse")

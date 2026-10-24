@@ -3,6 +3,7 @@ package com.appv4.auth.infrastructure.adapter.out.persistence;
 import java.time.Instant;
 import java.util.Optional;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,8 +13,10 @@ import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 
 /**
  * Adaptateur JPA — {@code back_password_reset_tokens} (SCRUM-108 / SCRUM-111).
+ * Absent du profil {@code test} : les tests web ne démarrent pas JPA.
  */
 @Component
+@Profile("!test")
 public class PasswordResetTokenPersistenceAdapter implements PasswordResetTokenPort {
 
 	private final BackPasswordResetTokenJpaRepository tokenRepository;

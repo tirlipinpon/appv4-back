@@ -1,0 +1,17 @@
+# Profil "test" — les tests web ne touchent pas la base de développement.
+# Pas de Postgres, pas de Flyway, pas de seed admin (celui-ci est profil local).
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: none

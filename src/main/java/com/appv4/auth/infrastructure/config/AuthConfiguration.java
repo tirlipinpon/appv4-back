@@ -93,7 +93,8 @@ import com.appv4.configuration.CorsProperties;
 		GoogleOAuthProperties.class,
 		FacebookOAuthProperties.class,
 		AppleOAuthProperties.class,
-		PasswordResetProperties.class })
+		PasswordResetProperties.class,
+		CorsProperties.class })
 public class AuthConfiguration {
 
 	/**
@@ -345,8 +346,9 @@ public class AuthConfiguration {
 	}
 
 	/**
-	 * CORS aussi côté Security (sinon le navigateur bloque Angular :4201 → :8080).
+	 * Unique source CORS (Security). Sans ça le navigateur bloque Angular :4201 → :8080.
 	 * Les origines viennent de {@link CorsProperties} (profil local).
+	 * Pas de second mapping MVC — issue #61.
 	 */
 	@Bean
 	CorsConfigurationSource corsConfigurationSource(CorsProperties corsProperties) {

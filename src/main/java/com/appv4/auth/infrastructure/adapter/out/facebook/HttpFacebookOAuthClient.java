@@ -67,14 +67,15 @@ public class HttpFacebookOAuthClient implements FacebookOAuthClient {
 	}
 
 	private FacebookUserProfile fetchUserInfo(String accessToken) {
+		// Bearer header — pas d'access_token en query (logs / RFC 9700, issue #54)
 		URI uri = UriComponentsBuilder.fromUriString(properties.getUserInfoUri())
 				.queryParam("fields", "id,name,email")
-				.queryParam("access_token", accessToken)
 				.build()
 				.toUri();
 
 		UserInfoResponse info = restClient.get()
 				.uri(uri)
+				.headers(h -> h.setBearerAuth(accessToken))
 				.retrieve()
 				.body(UserInfoResponse.class);
 

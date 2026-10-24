@@ -236,8 +236,17 @@ public class AuthConfiguration {
 	}
 
 	@Bean
-	ResumeAppleOAuthCallbackUseCase resumeAppleOAuthCallbackUseCase(AppleOAuthProperties appleOAuthProperties) {
-		return new ResumeAppleOAuthCallbackService(appleOAuthProperties);
+	com.appv4.auth.application.port.out.OAuthBrowserBindingPort oauthBrowserBindingPort(
+			JwtProperties jwtProperties) {
+		return new com.appv4.auth.infrastructure.adapter.out.oauth.HmacOAuthBrowserBindingAdapter(
+				jwtProperties);
+	}
+
+	@Bean
+	ResumeAppleOAuthCallbackUseCase resumeAppleOAuthCallbackUseCase(
+			AppleOAuthProperties appleOAuthProperties,
+			com.appv4.auth.application.port.out.OAuthBrowserBindingPort oauthBrowserBindingPort) {
+		return new ResumeAppleOAuthCallbackService(appleOAuthProperties, oauthBrowserBindingPort);
 	}
 
 	@Bean

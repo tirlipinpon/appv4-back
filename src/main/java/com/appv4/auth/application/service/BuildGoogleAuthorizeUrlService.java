@@ -21,7 +21,7 @@ public class BuildGoogleAuthorizeUrlService implements BuildGoogleAuthorizeUrlUs
 	}
 
 	@Override
-	public String build(String redirectUri) {
+	public String build(String redirectUri, String state) {
 		if (!properties.isConfigured()) {
 			throw new AuthDomainException(
 					HttpStatus.SERVICE_UNAVAILABLE.value(),
@@ -30,14 +30,19 @@ public class BuildGoogleAuthorizeUrlService implements BuildGoogleAuthorizeUrlUs
 		if (redirectUri == null || redirectUri.isBlank()) {
 			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "redirectUri obligatoire");
 		}
+		if (state == null || state.isBlank()) {
+			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "state OAuth obligatoire");
+		}
 		String scope = URLEncoder.encode("openid email profile", StandardCharsets.UTF_8);
 		String encodedRedirect = URLEncoder.encode(redirectUri.trim(), StandardCharsets.UTF_8);
 		String clientId = URLEncoder.encode(properties.getClientId(), StandardCharsets.UTF_8);
+		String encodedState = URLEncoder.encode(state, StandardCharsets.UTF_8);
 		return properties.getAuthorizationUri()
 				+ "?client_id=" + clientId
 				+ "&redirect_uri=" + encodedRedirect
 				+ "&response_type=code"
 				+ "&scope=" + scope
+				+ "&state=" + encodedState
 				+ "&access_type=online"
 				+ "&prompt=select_account";
 	}

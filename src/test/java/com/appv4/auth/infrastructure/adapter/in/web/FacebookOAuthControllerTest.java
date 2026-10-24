@@ -15,9 +15,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
@@ -25,6 +25,7 @@ import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.FacebookOAuthClient.FacebookUserProfile;
+import com.appv4.auth.application.port.out.OAuthBrowserBindingPort;
 import com.appv4.auth.infrastructure.config.FacebookOAuthProperties;
 
 @SpringBootTest
@@ -37,6 +38,9 @@ class FacebookOAuthControllerTest {
 
 	@Autowired
 	private FacebookOAuthProperties facebookOAuthProperties;
+
+	@Autowired
+	private OAuthBrowserBindingPort oauthBrowserBindingPort;
 
 	@MockBean
 	private FacebookOAuthClient facebookOAuthClient;
@@ -60,7 +64,7 @@ class FacebookOAuthControllerTest {
 	}
 
 	@Test
-	void authorizeUrlReturnsFacebookUrlWhenConfigured() throws Exception {
+	void authorizeUrlReturnsFacebookUrlWithStateWhenConfigured() throws Exception {
 		facebookOAuthProperties.setAppId("app-123");
 		facebookOAuthProperties.setAppSecret("secret-xyz");
 
@@ -70,12 +74,15 @@ class FacebookOAuthControllerTest {
 				.andExpect(jsonPath("$.authorizationUrl")
 						.value(org.hamcrest.Matchers.containsString("app-123")))
 				.andExpect(jsonPath("$.authorizationUrl")
-						.value(org.hamcrest.Matchers.containsString("facebook.com")));
+						.value(org.hamcrest.Matchers.containsString("state=")))
+				.andExpect(jsonPath("$.state").isNotEmpty());
 	}
 
 	@Test
 	void loginWithCodeReturnsJwt() throws Exception {
-		when(facebookOAuthClient.exchangeCode(eq("auth-code"), eq("http://localhost:4201/cb")))
+		String redirect = "http://localhost:4201/cb";
+		String state = oauthBrowserBindingPort.issue(OAuthBrowserBindingPort.PROVIDER_FACEBOOK, redirect);
+		when(facebookOAuthClient.exchangeCode(eq("auth-code"), eq(redirect)))
 				.thenReturn(new FacebookUserProfile("fb-1", "user@example.com", "User"));
 		when(authUserAccountPort.findByProviderSubject("facebook", "fb-1"))
 				.thenReturn(Optional.of(new AuthUserAccount(7L, "user@example.com", "User", true)));
@@ -83,23 +90,20 @@ class FacebookOAuthControllerTest {
 		mockMvc.perform(post("/api/int/auth/oauth/facebook")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"authorizationCode":"auth-code","redirectUri":"http://localhost:4201/cb"}
-								"""))
+								{"authorizationCode":"auth-code","redirectUri":"%s","state":"%s"}
+								""".formatted(redirect, state)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.token").isNotEmpty())
 				.andExpect(jsonPath("$.expiresAtEpochSeconds").isNumber());
 	}
 
 	@Test
-	void loginWithoutEmailStillPublic() throws Exception {
-		when(facebookOAuthClient.exchangeCode(eq("bad"), eq("http://x")))
-				.thenReturn(new FacebookUserProfile("fb", null, "A"));
-
+	void loginWithoutValidStateIsRejected() throws Exception {
 		mockMvc.perform(post("/api/int/auth/oauth/facebook")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"authorizationCode":"bad","redirectUri":"http://x"}
+								{"authorizationCode":"bad","redirectUri":"http://x","state":"nope"}
 								"""))
-				.andExpect(status().isForbidden());
+				.andExpect(status().isUnauthorized());
 	}
 }

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.BuildFacebookAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
+import com.appv4.auth.application.port.out.OAuthBrowserBindingPort;
 import com.appv4.auth.application.result.JwtTokenResult;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,11 +20,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * Endpoints publics OAuth Facebook (SCRUM-99).
- *
- * <p><b>Business :</b> même flux SPA que Google — bouton FE → Facebook → callback → JWT.
- * <p><b>Technique :</b> {@code GET .../authorize-url} + {@code POST .../facebook}.
- * Redirect FE typique : {@code http://localhost:4201/auth/callback/facebook}.
+ * Endpoints publics OAuth Facebook (SCRUM-99 / issue #32).
  */
 @RestController
 @RequestMapping("/api/int/auth/oauth/facebook")
@@ -32,26 +29,34 @@ public class FacebookOAuthController {
 
 	private final BuildFacebookAuthorizeUrlUseCase buildFacebookAuthorizeUrlUseCase;
 	private final LoginWithFacebookUseCase loginWithFacebookUseCase;
+	private final OAuthBrowserBindingPort oauthBrowserBindingPort;
 
 	public FacebookOAuthController(
 			BuildFacebookAuthorizeUrlUseCase buildFacebookAuthorizeUrlUseCase,
-			LoginWithFacebookUseCase loginWithFacebookUseCase) {
+			LoginWithFacebookUseCase loginWithFacebookUseCase,
+			OAuthBrowserBindingPort oauthBrowserBindingPort) {
 		this.buildFacebookAuthorizeUrlUseCase = buildFacebookAuthorizeUrlUseCase;
 		this.loginWithFacebookUseCase = loginWithFacebookUseCase;
+		this.oauthBrowserBindingPort = oauthBrowserBindingPort;
 	}
 
 	@GetMapping("/authorize-url")
 	@Operation(operationId = "getFacebookAuthorizeUrl", summary = "URL d'autorisation Facebook")
 	public ResponseEntity<AuthorizeUrlResponse> getFacebookAuthorizeUrl(
 			@RequestParam String redirectUri) {
-		String url = buildFacebookAuthorizeUrlUseCase.build(redirectUri);
-		return ResponseEntity.ok(new AuthorizeUrlResponse(url));
+		String state = oauthBrowserBindingPort.issue(OAuthBrowserBindingPort.PROVIDER_FACEBOOK, redirectUri);
+		String url = buildFacebookAuthorizeUrlUseCase.build(redirectUri, state);
+		return ResponseEntity.ok(new AuthorizeUrlResponse(url, state));
 	}
 
 	@PostMapping
 	@Operation(operationId = "loginWithFacebook", summary = "Échanger le code Facebook contre un JWT")
 	public ResponseEntity<JwtTokenResponse> loginWithFacebook(
 			@Valid @RequestBody FacebookLoginRequest request) {
+		oauthBrowserBindingPort.consume(
+				OAuthBrowserBindingPort.PROVIDER_FACEBOOK,
+				request.redirectUri(),
+				request.state());
 		JwtTokenResult result = loginWithFacebookUseCase.login(
 				request.authorizationCode(),
 				request.redirectUri());
@@ -61,6 +66,7 @@ public class FacebookOAuthController {
 	@Schema(name = "FacebookLoginRequest")
 	public record FacebookLoginRequest(
 			@NotBlank String authorizationCode,
-			@NotBlank String redirectUri) {
+			@NotBlank String redirectUri,
+			@NotBlank String state) {
 	}
 }

@@ -27,29 +27,29 @@ class BuildAppleAuthorizeUrlServiceTest {
 
 	@Test
 	void buildsFormPostUrlWithBackendCallbackAndState() {
-		String url = service.build("http://localhost:4201/auth/callback/apple");
+		String url = service.build("http://localhost:4201/auth/callback/apple", "signed.state");
 
 		assertThat(url).contains("response_mode=form_post");
 		assertThat(url).contains("response_type=code");
 		assertThat(url).contains("scope=name+email");
+		assertThat(url).contains("state=signed.state");
 		assertThat(url).contains("redirect_uri="
 				+ java.net.URLEncoder.encode(
 						properties.getCallbackUri(), java.nio.charset.StandardCharsets.UTF_8));
-		assertThat(url).contains("state=");
 		assertThat(url).doesNotContain("response_mode=query");
 	}
 
 	@Test
 	void rejectsWhenCallbackMissing() {
 		properties.setCallbackUri("");
-		assertThatThrownBy(() -> service.build("http://localhost:4201/auth/callback/apple"))
+		assertThatThrownBy(() -> service.build("http://localhost:4201/auth/callback/apple", "s"))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessageContaining("APPLE_CALLBACK_URI");
 	}
 
 	@Test
 	void rejectsDisallowedResumeUri() {
-		assertThatThrownBy(() -> service.build("https://evil.example/phish"))
+		assertThatThrownBy(() -> service.build("https://evil.example/phish", "s"))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessageContaining("non autorisé");
 	}

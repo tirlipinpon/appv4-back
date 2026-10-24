@@ -26,7 +26,7 @@ import com.appv4.auth.application.port.out.AppleOAuthClient.AppleUserProfile;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
-import com.appv4.auth.application.service.AppleOAuthReturnUris;
+import com.appv4.auth.application.port.out.OAuthBrowserBindingPort;
 import com.appv4.auth.infrastructure.config.AppleOAuthProperties;
 
 @SpringBootTest
@@ -35,12 +35,16 @@ import com.appv4.auth.infrastructure.config.AppleOAuthProperties;
 class AppleOAuthControllerTest {
 
 	private static final String CALLBACK = "https://api.example.com/api/int/auth/oauth/apple/callback";
+	private static final String RESUME = "http://localhost:4201/auth/callback/apple";
 
 	@Autowired
 	private MockMvc mockMvc;
 
 	@Autowired
 	private AppleOAuthProperties appleOAuthProperties;
+
+	@Autowired
+	private OAuthBrowserBindingPort oauthBrowserBindingPort;
 
 	@MockBean
 	private AppleOAuthClient appleOAuthClient;
@@ -62,7 +66,7 @@ class AppleOAuthControllerTest {
 	@Test
 	void authorizeUrlRequiresConfig() throws Exception {
 		mockMvc.perform(get("/api/int/auth/oauth/apple/authorize-url")
-						.param("redirectUri", "http://localhost:4201/auth/callback/apple"))
+						.param("redirectUri", RESUME))
 				.andExpect(status().isServiceUnavailable());
 	}
 
@@ -75,19 +79,16 @@ class AppleOAuthControllerTest {
 		appleOAuthProperties.setCallbackUri(CALLBACK);
 
 		mockMvc.perform(get("/api/int/auth/oauth/apple/authorize-url")
-						.param("redirectUri", "http://localhost:4201/auth/callback/apple"))
+						.param("redirectUri", RESUME))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.authorizationUrl")
 						.value(org.hamcrest.Matchers.containsString("response_mode=form_post")))
-				.andExpect(jsonPath("$.authorizationUrl")
-						.value(org.hamcrest.Matchers.containsString(
-								java.net.URLEncoder.encode(
-										CALLBACK, java.nio.charset.StandardCharsets.UTF_8))));
+				.andExpect(jsonPath("$.state").isNotEmpty());
 	}
 
 	@Test
 	void formPostCallbackRedirectsToSpa() throws Exception {
-		String state = AppleOAuthReturnUris.encodeState("http://localhost:4201/auth/callback/apple");
+		String state = oauthBrowserBindingPort.issue(OAuthBrowserBindingPort.PROVIDER_APPLE, RESUME);
 
 		mockMvc.perform(post("/api/int/auth/oauth/apple/callback")
 						.contentType(MediaType.APPLICATION_FORM_URLENCODED)
@@ -96,12 +97,13 @@ class AppleOAuthControllerTest {
 				.andExpect(status().isFound())
 				.andExpect(header().string(
 						"Location",
-						"http://localhost:4201/auth/callback/apple?code=auth-code"));
+						org.hamcrest.Matchers.startsWith(RESUME + "?code=auth-code&state=")));
 	}
 
 	@Test
 	void loginWithCodeUsesConfiguredCallbackUri() throws Exception {
 		appleOAuthProperties.setCallbackUri(CALLBACK);
+		String state = oauthBrowserBindingPort.issue(OAuthBrowserBindingPort.PROVIDER_APPLE, RESUME);
 		when(appleOAuthClient.exchangeCode(eq("auth-code"), eq(CALLBACK)))
 				.thenReturn(new AppleUserProfile("apple-1", "user@example.com", ""));
 		when(authUserAccountPort.findByProviderSubject("apple", "apple-1"))
@@ -110,8 +112,8 @@ class AppleOAuthControllerTest {
 		mockMvc.perform(post("/api/int/auth/oauth/apple")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"authorizationCode":"auth-code","redirectUri":"http://localhost:4201/ignored"}
-								"""))
+								{"authorizationCode":"auth-code","redirectUri":"%s","state":"%s"}
+								""".formatted(RESUME, state)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.token").isNotEmpty())
 				.andExpect(jsonPath("$.expiresAtEpochSeconds").isNumber());

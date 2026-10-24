@@ -40,7 +40,8 @@ class LoginWithFacebookServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new LoginWithFacebookService(facebookOAuthClient, authUserAccountPort, issueJwtUseCase);
+		service = new LoginWithFacebookService(
+				facebookOAuthClient, authUserAccountPort, issueJwtUseCase, new ImmediateTransactionTemplate());
 	}
 
 	@Test

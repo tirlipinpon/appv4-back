@@ -4,10 +4,12 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.appv4.auth.application.AuthMessages;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 
@@ -63,32 +65,40 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 			String provider,
 			String providerSubject,
 			String emailAtProvider) {
-		BackUserEntity user = new BackUserEntity();
-		user.setEmail(email);
-		user.setDisplayName(displayName);
-		user.setActive(true);
-		user.setPasswordHash(null);
-		BackUserEntity saved = userRepository.save(user);
+		try {
+			BackUserEntity user = new BackUserEntity();
+			user.setEmail(email);
+			user.setDisplayName(displayName);
+			user.setActive(true);
+			user.setPasswordHash(null);
+			BackUserEntity saved = userRepository.saveAndFlush(user);
 
-		BackUserIdentityEntity identity = new BackUserIdentityEntity();
-		identity.setUser(saved);
-		identity.setProvider(provider);
-		identity.setProviderSubject(providerSubject);
-		identity.setEmailAtProvider(emailAtProvider);
-		identityRepository.save(identity);
+			BackUserIdentityEntity identity = new BackUserIdentityEntity();
+			identity.setUser(saved);
+			identity.setProvider(provider);
+			identity.setProviderSubject(providerSubject);
+			identity.setEmailAtProvider(emailAtProvider);
+			identityRepository.saveAndFlush(identity);
 
-		return toAccount(saved);
+			return toAccount(saved);
+		} catch (DataIntegrityViolationException ignored) {
+			throw conflict();
+		}
 	}
 
 	@Override
 	@Transactional
 	public AuthUserAccount createWithPassword(String email, String displayName, String passwordHash) {
-		BackUserEntity user = new BackUserEntity();
-		user.setEmail(email);
-		user.setDisplayName(displayName);
-		user.setActive(true);
-		user.setPasswordHash(passwordHash);
-		return toAccount(userRepository.save(user));
+		try {
+			BackUserEntity user = new BackUserEntity();
+			user.setEmail(email);
+			user.setDisplayName(displayName);
+			user.setActive(true);
+			user.setPasswordHash(passwordHash);
+			return toAccount(userRepository.saveAndFlush(user));
+		} catch (DataIntegrityViolationException ignored) {
+			throw conflict();
+		}
 	}
 
 	@Override
@@ -101,12 +111,23 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 		if (identityRepository.findByProviderAndProviderSubject(provider, providerSubject).isPresent()) {
 			return;
 		}
-		BackUserIdentityEntity identity = new BackUserIdentityEntity();
-		identity.setUser(user);
-		identity.setProvider(provider);
-		identity.setProviderSubject(providerSubject);
-		identity.setEmailAtProvider(emailAtProvider);
-		identityRepository.save(identity);
+		try {
+			BackUserIdentityEntity identity = new BackUserIdentityEntity();
+			identity.setUser(user);
+			identity.setProvider(provider);
+			identity.setProviderSubject(providerSubject);
+			identity.setEmailAtProvider(emailAtProvider);
+			identityRepository.saveAndFlush(identity);
+		} catch (DataIntegrityViolationException ignored) {
+			// Course : un autre fil a lié le même subject — idempotent.
+			if (identityRepository.findByProviderAndProviderSubject(provider, providerSubject).isEmpty()) {
+				throw conflict();
+			}
+		}
+	}
+
+	private static AuthDomainException conflict() {
+		return new AuthDomainException(HttpStatus.CONFLICT.value(), AuthMessages.ACCOUNT_CONFLICT);
 	}
 
 	@Override

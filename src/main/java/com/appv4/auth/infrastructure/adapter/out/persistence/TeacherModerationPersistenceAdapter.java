@@ -108,10 +108,7 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 
 	@Override
 	public void grantTeacher(long userId) {
-		if (roleRepository.existsByUserIdAndRole(userId, ActiveRoles.TEACHER)) {
-			return;
-		}
-		roleRepository.save(new BackUserRoleEntity(userId, ActiveRoles.TEACHER));
+		roleRepository.insertIgnoreConflict(userId, ActiveRoles.TEACHER);
 	}
 
 	@Override

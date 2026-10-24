@@ -39,4 +39,16 @@ public interface BackTeacherRoleRequestJpaRepository extends JpaRepository<BackT
 			WHERE e.id = :id AND e.status = 'approved'
 			""")
 	int refreshApproved(@Param("id") long id, @Param("reviewedAt") Instant reviewedAt);
+
+	/** Demande pending idempotente sous concurrence (issue #44). */
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query(value = """
+			INSERT INTO back_teacher_role_requests (user_id, status)
+			SELECT :userId, 'pending'
+			WHERE NOT EXISTS (
+				SELECT 1 FROM back_teacher_role_requests r
+				WHERE r.user_id = :userId AND r.status = 'pending'
+			)
+			""", nativeQuery = true)
+	int insertPendingIfAbsent(@Param("userId") long userId);
 }

@@ -101,7 +101,7 @@ public class HttpAppleOAuthClient implements AppleOAuthClient {
 		} catch (Exception ex) {
 			throw new AuthDomainException(
 					HttpStatus.UNAUTHORIZED.value(),
-					"Impossible de lire id_token Apple : " + ex.getMessage());
+					"Impossible de lire id_token Apple");
 		}
 	}
 

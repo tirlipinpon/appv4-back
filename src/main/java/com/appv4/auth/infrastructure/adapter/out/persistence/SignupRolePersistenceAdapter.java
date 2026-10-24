@@ -1,10 +1,10 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
+import java.time.Instant;
+
 import org.springframework.context.annotation.Profile;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.SignupRolePort;
 
 /**
@@ -54,14 +54,7 @@ public class SignupRolePersistenceAdapter implements SignupRolePort {
 	}
 
 	@Override
-	public void markInitialChoiceCompleted(long userId) {
-		BackUserEntity user = userRepository.findById(userId)
-				.orElseThrow(() -> new AuthDomainException(
-						HttpStatus.UNAUTHORIZED.value(),
-						"Session invalide."));
-		if (!user.isInitialRolesCompleted()) {
-			user.setInitialRolesCompleted(true);
-			userRepository.save(user);
-		}
+	public boolean tryClaimInitialChoice(long userId) {
+		return userRepository.claimInitialRolesCompleted(userId, Instant.now()) == 1;
 	}
 }

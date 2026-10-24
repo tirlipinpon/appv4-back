@@ -13,11 +13,13 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.auth.application.result.JwtTokenResult;
+import com.appv4.configuration.OpenApiConfiguration;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -27,13 +29,15 @@ import jakarta.validation.constraints.NotBlank;
  *
  * <p><b>Business :</b> passer de parent à professeur sans se déconnecter,
  * seulement si le rôle est déjà accordé.
- * <p><b>Technique :</b> {@code POST /api/int/auth/switch-role}, JWT obligatoire.
+ * <p><b>Technique :</b> {@code POST /api/int/auth/switch-role}, JWT obligatoire
+ * (annoncé OpenAPI — issue #51).
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link SwitchActiveRoleUseCase}
  * → nouveau JWT.
  */
 @RestController
 @RequestMapping("/api/int/auth/switch-role")
 @Tag(name = "Auth — rôle actif")
+@SecurityRequirement(name = OpenApiConfiguration.BEARER_JWT)
 public class SwitchRoleController {
 
 	private final SwitchActiveRoleUseCase switchActiveRoleUseCase;

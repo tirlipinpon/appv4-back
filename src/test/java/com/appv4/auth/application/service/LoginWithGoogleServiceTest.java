@@ -92,4 +92,20 @@ class LoginWithGoogleServiceTest {
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessageContaining("non vérifié");
 	}
+
+	@Test
+	void linkingToExistingEmailClearsLocalPassword() {
+		when(googleOAuthClient.exchangeCode("code", "http://localhost/cb"))
+				.thenReturn(new GoogleUserProfile("sub-9", "victim@example.com", true, "Victim"));
+		when(authUserAccountPort.findByProviderSubject("google", "sub-9")).thenReturn(Optional.empty());
+		when(authUserAccountPort.findByEmail("victim@example.com"))
+				.thenReturn(Optional.of(new AuthUserAccount(5L, "victim@example.com", "Victim", true)));
+		when(issueJwtUseCase.issue(5L, "victim@example.com"))
+				.thenReturn(new JwtTokenResult("jwt", 1L));
+
+		service.login("code", "http://localhost/cb");
+
+		verify(authUserAccountPort).linkIdentity(5L, "google", "sub-9", "victim@example.com");
+		verify(authUserAccountPort).clearPasswordAfterVerifiedSocialLink(5L);
+	}
 }

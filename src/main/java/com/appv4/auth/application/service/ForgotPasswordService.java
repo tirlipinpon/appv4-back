@@ -20,7 +20,8 @@ import com.appv4.auth.infrastructure.config.PasswordResetProperties;
  *
  * <p><b>Business :</b> message unique que l'email existe ou non (anti-énumération).
  * <p><b>Technique :</b> token clair aléatoire → SHA-256 en base ; lien FE avec token clair.
- * <p><b>Métier / flow :</b> port in → find email → invalidate anciens → insert → mail.
+ * <p><b>Métier / flow :</b> port in → find email → invalidate anciens → insert → mail
+ * après commit (pas avant, issue #36).
  */
 public class ForgotPasswordService implements ForgotPasswordUseCase {
 
@@ -56,7 +57,8 @@ public class ForgotPasswordService implements ForgotPasswordUseCase {
 			Instant expiresAt = Instant.now().plus(properties.getTokenTtl());
 			passwordResetTokenPort.create(account.id(), hash, expiresAt);
 			String resetUrl = properties.getFrontendResetUrl() + "?token=" + clearToken;
-			passwordResetMailPort.sendResetLink(account.email(), resetUrl);
+			String to = account.email();
+			AfterCommit.run(() -> passwordResetMailPort.sendResetLink(to, resetUrl));
 		});
 		return PUBLIC_MESSAGE;
 	}

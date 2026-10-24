@@ -107,15 +107,16 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 	}
 
 	/**
-	 * Noyau d'approbation : transition atomique (issue #46) + rôle + email seulement
-	 * pour {@link TeacherApprovalOutcome#FIRST_APPROVAL}.
+	 * Noyau d'approbation : transition atomique (issue #46) + rôle + email après commit
+	 * seulement pour {@link TeacherApprovalOutcome#FIRST_APPROVAL} (issue #36).
 	 */
 	private TeacherRequestView applyApproval(TeacherRequestView current, long requestId) {
 		Instant reviewedAt = Instant.now();
 		TeacherApprovalOutcome outcome = teacherModerationPort.markApproved(requestId, reviewedAt);
 		teacherModerationPort.grantTeacher(current.userId());
 		if (outcome == TeacherApprovalOutcome.FIRST_APPROVAL) {
-			teacherApprovedMailPort.sendTeacherApproved(current.email());
+			String to = current.email();
+			AfterCommit.run(() -> teacherApprovedMailPort.sendTeacherApproved(to));
 		}
 		return new TeacherRequestView(
 				current.id(),

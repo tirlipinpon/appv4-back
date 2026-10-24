@@ -1,7 +1,6 @@
 package com.appv4.auth.application.service;
 
 import java.time.Instant;
-import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +10,7 @@ import com.appv4.auth.application.port.in.TeacherModerationUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
+import com.appv4.auth.application.port.out.TeacherRequestPage;
 import com.appv4.auth.application.port.out.TeacherRequestView;
 
 /**
@@ -27,6 +27,9 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 	static final String NOT_FOUND = "Demande introuvable.";
 	static final String NOT_ACCEPTABLE = "Cette demande ne peut pas être acceptée.";
 	static final String NOT_REVOKABLE = "Cette demande ne peut pas être révoquée.";
+	/** Plafond dur de la file (issue #55) — le query param ne peut pas dépasser. */
+	public static final int LIST_MAX_LIMIT = 100;
+	public static final int LIST_DEFAULT_LIMIT = 50;
 	private static final String PENDING = "pending";
 	private static final String APPROVED = "approved";
 	private static final String REVOKED = "revoked";
@@ -46,9 +49,10 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 
 	@Override
 	@Transactional(readOnly = true)
-	public List<TeacherRequestView> list(long callerId) {
+	public TeacherRequestPage list(long callerId, int limit) {
 		requireAdmin(callerId);
-		return teacherModerationPort.findPendingAndApproved();
+		int capped = Math.min(Math.max(limit, 1), LIST_MAX_LIMIT);
+		return teacherModerationPort.findModerationQueue(capped);
 	}
 
 	@Override

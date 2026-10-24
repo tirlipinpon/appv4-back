@@ -106,15 +106,13 @@ class SignupWithEmailServiceTest {
 	}
 
 	@Test
-	void rejectsWhenSocialAccountExistsWithGuidance() {
+	void rejectsWhenSocialAccountExistsWithoutLeakingProviders() {
 		when(authUserAccountPort.findSignupStateByEmail("marie@example.com"))
 				.thenReturn(Optional.of(new AuthUserSignupState(
 						5L, "marie@example.com", false, List.of("google", "facebook"))));
 
 		assertThatThrownBy(() -> service.signup("marie@example.com", "Secret1!", "Marie"))
 				.isInstanceOf(AuthDomainException.class)
-				.hasMessageContaining("Google")
-				.hasMessageContaining("Facebook")
-				.hasMessageContaining("Mot de passe oublié");
+				.hasMessage(SignupWithEmailService.ACCOUNT_CONFLICT_MESSAGE);
 	}
 }

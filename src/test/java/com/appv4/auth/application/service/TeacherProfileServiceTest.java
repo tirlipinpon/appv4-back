@@ -1,0 +1,218 @@
+package com.appv4.auth.application.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.in.TeacherProfileUseCase.TeacherSchoolCommand;
+import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
+import com.appv4.auth.application.port.out.TeacherProfilePort;
+import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
+import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
+import com.appv4.auth.application.result.TeacherProfileView;
+
+class TeacherProfileServiceTest {
+
+	private static final long TEACHER_ID = 4L;
+	private static final long OTHER_ID = 10L;
+
+	private MemoryProfile profiles;
+	private List<CatalogSchool> catalog;
+	private TeacherProfileService service;
+
+	@BeforeEach
+	void setUp() {
+		profiles = new MemoryProfile();
+		profiles.seed(TEACHER_ID, "prof@example.com", "Ancien nom");
+		profiles.seed(OTHER_ID, "autre@example.com", "Autre");
+		catalog = new ArrayList<>();
+		service = new TeacherProfileService(profiles, () -> catalog);
+	}
+
+	@Test
+	void teacherRenamesAndKeepsEmailWhenNoSchoolIsOffered() {
+		TeacherProfileView view = service.update(TEACHER_ID, "teacher", "  Professeur Martin  ", List.of());
+
+		assertThat(view.displayName()).isEqualTo("Professeur Martin");
+		assertThat(view.email()).isEqualTo("prof@example.com");
+		assertThat(view.schools()).isEmpty();
+		assertThat(view.availableSchools()).isEmpty();
+		assertThat(profiles.account(TEACHER_ID).email()).isEqualTo("prof@example.com");
+		assertThat(profiles.schoolsOf(OTHER_ID)).isEmpty();
+		assertThat(profiles.account(OTHER_ID).displayName()).isEqualTo("Autre");
+	}
+
+	@Test
+	void blankOrTooLongNameDoesNotReplaceThePreviousOne() {
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "   ", List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherProfileService.NAME_REQUIRED);
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", null, List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherProfileService.NAME_REQUIRED);
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "x".repeat(256), List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherProfileService.NAME_TOO_LONG);
+
+		assertThat(profiles.account(TEACHER_ID).displayName()).isEqualTo("Ancien nom");
+		assertThat(service.update(TEACHER_ID, "teacher", "x".repeat(255), List.of()).displayName())
+				.hasSize(255);
+	}
+
+	@Test
+	void parentOrPendingTeacherCannotOpenTheProfile() {
+		assertDenied(() -> service.load(TEACHER_ID, "parent"));
+		assertDenied(() -> service.update(TEACHER_ID, null, "Nouveau", List.of()));
+		assertThat(profiles.account(TEACHER_ID).displayName()).isEqualTo("Ancien nom");
+	}
+
+	@Test
+	void unknownSchoolIsRefusedWhileTheCatalogIsEmpty() {
+		List<TeacherSchoolCommand> schools = List.of(
+				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("CE1")));
+
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Professeur Martin", schools))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherProfileService.SCHOOL_UNKNOWN);
+
+		assertThat(profiles.account(TEACHER_ID).displayName()).isEqualTo("Ancien nom");
+		assertThat(profiles.schoolsOf(TEACHER_ID)).isEmpty();
+	}
+
+	@Test
+	void twoSchoolsKeepTheirOwnCurriculumAndGrades() {
+		catalog.add(new CatalogSchool(1L, "Première école"));
+		catalog.add(new CatalogSchool(2L, "Deuxième école"));
+
+		TeacherProfileView saved = service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("CE2", "CE1")),
+				new TeacherSchoolCommand(2L, SchoolCurricula.BELGIUM_FR, List.of("4e primaire", "3e primaire"))));
+
+		assertThat(saved.schools()).hasSize(2);
+		assertThat(saved.schools().get(0).grades()).containsExactly("CE1", "CE2");
+		assertThat(saved.schools().get(1).curriculum()).isEqualTo(SchoolCurricula.BELGIUM_FR);
+		assertThat(saved.schools().get(1).grades()).containsExactly("3e primaire", "4e primaire");
+		assertThat(saved.schools().get(0).grades()).doesNotContain("1re primaire");
+		assertThat(saved.schools().get(1).grades()).doesNotContain("CP");
+		assertThat(profiles.schoolsOf(OTHER_ID)).isEmpty();
+	}
+
+	@Test
+	void wrongGradeDuplicateOrMissingYearDoesNotEraseThePreviousSchools() {
+		catalog.add(new CatalogSchool(1L, "Première école"));
+		catalog.add(new CatalogSchool(2L, "Deuxième école"));
+		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("CE1", "CE2"))));
+
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, SchoolCurricula.BELGIUM_FR, List.of("CE1")))))
+				.hasMessage(TeacherProfileService.GRADE_MISMATCH);
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("1re primaire")))))
+				.hasMessage(TeacherProfileService.GRADE_MISMATCH);
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of()))))
+				.hasMessage(TeacherProfileService.GRADE_REQUIRED);
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("CE1")),
+				new TeacherSchoolCommand(1L, SchoolCurricula.BELGIUM_FR, List.of("1re primaire")))))
+				.hasMessage(TeacherProfileService.SCHOOL_DUPLICATE);
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(null, SchoolCurricula.FRANCE, List.of("CE1")))))
+				.hasMessage(TeacherProfileService.SCHOOL_REQUIRED);
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(9L, SchoolCurricula.FRANCE, List.of("CE1")))))
+				.hasMessage(TeacherProfileService.SCHOOL_UNKNOWN);
+
+		assertThat(profiles.schoolsOf(TEACHER_ID)).containsExactly(
+				new TeacherSchoolLink(1L, SchoolCurricula.FRANCE, List.of("CE1", "CE2")));
+	}
+
+	@Test
+	void removingAGradeThenASchoolKeepsTheOtherSchool() {
+		catalog.add(new CatalogSchool(1L, "Première école"));
+		catalog.add(new CatalogSchool(2L, "Deuxième école"));
+		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("CE1")),
+				new TeacherSchoolCommand(2L, SchoolCurricula.BELGIUM_FR, List.of("3e primaire", "4e primaire"))));
+
+		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("CE1")),
+				new TeacherSchoolCommand(2L, SchoolCurricula.BELGIUM_FR, List.of("3e primaire"))));
+		assertThat(profiles.schoolsOf(TEACHER_ID)).containsExactly(
+				new TeacherSchoolLink(1L, SchoolCurricula.FRANCE, List.of("CE1")),
+				new TeacherSchoolLink(2L, SchoolCurricula.BELGIUM_FR, List.of("3e primaire")));
+
+		TeacherProfileView left = service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, SchoolCurricula.BELGIUM_FR, List.of("1re primaire"))));
+		assertThat(left.schools()).containsExactly(new TeacherProfileView.AssignedSchool(
+				1L,
+				"Première école",
+				SchoolCurricula.BELGIUM_FR,
+				List.of("1re primaire")));
+	}
+
+	@Test
+	void missingAccountIsNotFound() {
+		assertThatThrownBy(() -> service.load(99L, "teacher"))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.NOT_FOUND);
+	}
+
+	private static void assertDenied(Runnable call) {
+		assertThatThrownBy(call::run)
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(SpaceHello.DENIED);
+	}
+
+	private static final class MemoryProfile implements TeacherProfilePort {
+
+		private final Map<Long, TeacherAccount> accounts = new HashMap<>();
+		private final Map<Long, List<TeacherSchoolLink>> schools = new HashMap<>();
+
+		void seed(long userId, String email, String displayName) {
+			accounts.put(userId, new TeacherAccount(email, displayName));
+			schools.put(userId, List.of());
+		}
+
+		TeacherAccount account(long userId) {
+			return accounts.get(userId);
+		}
+
+		List<TeacherSchoolLink> schoolsOf(long userId) {
+			return schools.getOrDefault(userId, List.of());
+		}
+
+		@Override
+		public Optional<TeacherAccount> findAccount(long userId) {
+			return Optional.ofNullable(accounts.get(userId));
+		}
+
+		@Override
+		public void updateDisplayName(long userId, String displayName) {
+			TeacherAccount current = accounts.get(userId);
+			accounts.put(userId, new TeacherAccount(current.email(), displayName));
+		}
+
+		@Override
+		public List<TeacherSchoolLink> findSchools(long userId) {
+			return schools.getOrDefault(userId, List.of());
+		}
+
+		@Override
+		public void replaceSchools(long userId, List<TeacherSchoolLink> links) {
+			schools.put(userId, List.copyOf(links));
+		}
+	}
+}

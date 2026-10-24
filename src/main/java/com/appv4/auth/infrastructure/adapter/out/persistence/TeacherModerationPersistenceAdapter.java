@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.port.out.TeacherApprovalOutcome;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
 import com.appv4.auth.application.port.out.TeacherRequestPage;
 import com.appv4.auth.application.port.out.TeacherRequestView;
@@ -86,13 +87,14 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 	}
 
 	@Override
-	public void markApproved(long requestId, Instant reviewedAt) {
-		BackTeacherRoleRequestEntity entity = requestRepository.findById(requestId)
-				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), "Demande introuvable."));
-		entity.setStatus(APPROVED);
-		entity.setReviewedAt(reviewedAt);
-		entity.setRevokedAt(null);
-		requestRepository.save(entity);
+	public TeacherApprovalOutcome markApproved(long requestId, Instant reviewedAt) {
+		if (requestRepository.approveFromOpen(requestId, reviewedAt) == 1) {
+			return TeacherApprovalOutcome.FIRST_APPROVAL;
+		}
+		if (requestRepository.refreshApproved(requestId, reviewedAt) == 1) {
+			return TeacherApprovalOutcome.REVALIDATED;
+		}
+		throw new AuthDomainException(HttpStatus.NOT_FOUND.value(), "Demande introuvable.");
 	}
 
 	@Override

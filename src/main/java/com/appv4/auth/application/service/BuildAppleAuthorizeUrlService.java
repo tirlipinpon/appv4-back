@@ -10,7 +10,12 @@ import com.appv4.auth.application.port.in.BuildAppleAuthorizeUrlUseCase;
 import com.appv4.auth.infrastructure.config.AppleOAuthProperties;
 
 /**
- * Construit l'URL Sign in with Apple (response_type=code).
+ * Construit l'URL Sign in with Apple (code + form_post, issue #33).
+ *
+ * <p><b>Business :</b> avec les scopes {@code name email}, Apple exige {@code form_post}
+ * vers une Return URL HTTPS — pas un query vers le SPA.
+ * <p><b>Technique :</b> {@code redirect_uri} = callback back ; {@code state} porte l'URL SPA.
+ * <p><b>Métier / flow :</b> authorize-url → Apple POST callback → redirect FE → login JSON.
  */
 public class BuildAppleAuthorizeUrlService implements BuildAppleAuthorizeUrlUseCase {
 
@@ -21,23 +26,36 @@ public class BuildAppleAuthorizeUrlService implements BuildAppleAuthorizeUrlUseC
 	}
 
 	@Override
-	public String build(String redirectUri) {
+	public String build(String frontendResumeUri) {
 		if (!properties.isConfigured()) {
 			throw new AuthDomainException(
 					HttpStatus.SERVICE_UNAVAILABLE.value(),
 					"Apple OAuth non configuré (APPLE_CLIENT_ID / TEAM_ID / KEY_ID / PRIVATE_KEY)");
 		}
-		if (redirectUri == null || redirectUri.isBlank()) {
+		if (!properties.isCallbackConfigured()) {
+			throw new AuthDomainException(
+					HttpStatus.SERVICE_UNAVAILABLE.value(),
+					"Apple OAuth callback non configuré (APPLE_CALLBACK_URI)");
+		}
+		if (frontendResumeUri == null || frontendResumeUri.isBlank()) {
 			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "redirectUri obligatoire");
 		}
+		String resume = frontendResumeUri.trim();
+		if (!AppleOAuthReturnUris.isAllowed(resume, properties.getAllowedReturnUriPrefixes())) {
+			throw new AuthDomainException(
+					HttpStatus.BAD_REQUEST.value(),
+					"redirectUri non autorisé pour la reprise Apple");
+		}
 		String scope = URLEncoder.encode("name email", StandardCharsets.UTF_8);
-		String encodedRedirect = URLEncoder.encode(redirectUri.trim(), StandardCharsets.UTF_8);
+		String encodedRedirect = URLEncoder.encode(properties.getCallbackUri().trim(), StandardCharsets.UTF_8);
 		String clientId = URLEncoder.encode(properties.getClientId(), StandardCharsets.UTF_8);
+		String state = URLEncoder.encode(AppleOAuthReturnUris.encodeState(resume), StandardCharsets.UTF_8);
 		return properties.getAuthorizationUri()
 				+ "?client_id=" + clientId
 				+ "&redirect_uri=" + encodedRedirect
 				+ "&response_type=code"
-				+ "&response_mode=query"
-				+ "&scope=" + scope;
+				+ "&response_mode=form_post"
+				+ "&scope=" + scope
+				+ "&state=" + state;
 	}
 }

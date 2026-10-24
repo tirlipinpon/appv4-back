@@ -22,6 +22,7 @@ import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
+import com.appv4.auth.application.port.out.SchoolCatalogPort;
 import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
 import com.appv4.hello.application.port.in.GetHelloMessageUseCase;
@@ -87,6 +88,15 @@ public class TestProfileConfiguration {
 	@Bean
 	TeacherProfilePort teacherProfilePort() {
 		return mock(TeacherProfilePort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	/**
+	 * Les tests web ne démarrent pas Postgres. L'annuaire réel est vide ici ;
+	 * les trois écoles d'exemple sont vérifiées sur la base locale.
+	 */
+	@Bean
+	SchoolCatalogPort schoolCatalogPort() {
+		return () -> List.of();
 	}
 
 	@Bean

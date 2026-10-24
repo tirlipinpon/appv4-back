@@ -95,10 +95,15 @@ public class TeacherProfileController {
 	private static TeacherProfileResponse toResponse(TeacherProfileView view) {
 		List<TeacherAssignedSchool> schools = view.schools().stream()
 				.map(school -> new TeacherAssignedSchool(
-						school.schoolId(), school.schoolName(), school.curriculum(), school.grades()))
+						school.schoolId(),
+						school.schoolName(),
+						school.country(),
+						school.curriculum(),
+						school.grades()))
 				.toList();
 		List<TeacherAvailableSchool> available = view.availableSchools().stream()
-				.map(school -> new TeacherAvailableSchool(school.id(), school.name()))
+				.map(school -> new TeacherAvailableSchool(
+						school.id(), school.name(), school.country(), school.grades()))
 				.toList();
 		List<TeacherCurriculumOption> curricula = view.curricula().stream()
 				.map(choice -> new TeacherCurriculumOption(choice.code(), choice.label(), choice.grades()))
@@ -119,12 +124,13 @@ public class TeacherProfileController {
 	public record TeacherAssignedSchool(
 			long schoolId,
 			String schoolName,
+			String country,
 			String curriculum,
 			List<String> grades) {
 	}
 
 	@Schema(name = "TeacherAvailableSchool")
-	public record TeacherAvailableSchool(long id, String name) {
+	public record TeacherAvailableSchool(long id, String name, String country, List<String> grades) {
 	}
 
 	@Schema(name = "TeacherCurriculumOption")

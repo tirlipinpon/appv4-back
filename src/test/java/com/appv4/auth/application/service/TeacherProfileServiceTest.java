@@ -90,48 +90,55 @@ class TeacherProfileServiceTest {
 	}
 
 	@Test
-	void twoSchoolsKeepTheirOwnCurriculumAndGrades() {
-		catalog.add(new CatalogSchool(1L, "Première école"));
-		catalog.add(new CatalogSchool(2L, "Deuxième école"));
+	void countryChoosesTheNamesAndTheSchoolChoosesTheLevels() {
+		catalog.add(school(1L, "École française", SchoolCurricula.COUNTRY_FRANCE, "Primaire"));
+		catalog.add(school(2L, "École belge", SchoolCurricula.COUNTRY_BELGIUM,
+				"Maternelle ordinaire, Primaire ordinaire"));
 
 		TeacherProfileView saved = service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("CE2", "CE1")),
-				new TeacherSchoolCommand(2L, SchoolCurricula.BELGIUM_FR, List.of("4e primaire", "3e primaire"))));
+				new TeacherSchoolCommand(1L, SchoolCurricula.BELGIUM_FR, List.of("CE2", "CE1")),
+				new TeacherSchoolCommand(2L, null, List.of("4e primaire", "3e primaire", "1re maternelle"))));
 
-		assertThat(saved.schools()).hasSize(2);
+		assertThat(saved.schools().get(0).curriculum()).isEqualTo(SchoolCurricula.FRANCE);
 		assertThat(saved.schools().get(0).grades()).containsExactly("CE1", "CE2");
+		assertThat(saved.availableSchools().get(0).grades()).contains("CP").doesNotContain("1re primaire", "6e");
 		assertThat(saved.schools().get(1).curriculum()).isEqualTo(SchoolCurricula.BELGIUM_FR);
-		assertThat(saved.schools().get(1).grades()).containsExactly("3e primaire", "4e primaire");
-		assertThat(saved.schools().get(0).grades()).doesNotContain("1re primaire");
-		assertThat(saved.schools().get(1).grades()).doesNotContain("CP");
+		assertThat(saved.schools().get(1).country()).isEqualTo(SchoolCurricula.COUNTRY_BELGIUM);
+		assertThat(saved.schools().get(1).grades()).containsExactly("1re maternelle", "3e primaire", "4e primaire");
+		assertThat(saved.availableSchools().get(1).grades())
+				.contains("1re maternelle", "1re primaire")
+				.doesNotContain("CP", "1re secondaire");
 		assertThat(profiles.schoolsOf(OTHER_ID)).isEmpty();
 	}
 
 	@Test
 	void wrongGradeDuplicateOrMissingYearDoesNotEraseThePreviousSchools() {
-		catalog.add(new CatalogSchool(1L, "Première école"));
-		catalog.add(new CatalogSchool(2L, "Deuxième école"));
+		catalog.add(school(1L, "École française", SchoolCurricula.COUNTRY_FRANCE, "Primaire"));
+		catalog.add(school(2L, "École belge", SchoolCurricula.COUNTRY_BELGIUM, "Primaire"));
 		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("CE1", "CE2"))));
+				new TeacherSchoolCommand(1L, null, List.of("CE1", "CE2"))));
 
 		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, SchoolCurricula.BELGIUM_FR, List.of("CE1")))))
-				.hasMessage(TeacherProfileService.GRADE_MISMATCH);
+				new TeacherSchoolCommand(2L, null, List.of("CE1")))))
+				.hasMessage(TeacherProfileService.GRADE_NOT_OFFERED);
 		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("1re primaire")))))
-				.hasMessage(TeacherProfileService.GRADE_MISMATCH);
+				new TeacherSchoolCommand(1L, null, List.of("1re primaire")))))
+				.hasMessage(TeacherProfileService.GRADE_NOT_OFFERED);
 		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of()))))
+				new TeacherSchoolCommand(2L, null, List.of("1re secondaire")))))
+				.hasMessage(TeacherProfileService.GRADE_NOT_OFFERED);
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, null, List.of()))))
 				.hasMessage(TeacherProfileService.GRADE_REQUIRED);
 		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("CE1")),
-				new TeacherSchoolCommand(1L, SchoolCurricula.BELGIUM_FR, List.of("1re primaire")))))
+				new TeacherSchoolCommand(1L, null, List.of("CE1")),
+				new TeacherSchoolCommand(1L, null, List.of("CE2")))))
 				.hasMessage(TeacherProfileService.SCHOOL_DUPLICATE);
 		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(null, SchoolCurricula.FRANCE, List.of("CE1")))))
+				new TeacherSchoolCommand(null, null, List.of("CE1")))))
 				.hasMessage(TeacherProfileService.SCHOOL_REQUIRED);
 		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(9L, SchoolCurricula.FRANCE, List.of("CE1")))))
+				new TeacherSchoolCommand(9L, null, List.of("CE1")))))
 				.hasMessage(TeacherProfileService.SCHOOL_UNKNOWN);
 
 		assertThat(profiles.schoolsOf(TEACHER_ID)).containsExactly(
@@ -140,26 +147,31 @@ class TeacherProfileServiceTest {
 
 	@Test
 	void removingAGradeThenASchoolKeepsTheOtherSchool() {
-		catalog.add(new CatalogSchool(1L, "Première école"));
-		catalog.add(new CatalogSchool(2L, "Deuxième école"));
+		catalog.add(school(1L, "École française", SchoolCurricula.COUNTRY_FRANCE, "Primaire"));
+		catalog.add(school(2L, "École belge", SchoolCurricula.COUNTRY_BELGIUM, "Primaire"));
 		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("CE1")),
-				new TeacherSchoolCommand(2L, SchoolCurricula.BELGIUM_FR, List.of("3e primaire", "4e primaire"))));
+				new TeacherSchoolCommand(1L, null, List.of("CE1")),
+				new TeacherSchoolCommand(2L, null, List.of("3e primaire", "4e primaire"))));
 
 		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, SchoolCurricula.FRANCE, List.of("CE1")),
-				new TeacherSchoolCommand(2L, SchoolCurricula.BELGIUM_FR, List.of("3e primaire"))));
+				new TeacherSchoolCommand(1L, null, List.of("CE1")),
+				new TeacherSchoolCommand(2L, null, List.of("3e primaire"))));
 		assertThat(profiles.schoolsOf(TEACHER_ID)).containsExactly(
 				new TeacherSchoolLink(1L, SchoolCurricula.FRANCE, List.of("CE1")),
 				new TeacherSchoolLink(2L, SchoolCurricula.BELGIUM_FR, List.of("3e primaire")));
 
 		TeacherProfileView left = service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, SchoolCurricula.BELGIUM_FR, List.of("1re primaire"))));
+				new TeacherSchoolCommand(1L, null, List.of("CP"))));
 		assertThat(left.schools()).containsExactly(new TeacherProfileView.AssignedSchool(
 				1L,
-				"Première école",
-				SchoolCurricula.BELGIUM_FR,
-				List.of("1re primaire")));
+				"École française",
+				SchoolCurricula.COUNTRY_FRANCE,
+				SchoolCurricula.FRANCE,
+				List.of("CP")));
+	}
+
+	private static CatalogSchool school(long id, String name, String country, String teachingTypes) {
+		return new CatalogSchool(id, name, country, teachingTypes);
 	}
 
 	@Test

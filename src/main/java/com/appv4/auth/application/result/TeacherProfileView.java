@@ -26,13 +26,24 @@ public record TeacherProfileView(
 	/**
 	 * @param schoolName nom lu dans le référentiel, vide si l'école n'y est plus
 	 */
-	public record AssignedSchool(long schoolId, String schoolName, String curriculum, List<String> grades) {
+	public record AssignedSchool(
+			long schoolId,
+			String schoolName,
+			String country,
+			String curriculum,
+			List<String> grades) {
 		public AssignedSchool {
 			grades = grades == null ? List.of() : List.copyOf(grades);
 		}
 	}
 
-	public record AvailableSchool(long id, String name) {
+	/**
+	 * @param grades classes que cette école peut proposer, déjà filtrées par pays et par type
+	 */
+	public record AvailableSchool(long id, String name, String country, List<String> grades) {
+		public AvailableSchool {
+			grades = grades == null ? List.of() : List.copyOf(grades);
+		}
 	}
 
 	/**

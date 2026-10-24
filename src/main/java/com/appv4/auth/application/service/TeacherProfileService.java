@@ -39,9 +39,9 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 	public static final String SCHOOL_REQUIRED = "Choisis une école dans la liste, ou retire-la.";
 	public static final String SCHOOL_UNKNOWN = "Cette école n'est pas proposable.";
 	public static final String SCHOOL_DUPLICATE = "Cette école est déjà sur le profil.";
-	public static final String GRADE_REQUIRED = "Choisis une année pour cette école, ou retire-la.";
-	public static final String GRADE_MISMATCH = "Cette année n'appartient pas à la norme choisie.";
-	public static final String CURRICULUM_UNKNOWN = "La norme choisie n'est pas reconnue.";
+	public static final String GRADE_REQUIRED = "Choisis une classe pour cette école, ou retire-la.";
+	public static final String GRADE_NOT_OFFERED = "Cette classe n'est pas proposée par cette école.";
+	public static final String COUNTRY_WITHOUT_GRADES = "Ce pays n'a pas de liste de classes.";
 	public static final String ACCOUNT_MISSING = "Compte introuvable.";
 
 	private final TeacherProfilePort teacherProfilePort;
@@ -125,29 +125,32 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 		if (command == null || command.schoolId() == null) {
 			throw bad(SCHOOL_REQUIRED);
 		}
-		if (!byId.containsKey(command.schoolId())) {
+		CatalogSchool school = byId.get(command.schoolId());
+		if (school == null) {
 			throw bad(SCHOOL_UNKNOWN);
 		}
 		if (!seen.add(command.schoolId())) {
 			throw bad(SCHOOL_DUPLICATE);
 		}
-		if (!SchoolCurricula.known(command.curriculum())) {
-			throw bad(CURRICULUM_UNKNOWN);
+		String curriculum = SchoolCurricula.forCountry(school.country());
+		if (curriculum == null) {
+			throw bad(COUNTRY_WITHOUT_GRADES);
 		}
+		List<String> offered = SchoolCurricula.offeredBy(school.country(), school.teachingTypes());
 		List<String> grades = command.grades();
 		if (grades == null || grades.isEmpty()) {
 			throw bad(GRADE_REQUIRED);
 		}
 		for (String grade : grades) {
-			if (!SchoolCurricula.accepts(command.curriculum(), grade)) {
-				throw bad(GRADE_MISMATCH);
+			if (!offered.contains(grade)) {
+				throw bad(GRADE_NOT_OFFERED);
 			}
 		}
-		List<String> ordered = SchoolCurricula.ordered(command.curriculum(), grades);
+		List<String> ordered = SchoolCurricula.ordered(curriculum, grades);
 		if (ordered.isEmpty()) {
 			throw bad(GRADE_REQUIRED);
 		}
-		return new TeacherSchoolLink(command.schoolId(), command.curriculum(), ordered);
+		return new TeacherSchoolLink(command.schoolId(), curriculum, ordered);
 	}
 
 	private static TeacherProfileView toView(
@@ -155,20 +158,26 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 			String displayName,
 			List<TeacherSchoolLink> links,
 			List<CatalogSchool> available) {
-		Map<Long, String> names = new LinkedHashMap<>();
+		Map<Long, CatalogSchool> byId = new LinkedHashMap<>();
 		for (CatalogSchool school : available) {
-			names.putIfAbsent(school.id(), school.name());
+			byId.putIfAbsent(school.id(), school);
 		}
 		List<AssignedSchool> assigned = new ArrayList<>();
 		for (TeacherSchoolLink link : links) {
+			CatalogSchool school = byId.get(link.schoolId());
 			assigned.add(new AssignedSchool(
 					link.schoolId(),
-					names.getOrDefault(link.schoolId(), ""),
+					school == null ? "" : school.name(),
+					school == null ? "" : school.country(),
 					link.curriculum(),
 					link.grades()));
 		}
 		List<AvailableSchool> offered = available.stream()
-				.map(school -> new AvailableSchool(school.id(), school.name()))
+				.map(school -> new AvailableSchool(
+						school.id(),
+						school.name(),
+						school.country(),
+						SchoolCurricula.offeredBy(school.country(), school.teachingTypes())))
 				.toList();
 		return new TeacherProfileView(email, displayName, assigned, offered, SchoolCurricula.options());
 	}

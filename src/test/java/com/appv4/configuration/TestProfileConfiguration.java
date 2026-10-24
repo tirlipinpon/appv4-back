@@ -60,6 +60,8 @@ public class TestProfileConfiguration {
 		when(port.findLastActiveRole(anyLong())).thenReturn(Optional.empty());
 		when(port.hasAdminRole(anyLong())).thenReturn(false);
 		when(port.hasPendingTeacherRequest(anyLong())).thenReturn(false);
+		when(port.loadAuthzSnapshot(anyLong())).thenReturn(
+				new ActiveRolePort.AuthzSnapshot(List.of("parent", "teacher"), false, null, false));
 		return port;
 	}
 

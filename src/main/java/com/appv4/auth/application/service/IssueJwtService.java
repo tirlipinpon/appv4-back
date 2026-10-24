@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
+import com.appv4.auth.application.port.out.ActiveRolePort.AuthzSnapshot;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.JwtTokenEncoder;
@@ -21,11 +22,9 @@ import com.appv4.auth.application.result.JwtTokenResult;
  * et un souvenir encore valide → on le reprend. Deux rôles sans souvenir
  * valide → le jeton ne choisit pas d'espace (le front montrera le choix).
  * Un compte inactif ne reçoit pas de nouveau badge.
- * <p><b>Technique :</b> claim {@code roles} = espaces accordés, plus {@code admin}
- * si ce rôle est tenu. {@code activeRole} est omis quand il n'y a pas d'espace choisi.
- * Claim {@code sv} = {@code security_version} pour invalider les sessions (issue #49).
- * <p><b>Métier / flow :</b> appelé après login email, login social et inscription,
- * une fois les rôles écrits — et après switch-role / complete-roles.
+ * <p><b>Technique :</b> {@link ActiveRolePort#loadAuthzSnapshot} une fois (issue #37).
+ * Claim {@code sv} = {@code security_version} (issue #49).
+ * <p><b>Métier / flow :</b> appelé après login, signup, switch-role, complete-roles.
  */
 public class IssueJwtService implements IssueJwtUseCase {
 
@@ -53,24 +52,17 @@ public class IssueJwtService implements IssueJwtUseCase {
 		if (!session.active()) {
 			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), ACCOUNT_INACTIVE);
 		}
-		List<String> spaces = activeRolePort.findSpaceRoles(userId);
-		String activeRole = resolveAndRemember(userId, spaces);
-		List<String> roles = new ArrayList<>(spaces);
-		if (activeRolePort.hasAdminRole(userId)) {
+		AuthzSnapshot authz = activeRolePort.loadAuthzSnapshot(userId);
+		String activeRole = resolveAndRemember(userId, authz.spaceRoles(), authz.lastActiveRole());
+		List<String> roles = new ArrayList<>(authz.spaceRoles());
+		if (authz.admin()) {
 			roles.add(ActiveRoles.ADMIN);
 		}
-		boolean pendingTeacher = spaces.isEmpty() && activeRolePort.hasPendingTeacherRequest(userId);
 		return jwtTokenEncoder.encode(
-				userId, email, activeRole, roles, pendingTeacher, session.securityVersion());
+				userId, email, activeRole, roles, authz.pendingTeacher(), session.securityVersion());
 	}
 
-	/**
-	 * Choisit l'espace à partir des rôles accordés et du souvenir, puis aligne la colonne.
-	 *
-	 * @return {@code parent}, {@code teacher}, ou {@code null} si le front doit choisir
-	 */
-	private String resolveAndRemember(long userId, List<String> spaces) {
-		String last = activeRolePort.findLastActiveRole(userId).orElse(null);
+	private String resolveAndRemember(long userId, List<String> spaces, String last) {
 		if (spaces.size() == 1) {
 			String only = spaces.get(0);
 			if (!only.equals(last)) {

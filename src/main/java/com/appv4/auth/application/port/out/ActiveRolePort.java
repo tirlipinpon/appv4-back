@@ -36,4 +36,26 @@ public interface ActiveRolePort {
 	 * (deux rôles sans choix valide, ou plus aucun rôle).
 	 */
 	void saveLastActiveRole(long userId, String role);
+
+	/**
+	 * État authz pour une émission JWT (issue #37) — une lecture rôles + user,
+	 * pending seulement si aucun espace.
+	 */
+	AuthzSnapshot loadAuthzSnapshot(long userId);
+
+	/**
+	 * @param spaceRoles     parent/teacher accordés
+	 * @param admin          rôle admin
+	 * @param lastActiveRole souvenir, peut être null
+	 * @param pendingTeacher demande professeur ouverte sans espace
+	 */
+	record AuthzSnapshot(
+			List<String> spaceRoles,
+			boolean admin,
+			String lastActiveRole,
+			boolean pendingTeacher) {
+		public AuthzSnapshot {
+			spaceRoles = spaceRoles == null ? List.of() : List.copyOf(spaceRoles);
+		}
+	}
 }

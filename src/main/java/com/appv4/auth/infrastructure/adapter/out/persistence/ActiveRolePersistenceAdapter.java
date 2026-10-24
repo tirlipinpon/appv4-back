@@ -77,4 +77,20 @@ public class ActiveRolePersistenceAdapter implements ActiveRolePort {
 		user.setLastActiveRole(role);
 		userRepository.save(user);
 	}
+
+	@Override
+	public AuthzSnapshot loadAuthzSnapshot(long userId) {
+		List<String> allRoles = roleRepository.findByUserId(userId).stream()
+				.map(BackUserRoleEntity::getRole)
+				.distinct()
+				.toList();
+		List<String> spaces = allRoles.stream().filter(ActiveRoles::isSpace).toList();
+		boolean admin = allRoles.contains(ActiveRoles.ADMIN);
+		String last = userRepository.findById(userId)
+				.map(BackUserEntity::getLastActiveRole)
+				.filter(role -> role != null && !role.isBlank())
+				.orElse(null);
+		boolean pending = spaces.isEmpty() && requestRepository.existsByUserIdAndStatus(userId, "pending");
+		return new AuthzSnapshot(spaces, admin, last, pending);
+	}
 }

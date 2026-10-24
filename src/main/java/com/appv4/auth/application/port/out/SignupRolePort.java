@@ -21,4 +21,15 @@ public interface SignupRolePort {
 	 * Ne crée pas de ligne {@code teacher} dans {@code back_user_roles}.
 	 */
 	void requestTeacher(long userId);
+
+	/**
+	 * Vrai si le premier choix parent/professeur a déjà été enregistré (issue #35).
+	 * Indépendant des rôles encore actifs (ex. après révocation teacher-only).
+	 */
+	boolean hasCompletedInitialChoice(long userId);
+
+	/**
+	 * Marque le choix initial comme terminé. Idempotent.
+	 */
+	void markInitialChoiceCompleted(long userId);
 }

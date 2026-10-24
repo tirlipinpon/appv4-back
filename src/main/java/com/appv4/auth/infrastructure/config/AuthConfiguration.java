@@ -259,10 +259,9 @@ public class AuthConfiguration {
 	 */
 	@Bean
 	CompleteRolesUseCase completeRolesUseCase(
-			ActiveRolePort activeRolePort,
 			SignupRolePort signupRolePort,
 			IssueJwtUseCase issueJwtUseCase) {
-		return new CompleteRolesService(activeRolePort, signupRolePort, issueJwtUseCase);
+		return new CompleteRolesService(signupRolePort, issueJwtUseCase);
 	}
 
 	/**

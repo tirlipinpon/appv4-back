@@ -17,15 +17,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
-import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.result.JwtTokenResult;
 
 @ExtendWith(MockitoExtension.class)
 class CompleteRolesServiceTest {
-
-	@Mock
-	private ActiveRolePort activeRolePort;
 
 	@Mock
 	private SignupRolePort signupRolePort;
@@ -37,48 +33,59 @@ class CompleteRolesServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new CompleteRolesService(activeRolePort, signupRolePort, issueJwtUseCase);
+		service = new CompleteRolesService(signupRolePort, issueJwtUseCase);
 		lenient().when(issueJwtUseCase.issue(4L, "a@b.com")).thenReturn(new JwtTokenResult("jwt", 1L));
 	}
 
 	@Test
 	void parentIsGrantedImmediately() {
-		when(activeRolePort.findSpaceRoles(4L)).thenReturn(List.of());
-		when(activeRolePort.hasPendingTeacherRequest(4L)).thenReturn(false);
+		when(signupRolePort.hasCompletedInitialChoice(4L)).thenReturn(false);
 
 		service.complete(4L, "a@b.com", List.of("parent"));
 
 		verify(signupRolePort).grantParent(4L);
 		verify(signupRolePort, never()).requestTeacher(4L);
+		verify(signupRolePort).markInitialChoiceCompleted(4L);
 	}
 
 	@Test
 	void teacherIsOnlyAPendingRequest() {
-		when(activeRolePort.findSpaceRoles(4L)).thenReturn(List.of());
-		when(activeRolePort.hasPendingTeacherRequest(4L)).thenReturn(false);
+		when(signupRolePort.hasCompletedInitialChoice(4L)).thenReturn(false);
 
 		service.complete(4L, "a@b.com", List.of("teacher"));
 
 		verify(signupRolePort).requestTeacher(4L);
 		verify(signupRolePort, never()).grantParent(4L);
+		verify(signupRolePort).markInitialChoiceCompleted(4L);
 	}
 
 	@Test
 	void bothWritesParentAndTeacherRequest() {
-		when(activeRolePort.findSpaceRoles(4L)).thenReturn(List.of());
-		when(activeRolePort.hasPendingTeacherRequest(4L)).thenReturn(false);
+		when(signupRolePort.hasCompletedInitialChoice(4L)).thenReturn(false);
 
 		service.complete(4L, "a@b.com", List.of("parent", "TEACHER"));
 
 		verify(signupRolePort).grantParent(4L);
 		verify(signupRolePort).requestTeacher(4L);
+		verify(signupRolePort).markInitialChoiceCompleted(4L);
 	}
 
 	@Test
 	void secondCallDoesNotRewriteAnExistingChoice() {
-		when(activeRolePort.findSpaceRoles(4L)).thenReturn(List.of("parent"));
+		when(signupRolePort.hasCompletedInitialChoice(4L)).thenReturn(true);
 
 		service.complete(4L, "a@b.com", List.of("teacher"));
+
+		verify(signupRolePort, never()).grantParent(4L);
+		verify(signupRolePort, never()).requestTeacher(4L);
+		verify(signupRolePort, never()).markInitialChoiceCompleted(4L);
+	}
+
+	@Test
+	void revokedTeacherWithoutSpacesStillBlocksNewChoice() {
+		when(signupRolePort.hasCompletedInitialChoice(4L)).thenReturn(true);
+
+		service.complete(4L, "a@b.com", List.of("parent"));
 
 		verify(signupRolePort, never()).grantParent(4L);
 		verify(signupRolePort, never()).requestTeacher(4L);
@@ -86,8 +93,7 @@ class CompleteRolesServiceTest {
 
 	@Test
 	void rejectsEmptyOrAdminBeforeWriting() {
-		when(activeRolePort.findSpaceRoles(4L)).thenReturn(List.of());
-		when(activeRolePort.hasPendingTeacherRequest(4L)).thenReturn(false);
+		when(signupRolePort.hasCompletedInitialChoice(4L)).thenReturn(false);
 
 		assertThatThrownBy(() -> service.complete(4L, "a@b.com", List.of()))
 				.isInstanceOf(AuthDomainException.class);
@@ -96,12 +102,12 @@ class CompleteRolesServiceTest {
 				.hasMessageContaining("non autorisé");
 		verify(signupRolePort, never()).grantParent(4L);
 		verify(signupRolePort, never()).requestTeacher(4L);
+		verify(signupRolePort, never()).markInitialChoiceCompleted(4L);
 	}
 
 	@Test
 	void returnsTheToken() {
-		when(activeRolePort.findSpaceRoles(4L)).thenReturn(List.of());
-		when(activeRolePort.hasPendingTeacherRequest(4L)).thenReturn(false);
+		when(signupRolePort.hasCompletedInitialChoice(4L)).thenReturn(false);
 
 		assertThat(service.complete(4L, "a@b.com", List.of("parent")).token()).isEqualTo("jwt");
 	}

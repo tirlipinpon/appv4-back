@@ -48,6 +48,13 @@ public class BackUserEntity {
 	@Column(name = "security_version", nullable = false)
 	private int securityVersion = 0;
 
+	/**
+	 * Premier choix parent/professeur déjà enregistré (issue #35).
+	 * Reste vrai même si tous les espaces ont été révoqués.
+	 */
+	@Column(name = "initial_roles_completed", nullable = false)
+	private boolean initialRolesCompleted = false;
+
 	/** Dernier espace ouvert : {@code parent}, {@code teacher}, ou null (SCRUM-124). */
 	@Column(name = "last_active_role", length = 32)
 	private String lastActiveRole;
@@ -116,6 +123,14 @@ public class BackUserEntity {
 
 	public void setSecurityVersion(int securityVersion) {
 		this.securityVersion = securityVersion;
+	}
+
+	public boolean isInitialRolesCompleted() {
+		return initialRolesCompleted;
+	}
+
+	public void setInitialRolesCompleted(boolean initialRolesCompleted) {
+		this.initialRolesCompleted = initialRolesCompleted;
 	}
 
 	public String getLastActiveRole() {

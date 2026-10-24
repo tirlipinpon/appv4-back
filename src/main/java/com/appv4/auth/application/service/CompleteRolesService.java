@@ -7,7 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.in.CompleteRolesUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
-import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.result.JwtTokenResult;
 
@@ -15,21 +14,19 @@ import com.appv4.auth.application.result.JwtTokenResult;
  * Enregistre le premier choix de rôle (SCRUM-153).
  *
  * <p><b>Business :</b> parent tout de suite, professeur en demande. Un second passage
- * ne change pas un choix déjà posé.
- * <p><b>Technique :</b> réutilise {@link SignupRoles} et {@link SignupRolePort}.
+ * ne change pas un choix déjà posé — même après révocation des rôles (issue #35).
+ * <p><b>Technique :</b> réutilise {@link SignupRoles} et {@link SignupRolePort} ;
+ * flag {@code initial_roles_completed} distinct des rôles actifs.
  * <p><b>Métier / flow :</b> après signup email ou login social, avant d'entrer dans un espace.
  */
 public class CompleteRolesService implements CompleteRolesUseCase {
 
-	private final ActiveRolePort activeRolePort;
 	private final SignupRolePort signupRolePort;
 	private final IssueJwtUseCase issueJwtUseCase;
 
 	public CompleteRolesService(
-			ActiveRolePort activeRolePort,
 			SignupRolePort signupRolePort,
 			IssueJwtUseCase issueJwtUseCase) {
-		this.activeRolePort = activeRolePort;
 		this.signupRolePort = signupRolePort;
 		this.issueJwtUseCase = issueJwtUseCase;
 	}
@@ -37,7 +34,7 @@ public class CompleteRolesService implements CompleteRolesUseCase {
 	@Override
 	@Transactional
 	public JwtTokenResult complete(long userId, String email, List<String> roles) {
-		if (alreadyChosen(userId)) {
+		if (signupRolePort.hasCompletedInitialChoice(userId)) {
 			return issueJwtUseCase.issue(userId, email);
 		}
 		Set<String> chosen = SignupRoles.normalizeOrThrow(roles);
@@ -47,11 +44,7 @@ public class CompleteRolesService implements CompleteRolesUseCase {
 		if (chosen.contains(SignupRoles.TEACHER)) {
 			signupRolePort.requestTeacher(userId);
 		}
+		signupRolePort.markInitialChoiceCompleted(userId);
 		return issueJwtUseCase.issue(userId, email);
-	}
-
-	private boolean alreadyChosen(long userId) {
-		return !activeRolePort.findSpaceRoles(userId).isEmpty()
-				|| activeRolePort.hasPendingTeacherRequest(userId);
 	}
 }

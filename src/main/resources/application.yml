@@ -49,6 +49,9 @@ appv4:
       enabled: true
       max-requests: ${APPV4_AUTH_RATE_LIMIT_MAX:30}
       window-seconds: ${APPV4_AUTH_RATE_LIMIT_WINDOW_SECONDS:60}
+  # Mail (issue #58) — logging interdit hors local/test (lien reset secret)
+  mail:
+    transport: ${APPV4_MAIL_TRANSPORT:noop}
   oauth:
     google:
       client-id: ${GOOGLE_CLIENT_ID:}

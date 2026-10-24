@@ -26,3 +26,5 @@ appv4:
       enabled: true
       max-requests: 10000
       window-seconds: 60
+  mail:
+    transport: logging

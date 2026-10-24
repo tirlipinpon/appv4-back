@@ -67,6 +67,8 @@ import com.appv4.auth.infrastructure.adapter.out.google.HttpGoogleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
 import com.appv4.auth.infrastructure.adapter.out.mail.LoggingPasswordResetMailAdapter;
 import com.appv4.auth.infrastructure.adapter.out.mail.LoggingTeacherApprovedMailAdapter;
+import com.appv4.auth.infrastructure.adapter.out.mail.NoOpPasswordResetMailAdapter;
+import com.appv4.auth.infrastructure.adapter.out.mail.NoOpTeacherApprovedMailAdapter;
 import com.appv4.configuration.CorsProperties;
 
 /**
@@ -97,7 +99,8 @@ import com.appv4.configuration.CorsProperties;
 		AppleOAuthProperties.class,
 		PasswordResetProperties.class,
 		CorsProperties.class,
-		AuthRateLimitProperties.class })
+		AuthRateLimitProperties.class,
+		MailTransportProperties.class })
 public class AuthConfiguration {
 
 	/**
@@ -257,18 +260,27 @@ public class AuthConfiguration {
 		return new SwitchActiveRoleService(activeRolePort, issueJwtUseCase);
 	}
 
+	/**
+	 * Mail reset : logging (local/test) ou noop hors local — jamais le jeton en prod (issue #58).
+	 */
 	@Bean
-	PasswordResetMailPort passwordResetMailPort() {
-		return new LoggingPasswordResetMailAdapter();
+	PasswordResetMailPort passwordResetMailPort(MailTransportProperties mailTransportProperties) {
+		if (mailTransportProperties.isLogging()) {
+			return new LoggingPasswordResetMailAdapter();
+		}
+		return new NoOpPasswordResetMailAdapter();
 	}
 
 	/**
 	 * Modération des demandes professeur (SCRUM-142).
-	 * Le rôle admin est relu en base. L'email part au moment du oui.
+	 * Le rôle admin est relu en base. L'email part au moment du oui (logging local / noop sinon).
 	 */
 	@Bean
-	TeacherApprovedMailPort teacherApprovedMailPort() {
-		return new LoggingTeacherApprovedMailAdapter();
+	TeacherApprovedMailPort teacherApprovedMailPort(MailTransportProperties mailTransportProperties) {
+		if (mailTransportProperties.isLogging()) {
+			return new LoggingTeacherApprovedMailAdapter();
+		}
+		return new NoOpTeacherApprovedMailAdapter();
 	}
 
 	@Bean

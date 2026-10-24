@@ -9,7 +9,8 @@ import com.appv4.auth.application.port.out.PasswordResetMailPort;
  * Envoi reset local (SCRUM-108) — log du lien (pas encore de SMTP).
  *
  * <p><b>Business :</b> en local on peut cliquer le lien depuis les logs.
- * <p><b>Technique :</b> remplacé plus tard par un adaptateur SendGrid/SMTP.
+ * <p><b>Technique :</b> réservé aux profils local/test via {@code appv4.mail.transport=logging}
+ * (issue #58) ; hors local → {@link NoOpPasswordResetMailAdapter}.
  */
 public class LoggingPasswordResetMailAdapter implements PasswordResetMailPort {
 

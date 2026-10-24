@@ -60,7 +60,7 @@ class ParentChildrenControllerTest {
 	@Test
 	void parentAddsAChildAndThePinIsNotInTheResponse() throws Exception {
 		when(children.insert(any())).thenReturn(
-				new ChildSaved(3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", null, "fox", false));
+				new ChildSaved(3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", null, "fox", false, true));
 
 		String body = "{\"firstName\":\"Léa\",\"lastName\":\"Martin\",\"age\":\"7\","
 				+ "\"country\":\"France\",\"grade\":\"CE1\",\"avatarCode\":\"fox\","
@@ -73,6 +73,7 @@ class ParentChildrenControllerTest {
 				.andExpect(jsonPath("$.firstName").value("Léa"))
 				.andExpect(jsonPath("$.grade").value("CE1"))
 				.andExpect(jsonPath("$.avatarCode").value("fox"))
+				.andExpect(jsonPath("$.active").value(true))
 				.andExpect(jsonPath("$.pin").doesNotExist())
 				.andExpect(jsonPath("$.pinHash").doesNotExist());
 	}

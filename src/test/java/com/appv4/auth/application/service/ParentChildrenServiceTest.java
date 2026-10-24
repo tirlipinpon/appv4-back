@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.NewChildCommand;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildPort.NewChild;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
@@ -109,6 +110,20 @@ class ParentChildrenServiceTest {
 		assertThat(card.avatarCode()).isNull();
 		assertThat(card.hasPhoto()).isTrue();
 		assertThat(service.photo(1L, "parent", card.id()).contentType()).isEqualTo("image/jpeg");
+		service.deactivate(1L, "parent", card.id());
+		assertThat(service.list(1L, "parent").children()).singleElement()
+				.extracting(ChildCard::active)
+				.isEqualTo(false);
+		service.reactivate(1L, "parent", card.id());
+		assertThat(service.list(1L, "parent").children().get(0).active()).isTrue();
+		service.hide(1L, "parent", card.id());
+		assertThat(service.list(1L, "parent").children()).isEmpty();
+		assertThat(children.retained(card.id())).isTrue();
+		assertThat(children.pinHashes).containsExactly("hash:9090");
+		assertThatThrownBy(() -> service.hide(1L, "parent", card.id()))
+				.hasMessage(ParentChildrenService.CHILD_UNKNOWN);
+		assertThatThrownBy(() -> service.deactivate(2L, "parent", card.id()))
+				.hasMessage(ParentChildrenService.CHILD_UNKNOWN);
 
 		NewChildCommand text = new NewChildCommand(
 				"Noah", "Martin", "8", "Belgique", "3e primaire", null, null,
@@ -132,6 +147,24 @@ class ParentChildrenServiceTest {
 				.hasMessage(message);
 	}
 
+	@Test
+	void updateKeepsThePinWhenTheFieldsAreLeftEmpty() {
+		ChildCard created = service.add(1L, "parent",
+				command("Léa", "Martin", "7", "France", "CE1", null, "fox", "4821", "4821"));
+		NewChildCommand rename = new NewChildCommand(
+				"Léa", "Durand", "8", "France", "CP", null, null, null, null, "", "");
+
+		ChildCard updated = service.update(1L, "parent", created.id(), rename);
+
+		assertThat(updated.lastName()).isEqualTo("Durand");
+		assertThat(updated.age()).isEqualTo(8);
+		assertThat(updated.grade()).isEqualTo("CP");
+		assertThat(updated.avatarCode()).isEqualTo("fox");
+		assertThat(children.pinHashes.get(0)).isEqualTo("hash:4821");
+		assertThatThrownBy(() -> service.update(2L, "parent", created.id(), rename))
+				.hasMessage(ParentChildrenService.CHILD_UNKNOWN);
+	}
+
 	private static NewChildCommand command(
 			String firstName,
 			String lastName,
@@ -148,6 +181,9 @@ class ParentChildrenServiceTest {
 	private static final class MemoryChildren implements ChildPort {
 		private final List<ChildSaved> all = new ArrayList<>();
 		private final List<NewChild> inserted = new ArrayList<>();
+		private final List<String> pinHashes = new ArrayList<>();
+		private final List<Boolean> active = new ArrayList<>();
+		private final List<Boolean> hidden = new ArrayList<>();
 		private NewChild last;
 		private long nextId = 1;
 
@@ -155,6 +191,9 @@ class ParentChildrenServiceTest {
 		public ChildSaved insert(NewChild child) {
 			last = child;
 			inserted.add(child);
+			pinHashes.add(child.pinHash());
+			active.add(true);
+			hidden.add(false);
 			ChildSaved saved = new ChildSaved(
 					nextId++,
 					child.parentUserId(),
@@ -165,21 +204,126 @@ class ParentChildrenServiceTest {
 					child.grade(),
 					child.schoolId(),
 					child.avatarCode(),
-					child.photo() != null);
+					child.photo() != null,
+					true);
 			all.add(saved);
 			return saved;
 		}
 
 		@Override
+		public java.util.Optional<ChildSaved> findOwned(long parentUserId, long childId) {
+			for (int i = 0; i < all.size(); i++) {
+				ChildSaved current = all.get(i);
+				if (current.id() == childId && current.parentUserId() == parentUserId && !hidden.get(i)) {
+					return java.util.Optional.of(shown(i));
+				}
+			}
+			return java.util.Optional.empty();
+		}
+
+		@Override
+		public java.util.Optional<ChildSaved> update(long parentUserId, long childId, ChildChanges changes) {
+			for (int i = 0; i < all.size(); i++) {
+				ChildSaved current = all.get(i);
+				if (current.id() != childId || current.parentUserId() != parentUserId || hidden.get(i)) {
+					continue;
+				}
+				if (changes.pinHash() != null) {
+					pinHashes.set(i, changes.pinHash());
+				}
+				last = inserted.get(i);
+				boolean hasPhoto = changes.replaceImage() ? changes.photo() != null : current.hasPhoto();
+				String avatar = changes.replaceImage() ? changes.avatarCode() : current.avatarCode();
+				ChildSaved saved = new ChildSaved(
+						current.id(),
+						current.parentUserId(),
+						changes.firstName(),
+						changes.lastName(),
+						changes.age(),
+						changes.curriculum(),
+						changes.grade(),
+						changes.schoolId(),
+						avatar,
+						hasPhoto,
+						active.get(i));
+				all.set(i, saved);
+				return java.util.Optional.of(saved);
+			}
+			return java.util.Optional.empty();
+		}
+
+		@Override
+		public boolean deactivate(long parentUserId, long childId) {
+			return mark(parentUserId, childId, false, null);
+		}
+
+		@Override
+		public boolean reactivate(long parentUserId, long childId) {
+			return mark(parentUserId, childId, true, null);
+		}
+
+		@Override
+		public boolean hide(long parentUserId, long childId) {
+			return mark(parentUserId, childId, null, true);
+		}
+
+		@Override
 		public List<ChildSaved> findByParent(long parentUserId) {
-			return all.stream().filter(child -> child.parentUserId() == parentUserId).toList();
+			List<ChildSaved> found = new ArrayList<>();
+			for (int i = 0; i < all.size(); i++) {
+				if (all.get(i).parentUserId() == parentUserId && !hidden.get(i)) {
+					found.add(shown(i));
+				}
+			}
+			return found;
+		}
+
+		boolean retained(long childId) {
+			for (int i = 0; i < all.size(); i++) {
+				if (all.get(i).id() == childId) {
+					return hidden.get(i);
+				}
+			}
+			return false;
+		}
+
+		private boolean mark(long parentUserId, long childId, Boolean usable, Boolean conceal) {
+			for (int i = 0; i < all.size(); i++) {
+				if (all.get(i).id() != childId || all.get(i).parentUserId() != parentUserId || hidden.get(i)) {
+					continue;
+				}
+				if (usable != null) {
+					active.set(i, usable);
+				}
+				if (conceal != null) {
+					hidden.set(i, conceal);
+				}
+				return true;
+			}
+			return false;
+		}
+
+		private ChildSaved shown(int i) {
+			ChildSaved current = all.get(i);
+			return new ChildSaved(
+					current.id(),
+					current.parentUserId(),
+					current.firstName(),
+					current.lastName(),
+					current.age(),
+					current.curriculum(),
+					current.grade(),
+					current.schoolId(),
+					current.avatarCode(),
+					current.hasPhoto(),
+					active.get(i));
 		}
 
 		@Override
 		public java.util.Optional<ChildPhoto> findPhoto(long parentUserId, long childId) {
 			NewChild match = null;
 			for (int i = 0; i < all.size(); i++) {
-				if (all.get(i).id() == childId && all.get(i).parentUserId() == parentUserId) {
+				if (all.get(i).id() == childId && all.get(i).parentUserId() == parentUserId && !hidden.get(i)) {
 					match = inserted.get(i);
 				}
 			}

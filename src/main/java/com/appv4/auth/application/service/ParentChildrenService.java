@@ -14,6 +14,7 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildPhoto;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildPort.NewChild;
@@ -104,6 +105,90 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	}
 
 	@Override
+	@Transactional
+	public ChildCard update(long parentUserId, String activeRole, long childId, NewChildCommand command) {
+		requireParent(activeRole);
+		ChildSaved current = childPort.findOwned(parentUserId, childId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
+		NewChildCommand body = command == null
+				? new NewChildCommand(null, null, null, null, null, null, null, null, null, null, null)
+				: command;
+		String firstName = requiredName(body.firstName(), FIRST_NAME_REQUIRED);
+		String lastName = requiredName(body.lastName(), LAST_NAME_REQUIRED);
+		int age = parseAge(body.age());
+		String curriculum = curriculumOf(body.country());
+		CatalogSchool school = resolveSchool(body.schoolId(), curriculum);
+		String grade = requiredGrade(body.grade(), curriculum, school);
+		boolean replaceImage = hasPhoto(body) || hasAvatar(body);
+		Image image = replaceImage
+				? resolveImage(body.avatarCode(), body.photoBase64(), body.photoContentType())
+				: new Image(null, null, null);
+		String pinHash = blank(body.pin()) && blank(body.pinConfirmation())
+				? null
+				: passwordEncoder.encode(requirePin(body.pin(), body.pinConfirmation()));
+		ChildSaved saved = childPort.update(parentUserId, childId, new ChildChanges(
+				firstName,
+				lastName,
+				age,
+				curriculum,
+				grade,
+				school == null ? null : school.id(),
+				replaceImage,
+				image.avatarCode(),
+				image.photo(),
+				image.contentType(),
+				pinHash)).orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
+		if (current.id() != saved.id()) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+		return card(saved, catalogById());
+	}
+
+	/**
+	 * Garde l'enfant dans la liste et le retire du reste de l'application.
+	 *
+	 * <p><b>Business :</b> le parent le voit encore ici, grisé. Les autres écrans ne le proposent plus.
+	 * <p><b>Technique :</b> {@code active = false}, {@code hidden} reste faux.
+	 */
+	@Override
+	@Transactional
+	public void deactivate(long parentUserId, String activeRole, long childId) {
+		requireParent(activeRole);
+		if (!childPort.deactivate(parentUserId, childId)) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+	}
+
+	/**
+	 * Rend l'enfant de nouveau proposable dans le reste de l'application.
+	 *
+	 * <p><b>Technique :</b> {@code active = true}. Une fiche déjà retirée de l'affichage reste introuvable.
+	 */
+	@Override
+	@Transactional
+	public void reactivate(long parentUserId, String activeRole, long childId) {
+		requireParent(activeRole);
+		if (!childPort.reactivate(parentUserId, childId)) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+	}
+
+	/**
+	 * Retire l'enfant de l'affichage de ce parent.
+	 *
+	 * <p><b>Business :</b> il disparaît de l'application. La fiche, le hash du PIN et la photo restent.
+	 * <p><b>Technique :</b> {@code hidden = true}. Une seconde fois répond introuvable.
+	 */
+	@Override
+	@Transactional
+	public void hide(long parentUserId, String activeRole, long childId) {
+		requireParent(activeRole);
+		if (!childPort.hide(parentUserId, childId)) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+	}
+
+	@Override
 	@Transactional(readOnly = true)
 	public ChildPhoto photo(long parentUserId, String activeRole, long childId) {
 		requireParent(activeRole);
@@ -175,7 +260,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				child.schoolId(),
 				school == null ? "" : school.name(),
 				child.avatarCode(),
-				child.hasPhoto());
+				child.hasPhoto(),
+				child.active());
 	}
 
 	private static String countryOf(String curriculum) {
@@ -325,6 +411,18 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 			throw bad(PIN_MISMATCH);
 		}
 		return pin;
+	}
+
+	private static boolean blank(String value) {
+		return value == null || value.isBlank();
+	}
+
+	private static boolean hasPhoto(NewChildCommand command) {
+		return !blank(command.photoBase64());
+	}
+
+	private static boolean hasAvatar(NewChildCommand command) {
+		return !blank(command.avatarCode());
 	}
 
 	private static boolean isFourDigits(String value) {

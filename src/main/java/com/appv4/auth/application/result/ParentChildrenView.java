@@ -37,7 +37,8 @@ public record ParentChildrenView(
 			Long schoolId,
 			String schoolName,
 			String avatarCode,
-			boolean hasPhoto) {
+			boolean hasPhoto,
+			boolean active) {
 	}
 
 	/**

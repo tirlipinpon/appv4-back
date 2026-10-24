@@ -16,6 +16,7 @@ import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
+import org.springframework.core.env.MutablePropertySources;
 
 /**
  * Charge automatiquement le fichier {@code .env} à la racine du projet au démarrage.
@@ -23,10 +24,11 @@ import org.springframework.core.env.MapPropertySource;
  * <p><b>Business :</b> en local, les secrets (Google OAuth, JWT, Postgres) restent dans
  * {@code .env} (hors git) sans coller un script PowerShell avant chaque {@code spring-boot:run}.
  *
- * <p><b>Technique :</b> {@link EnvironmentPostProcessor} exécuté très tôt. Injecte aussi
- * {@link System#setProperty} pour que les placeholders {@code ${GOOGLE_CLIENT_ID:}} du yaml
- * se résolvent. Les variables déjà présentes dans l'environnement OS / CI <b>gagnent</b>.
- * Un test Spring n'ouvre pas ce fichier : la suite ne dépend pas du {@code .env} personnel.
+ * <p><b>Technique :</b> {@link EnvironmentPostProcessor} exécuté très tôt. Les clés
+ * vont dans une {@link MapPropertySource} Spring seulement — <b>pas</b> dans
+ * {@link System#setProperty}, pour ne pas polluer la JVM ni les contextes suivants.
+ * Variables OS / {@code -D} déjà présentes <b>gagnent</b> (source placée après
+ * {@code systemEnvironment}). Un test Spring n'ouvre pas ce fichier.
  *
  * <p><b>Métier / flow :</b> infra de boot — pas un port métier. Cherche {@code .env} dans
  * {@code user.dir} (répertoire d'où tu lances Maven).
@@ -36,6 +38,9 @@ public class DotEnvEnvironmentPostProcessor implements EnvironmentPostProcessor,
 	private static final Log LOG = LogFactory.getLog(DotEnvEnvironmentPostProcessor.class);
 
 	static final String PROPERTY_SOURCE_NAME = "dotenv";
+
+	/** Nom Spring Boot de la source des variables d'environnement OS. */
+	private static final String SYSTEM_ENVIRONMENT_SOURCE = "systemEnvironment";
 
 	@Override
 	public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -62,18 +67,29 @@ public class DotEnvEnvironmentPostProcessor implements EnvironmentPostProcessor,
 				continue;
 			}
 			toApply.put(key, entry.getValue());
-			System.setProperty(key, String.valueOf(entry.getValue()));
 			if ("SPRING_PROFILES_ACTIVE".equals(key)) {
-				// Le yaml ne force plus le profil : Spring lit spring.profiles.active.
+				// Spring lit spring.profiles.active pour activer le profil local.
 				toApply.put("spring.profiles.active", entry.getValue());
-				System.setProperty("spring.profiles.active", String.valueOf(entry.getValue()));
 			}
 		}
 		if (toApply.isEmpty()) {
 			return;
 		}
-		environment.getPropertySources().addFirst(new MapPropertySource(PROPERTY_SOURCE_NAME, toApply));
+		attachDotEnvSource(environment.getPropertySources(), toApply);
 		LOG.info("Fichier .env chargé (" + toApply.size() + " variables) : " + envFile.toAbsolutePath());
+	}
+
+	/**
+	 * Place le .env juste après les variables OS : arguments / {@code -D} / OS gagnent,
+	 * puis le .env, puis {@code application.yml}.
+	 */
+	static void attachDotEnvSource(MutablePropertySources sources, Map<String, Object> toApply) {
+		MapPropertySource dotenv = new MapPropertySource(PROPERTY_SOURCE_NAME, toApply);
+		if (sources.contains(SYSTEM_ENVIRONMENT_SOURCE)) {
+			sources.addAfter(SYSTEM_ENVIRONMENT_SOURCE, dotenv);
+		} else {
+			sources.addFirst(dotenv);
+		}
 	}
 
 	private static Path resolveEnvFile() {

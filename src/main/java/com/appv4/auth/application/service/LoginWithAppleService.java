@@ -57,7 +57,7 @@ public class LoginWithAppleService implements LoginWithAppleUseCase {
 					"Email Apple manquant — 1er consentement requis (scope email)");
 		}
 		String email = profile.email().trim().toLowerCase();
-		String displayName = resolveDisplayName(profile.displayName(), email);
+		String displayName = DisplayNames.forProvider(profile.displayName(), email);
 
 		return authUserAccountPort.findByEmail(email)
 				.map(existing -> {
@@ -76,11 +76,4 @@ public class LoginWithAppleService implements LoginWithAppleUseCase {
 						email));
 	}
 
-	private static String resolveDisplayName(String name, String email) {
-		if (name != null && !name.isBlank()) {
-			return name.trim();
-		}
-		int at = email.indexOf('@');
-		return at > 0 ? email.substring(0, at) : email;
-	}
 }

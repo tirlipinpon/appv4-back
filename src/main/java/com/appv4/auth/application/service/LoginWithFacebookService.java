@@ -45,7 +45,7 @@ public class LoginWithFacebookService implements LoginWithFacebookUseCase {
 					"Email Facebook manquant — connexion refusée (autorise le scope email)");
 		}
 		String email = profile.email().trim().toLowerCase();
-		String displayName = resolveDisplayName(profile.displayName(), email);
+		String displayName = DisplayNames.forProvider(profile.displayName(), email);
 
 		AuthUserAccount account = authUserAccountPort
 				.findByProviderSubject(PROVIDER_FACEBOOK, profile.subject())
@@ -76,11 +76,4 @@ public class LoginWithFacebookService implements LoginWithFacebookUseCase {
 						email));
 	}
 
-	private static String resolveDisplayName(String name, String email) {
-		if (name != null && !name.isBlank()) {
-			return name.trim();
-		}
-		int at = email.indexOf('@');
-		return at > 0 ? email.substring(0, at) : email;
-	}
 }

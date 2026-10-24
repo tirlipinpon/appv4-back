@@ -62,20 +62,21 @@ public class LoginWithGoogleService implements LoginWithGoogleUseCase {
 	private AuthUserAccount resolveOrCreateAccount(
 			String email, String displayName, GoogleUserProfile profile) {
 		return authUserAccountPort.findByEmail(email)
-				.map(existing -> {
-					authUserAccountPort.linkIdentity(
-							existing.id(),
-							PROVIDER_GOOGLE,
-							profile.subject(),
-							email);
-					return existing;
-				})
+				.map(existing -> linkVerifiedSocial(existing, PROVIDER_GOOGLE, profile.subject(), email))
 				.orElseGet(() -> authUserAccountPort.createWithIdentity(
 						email,
 						displayName,
 						PROVIDER_GOOGLE,
 						profile.subject(),
 						email));
+	}
+
+	/** Lie l'IdP puis retire un mdp local non vérifié (issue #41). */
+	private AuthUserAccount linkVerifiedSocial(
+			AuthUserAccount existing, String provider, String subject, String emailAtProvider) {
+		authUserAccountPort.linkIdentity(existing.id(), provider, subject, emailAtProvider);
+		authUserAccountPort.clearPasswordAfterVerifiedSocialLink(existing.id());
+		return existing;
 	}
 
 }

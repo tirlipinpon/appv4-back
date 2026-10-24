@@ -38,6 +38,12 @@ public interface AuthUserAccountPort {
 	void linkIdentity(long userId, String provider, String providerSubject, String emailAtProvider);
 
 	/**
+	 * Après liaison OAuth (email prouvé par le fournisseur) : retire le hash mdp local
+	 * et invalide les sessions (issue #41 — anti prise de compte par pré-inscription).
+	 */
+	void clearPasswordAfterVerifiedSocialLink(long userId);
+
+	/**
 	 * Met à jour le hash mdp (SCRUM-111 renew) — ne touche pas email / display_name / identities.
 	 * Incrémente aussi {@code security_version} pour invalider les JWT déjà émis (issue #49).
 	 */

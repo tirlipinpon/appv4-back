@@ -126,6 +126,21 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 		}
 	}
 
+	@Override
+	@Transactional
+	public void clearPasswordAfterVerifiedSocialLink(long userId) {
+		BackUserEntity user = userRepository.findById(userId)
+				.orElseThrow(() -> new AuthDomainException(
+						HttpStatus.INTERNAL_SERVER_ERROR.value(),
+						"User introuvable pour clear password"));
+		if (user.getPasswordHash() == null) {
+			return;
+		}
+		user.setPasswordHash(null);
+		user.setSecurityVersion(user.getSecurityVersion() + 1);
+		userRepository.save(user);
+	}
+
 	private static AuthDomainException conflict() {
 		return new AuthDomainException(HttpStatus.CONFLICT.value(), AuthMessages.ACCOUNT_CONFLICT);
 	}

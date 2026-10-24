@@ -60,20 +60,20 @@ public class LoginWithAppleService implements LoginWithAppleUseCase {
 		String displayName = DisplayNames.forProvider(profile.displayName(), email);
 
 		return authUserAccountPort.findByEmail(email)
-				.map(existing -> {
-					authUserAccountPort.linkIdentity(
-							existing.id(),
-							PROVIDER_APPLE,
-							profile.subject(),
-							email);
-					return existing;
-				})
+				.map(existing -> linkVerifiedSocial(existing, PROVIDER_APPLE, profile.subject(), email))
 				.orElseGet(() -> authUserAccountPort.createWithIdentity(
 						email,
 						displayName,
 						PROVIDER_APPLE,
 						profile.subject(),
 						email));
+	}
+
+	private AuthUserAccount linkVerifiedSocial(
+			AuthUserAccount existing, String provider, String subject, String emailAtProvider) {
+		authUserAccountPort.linkIdentity(existing.id(), provider, subject, emailAtProvider);
+		authUserAccountPort.clearPasswordAfterVerifiedSocialLink(existing.id());
+		return existing;
 	}
 
 }

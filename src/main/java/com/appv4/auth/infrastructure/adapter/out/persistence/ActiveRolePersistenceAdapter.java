@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
@@ -56,7 +57,16 @@ public class ActiveRolePersistenceAdapter implements ActiveRolePort {
 		return roleRepository.existsByUserIdAndRole(userId, ActiveRoles.ADMIN);
 	}
 
+	/**
+	 * Pose le rôle admin (seed local ou futur grant explicite).
+	 *
+	 * <p><b>Business :</b> sans transaction, l'insert native échoue au boot local.
+	 * <p><b>Technique :</b> {@code @Modifying} + flush → exige un EntityManager transactionnel.
+	 * <p><b>Métier / flow :</b> {@link com.appv4.auth.application.service.LocalAdminSeed}
+	 * → ce port → {@code insertIgnoreConflict}.
+	 */
 	@Override
+	@Transactional
 	public void grantAdmin(long userId) {
 		roleRepository.insertIgnoreConflict(userId, ActiveRoles.ADMIN);
 	}

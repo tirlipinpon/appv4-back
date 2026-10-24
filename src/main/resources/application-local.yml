@@ -21,6 +21,9 @@ appv4:
   # Secret JWT de démo uniquement en local (jamais en déploiement).
   jwt:
     secret: ${APPV4_JWT_SECRET:appv4-local-dev-jwt-secret-change-me-32b}
+  # Lien reset dans les logs (local seulement — issue #58)
+  mail:
+    transport: logging
   cors:
     allowed-origins:
       - http://localhost:4200

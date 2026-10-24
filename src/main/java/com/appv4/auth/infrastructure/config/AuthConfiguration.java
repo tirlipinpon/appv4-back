@@ -33,6 +33,7 @@ import com.appv4.auth.application.port.in.ResumeAppleOAuthCallbackUseCase;
 import com.appv4.auth.application.port.in.LoginWithEmailUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
 import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
+import com.appv4.auth.application.port.in.ParentChildrenUseCase;
 import com.appv4.auth.application.port.in.ResetPasswordUseCase;
 import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
 import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
@@ -41,6 +42,7 @@ import com.appv4.auth.application.port.in.TeacherProfileUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
@@ -62,6 +64,7 @@ import com.appv4.auth.application.service.ResumeAppleOAuthCallbackService;
 import com.appv4.auth.application.service.LoginWithEmailService;
 import com.appv4.auth.application.service.LoginWithFacebookService;
 import com.appv4.auth.application.service.LoginWithGoogleService;
+import com.appv4.auth.application.service.ParentChildrenService;
 import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
@@ -373,6 +376,17 @@ public class AuthConfiguration {
 			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort) {
 		return new TeacherProfileService(teacherProfilePort, schoolCatalogPort);
+	}
+
+	/**
+	 * Enfants du parent (SCRUM-156) — fiche, classe, école facultative, PIN hashé.
+	 */
+	@Bean
+	ParentChildrenUseCase parentChildrenUseCase(
+			ChildPort childPort,
+			SchoolCatalogPort schoolCatalogPort,
+			PasswordEncoder passwordEncoder) {
+		return new ParentChildrenService(childPort, schoolCatalogPort, passwordEncoder);
 	}
 
 	/**

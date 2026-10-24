@@ -13,6 +13,7 @@ import org.springframework.web.client.RestClientException;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
+import com.appv4.auth.infrastructure.adapter.out.oauth.OAuthRestClientErrors;
 import com.appv4.auth.infrastructure.config.AppleOAuthProperties;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -52,9 +53,7 @@ public class HttpAppleOAuthClient implements AppleOAuthClient {
 			}
 			return parseIdToken(token.idToken());
 		} catch (RestClientException ex) {
-			throw new AuthDomainException(
-					HttpStatus.UNAUTHORIZED.value(),
-					"Échec échange code Apple : " + ex.getMessage());
+			throw OAuthRestClientErrors.map(ex, "Apple");
 		}
 	}
 

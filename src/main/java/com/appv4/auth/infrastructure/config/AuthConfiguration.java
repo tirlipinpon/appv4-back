@@ -15,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -100,7 +101,8 @@ import com.appv4.configuration.CorsProperties;
 		PasswordResetProperties.class,
 		CorsProperties.class,
 		AuthRateLimitProperties.class,
-		MailTransportProperties.class })
+		MailTransportProperties.class,
+		HttpClientProperties.class })
 public class AuthConfiguration {
 
 	/**
@@ -151,9 +153,15 @@ public class AuthConfiguration {
 		return new AuthRateLimitFilter(properties, inMemoryAuthRateLimiter);
 	}
 
+	/**
+	 * RestClient OAuth avec connect/read timeout explicites (issue #57).
+	 */
 	@Bean
-	RestClient.Builder restClientBuilder() {
-		return RestClient.builder();
+	RestClient.Builder restClientBuilder(HttpClientProperties httpClientProperties) {
+		SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+		factory.setConnectTimeout(httpClientProperties.getConnectTimeout());
+		factory.setReadTimeout(httpClientProperties.getReadTimeout());
+		return RestClient.builder().requestFactory(factory);
 	}
 
 	@Bean

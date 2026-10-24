@@ -58,12 +58,7 @@ public class PasswordResetTokenPersistenceAdapter implements PasswordResetTokenP
 
 	@Override
 	@Transactional
-	public void markUsed(long tokenId) {
-		BackPasswordResetTokenEntity entity = tokenRepository.findById(tokenId)
-				.orElseThrow(() -> new AuthDomainException(
-						HttpStatus.BAD_REQUEST.value(),
-						"Lien invalide ou expiré"));
-		entity.setUsedAt(Instant.now());
-		tokenRepository.save(entity);
+	public boolean tryMarkUsed(long tokenId) {
+		return tokenRepository.markUsedIfStillValid(tokenId, Instant.now()) == 1;
 	}
 }

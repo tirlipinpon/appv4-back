@@ -22,11 +22,12 @@ class OAuthRestClientErrorsTest {
 	}
 
 	@Test
-	void otherRestClientMapsTo401() {
+	void otherRestClientMapsTo401WithoutLeakingDetail() {
 		AuthDomainException ex = OAuthRestClientErrors.map(
-				new RestClientException("bad code"),
+				new RestClientException("https://oauth?client_secret=SECRET_MARKER&code=x"),
 				"Google");
 		assertThat(ex.getHttpStatus()).isEqualTo(401);
-		assertThat(ex.getMessage()).contains("Échec échange code Google");
+		assertThat(ex.getMessage()).isEqualTo("Échec de connexion Google");
+		assertThat(ex.getMessage()).doesNotContain("SECRET_MARKER");
 	}
 }

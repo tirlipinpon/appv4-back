@@ -7,6 +7,8 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 
 import com.appv4.auth.application.exception.AuthDomainException;
@@ -21,6 +23,8 @@ import io.jsonwebtoken.Jwts;
  * avec la clé .p8 (Team ID + Key ID + Services ID).
  */
 public final class AppleClientSecretGenerator {
+
+	private static final Logger LOG = LoggerFactory.getLogger(AppleClientSecretGenerator.class);
 
 	private AppleClientSecretGenerator() {
 	}
@@ -45,9 +49,10 @@ public final class AppleClientSecretGenerator {
 		} catch (AuthDomainException ex) {
 			throw ex;
 		} catch (Exception ex) {
+			LOG.warn("Apple client_secret generation failed: {}", ex.toString());
 			throw new AuthDomainException(
 					HttpStatus.SERVICE_UNAVAILABLE.value(),
-					"Impossible de générer client_secret Apple : " + ex.getMessage());
+					"Impossible de générer client_secret Apple");
 		}
 	}
 

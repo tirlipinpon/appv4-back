@@ -61,12 +61,15 @@ class LoginWithEmailServiceTest {
 	void unknownEmailReturnsSameUnauthorizedMessage() {
 		when(authUserAccountPort.findLoginCandidateByEmail("ghost@example.com"))
 				.thenReturn(Optional.empty());
+		when(passwordEncoder.matches("Secret1!", LoginWithEmailService.DUMMY_BCRYPT_HASH))
+				.thenReturn(false);
 
 		assertThatThrownBy(() -> service.login("ghost@example.com", "Secret1!"))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(LoginWithEmailService.INVALID_CREDENTIALS_MESSAGE)
 				.extracting("httpStatus")
 				.isEqualTo(401);
+		verify(passwordEncoder).matches("Secret1!", LoginWithEmailService.DUMMY_BCRYPT_HASH);
 		verify(issueJwtUseCase, never()).issue(anyLong(), anyString());
 	}
 
@@ -90,12 +93,15 @@ class LoginWithEmailServiceTest {
 		when(authUserAccountPort.findLoginCandidateByEmail("social@example.com"))
 				.thenReturn(Optional.of(new AuthUserLoginCandidate(
 						7L, "social@example.com", null, true)));
+		when(passwordEncoder.matches("Secret1!", LoginWithEmailService.DUMMY_BCRYPT_HASH))
+				.thenReturn(false);
 
 		assertThatThrownBy(() -> service.login("social@example.com", "Secret1!"))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(LoginWithEmailService.INVALID_CREDENTIALS_MESSAGE)
 				.extracting("httpStatus")
 				.isEqualTo(401);
+		verify(passwordEncoder).matches("Secret1!", LoginWithEmailService.DUMMY_BCRYPT_HASH);
 	}
 
 	@Test

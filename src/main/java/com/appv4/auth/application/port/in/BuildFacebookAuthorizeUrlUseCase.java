@@ -5,5 +5,9 @@ package com.appv4.auth.application.port.in;
  */
 public interface BuildFacebookAuthorizeUrlUseCase {
 
-	String build(String redirectUri);
+	/**
+	 * @param redirectUri URI de callback FE
+	 * @param state       liaison navigateur (issue #32)
+	 */
+	String build(String redirectUri, String state);
 }

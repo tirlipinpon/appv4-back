@@ -21,7 +21,7 @@ public class BuildFacebookAuthorizeUrlService implements BuildFacebookAuthorizeU
 	}
 
 	@Override
-	public String build(String redirectUri) {
+	public String build(String redirectUri, String state) {
 		if (!properties.isConfigured()) {
 			throw new AuthDomainException(
 					HttpStatus.SERVICE_UNAVAILABLE.value(),
@@ -30,13 +30,18 @@ public class BuildFacebookAuthorizeUrlService implements BuildFacebookAuthorizeU
 		if (redirectUri == null || redirectUri.isBlank()) {
 			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "redirectUri obligatoire");
 		}
+		if (state == null || state.isBlank()) {
+			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "state OAuth obligatoire");
+		}
 		String scope = URLEncoder.encode("email,public_profile", StandardCharsets.UTF_8);
 		String encodedRedirect = URLEncoder.encode(redirectUri.trim(), StandardCharsets.UTF_8);
 		String appId = URLEncoder.encode(properties.getAppId(), StandardCharsets.UTF_8);
+		String encodedState = URLEncoder.encode(state, StandardCharsets.UTF_8);
 		return properties.getAuthorizationUri()
 				+ "?client_id=" + appId
 				+ "&redirect_uri=" + encodedRedirect
 				+ "&response_type=code"
-				+ "&scope=" + scope;
+				+ "&scope=" + scope
+				+ "&state=" + encodedState;
 	}
 }

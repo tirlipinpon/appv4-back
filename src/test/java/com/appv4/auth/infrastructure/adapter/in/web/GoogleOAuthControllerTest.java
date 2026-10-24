@@ -13,17 +13,21 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient.GoogleUserProfile;
+import com.appv4.auth.application.port.out.OAuthBrowserBindingPort;
 import com.appv4.auth.infrastructure.config.GoogleOAuthProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -34,7 +38,13 @@ class GoogleOAuthControllerTest {
 	private MockMvc mockMvc;
 
 	@Autowired
+	private ObjectMapper objectMapper;
+
+	@Autowired
 	private GoogleOAuthProperties googleOAuthProperties;
+
+	@Autowired
+	private OAuthBrowserBindingPort oauthBrowserBindingPort;
 
 	@MockBean
 	private GoogleOAuthClient googleOAuthClient;
@@ -58,7 +68,7 @@ class GoogleOAuthControllerTest {
 	}
 
 	@Test
-	void authorizeUrlReturnsGoogleUrlWhenConfigured() throws Exception {
+	void authorizeUrlReturnsGoogleUrlWithStateWhenConfigured() throws Exception {
 		googleOAuthProperties.setClientId("client-abc");
 		googleOAuthProperties.setClientSecret("secret-xyz");
 
@@ -68,12 +78,15 @@ class GoogleOAuthControllerTest {
 				.andExpect(jsonPath("$.authorizationUrl")
 						.value(org.hamcrest.Matchers.containsString("client-abc")))
 				.andExpect(jsonPath("$.authorizationUrl")
-						.value(org.hamcrest.Matchers.containsString("accounts.google.com")));
+						.value(org.hamcrest.Matchers.containsString("state=")))
+				.andExpect(jsonPath("$.state").isNotEmpty());
 	}
 
 	@Test
 	void loginWithCodeReturnsJwt() throws Exception {
-		when(googleOAuthClient.exchangeCode(eq("auth-code"), eq("http://localhost:4201/cb")))
+		String redirect = "http://localhost:4201/cb";
+		String state = oauthBrowserBindingPort.issue(OAuthBrowserBindingPort.PROVIDER_GOOGLE, redirect);
+		when(googleOAuthClient.exchangeCode(eq("auth-code"), eq(redirect)))
 				.thenReturn(new GoogleUserProfile("gid-1", "user@example.com", true, "User"));
 		when(authUserAccountPort.findByProviderSubject("google", "gid-1"))
 				.thenReturn(java.util.Optional.of(
@@ -82,23 +95,45 @@ class GoogleOAuthControllerTest {
 		mockMvc.perform(post("/api/int/auth/oauth/google")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"authorizationCode":"auth-code","redirectUri":"http://localhost:4201/cb"}
-								"""))
+								{"authorizationCode":"auth-code","redirectUri":"%s","state":"%s"}
+								""".formatted(redirect, state)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.token").isNotEmpty())
 				.andExpect(jsonPath("$.expiresAtEpochSeconds").isNumber());
 	}
 
 	@Test
-	void loginWithoutTokenStillPublic() throws Exception {
-		when(googleOAuthClient.exchangeCode(eq("bad"), eq("http://x")))
-				.thenReturn(new GoogleUserProfile("g", "a@b.com", false, "A"));
+	void loginWithoutValidStateIsRejected() throws Exception {
+		mockMvc.perform(post("/api/int/auth/oauth/google")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"authorizationCode":"bad","redirectUri":"http://x","state":"nope"}
+								"""))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void authorizeThenLoginRoundTrip() throws Exception {
+		googleOAuthProperties.setClientId("client-abc");
+		googleOAuthProperties.setClientSecret("secret-xyz");
+		String redirect = "http://localhost:4201/auth/callback/google";
+		MvcResult auth = mockMvc.perform(get("/api/int/auth/oauth/google/authorize-url")
+						.param("redirectUri", redirect))
+				.andExpect(status().isOk())
+				.andReturn();
+		JsonNode body = objectMapper.readTree(auth.getResponse().getContentAsString());
+		String state = body.get("state").asText();
+
+		when(googleOAuthClient.exchangeCode(eq("auth-code"), eq(redirect)))
+				.thenReturn(new GoogleUserProfile("gid-2", "u@e.com", true, "U"));
+		when(authUserAccountPort.findByProviderSubject("google", "gid-2"))
+				.thenReturn(java.util.Optional.of(new AuthUserAccount(8L, "u@e.com", "U", true)));
 
 		mockMvc.perform(post("/api/int/auth/oauth/google")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"authorizationCode":"bad","redirectUri":"http://x"}
-								"""))
-				.andExpect(status().isForbidden());
+								{"authorizationCode":"auth-code","redirectUri":"%s","state":"%s"}
+								""".formatted(redirect, state)))
+				.andExpect(status().isOk());
 	}
 }

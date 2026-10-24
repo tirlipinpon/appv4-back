@@ -43,6 +43,12 @@ appv4:
     secret: ${APPV4_JWT_SECRET:}
     issuer: ${APPV4_JWT_ISSUER:appv4-back}
     expiration-minutes: ${APPV4_JWT_EXPIRATION_MINUTES:480}
+  # Anti-abus parcours auth publics (issue #59) — IP + chemin, mémoire JVM
+  auth:
+    rate-limit:
+      enabled: true
+      max-requests: ${APPV4_AUTH_RATE_LIMIT_MAX:30}
+      window-seconds: ${APPV4_AUTH_RATE_LIMIT_WINDOW_SECONDS:60}
   oauth:
     google:
       client-id: ${GOOGLE_CLIENT_ID:}

@@ -20,3 +20,9 @@ spring:
 appv4:
   jwt:
     secret: appv4-test-jwt-secret-not-for-production-32b
+  # Plafond haut : les suites MockMvc partagent le même filtre en mémoire
+  auth:
+    rate-limit:
+      enabled: true
+      max-requests: 10000
+      window-seconds: 60

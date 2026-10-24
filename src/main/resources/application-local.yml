@@ -18,6 +18,9 @@ spring:
 
 # Origines Angular locales (learning / admin — ports ng serve typiques)
 appv4:
+  # Secret JWT de démo uniquement en local (jamais en déploiement).
+  jwt:
+    secret: ${APPV4_JWT_SECRET:appv4-local-dev-jwt-secret-change-me-32b}
   cors:
     allowed-origins:
       - http://localhost:4200

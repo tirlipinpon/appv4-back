@@ -5,14 +5,17 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Config bindée depuis {@code application.yml} → {@code appv4.jwt.*}.
  *
- * <p>En local : secret de démo dans le yaml. En prod : obligatoire via
- * variable d'environnement {@code APPV4_JWT_SECRET} (secret Azure / GitHub),
- * jamais committer un vrai secret.
+ * <p><b>Business :</b> sans secret connu seulement de nous, n'importe qui pourrait
+ * fabriquer un badge admin.
+ * <p><b>Technique :</b> hors profil {@code local}, {@code APPV4_JWT_SECRET} est
+ * obligatoire (pas de valeur de démo). Validé au démarrage par {@link JwtPropertiesGuard}.
+ * <p><b>Métier / flow :</b> lu par {@code JjwtTokenAdapter} à chaque émission / lecture JWT.
  */
 @ConfigurationProperties(prefix = "appv4.jwt")
 public class JwtProperties {
 
-	private String secret = "appv4-local-dev-jwt-secret-change-me-32b";
+	/** Secret HMAC. Vide tant qu'aucune source (env / profil local) ne le pose. */
+	private String secret = "";
 	private String issuer = "appv4-back";
 	/** Durée de vie du badge JWT (minutes). Défaut 480 = 8 h. */
 	private long expirationMinutes = 480;

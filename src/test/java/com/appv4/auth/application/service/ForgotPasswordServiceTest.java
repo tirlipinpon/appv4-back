@@ -20,11 +20,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.appv4.auth.application.config.PasswordResetSettings;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
-import com.appv4.auth.infrastructure.config.PasswordResetProperties;
 
 @ExtendWith(MockitoExtension.class)
 class ForgotPasswordServiceTest {
@@ -42,14 +42,13 @@ class ForgotPasswordServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		PasswordResetProperties props = new PasswordResetProperties();
-		props.setTokenTtl(Duration.ofMinutes(45));
-		props.setFrontendResetUrl("http://localhost:4201/reset-password");
 		service = new ForgotPasswordService(
 				authUserAccountPort,
 				passwordResetTokenPort,
 				passwordResetMailPort,
-				props);
+				new PasswordResetSettings(
+						Duration.ofMinutes(45),
+						"http://localhost:4201/reset-password"));
 	}
 
 	@Test

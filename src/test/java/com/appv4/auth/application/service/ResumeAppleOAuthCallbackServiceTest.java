@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,9 +13,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.appv4.auth.application.config.AppleOAuthSettings;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.OAuthBrowserBindingPort;
-import com.appv4.auth.infrastructure.config.AppleOAuthProperties;
 
 @ExtendWith(MockitoExtension.class)
 class ResumeAppleOAuthCallbackServiceTest {
@@ -26,7 +27,14 @@ class ResumeAppleOAuthCallbackServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new ResumeAppleOAuthCallbackService(new AppleOAuthProperties(), binding);
+		service = new ResumeAppleOAuthCallbackService(
+				new AppleOAuthSettings(
+						"id",
+						"https://appleid.apple.com/auth/authorize",
+						"https://api.example.com/cb",
+						List.of("http://localhost:4201/"),
+						true),
+				binding);
 	}
 
 	@Test

@@ -9,11 +9,12 @@ import java.util.Base64;
 import java.util.HexFormat;
 
 import org.springframework.transaction.annotation.Transactional;
+
+import com.appv4.auth.application.config.PasswordResetSettings;
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
-import com.appv4.auth.infrastructure.config.PasswordResetProperties;
 
 /**
  * Forgot-password : jeton hashé + email lien (SCRUM-108).
@@ -33,17 +34,17 @@ public class ForgotPasswordService implements ForgotPasswordUseCase {
 	private final AuthUserAccountPort authUserAccountPort;
 	private final PasswordResetTokenPort passwordResetTokenPort;
 	private final PasswordResetMailPort passwordResetMailPort;
-	private final PasswordResetProperties properties;
+	private final PasswordResetSettings settings;
 
 	public ForgotPasswordService(
 			AuthUserAccountPort authUserAccountPort,
 			PasswordResetTokenPort passwordResetTokenPort,
 			PasswordResetMailPort passwordResetMailPort,
-			PasswordResetProperties properties) {
+			PasswordResetSettings settings) {
 		this.authUserAccountPort = authUserAccountPort;
 		this.passwordResetTokenPort = passwordResetTokenPort;
 		this.passwordResetMailPort = passwordResetMailPort;
-		this.properties = properties;
+		this.settings = settings;
 	}
 
 	@Override
@@ -54,9 +55,9 @@ public class ForgotPasswordService implements ForgotPasswordUseCase {
 			passwordResetTokenPort.invalidateUnusedForUser(account.id());
 			String clearToken = generateClearToken();
 			String hash = sha256Hex(clearToken);
-			Instant expiresAt = Instant.now().plus(properties.getTokenTtl());
+			Instant expiresAt = Instant.now().plus(settings.tokenTtl());
 			passwordResetTokenPort.create(account.id(), hash, expiresAt);
-			String resetUrl = properties.getFrontendResetUrl() + "?token=" + clearToken;
+			String resetUrl = settings.frontendResetUrl() + "?token=" + clearToken;
 			String to = account.email();
 			AfterCommit.run(() -> passwordResetMailPort.sendResetLink(to, resetUrl));
 		});

@@ -3,37 +3,41 @@ package com.appv4.auth.application.service;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Supplier;
 
 import org.springframework.http.HttpStatus;
 
+import com.appv4.auth.application.config.AppleOAuthSettings;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.ResumeAppleOAuthCallbackUseCase;
 import com.appv4.auth.application.port.out.OAuthBrowserBindingPort;
-import com.appv4.auth.infrastructure.config.AppleOAuthProperties;
 
 /**
- * Après le {@code form_post} Apple : redirige le navigateur vers le SPA avec le code (issue #33).
- *
- * <p><b>Business :</b> le SPA ne peut pas recevoir le POST Apple ; le back relaie en GET.
- * <p><b>Technique :</b> {@link OAuthBrowserBindingPort#peek} pour la reprise FE (issue #32).
- * <p><b>Métier / flow :</b> adapter in web callback → ce use case → 302 FE → échange JWT.
+ * Après le {@code form_post} Apple : redirige le navigateur vers le SPA avec le code.
  */
 public class ResumeAppleOAuthCallbackService implements ResumeAppleOAuthCallbackUseCase {
 
-	private final AppleOAuthProperties properties;
+	private final Supplier<AppleOAuthSettings> settings;
 	private final OAuthBrowserBindingPort oauthBrowserBindingPort;
 
 	public ResumeAppleOAuthCallbackService(
-			AppleOAuthProperties properties,
+			Supplier<AppleOAuthSettings> settings,
 			OAuthBrowserBindingPort oauthBrowserBindingPort) {
-		this.properties = properties;
+		this.settings = settings;
 		this.oauthBrowserBindingPort = oauthBrowserBindingPort;
+	}
+
+	public ResumeAppleOAuthCallbackService(
+			AppleOAuthSettings settings,
+			OAuthBrowserBindingPort oauthBrowserBindingPort) {
+		this(() -> settings, oauthBrowserBindingPort);
 	}
 
 	@Override
 	public URI resume(String state, String code, String error) {
+		AppleOAuthSettings s = settings.get();
 		String resumeUri = oauthBrowserBindingPort.peek(OAuthBrowserBindingPort.PROVIDER_APPLE, state);
-		if (!AppleOAuthReturnUris.isAllowed(resumeUri, properties.getAllowedReturnUriPrefixes())) {
+		if (!AppleOAuthReturnUris.isAllowed(resumeUri, s.allowedReturnUriPrefixes())) {
 			throw new AuthDomainException(
 					HttpStatus.BAD_REQUEST.value(),
 					"URL de reprise Apple non autorisée");

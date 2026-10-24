@@ -61,7 +61,7 @@ class SwitchActiveRoleServiceTest {
 				AuthDomainException.class,
 				() -> service.switchRole(4L, "a@b.com", "teacher"));
 
-		assertEquals(403, ex.getHttpStatus());
+		assertEquals(com.appv4.auth.application.exception.AuthErrorCode.FORBIDDEN, ex.getErrorCode());
 		assertEquals(SwitchActiveRoleService.ROLE_NOT_GRANTED, ex.getMessage());
 		verify(activeRolePort, never()).saveLastActiveRole(anyLong(), any());
 		verifyNoInteractions(issueJwtUseCase);
@@ -73,7 +73,7 @@ class SwitchActiveRoleServiceTest {
 				AuthDomainException.class,
 				() -> service.switchRole(4L, "a@b.com", "admin"));
 
-		assertEquals(403, ex.getHttpStatus());
+		assertEquals(com.appv4.auth.application.exception.AuthErrorCode.FORBIDDEN, ex.getErrorCode());
 		verifyNoInteractions(activeRolePort);
 		verifyNoInteractions(issueJwtUseCase);
 	}

@@ -1,8 +1,8 @@
 package com.appv4.auth.application.service;
 
-import org.springframework.http.HttpStatus;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 
 /**
  * Textes fixes des portes parent et professeur (SCRUM-127).
@@ -32,7 +32,7 @@ public final class SpaceHello {
 
 	private static String require(String activeRole, String expected, String text) {
 		if (!expected.equals(activeRole)) {
-			throw new AuthDomainException(HttpStatus.FORBIDDEN.value(), DENIED);
+			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, DENIED);
 		}
 		return text;
 	}

@@ -3,10 +3,10 @@ package com.appv4.auth.application.service;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.ActiveRolePort.AuthzSnapshot;
@@ -47,10 +47,9 @@ public class IssueJwtService implements IssueJwtUseCase {
 	@Transactional
 	public JwtTokenResult issue(long userId, String email) {
 		SessionState session = authUserAccountPort.findSessionState(userId)
-				.orElseThrow(() -> new AuthDomainException(
-						HttpStatus.UNAUTHORIZED.value(), ACCOUNT_INACTIVE));
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.UNAUTHORIZED, ACCOUNT_INACTIVE));
 		if (!session.active()) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), ACCOUNT_INACTIVE);
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, ACCOUNT_INACTIVE);
 		}
 		AuthzSnapshot authz = activeRolePort.loadAuthzSnapshot(userId);
 		String activeRole = resolveAndRemember(userId, authz.spaceRoles(), authz.lastActiveRole());

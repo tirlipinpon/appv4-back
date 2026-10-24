@@ -2,10 +2,10 @@ package com.appv4.auth.application.service;
 
 import java.util.Locale;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
@@ -37,7 +37,7 @@ public class SwitchActiveRoleService implements SwitchActiveRoleUseCase {
 	public JwtTokenResult switchRole(long userId, String email, String role) {
 		String requested = normalize(role);
 		if (!activeRolePort.findSpaceRoles(userId).contains(requested)) {
-			throw new AuthDomainException(HttpStatus.FORBIDDEN.value(), ROLE_NOT_GRANTED);
+			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, ROLE_NOT_GRANTED);
 		}
 		activeRolePort.saveLastActiveRole(userId, requested);
 		return issueJwtUseCase.issue(userId, email);
@@ -55,6 +55,6 @@ public class SwitchActiveRoleService implements SwitchActiveRoleUseCase {
 	}
 
 	private static AuthDomainException denied() {
-		return new AuthDomainException(HttpStatus.FORBIDDEN.value(), ROLE_NOT_GRANTED);
+		return new AuthDomainException(AuthErrorCode.FORBIDDEN, ROLE_NOT_GRANTED);
 	}
 }

@@ -1,9 +1,9 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 
 /**
@@ -28,7 +28,7 @@ public final class CurrentAuth {
 	 */
 	public static AuthenticatedUser require(AuthenticatedUser user) {
 		if (user == null) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), REQUIRED);
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, REQUIRED);
 		}
 		return user;
 	}

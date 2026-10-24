@@ -2,11 +2,11 @@ package com.appv4.auth.infrastructure.adapter.out.oauth;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 
 /**
  * Traduit les erreurs HTTP OAuth (issues #57 / #53).
@@ -25,12 +25,10 @@ public final class OAuthRestClientErrors {
 	public static AuthDomainException map(RestClientException ex, String providerLabel) {
 		LOG.warn("{} OAuth call failed: {}", providerLabel, safeDetail(ex), ex);
 		if (ex instanceof ResourceAccessException) {
-			return new AuthDomainException(
-					HttpStatus.SERVICE_UNAVAILABLE.value(),
+			return new AuthDomainException(AuthErrorCode.SERVICE_UNAVAILABLE,
 					providerLabel + " indisponible ou délai dépassé");
 		}
-		return new AuthDomainException(
-				HttpStatus.UNAUTHORIZED.value(),
+		return new AuthDomainException(AuthErrorCode.UNAUTHORIZED,
 				"Échec de connexion " + providerLabel);
 	}
 

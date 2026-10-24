@@ -1,10 +1,10 @@
 package com.appv4.auth.application.service;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ResetPasswordUseCase;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
@@ -42,18 +42,17 @@ public class ResetPasswordService implements ResetPasswordUseCase {
 	@Transactional
 	public void reset(String clearToken, String newPassword) {
 		if (clearToken == null || clearToken.isBlank()) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), INVALID_TOKEN_MESSAGE);
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, INVALID_TOKEN_MESSAGE);
 		}
 		PasswordRules.validateOrThrow(newPassword);
 
 		String hash = ForgotPasswordService.sha256Hex(clearToken.trim());
 		ValidResetToken token = passwordResetTokenPort.findValidByTokenHash(hash)
-				.orElseThrow(() -> new AuthDomainException(
-						HttpStatus.BAD_REQUEST.value(),
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.BAD_REQUEST,
 						INVALID_TOKEN_MESSAGE));
 		// Consommer avant d'écrire le mdp : un seul concurrent gagne.
 		if (!passwordResetTokenPort.tryMarkUsed(token.tokenId())) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), INVALID_TOKEN_MESSAGE);
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, INVALID_TOKEN_MESSAGE);
 		}
 
 		String passwordHash = passwordEncoder.encode(newPassword);

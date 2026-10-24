@@ -1,9 +1,9 @@
 package com.appv4.auth.application.service;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithEmailUseCase;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
@@ -66,6 +66,6 @@ public class LoginWithEmailService implements LoginWithEmailUseCase {
 	}
 
 	private AuthDomainException invalidCredentials() {
-		return new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), INVALID_CREDENTIALS_MESSAGE);
+		return new AuthDomainException(AuthErrorCode.UNAUTHORIZED, INVALID_CREDENTIALS_MESSAGE);
 	}
 }

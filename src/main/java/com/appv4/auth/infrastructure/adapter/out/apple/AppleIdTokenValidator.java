@@ -13,10 +13,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.client.RestClient;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -71,22 +71,22 @@ public class AppleIdTokenValidator {
 			throw ex;
 		} catch (Exception ex) {
 			LOG.warn("Apple id_token validation failed: {}", ex.toString());
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "id_token Apple invalide");
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "id_token Apple invalide");
 		}
 	}
 
 	private Locator<Key> keyLocator() {
 		return header -> {
 			if (!(header instanceof JwsHeader jwsHeader)) {
-				throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "id_token Apple invalide");
+				throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "id_token Apple invalide");
 			}
 			String kid = jwsHeader.getKeyId();
 			if (kid == null || kid.isBlank()) {
-				throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "id_token Apple invalide");
+				throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "id_token Apple invalide");
 			}
 			PublicKey key = resolveKey(kid);
 			if (key == null) {
-				throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "id_token Apple invalide");
+				throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "id_token Apple invalide");
 			}
 			return key;
 		};
@@ -112,8 +112,7 @@ public class AppleIdTokenValidator {
 				.retrieve()
 				.body(JwksResponse.class);
 		if (jwks == null || jwks.keys() == null || jwks.keys().isEmpty()) {
-			throw new AuthDomainException(
-					HttpStatus.SERVICE_UNAVAILABLE.value(),
+			throw new AuthDomainException(AuthErrorCode.SERVICE_UNAVAILABLE,
 					"JWKS Apple indisponible");
 		}
 		Map<String, PublicKey> next = new HashMap<>();

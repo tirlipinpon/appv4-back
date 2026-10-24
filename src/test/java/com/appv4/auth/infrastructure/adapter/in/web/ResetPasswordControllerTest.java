@@ -13,11 +13,11 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ResetPasswordUseCase;
 import com.appv4.auth.application.service.ResetPasswordService;
 
@@ -47,7 +47,7 @@ class ResetPasswordControllerTest {
 
 	@Test
 	void resetInvalidTokenReturns400() throws Exception {
-		doThrow(new AuthDomainException(HttpStatus.BAD_REQUEST.value(), ResetPasswordService.INVALID_TOKEN_MESSAGE))
+		doThrow(new AuthDomainException(AuthErrorCode.BAD_REQUEST, ResetPasswordService.INVALID_TOKEN_MESSAGE))
 				.when(resetPasswordUseCase).reset(eq("bad"), eq("Jardin1!"));
 
 		mockMvc.perform(post("/api/int/auth/reset-password")

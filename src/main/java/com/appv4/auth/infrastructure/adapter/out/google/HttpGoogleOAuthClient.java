@@ -1,6 +1,5 @@
 package com.appv4.auth.infrastructure.adapter.out.google;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -8,6 +7,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.oauth.OAuthRestClientErrors;
 import com.appv4.auth.infrastructure.config.GoogleOAuthProperties;
@@ -30,8 +30,7 @@ public class HttpGoogleOAuthClient implements GoogleOAuthClient {
 	@Override
 	public GoogleUserProfile exchangeCode(String authorizationCode, String redirectUri) {
 		if (!properties.isConfigured()) {
-			throw new AuthDomainException(
-					HttpStatus.SERVICE_UNAVAILABLE.value(),
+			throw new AuthDomainException(AuthErrorCode.SERVICE_UNAVAILABLE,
 					"Google OAuth non configuré (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)");
 		}
 		try {
@@ -58,8 +57,7 @@ public class HttpGoogleOAuthClient implements GoogleOAuthClient {
 				.body(TokenResponse.class);
 
 		if (token == null || token.accessToken() == null || token.accessToken().isBlank()) {
-			throw new AuthDomainException(
-					HttpStatus.UNAUTHORIZED.value(),
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED,
 					"Réponse token Google invalide");
 		}
 		return token.accessToken();
@@ -73,8 +71,7 @@ public class HttpGoogleOAuthClient implements GoogleOAuthClient {
 				.body(UserInfoResponse.class);
 
 		if (info == null || info.sub() == null || info.sub().isBlank()) {
-			throw new AuthDomainException(
-					HttpStatus.UNAUTHORIZED.value(),
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED,
 					"Profil Google invalide");
 		}
 		boolean verified = Boolean.TRUE.equals(info.emailVerified());

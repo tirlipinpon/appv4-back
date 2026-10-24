@@ -4,11 +4,11 @@ import java.time.Instant;
 import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 
 /**
@@ -39,8 +39,7 @@ public class PasswordResetTokenPersistenceAdapter implements PasswordResetTokenP
 	@Transactional
 	public void create(long userId, String tokenHash, Instant expiresAt) {
 		BackUserEntity user = userRepository.findById(userId)
-				.orElseThrow(() -> new AuthDomainException(
-						HttpStatus.INTERNAL_SERVER_ERROR.value(),
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.INTERNAL_ERROR,
 						"User introuvable pour reset token"));
 		BackPasswordResetTokenEntity entity = new BackPasswordResetTokenEntity();
 		entity.setUser(user);

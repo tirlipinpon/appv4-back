@@ -4,10 +4,10 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
 
-import org.springframework.http.HttpStatus;
 
 import com.appv4.auth.application.config.FacebookOAuthSettings;
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.BuildFacebookAuthorizeUrlUseCase;
 
 /**
@@ -29,15 +29,14 @@ public class BuildFacebookAuthorizeUrlService implements BuildFacebookAuthorizeU
 	public String build(String redirectUri, String state) {
 		FacebookOAuthSettings s = settings.get();
 		if (!s.isConfigured()) {
-			throw new AuthDomainException(
-					HttpStatus.SERVICE_UNAVAILABLE.value(),
+			throw new AuthDomainException(AuthErrorCode.SERVICE_UNAVAILABLE,
 					"Facebook OAuth non configuré (FACEBOOK_APP_ID / FACEBOOK_APP_SECRET)");
 		}
 		if (redirectUri == null || redirectUri.isBlank()) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "redirectUri obligatoire");
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, "redirectUri obligatoire");
 		}
 		if (state == null || state.isBlank()) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "state OAuth obligatoire");
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, "state OAuth obligatoire");
 		}
 		String scope = URLEncoder.encode("email,public_profile", StandardCharsets.UTF_8);
 		String encodedRedirect = URLEncoder.encode(redirectUri.trim(), StandardCharsets.UTF_8);

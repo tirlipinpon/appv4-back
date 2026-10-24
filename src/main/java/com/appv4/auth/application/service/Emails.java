@@ -2,9 +2,9 @@ package com.appv4.auth.application.service;
 
 import java.util.Locale;
 
-import org.springframework.http.HttpStatus;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 
 /**
  * Normalisation email unique (issue #40).
@@ -25,7 +25,7 @@ public final class Emails {
 	 */
 	public static String requireNormalized(String email) {
 		if (email == null || email.isBlank()) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "Email obligatoire");
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, "Email obligatoire");
 		}
 		return email.trim().toLowerCase(Locale.ROOT);
 	}
@@ -35,7 +35,7 @@ public final class Emails {
 	 */
 	public static String requireNormalizedOrThrow(String email, String missingMessage) {
 		if (email == null || email.isBlank()) {
-			throw new AuthDomainException(HttpStatus.FORBIDDEN.value(), missingMessage);
+			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, missingMessage);
 		}
 		return email.trim().toLowerCase(Locale.ROOT);
 	}

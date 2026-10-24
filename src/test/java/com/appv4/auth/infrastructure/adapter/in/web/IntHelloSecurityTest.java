@@ -46,4 +46,20 @@ class IntHelloSecurityTest {
 		mockMvc.perform(get("/api/ext/hello"))
 				.andExpect(status().isOk());
 	}
+
+	@Test
+	void unknownPathOutsideInventoryIsRejected() throws Exception {
+		// denyAll + anonyme → 401 (entry point), pas 200 public
+		mockMvc.perform(get("/api/unknown-audit-probe"))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void unknownPathWithBearerStillDenied() throws Exception {
+		String token = issueJwtUseCase.issue(1L, "admin@example.com").token();
+
+		mockMvc.perform(get("/api/unknown-audit-probe")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+				.andExpect(status().isForbidden());
+	}
 }

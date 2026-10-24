@@ -291,10 +291,18 @@ public class AuthConfiguration {
 	/**
 	 * Règles de sécurité HTTP.
 	 *
+	 * <p><b>Business :</b> tout chemin non listé explicitement est refusé — un oubli de
+	 * préfixe ne publie pas une future feature (issue #60).
+	 * <p><b>Technique :</b> {@code authorizeHttpRequests} : permitAll ciblés, puis
+	 * {@code /api/int/**} authentifié, puis {@code anyRequest().denyAll()}.
+	 * <p><b>Métier / flow :</b> navigateur / monitoring → routes publiques ; admin JWT →
+	 * {@code /api/int/**} ; le reste → 401 (anonyme) ou 403 (JWT valide hors inventaire).
+	 *
 	 * <ul>
 	 *   <li>CSRF off : API JSON + JWT, pas de cookies de session classiques</li>
 	 *   <li>STATELESS : chaque requête doit prouver l'identité (Bearer)</li>
 	 *   <li>health/info publics : pour Docker / Azure / monitoring</li>
+	 *   <li>{@code /error} public : page d'erreur Spring Boot (sinon 403 en boucle)</li>
 	 *   <li>OPTIONS publics : préflight CORS navigateur</li>
 	 *   <li>{@code /api/ext/**} public temporairement (learning)</li>
 	 *   <li>OAuth Google / Facebook / Apple publics : authorize-url + échange code</li>
@@ -303,6 +311,7 @@ public class AuthConfiguration {
 	 *   <li>Forgot / reset-password publics (SCRUM-108 / SCRUM-111)</li>
 	 *   <li>OpenAPI / Swagger UI publics (SCRUM-147) — UI off hors local</li>
 	 *   <li>{@code /api/int/**} authentifié (admin)</li>
+	 *   <li>Règle finale {@code denyAll} : chemins hors inventaire refusés</li>
 	 * </ul>
 	 */
 	@Bean
@@ -316,6 +325,7 @@ public class AuthConfiguration {
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/actuator/health", "/actuator/info").permitAll()
+						.requestMatchers("/error").permitAll()
 						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 						.requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
 						.requestMatchers("/swagger-ui.html", "/swagger-ui/**").permitAll()
@@ -331,7 +341,7 @@ public class AuthConfiguration {
 						.requestMatchers("/api/int/auth/forgot-password").permitAll()
 						.requestMatchers("/api/int/auth/reset-password").permitAll()
 						.requestMatchers("/api/int/**").authenticated()
-						.anyRequest().permitAll())
+						.anyRequest().denyAll())
 				.httpBasic(AbstractHttpConfigurer::disable)
 				.formLogin(AbstractHttpConfigurer::disable)
 				// API REST : on veut 401 JSON/HTTP, pas une redirection vers une page login

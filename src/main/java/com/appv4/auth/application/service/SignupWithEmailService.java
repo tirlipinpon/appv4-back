@@ -43,7 +43,7 @@ public class SignupWithEmailService implements SignupWithEmailUseCase {
 	public JwtTokenResult signup(String email, String password, String displayName) {
 		String normalizedEmail = normalizeEmail(email);
 		PasswordRules.validateOrThrow(password);
-		String name = resolveDisplayName(displayName, normalizedEmail);
+		String name = DisplayNames.requireForSignup(displayName, normalizedEmail);
 
 		authUserAccountPort.findSignupStateByEmail(normalizedEmail).ifPresent(this::rejectExisting);
 
@@ -79,14 +79,6 @@ public class SignupWithEmailService implements SignupWithEmailUseCase {
 			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "Email obligatoire");
 		}
 		return email.trim().toLowerCase(Locale.ROOT);
-	}
-
-	private static String resolveDisplayName(String displayName, String email) {
-		if (displayName != null && !displayName.isBlank()) {
-			return displayName.trim();
-		}
-		int at = email.indexOf('@');
-		return at > 0 ? email.substring(0, at) : email;
 	}
 
 	private static String prettyProvider(String provider) {

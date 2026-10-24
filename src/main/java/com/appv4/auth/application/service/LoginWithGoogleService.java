@@ -47,7 +47,7 @@ public class LoginWithGoogleService implements LoginWithGoogleUseCase {
 					"Email Google manquant — connexion refusée");
 		}
 		String email = profile.email().trim().toLowerCase();
-		String displayName = resolveDisplayName(profile.displayName(), email);
+		String displayName = DisplayNames.forProvider(profile.displayName(), email);
 
 		AuthUserAccount account = authUserAccountPort
 				.findByProviderSubject(PROVIDER_GOOGLE, profile.subject())
@@ -78,11 +78,4 @@ public class LoginWithGoogleService implements LoginWithGoogleUseCase {
 						email));
 	}
 
-	private static String resolveDisplayName(String name, String email) {
-		if (name != null && !name.isBlank()) {
-			return name.trim();
-		}
-		int at = email.indexOf('@');
-		return at > 0 ? email.substring(0, at) : email;
-	}
 }

@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * Inscription email/mdp (SCRUM-105) — endpoint public.
@@ -51,6 +52,6 @@ public class SignupController {
 	public record SignupRequest(
 			@NotBlank @Email String email,
 			@NotBlank String password,
-			String displayName) {
+			@Size(max = 255) String displayName) {
 	}
 }

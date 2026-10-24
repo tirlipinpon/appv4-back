@@ -37,6 +37,7 @@ import com.appv4.auth.application.port.in.ResetPasswordUseCase;
 import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
 import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
 import com.appv4.auth.application.port.in.TeacherModerationUseCase;
+import com.appv4.auth.application.port.in.TeacherProfileUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
@@ -44,9 +45,11 @@ import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
+import com.appv4.auth.application.port.out.SchoolCatalogPort;
 import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
+import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.service.AddMissingSpaceService;
 import com.appv4.auth.application.service.BuildAppleAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildFacebookAuthorizeUrlService;
@@ -63,6 +66,7 @@ import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
 import com.appv4.auth.application.service.TeacherModerationService;
+import com.appv4.auth.application.service.TeacherProfileService;
 import com.appv4.auth.infrastructure.adapter.in.web.AuthRateLimitFilter;
 import com.appv4.auth.infrastructure.adapter.in.web.InMemoryAuthRateLimiter;
 import com.appv4.auth.infrastructure.adapter.in.web.JwtAuthenticationFilter;
@@ -359,6 +363,16 @@ public class AuthConfiguration {
 			AuthUserAccountPort authUserAccountPort) {
 		return new TeacherModerationService(
 				activeRolePort, teacherModerationPort, teacherApprovedMailPort, authUserAccountPort);
+	}
+
+	/**
+	 * Profil professeur (SCRUM-159) — nom du compte et écoles, si le référentiel en a.
+	 */
+	@Bean
+	TeacherProfileUseCase teacherProfileUseCase(
+			TeacherProfilePort teacherProfilePort,
+			SchoolCatalogPort schoolCatalogPort) {
+		return new TeacherProfileService(teacherProfilePort, schoolCatalogPort);
 	}
 
 	/**

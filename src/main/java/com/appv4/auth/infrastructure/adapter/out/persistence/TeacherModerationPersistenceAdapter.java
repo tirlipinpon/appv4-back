@@ -1,6 +1,7 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -8,11 +9,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
+import com.appv4.auth.application.port.out.TeacherRequestPage;
 import com.appv4.auth.application.port.out.TeacherRequestView;
 import com.appv4.auth.application.service.ActiveRoles;
 
@@ -22,7 +26,8 @@ import com.appv4.auth.application.service.ActiveRoles;
  * <p><b>Business :</b> pending et approved remontent dans la file.
  * Le rôle teacher n'est écrit qu'au oui, et une seule fois.
  * <p><b>Technique :</b> JPA sur les deux tables déjà créées en V5.
- * Liste : un lot utilisateurs ({@code findAllById}) — pas de N+1 (issue #56).
+ * Liste : un lot utilisateurs ({@code findAllById}) — pas de N+1 (issue #56) ;
+ * lecture bornée en base (issue #55).
  * Absent du profil {@code test} : les tests web ne démarrent pas JPA.
  * <p><b>Métier / flow :</b> adapter out du port {@link TeacherModerationPort}.
  */
@@ -48,11 +53,19 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 	}
 
 	@Override
-	public List<TeacherRequestView> findPendingAndApproved() {
-		List<BackTeacherRoleRequestEntity> requests = requestRepository
-				.findByStatusInOrderByCreatedAtAsc(List.of(PENDING, APPROVED, REVOKED));
+	public TeacherRequestPage findModerationQueue(int limit) {
+		var pageable = PageRequest.of(
+				0,
+				limit + 1,
+				Sort.by(Sort.Order.asc("createdAt"), Sort.Order.asc("id")));
+		List<BackTeacherRoleRequestEntity> fetched = requestRepository
+				.findByStatusIn(List.of(PENDING, APPROVED, REVOKED), pageable);
+		boolean truncated = fetched.size() > limit;
+		List<BackTeacherRoleRequestEntity> requests = truncated
+				? new ArrayList<>(fetched.subList(0, limit))
+				: fetched;
 		if (requests.isEmpty()) {
-			return List.of();
+			return new TeacherRequestPage(List.of(), false);
 		}
 		List<Long> userIds = requests.stream()
 				.map(BackTeacherRoleRequestEntity::getUserId)
@@ -60,9 +73,10 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 				.toList();
 		Map<Long, BackUserEntity> usersById = userRepository.findAllById(userIds).stream()
 				.collect(Collectors.toMap(BackUserEntity::getId, Function.identity()));
-		return requests.stream()
+		List<TeacherRequestView> items = requests.stream()
 				.map(request -> toView(request, usersById.get(request.getUserId())))
 				.toList();
+		return new TeacherRequestPage(items, truncated);
 	}
 
 	@Override

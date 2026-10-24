@@ -1,7 +1,6 @@
 package com.appv4.auth.application.port.in;
 
-import java.util.List;
-
+import com.appv4.auth.application.port.out.TeacherRequestPage;
 import com.appv4.auth.application.port.out.TeacherRequestView;
 
 /**
@@ -13,7 +12,8 @@ import com.appv4.auth.application.port.out.TeacherRequestView;
  */
 public interface TeacherModerationUseCase {
 
-	List<TeacherRequestView> list(long callerId);
+	/** @param limit taille max demandée (bornée côté service) */
+	TeacherRequestPage list(long callerId, int limit);
 
 	TeacherRequestView approve(long callerId, long requestId);
 

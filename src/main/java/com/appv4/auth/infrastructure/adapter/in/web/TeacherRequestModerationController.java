@@ -11,12 +11,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.TeacherModerationUseCase;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
+import com.appv4.auth.application.port.out.TeacherRequestPage;
 import com.appv4.auth.application.port.out.TeacherRequestView;
+import com.appv4.auth.application.service.TeacherModerationService;
 import com.appv4.configuration.OpenApiConfiguration;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,17 +49,22 @@ public class TeacherRequestModerationController {
 	}
 
 	@GetMapping
-	@Operation(operationId = "listTeacherRequests", summary = "Lister les demandes professeur en attente et acceptées")
-	@ApiResponse(responseCode = "200", description = "File de modération")
+	@Operation(
+			operationId = "listTeacherRequests",
+			summary = "Lister les demandes professeur (pending, approved, revoked), lecture bornée")
+	@ApiResponse(responseCode = "200", description = "File de modération (limitée)")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le compte n'est pas admin",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
-	public ResponseEntity<TeacherRequestListResponse> list() {
-		List<TeacherRequestItem> requests = teacherModerationUseCase.list(currentUser().userId()).stream()
+	public ResponseEntity<TeacherRequestListResponse> list(
+			@RequestParam(name = "limit", defaultValue = "" + TeacherModerationService.LIST_DEFAULT_LIMIT)
+			int limit) {
+		TeacherRequestPage page = teacherModerationUseCase.list(currentUser().userId(), limit);
+		List<TeacherRequestItem> requests = page.items().stream()
 				.map(TeacherRequestModerationController::toItem)
 				.toList();
-		return ResponseEntity.ok(new TeacherRequestListResponse(requests));
+		return ResponseEntity.ok(new TeacherRequestListResponse(requests, page.truncated()));
 	}
 
 	@PostMapping("/{id}/approve")
@@ -120,6 +128,8 @@ public class TeacherRequestModerationController {
 	}
 
 	@Schema(name = "TeacherRequestListResponse")
-	public record TeacherRequestListResponse(List<TeacherRequestItem> requests) {
+	public record TeacherRequestListResponse(
+			List<TeacherRequestItem> requests,
+			boolean truncated) {
 	}
 }

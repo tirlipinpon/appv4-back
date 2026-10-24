@@ -3,6 +3,7 @@ package com.appv4.auth.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -22,6 +23,7 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
+import com.appv4.auth.application.port.out.TeacherRequestPage;
 import com.appv4.auth.application.port.out.TeacherRequestView;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,19 +49,32 @@ class TeacherModerationServiceTest {
 	void parentCannotList() {
 		when(activeRolePort.hasAdminRole(2L)).thenReturn(false);
 
-		assertThatThrownBy(() -> service.list(2L))
+		assertThatThrownBy(() -> service.list(2L, 50))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherModerationService.FORBIDDEN);
-		verify(teacherModerationPort, never()).findPendingAndApproved();
+		verify(teacherModerationPort, never()).findModerationQueue(anyInt());
 	}
 
 	@Test
 	void adminListsPendingAndApproved() {
 		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
 		TeacherRequestView pending = view(4L, "pending", null);
-		when(teacherModerationPort.findPendingAndApproved()).thenReturn(List.of(pending));
+		when(teacherModerationPort.findModerationQueue(50))
+				.thenReturn(new TeacherRequestPage(List.of(pending), false));
 
-		assertThat(service.list(1L)).containsExactly(pending);
+		TeacherRequestPage page = service.list(1L, 50);
+		assertThat(page.items()).containsExactly(pending);
+		assertThat(page.truncated()).isFalse();
+	}
+
+	@Test
+	void listCapsLimitToMax() {
+		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+		when(teacherModerationPort.findModerationQueue(TeacherModerationService.LIST_MAX_LIMIT))
+				.thenReturn(new TeacherRequestPage(List.of(), false));
+
+		service.list(1L, 10_000);
+		verify(teacherModerationPort).findModerationQueue(TeacherModerationService.LIST_MAX_LIMIT);
 	}
 
 	@Test

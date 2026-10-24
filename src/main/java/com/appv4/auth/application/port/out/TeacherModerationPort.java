@@ -1,7 +1,6 @@
 package com.appv4.auth.application.port.out;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -14,7 +13,10 @@ import java.util.Optional;
  */
 public interface TeacherModerationPort {
 
-	List<TeacherRequestView> findPendingAndApproved();
+	/**
+	 * File pending/approved/revoked, ordre créé puis id, au plus {@code limit} lignes.
+	 */
+	TeacherRequestPage findModerationQueue(int limit);
 
 	Optional<TeacherRequestView> findById(long requestId);
 

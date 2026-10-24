@@ -1,0 +1,49 @@
+package com.appv4.auth.infrastructure.adapter.in.web;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.appv4.auth.application.port.in.ResetPasswordUseCase;
+import com.appv4.auth.application.service.ResetPasswordService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+
+/**
+ * Reset-password public (SCRUM-111).
+ *
+ * <p><b>Business :</b> l'utilisateur change son mdp via le lien email (token + newPassword).
+ * <p><b>Technique :</b> {@code POST /api/int/auth/reset-password} en permitAll.
+ * <p><b>Métier / flow :</b> adapter in → {@link ResetPasswordUseCase} → ports out token + user.
+ */
+@RestController
+@RequestMapping("/api/int/auth/reset-password")
+@Tag(name = "Auth — password reset")
+public class ResetPasswordController {
+
+	private final ResetPasswordUseCase resetPasswordUseCase;
+
+	public ResetPasswordController(ResetPasswordUseCase resetPasswordUseCase) {
+		this.resetPasswordUseCase = resetPasswordUseCase;
+	}
+
+	@PostMapping
+	@Operation(operationId = "resetPassword", summary = "Appliquer un nouveau mot de passe via jeton")
+	public ResponseEntity<AuthMessageResponse> resetPassword(
+			@Valid @RequestBody ResetPasswordRequest request) {
+		resetPasswordUseCase.reset(request.token(), request.newPassword());
+		return ResponseEntity.ok(new AuthMessageResponse(ResetPasswordService.SUCCESS_MESSAGE));
+	}
+
+	@Schema(name = "ResetPasswordRequest")
+	public record ResetPasswordRequest(
+			@NotBlank String token,
+			@NotBlank String newPassword) {
+	}
+}

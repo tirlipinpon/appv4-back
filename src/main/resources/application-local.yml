@@ -1,4 +1,5 @@
 # Profil "local" — Postgres via Docker Compose
+# Activé seulement si SPRING_PROFILES_ACTIVE=local (jamais par défaut).
 # Variables : voir .env / .env.example (SPRING_DATASOURCE_* ou POSTGRES_*)
 
 spring:
@@ -17,10 +18,29 @@ spring:
 
 # Origines Angular locales (learning / admin — ports ng serve typiques)
 appv4:
+  # Secret JWT de démo uniquement en local (jamais en déploiement).
+  jwt:
+    secret: ${APPV4_JWT_SECRET:appv4-local-dev-jwt-secret-change-me-32b}
+  # Lien reset dans les logs (local seulement — issue #58)
+  mail:
+    transport: logging
   cors:
     allowed-origins:
       - http://localhost:4200
       - http://localhost:4201
+  auth:
+    password-reset:
+      token-ttl: 45m
+      frontend-reset-url: http://localhost:4201/reset-password
+    # Compte admin local (SCRUM-142). Le clair reste dans .env, pas dans git.
+    admin-seed:
+      email: ${APPV4_ADMIN_EMAIL:}
+      password: ${APPV4_ADMIN_PASSWORD:}
+
+# Swagger UI uniquement en local (SCRUM-147)
+springdoc:
+  swagger-ui:
+    enabled: true
 
 logging:
   level:

@@ -38,17 +38,21 @@ Maven n’a **pas** besoin d’être installé globalement : le wrapper `mvnw` /
 ### Lancer l’API (profil `local`)
 
 1. Postgres Docker doit tourner (`docker compose up -d`)
-2. `.env` aligné (ou valeurs par défaut `appv4` / `appv4`)
-3. Démarrer Spring :
+2. Copier `.env.example` → `.env` et renseigner les secrets (ex. `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`)
+3. Démarrer Spring **depuis la racine `appv4-back`** (le `.env` est chargé automatiquement) :
 
 ```bash
 cd C:\Users\tonys\Desktop\appv4\appv4-back
 .\mvnw.cmd spring-boot:run
 ```
 
+Plus besoin d’exporter manuellement les variables du `.env` en PowerShell : `DotEnvEnvironmentPostProcessor` les injecte au boot. Les variables déjà définies dans l’OS / CI restent prioritaires.
+
 4. Vérifier : [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health) → `{"status":"UP"}`
 
-Config : `application.yml` + `application-local.yml` (datasource JDBC).
+Config : `application.yml` + `application-local.yml` (datasource JDBC) + `.env` local.
+Le profil `local` n'est **pas** le défaut : il faut `SPRING_PROFILES_ACTIVE=local` (posé par le `.env`).
+Sans profil, pas de seed admin ni Swagger UI.
 
 ## PostgreSQL local (MVP)
 
@@ -149,6 +153,8 @@ Avec Postgres + `.\mvnw.cmd spring-boot:run` :
 
 - [http://localhost:8080/api/ext/hello](http://localhost:8080/api/ext/hello) → `{"text":"hello learning"}`
 - [http://localhost:8080/api/int/hello](http://localhost:8080/api/int/hello) → `{"text":"admin-helloworld"}`
+- OpenAPI (SCRUM-147) : [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs)
+- Swagger UI (profil `local` seulement) : [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
 
 ## Tickets liés
 
@@ -163,3 +169,9 @@ Avec Postgres + `.\mvnw.cmd spring-boot:run` :
 
 1. Angular `learning` + `admin` consommant `/api/ext/hello` et `/api/int/hello` (SCRUM-34)
 2. Erreurs ProblemDetail + OpenAPI (socle shared)
+
+## Branches & deploiement
+
+Voir **[BRANCHING.md](./BRANCHING.md)** : `feature/*` → **PR** → `develop` (CI) → **PR** → `release` (CD Azure).  
+Important : le passage `develop` → `release` passe **toujours** par une Pull Request.
+

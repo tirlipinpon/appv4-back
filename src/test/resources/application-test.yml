@@ -1,0 +1,30 @@
+# Profil "test" — les tests web ne touchent pas la base de développement.
+# Pas de Postgres, pas de Flyway, pas de seed admin (celui-ci est profil local).
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+
+# Secret dédié aux tests (pas la clé de démo locale, pas une vraie prod).
+appv4:
+  jwt:
+    secret: appv4-test-jwt-secret-not-for-production-32b
+  # Plafond haut : les suites MockMvc partagent le même filtre en mémoire
+  auth:
+    rate-limit:
+      enabled: true
+      max-requests: 10000
+      window-seconds: 60
+  mail:
+    transport: logging

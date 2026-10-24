@@ -1,9 +1,10 @@
 spring:
   application:
     name: appv4-back
-  # Profil par défaut pour le MVP local (surchargeable via SPRING_PROFILES_ACTIVE)
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:local}
+  # Pas de profil par défaut : sans SPRING_PROFILES_ACTIVE (ou .env local),
+  # Swagger / seed admin / application-local.yml ne s'activent pas par oubli.
+  # Local : SPRING_PROFILES_ACTIVE=local (voir .env.example).
+  # Tests : @ActiveProfiles("test"). CI / Azure : variable explicite.
   jpa:
     open-in-view: false
     hibernate:
@@ -25,3 +26,49 @@ management:
 
 server:
   port: ${SERVER_PORT:8080}
+
+# OpenAPI (SCRUM-147) — Swagger UI off hors local ; /v3/api-docs reste utile pour le contrat
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: false
+    path: /swagger-ui.html
+
+# JWT admin (/api/int) — pas de secret de démo ici (issue #62).
+# Hors local : APPV4_JWT_SECRET obligatoire (min. 32 octets). Local : voir application-local.yml.
+# Google OAuth (SCRUM-96) — GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET hors git
+appv4:
+  jwt:
+    secret: ${APPV4_JWT_SECRET:}
+    issuer: ${APPV4_JWT_ISSUER:appv4-back}
+    expiration-minutes: ${APPV4_JWT_EXPIRATION_MINUTES:480}
+  # Anti-abus parcours auth publics (issue #59) — IP + chemin, mémoire JVM
+  auth:
+    rate-limit:
+      enabled: true
+      max-requests: ${APPV4_AUTH_RATE_LIMIT_MAX:30}
+      window-seconds: ${APPV4_AUTH_RATE_LIMIT_WINDOW_SECONDS:60}
+  # Mail (issue #58) — logging interdit hors local/test (lien reset secret)
+  mail:
+    transport: ${APPV4_MAIL_TRANSPORT:noop}
+  # Clients OAuth HTTP (issue #57)
+  http:
+    connect-timeout: ${APPV4_HTTP_CONNECT_TIMEOUT:5s}
+    read-timeout: ${APPV4_HTTP_READ_TIMEOUT:10s}
+  oauth:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+    facebook:
+      app-id: ${FACEBOOK_APP_ID:}
+      app-secret: ${FACEBOOK_APP_SECRET:}
+    apple:
+      client-id: ${APPLE_CLIENT_ID:}
+      team-id: ${APPLE_TEAM_ID:}
+      key-id: ${APPLE_KEY_ID:}
+      private-key: ${APPLE_PRIVATE_KEY:}
+      # Return URL HTTPS enregistrée chez Apple (form_post, issue #33)
+      callback-uri: ${APPLE_CALLBACK_URI:}
+      # allowed-return-uri-prefixes: défaut localhost:4200/4201 (voir AppleOAuthProperties)
+

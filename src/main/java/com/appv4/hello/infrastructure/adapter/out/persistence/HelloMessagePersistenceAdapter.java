@@ -2,6 +2,7 @@ package com.appv4.hello.infrastructure.adapter.out.persistence;
 
 import java.util.Optional;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import com.appv4.hello.application.port.out.HelloMessageRepository;
@@ -10,8 +11,10 @@ import com.appv4.hello.domain.model.HelloMessage;
 
 /**
  * Adaptateur sortant : implémente le port métier via Spring Data JPA.
+ * Absent du profil {@code test} : les tests web ne démarrent pas JPA.
  */
 @Component
+@Profile("!test")
 class HelloMessagePersistenceAdapter implements HelloMessageRepository {
 
 	private final FrontHelloMessageJpaRepository frontHelloMessageJpaRepository;

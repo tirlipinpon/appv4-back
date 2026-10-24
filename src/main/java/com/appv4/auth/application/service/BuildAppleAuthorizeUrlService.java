@@ -2,37 +2,38 @@ package com.appv4.auth.application.service;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Supplier;
 
 import org.springframework.http.HttpStatus;
 
+import com.appv4.auth.application.config.AppleOAuthSettings;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.BuildAppleAuthorizeUrlUseCase;
-import com.appv4.auth.infrastructure.config.AppleOAuthProperties;
 
 /**
  * Construit l'URL Sign in with Apple (code + form_post, issue #33).
- *
- * <p><b>Business :</b> avec les scopes {@code name email}, Apple exige {@code form_post}
- * vers une Return URL HTTPS — pas un query vers le SPA.
- * <p><b>Technique :</b> {@code redirect_uri} = callback back ; {@code state} signé (issue #32).
- * <p><b>Métier / flow :</b> authorize-url → Apple POST callback → redirect FE → login JSON.
  */
 public class BuildAppleAuthorizeUrlService implements BuildAppleAuthorizeUrlUseCase {
 
-	private final AppleOAuthProperties properties;
+	private final Supplier<AppleOAuthSettings> settings;
 
-	public BuildAppleAuthorizeUrlService(AppleOAuthProperties properties) {
-		this.properties = properties;
+	public BuildAppleAuthorizeUrlService(Supplier<AppleOAuthSettings> settings) {
+		this.settings = settings;
+	}
+
+	public BuildAppleAuthorizeUrlService(AppleOAuthSettings settings) {
+		this(() -> settings);
 	}
 
 	@Override
 	public String build(String frontendResumeUri, String state) {
-		if (!properties.isConfigured()) {
+		AppleOAuthSettings s = settings.get();
+		if (!s.isConfigured()) {
 			throw new AuthDomainException(
 					HttpStatus.SERVICE_UNAVAILABLE.value(),
 					"Apple OAuth non configuré (APPLE_CLIENT_ID / TEAM_ID / KEY_ID / PRIVATE_KEY)");
 		}
-		if (!properties.isCallbackConfigured()) {
+		if (!s.isCallbackConfigured()) {
 			throw new AuthDomainException(
 					HttpStatus.SERVICE_UNAVAILABLE.value(),
 					"Apple OAuth callback non configuré (APPLE_CALLBACK_URI)");
@@ -44,16 +45,16 @@ public class BuildAppleAuthorizeUrlService implements BuildAppleAuthorizeUrlUseC
 			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "state OAuth obligatoire");
 		}
 		String resume = frontendResumeUri.trim();
-		if (!AppleOAuthReturnUris.isAllowed(resume, properties.getAllowedReturnUriPrefixes())) {
+		if (!AppleOAuthReturnUris.isAllowed(resume, s.allowedReturnUriPrefixes())) {
 			throw new AuthDomainException(
 					HttpStatus.BAD_REQUEST.value(),
 					"redirectUri non autorisé pour la reprise Apple");
 		}
 		String scope = URLEncoder.encode("name email", StandardCharsets.UTF_8);
-		String encodedRedirect = URLEncoder.encode(properties.getCallbackUri().trim(), StandardCharsets.UTF_8);
-		String clientId = URLEncoder.encode(properties.getClientId(), StandardCharsets.UTF_8);
+		String encodedRedirect = URLEncoder.encode(s.callbackUri().trim(), StandardCharsets.UTF_8);
+		String clientId = URLEncoder.encode(s.clientId(), StandardCharsets.UTF_8);
 		String encodedState = URLEncoder.encode(state, StandardCharsets.UTF_8);
-		return properties.getAuthorizationUri()
+		return s.authorizationUri()
 				+ "?client_id=" + clientId
 				+ "&redirect_uri=" + encodedRedirect
 				+ "&response_type=code"

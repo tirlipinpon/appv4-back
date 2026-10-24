@@ -180,8 +180,9 @@ public class AuthConfiguration {
 	}
 
 	@Bean
-	BuildGoogleAuthorizeUrlUseCase buildGoogleAuthorizeUrlUseCase(GoogleOAuthProperties googleOAuthProperties) {
-		return new BuildGoogleAuthorizeUrlService(googleOAuthProperties);
+	BuildGoogleAuthorizeUrlUseCase buildGoogleAuthorizeUrlUseCase(GoogleOAuthProperties p) {
+		return new BuildGoogleAuthorizeUrlService(() -> new com.appv4.auth.application.config.GoogleOAuthSettings(
+				p.getClientId(), p.getAuthorizationUri(), p.isConfigured()));
 	}
 
 	@Bean
@@ -208,9 +209,9 @@ public class AuthConfiguration {
 	}
 
 	@Bean
-	BuildFacebookAuthorizeUrlUseCase buildFacebookAuthorizeUrlUseCase(
-			FacebookOAuthProperties facebookOAuthProperties) {
-		return new BuildFacebookAuthorizeUrlService(facebookOAuthProperties);
+	BuildFacebookAuthorizeUrlUseCase buildFacebookAuthorizeUrlUseCase(FacebookOAuthProperties p) {
+		return new BuildFacebookAuthorizeUrlService(() -> new com.appv4.auth.application.config.FacebookOAuthSettings(
+				p.getAppId(), p.getAuthorizationUri(), p.isConfigured()));
 	}
 
 	@Bean
@@ -231,8 +232,13 @@ public class AuthConfiguration {
 	}
 
 	@Bean
-	BuildAppleAuthorizeUrlUseCase buildAppleAuthorizeUrlUseCase(AppleOAuthProperties appleOAuthProperties) {
-		return new BuildAppleAuthorizeUrlService(appleOAuthProperties);
+	BuildAppleAuthorizeUrlUseCase buildAppleAuthorizeUrlUseCase(AppleOAuthProperties p) {
+		return new BuildAppleAuthorizeUrlService(() -> new com.appv4.auth.application.config.AppleOAuthSettings(
+				p.getClientId(),
+				p.getAuthorizationUri(),
+				p.getCallbackUri(),
+				p.getAllowedReturnUriPrefixes(),
+				p.isConfigured()));
 	}
 
 	@Bean
@@ -244,9 +250,16 @@ public class AuthConfiguration {
 
 	@Bean
 	ResumeAppleOAuthCallbackUseCase resumeAppleOAuthCallbackUseCase(
-			AppleOAuthProperties appleOAuthProperties,
+			AppleOAuthProperties p,
 			com.appv4.auth.application.port.out.OAuthBrowserBindingPort oauthBrowserBindingPort) {
-		return new ResumeAppleOAuthCallbackService(appleOAuthProperties, oauthBrowserBindingPort);
+		return new ResumeAppleOAuthCallbackService(
+				() -> new com.appv4.auth.application.config.AppleOAuthSettings(
+						p.getClientId(),
+						p.getAuthorizationUri(),
+						p.getCallbackUri(),
+						p.getAllowedReturnUriPrefixes(),
+						p.isConfigured()),
+				oauthBrowserBindingPort);
 	}
 
 	@Bean
@@ -347,7 +360,9 @@ public class AuthConfiguration {
 				authUserAccountPort,
 				passwordResetTokenPort,
 				passwordResetMailPort,
-				passwordResetProperties);
+				new com.appv4.auth.application.config.PasswordResetSettings(
+						passwordResetProperties.getTokenTtl(),
+						passwordResetProperties.getFrontendResetUrl()));
 	}
 
 	/**

@@ -1,5 +1,6 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -8,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -20,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserLoginCandidate;
+import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.service.LoginWithEmailService;
 
 @SpringBootTest
@@ -32,6 +35,12 @@ class LoginControllerTest {
 
 	@MockBean
 	private AuthUserAccountPort authUserAccountPort;
+
+	@BeforeEach
+	void openSession() {
+		when(authUserAccountPort.findSessionState(anyLong()))
+				.thenReturn(Optional.of(new SessionState(true, 0)));
+	}
 
 	@Test
 	void loginReturnsOkAndJwt() throws Exception {

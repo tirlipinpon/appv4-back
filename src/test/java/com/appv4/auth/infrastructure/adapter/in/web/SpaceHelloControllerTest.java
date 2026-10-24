@@ -80,7 +80,7 @@ class SpaceHelloControllerTest {
 	}
 
 	private String bearer(String activeRole, List<String> roles) {
-		String raw = tokens.encode(9L, "space@example.com", activeRole, roles, false).token();
+		String raw = tokens.encode(9L, "space@example.com", activeRole, roles, false, 0).token();
 		return "Bearer " + raw;
 	}
 }

@@ -1,9 +1,14 @@
 package com.appv4.configuration;
 
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.withSettings;
+import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 
+import org.mockito.quality.Strictness;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -14,6 +19,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
@@ -28,6 +34,7 @@ import com.appv4.hello.domain.model.HelloMessage;
  *
  * <p><b>Business :</b> un test de contrôleur vérifie le HTTP, pas le contenu de Postgres.
  * <p><b>Technique :</b> profil {@code test}. Faux ports + transaction vide, donc pas de DataSource.
+ * Session JWT « ouverte » par défaut (actif, sv=0, espaces parent+teacher) pour le filtre #49.
  * <p><b>Métier / flow :</b> les {@code @MockBean} des tests remplacent ces faux si le scénario en a besoin.
  */
 @Configuration
@@ -41,12 +48,19 @@ public class TestProfileConfiguration {
 
 	@Bean
 	AuthUserAccountPort authUserAccountPort() {
-		return mock(AuthUserAccountPort.class);
+		AuthUserAccountPort port = mock(AuthUserAccountPort.class, withSettings().strictness(Strictness.LENIENT));
+		when(port.findSessionState(anyLong())).thenReturn(Optional.of(new SessionState(true, 0)));
+		return port;
 	}
 
 	@Bean
 	ActiveRolePort activeRolePort() {
-		return mock(ActiveRolePort.class);
+		ActiveRolePort port = mock(ActiveRolePort.class, withSettings().strictness(Strictness.LENIENT));
+		when(port.findSpaceRoles(anyLong())).thenReturn(List.of("parent", "teacher"));
+		when(port.findLastActiveRole(anyLong())).thenReturn(Optional.empty());
+		when(port.hasAdminRole(anyLong())).thenReturn(false);
+		when(port.hasPendingTeacherRequest(anyLong())).thenReturn(false);
+		return port;
 	}
 
 	@Bean

@@ -49,14 +49,20 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 	/**
 	 * Crée un JWT signé.
 	 *
-	 * @param userId     id {@code back_users.id}
-	 * @param email      email du compte
-	 * @param activeRole espace choisi, ou {@code null} pour omettre le claim
-	 * @param roles      espaces accordés, claim {@code roles} (peut être vide)
+	 * @param userId          id {@code back_users.id}
+	 * @param email           email du compte
+	 * @param activeRole      espace choisi, ou {@code null} pour omettre le claim
+	 * @param roles           espaces accordés, claim {@code roles} (peut être vide)
+	 * @param securityVersion version session (claim {@code sv}) — issue #49
 	 */
 	@Override
 	public JwtTokenResult encode(
-			long userId, String email, String activeRole, List<String> roles, boolean pendingTeacher) {
+			long userId,
+			String email,
+			String activeRole,
+			List<String> roles,
+			boolean pendingTeacher,
+			int securityVersion) {
 		Instant now = Instant.now();
 		Instant expiresAt = now.plusSeconds(properties.getExpirationMinutes() * 60);
 		JwtBuilder builder = Jwts.builder()
@@ -64,6 +70,7 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 				// subject = identifiant principal du token (convention JWT)
 				.subject(Long.toString(userId))
 				.claim("email", email)
+				.claim("sv", securityVersion)
 				.issuedAt(Date.from(now))
 				.expiration(Date.from(expiresAt));
 		if (activeRole != null && !activeRole.isBlank()) {
@@ -102,11 +109,21 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 				activeRole = null;
 			}
 			boolean pendingTeacher = Boolean.TRUE.equals(claims.get("pendingTeacher", Boolean.class));
+			int securityVersion = readSecurityVersion(claims);
 			return Optional.of(new AuthenticatedUser(
-					userId, email, activeRole, readRoles(claims), pendingTeacher));
+					userId, email, activeRole, readRoles(claims), pendingTeacher, securityVersion));
 		} catch (JwtException | IllegalArgumentException ex) {
 			return Optional.empty();
 		}
+	}
+
+	/** Claim {@code sv} ; absent (anciens jetons) → 0, comme la colonne par défaut. */
+	private static int readSecurityVersion(Claims claims) {
+		Object raw = claims.get("sv");
+		if (raw instanceof Number number) {
+			return number.intValue();
+		}
+		return 0;
 	}
 
 	private static List<String> readRoles(Claims claims) {

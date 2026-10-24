@@ -1,5 +1,6 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -19,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
+import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient.GoogleUserProfile;
 import com.appv4.auth.infrastructure.config.GoogleOAuthProperties;
@@ -44,6 +46,8 @@ class GoogleOAuthControllerTest {
 	void resetGoogleProps() {
 		googleOAuthProperties.setClientId("");
 		googleOAuthProperties.setClientSecret("");
+		when(authUserAccountPort.findSessionState(anyLong()))
+				.thenReturn(java.util.Optional.of(new SessionState(true, 0)));
 	}
 
 	@Test

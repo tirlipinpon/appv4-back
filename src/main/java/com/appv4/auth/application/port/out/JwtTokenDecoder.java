@@ -21,14 +21,16 @@ public interface JwtTokenDecoder {
 	 *
 	 * <p>{@code activeRole} est {@code null} quand le jeton ne choisit pas d'espace
 	 * (deux rôles sans souvenir, ou ancien jeton). {@code roles} liste les espaces
-	 * déjà accordés ; vide si le claim est absent.
+	 * déjà accordés ; vide si le claim est absent. {@code securityVersion} (claim
+	 * {@code sv}) doit matcher la base — sinon le filtre refuse la session (issue #49).
 	 */
 	record AuthenticatedUser(
 			long userId,
 			String email,
 			String activeRole,
 			List<String> roles,
-			boolean pendingTeacher) {
+			boolean pendingTeacher,
+			int securityVersion) {
 		public AuthenticatedUser {
 			roles = roles == null ? List.of() : List.copyOf(roles);
 		}

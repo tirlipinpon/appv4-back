@@ -15,8 +15,8 @@ import com.appv4.auth.application.port.out.PasswordResetTokenPort.ValidResetToke
  *
  * <p><b>Business :</b> un lien one-shot change le mdp ; ancien lien inutilisable ensuite.
  * <p><b>Technique :</b> SHA-256 du token clair → SELECT valide → BCrypt → mark used.
- * <p><b>Métier / flow :</b> pas de blacklist JWT (API stateless) ; invalider le jeton suffit
- * tant qu'il n'y a pas de refresh tokens en base.
+ * <p><b>Métier / flow :</b> {@code updatePasswordHash} incrémente {@code security_version}
+ * → les JWT déjà émis sont refusés au prochain appel (issue #49).
  */
 public class ResetPasswordService implements ResetPasswordUseCase {
 

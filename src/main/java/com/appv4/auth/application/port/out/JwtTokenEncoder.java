@@ -18,12 +18,18 @@ import com.appv4.auth.application.result.JwtTokenResult;
 public interface JwtTokenEncoder {
 
 	/**
-	 * @param activeRole     {@code parent}, {@code teacher}, ou {@code null} pour ne pas
-	 *                       prétendre un espace
-	 * @param roles          espaces accordés, pour que le front sache s'il peut changer
-	 * @param pendingTeacher vrai si une demande professeur est en attente et qu'aucun
-	 *                       rôle d'espace n'est accordé
+	 * @param activeRole       {@code parent}, {@code teacher}, ou {@code null} pour ne pas
+	 *                         prétendre un espace
+	 * @param roles            espaces accordés, pour que le front sache s'il peut changer
+	 * @param pendingTeacher   vrai si une demande professeur est en attente et qu'aucun
+	 *                         rôle d'espace n'est accordé
+	 * @param securityVersion  snapshot {@code back_users.security_version} (claim {@code sv})
 	 */
 	JwtTokenResult encode(
-			long userId, String email, String activeRole, List<String> roles, boolean pendingTeacher);
+			long userId,
+			String email,
+			String activeRole,
+			List<String> roles,
+			boolean pendingTeacher,
+			int securityVersion);
 }

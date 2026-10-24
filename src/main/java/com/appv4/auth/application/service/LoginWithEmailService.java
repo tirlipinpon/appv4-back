@@ -1,7 +1,5 @@
 package com.appv4.auth.application.service;
 
-import java.util.Locale;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -39,7 +37,7 @@ public class LoginWithEmailService implements LoginWithEmailUseCase {
 
 	@Override
 	public JwtTokenResult login(String email, String password) {
-		String normalized = normalizeEmail(email);
+		String normalized = Emails.requireNormalized(email);
 		if (password == null || password.isBlank()) {
 			throw invalidCredentials();
 		}
@@ -53,13 +51,6 @@ public class LoginWithEmailService implements LoginWithEmailUseCase {
 		}
 
 		return issueJwtUseCase.issue(candidate.id(), candidate.email());
-	}
-
-	private static String normalizeEmail(String email) {
-		if (email == null || email.isBlank()) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "Email obligatoire");
-		}
-		return email.trim().toLowerCase(Locale.ROOT);
 	}
 
 	private AuthDomainException invalidCredentials() {

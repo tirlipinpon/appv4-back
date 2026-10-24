@@ -39,12 +39,9 @@ public class LoginWithFacebookService implements LoginWithFacebookUseCase {
 	@Transactional
 	public JwtTokenResult login(String authorizationCode, String redirectUri) {
 		FacebookUserProfile profile = facebookOAuthClient.exchangeCode(authorizationCode, redirectUri);
-		if (profile.email() == null || profile.email().isBlank()) {
-			throw new AuthDomainException(
-					HttpStatus.FORBIDDEN.value(),
-					"Email Facebook manquant — connexion refusée (autorise le scope email)");
-		}
-		String email = profile.email().trim().toLowerCase();
+		String email = Emails.requireNormalizedOrThrow(
+				profile.email(),
+				"Email Facebook manquant — connexion refusée (autorise le scope email)");
 		String displayName = DisplayNames.forProvider(profile.displayName(), email);
 
 		AuthUserAccount account = authUserAccountPort

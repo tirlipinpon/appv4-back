@@ -1,7 +1,5 @@
 package com.appv4.auth.application.service;
 
-import java.util.Locale;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,7 +40,7 @@ public class SignupWithEmailService implements SignupWithEmailUseCase {
 	@Override
 	@Transactional
 	public JwtTokenResult signup(String email, String password, String displayName) {
-		String normalizedEmail = normalizeEmail(email);
+		String normalizedEmail = Emails.requireNormalized(email);
 		PasswordRules.validateOrThrow(password);
 		String name = DisplayNames.requireForSignup(displayName, normalizedEmail);
 
@@ -53,12 +51,5 @@ public class SignupWithEmailService implements SignupWithEmailUseCase {
 		String hash = passwordEncoder.encode(password);
 		AuthUserAccount account = authUserAccountPort.createWithPassword(normalizedEmail, name, hash);
 		return issueJwtUseCase.issue(account.id(), account.email());
-	}
-
-	private static String normalizeEmail(String email) {
-		if (email == null || email.isBlank()) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "Email obligatoire");
-		}
-		return email.trim().toLowerCase(Locale.ROOT);
 	}
 }

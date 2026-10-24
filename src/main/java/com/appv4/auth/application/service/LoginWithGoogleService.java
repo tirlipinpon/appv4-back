@@ -41,12 +41,8 @@ public class LoginWithGoogleService implements LoginWithGoogleUseCase {
 					HttpStatus.FORBIDDEN.value(),
 					"Email Google non vérifié — connexion refusée");
 		}
-		if (profile.email() == null || profile.email().isBlank()) {
-			throw new AuthDomainException(
-					HttpStatus.FORBIDDEN.value(),
-					"Email Google manquant — connexion refusée");
-		}
-		String email = profile.email().trim().toLowerCase();
+		String email = Emails.requireNormalizedOrThrow(
+				profile.email(), "Email Google manquant — connexion refusée");
 		String displayName = DisplayNames.forProvider(profile.displayName(), email);
 
 		AuthUserAccount account = authUserAccountPort

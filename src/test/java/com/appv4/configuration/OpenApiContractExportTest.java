@@ -45,6 +45,9 @@ class OpenApiContractExportTest {
 				.contains("/api/int/auth/oauth/apple")
 				.contains("/api/int/auth/forgot-password")
 				.contains("/api/int/auth/reset-password")
+				.contains("/api/int/auth/spaces")
+				.contains("/api/int/auth/spaces/parent")
+				.contains("/api/int/auth/spaces/teacher")
 				.contains("/api/int/admin/teacher-requests")
 				.contains("/api/int/hello")
 				.contains("/api/ext/hello");

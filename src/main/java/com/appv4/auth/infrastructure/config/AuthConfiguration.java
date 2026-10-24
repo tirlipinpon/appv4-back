@@ -21,6 +21,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.appv4.auth.application.port.in.AddMissingSpaceUseCase;
 import com.appv4.auth.application.port.in.BuildAppleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.BuildFacebookAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.BuildGoogleAuthorizeUrlUseCase;
@@ -46,6 +47,7 @@ import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
+import com.appv4.auth.application.service.AddMissingSpaceService;
 import com.appv4.auth.application.service.BuildAppleAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildFacebookAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildGoogleAuthorizeUrlService;
@@ -302,6 +304,18 @@ public class AuthConfiguration {
 			PasswordEncoder passwordEncoder,
 			IssueJwtUseCase issueJwtUseCase) {
 		return new LoginWithEmailService(authUserAccountPort, passwordEncoder, issueJwtUseCase);
+	}
+
+	/**
+	 * Espace manquant plus tard (SCRUM-152) — parent immédiat, professeur en demande.
+	 * Ne passe pas par switch-role : ce chemin ne crée pas de rôle.
+	 */
+	@Bean
+	AddMissingSpaceUseCase addMissingSpaceUseCase(
+			SignupRolePort signupRolePort,
+			ActiveRolePort activeRolePort,
+			IssueJwtUseCase issueJwtUseCase) {
+		return new AddMissingSpaceService(signupRolePort, activeRolePort, issueJwtUseCase);
 	}
 
 	/**

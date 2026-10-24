@@ -14,6 +14,10 @@ public interface BackTeacherRoleRequestJpaRepository extends JpaRepository<BackT
 
 	boolean existsByUserIdAndStatus(long userId, String status);
 
+	/** Tous les statuts de ce compte (pending, approved, revoked peuvent coexister). */
+	@Query("select e.status from BackTeacherRoleRequestEntity e where e.userId = :userId")
+	List<String> findStatusesByUserId(@Param("userId") long userId);
+
 	List<BackTeacherRoleRequestEntity> findByStatusIn(Collection<String> statuses, Pageable pageable);
 
 	/**

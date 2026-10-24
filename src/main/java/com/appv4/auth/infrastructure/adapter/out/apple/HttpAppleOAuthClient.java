@@ -1,9 +1,5 @@
 package com.appv4.auth.infrastructure.adapter.out.apple;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.Map;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.util.LinkedMultiValueMap;
@@ -17,24 +13,34 @@ import com.appv4.auth.infrastructure.adapter.out.oauth.OAuthRestClientErrors;
 import com.appv4.auth.infrastructure.config.AppleOAuthProperties;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.jsonwebtoken.Claims;
 
 /**
- * Adaptateur HTTP Sign in with Apple — token + decode {@code id_token} (SCRUM-102).
+ * Adaptateur HTTP Sign in with Apple — token + validation OIDC {@code id_token} (SCRUM-102 / #52).
  *
- * <p><b>Technique :</b> échange form POST ; le profil (sub, email) est dans l'id_token
- * renvoyé par Apple (pas d'endpoint /me séparé).
+ * <p><b>Technique :</b> échange form POST ; profil (sub, email) depuis id_token après
+ * vérif JWKS / iss / aud / exp.
  */
 public class HttpAppleOAuthClient implements AppleOAuthClient {
 
 	private final AppleOAuthProperties properties;
 	private final RestClient restClient;
-	private final ObjectMapper objectMapper = new ObjectMapper();
+	private final AppleIdTokenValidator idTokenValidator;
 
 	public HttpAppleOAuthClient(AppleOAuthProperties properties, RestClient.Builder restClientBuilder) {
 		this.properties = properties;
 		this.restClient = restClientBuilder.build();
+		this.idTokenValidator = new AppleIdTokenValidator(restClientBuilder, properties.getJwksUri());
+	}
+
+	HttpAppleOAuthClient(
+			AppleOAuthProperties properties,
+			RestClient.Builder restClientBuilder,
+			AppleIdTokenValidator idTokenValidator) {
+		this.properties = properties;
+		this.restClient = restClientBuilder.build();
+		this.idTokenValidator = idTokenValidator;
 	}
 
 	@Override
@@ -51,7 +57,7 @@ public class HttpAppleOAuthClient implements AppleOAuthClient {
 						HttpStatus.UNAUTHORIZED.value(),
 						"Réponse token Apple invalide (id_token manquant)");
 			}
-			return parseIdToken(token.idToken());
+			return toProfile(idTokenValidator.validate(token.idToken(), properties.getClientId()));
 		} catch (RestClientException ex) {
 			throw OAuthRestClientErrors.map(ex, "Apple");
 		}
@@ -74,35 +80,27 @@ public class HttpAppleOAuthClient implements AppleOAuthClient {
 				.body(TokenResponse.class);
 	}
 
-	/**
-	 * Decode le payload JWT reçu directement de l'endpoint token Apple (TLS).
-	 * Vérif JWKS complète = amélioration possible plus tard.
-	 */
-	private AppleUserProfile parseIdToken(String idToken) {
-		try {
-			String[] parts = idToken.split("\\.");
-			if (parts.length < 2) {
-				throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "id_token Apple malformé");
-			}
-			byte[] payloadBytes = Base64.getUrlDecoder().decode(parts[1]);
-			Map<String, Object> claims = objectMapper.readValue(
-					new String(payloadBytes, StandardCharsets.UTF_8),
-					new TypeReference<>() {
-					});
-			Object sub = claims.get("sub");
-			if (sub == null || sub.toString().isBlank()) {
-				throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "Profil Apple invalide (sub)");
-			}
-			Object emailObj = claims.get("email");
-			String email = emailObj != null ? emailObj.toString() : null;
-			return new AppleUserProfile(sub.toString(), email, "");
-		} catch (AuthDomainException ex) {
-			throw ex;
-		} catch (Exception ex) {
-			throw new AuthDomainException(
-					HttpStatus.UNAUTHORIZED.value(),
-					"Impossible de lire id_token Apple");
+	static AppleUserProfile toProfile(Claims claims) {
+		String sub = claims.getSubject();
+		if (sub == null || sub.isBlank()) {
+			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "Profil Apple invalide (sub)");
 		}
+		String email = null;
+		Object emailObj = claims.get("email");
+		if (emailObj != null && isEmailVerified(claims.get("email_verified"))) {
+			email = emailObj.toString();
+		}
+		return new AppleUserProfile(sub, email, "");
+	}
+
+	static boolean isEmailVerified(Object emailVerified) {
+		if (emailVerified == null) {
+			return false;
+		}
+		if (emailVerified instanceof Boolean bool) {
+			return bool;
+		}
+		return "true".equalsIgnoreCase(emailVerified.toString());
 	}
 
 	@JsonIgnoreProperties(ignoreUnknown = true)

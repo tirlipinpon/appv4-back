@@ -29,7 +29,9 @@ public interface SignupRolePort {
 	boolean hasCompletedInitialChoice(long userId);
 
 	/**
-	 * Marque le choix initial comme terminé. Idempotent.
+	 * Réserve atomiquement le premier choix ({@code false → true}, issue #34).
+	 *
+	 * @return {@code true} si cet appel gagne ; {@code false} si déjà pris (concurrent ou rejoué)
 	 */
-	void markInitialChoiceCompleted(long userId);
+	boolean tryClaimInitialChoice(long userId);
 }

@@ -1,8 +1,12 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Accès JPA à {@code back_users}.
@@ -13,4 +17,17 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface BackUserJpaRepository extends JpaRepository<BackUserEntity, Long> {
 
 	Optional<BackUserEntity> findByEmail(String email);
+
+	/**
+	 * Claim atomique du premier choix de rôles (issue #34).
+	 *
+	 * @return 1 si transition {@code false → true}, 0 si déjà complété
+	 */
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query("""
+			update BackUserEntity u
+			set u.initialRolesCompleted = true, u.updatedAt = :now
+			where u.id = :userId and u.initialRolesCompleted = false
+			""")
+	int claimInitialRolesCompleted(@Param("userId") long userId, @Param("now") Instant now);
 }

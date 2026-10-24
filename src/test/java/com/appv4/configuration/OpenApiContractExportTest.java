@@ -50,6 +50,7 @@ class OpenApiContractExportTest {
 				.contains("/api/int/auth/spaces/teacher")
 				.contains("/api/int/admin/teacher-requests")
 				.contains("/api/int/teacher/profile")
+				.contains("/api/int/parent/children")
 				.contains("/api/int/hello")
 				.contains("/api/ext/hello");
 		// switch-role est authentifié — le contrat doit l'annoncer (issue #51)

@@ -1,0 +1,367 @@
+package com.appv4.auth.application.service;
+
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.in.ParentChildrenUseCase;
+import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildPort.ChildPhoto;
+import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
+import com.appv4.auth.application.port.out.ChildPort.NewChild;
+import com.appv4.auth.application.port.out.SchoolCatalogPort;
+import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
+import com.appv4.auth.application.result.ParentChildrenView;
+import com.appv4.auth.application.result.ParentChildrenView.ChildCard;
+import com.appv4.auth.application.result.ParentChildrenView.GradeList;
+import com.appv4.auth.application.result.ParentChildrenView.SchoolChoice;
+
+/**
+ * Enregistre les enfants d'un parent (SCRUM-156).
+ *
+ * <p><b>Business :</b> prénom, nom, âge, classe et une image sont obligatoires.
+ * L'école se choisit dans l'annuaire, ou reste vide. Le code à 4 chiffres est hashé.
+ * <p><b>Technique :</b> une écriture. Si une règle refuse, aucune fiche n'est créée.
+ * Le pays choisit les noms de classes. Une école choisie limite ces classes aux siennes.
+ * <p><b>Métier / flow :</b> port in → hash PIN → port enfant + référentiel d'écoles.
+ */
+public class ParentChildrenService implements ParentChildrenUseCase {
+
+	public static final String FIRST_NAME_REQUIRED = "Le prénom est obligatoire.";
+	public static final String LAST_NAME_REQUIRED = "Le nom est obligatoire.";
+	public static final String NAME_TOO_LONG = "Le prénom ou le nom est trop long (maximum 100).";
+	public static final String AGE_INVALID = "L'âge doit être un nombre entier entre 2 et 18.";
+	public static final String COUNTRY_REQUIRED = "Choisis la norme : France ou Belgique.";
+	public static final String GRADE_REQUIRED = "Choisis une classe.";
+	public static final String GRADE_NOT_IN_CURRICULUM = "Cette classe n'appartient pas à la norme choisie.";
+	public static final String GRADE_NOT_OFFERED = "Cette classe n'est pas proposée par cette école.";
+	public static final String SCHOOL_UNKNOWN = "Cette école n'est pas proposable.";
+	public static final String IMAGE_REQUIRED = "Choisis une photo ou un avatar.";
+	public static final String NOT_AN_IMAGE = "Le fichier n'est pas une image.";
+	public static final String IMAGE_TOO_LARGE = "L'image dépasse 5 Mo.";
+	public static final String AVATAR_UNKNOWN = "Cet avatar n'est pas proposé.";
+	public static final String PIN_FORMAT = "Le code PIN doit faire 4 chiffres.";
+	public static final String PIN_MISMATCH = "Les deux codes PIN ne sont pas les mêmes.";
+	public static final String CHILD_UNKNOWN = "Cet enfant est introuvable.";
+
+	public static final int MIN_AGE = 2;
+	public static final int MAX_AGE = 18;
+	public static final int MAX_NAME = 100;
+	public static final int MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+	public static final Set<String> AVATARS = Set.of("owl", "fox", "bear", "cat", "panda", "frog");
+
+	private final ChildPort childPort;
+	private final SchoolCatalogPort schoolCatalogPort;
+	private final PasswordEncoder passwordEncoder;
+
+	public ParentChildrenService(
+			ChildPort childPort,
+			SchoolCatalogPort schoolCatalogPort,
+			PasswordEncoder passwordEncoder) {
+		this.childPort = childPort;
+		this.schoolCatalogPort = schoolCatalogPort;
+		this.passwordEncoder = passwordEncoder;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ParentChildrenView list(long parentUserId, String activeRole) {
+		requireParent(activeRole);
+		return view(parentUserId);
+	}
+
+	@Override
+	@Transactional
+	public ChildCard add(long parentUserId, String activeRole, NewChildCommand command) {
+		requireParent(activeRole);
+		NewChildCommand body = command == null
+				? new NewChildCommand(null, null, null, null, null, null, null, null, null, null, null)
+				: command;
+		Prepared prepared = prepare(body);
+		String pinHash = passwordEncoder.encode(prepared.pin());
+		ChildSaved saved = childPort.insert(new NewChild(
+				parentUserId,
+				prepared.firstName(),
+				prepared.lastName(),
+				prepared.age(),
+				prepared.curriculum(),
+				prepared.grade(),
+				prepared.schoolId(),
+				prepared.avatarCode(),
+				prepared.photo(),
+				prepared.photoContentType(),
+				pinHash));
+		return card(saved, catalogById());
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ChildPhoto photo(long parentUserId, String activeRole, long childId) {
+		requireParent(activeRole);
+		return childPort.findPhoto(parentUserId, childId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
+	}
+
+	private Prepared prepare(NewChildCommand command) {
+		String firstName = requiredName(command.firstName(), FIRST_NAME_REQUIRED);
+		String lastName = requiredName(command.lastName(), LAST_NAME_REQUIRED);
+		int age = parseAge(command.age());
+		String curriculum = curriculumOf(command.country());
+		CatalogSchool school = resolveSchool(command.schoolId(), curriculum);
+		String grade = requiredGrade(command.grade(), curriculum, school);
+		Image image = resolveImage(command.avatarCode(), command.photoBase64(), command.photoContentType());
+		String pin = requirePin(command.pin(), command.pinConfirmation());
+		Long schoolId = school == null ? null : school.id();
+		return new Prepared(
+				firstName,
+				lastName,
+				age,
+				curriculum,
+				grade,
+				schoolId,
+				image.avatarCode(),
+				image.photo(),
+				image.contentType(),
+				pin);
+	}
+
+	private ParentChildrenView view(long parentUserId) {
+		Map<Long, CatalogSchool> schools = catalogById();
+		List<ChildCard> cards = new ArrayList<>();
+		for (ChildSaved child : childPort.findByParent(parentUserId)) {
+			cards.add(card(child, schools));
+		}
+		List<SchoolChoice> choices = new ArrayList<>();
+		for (CatalogSchool school : schools.values()) {
+			choices.add(new SchoolChoice(
+					school.id(),
+					school.name(),
+					school.country(),
+					SchoolCurricula.offeredBy(school.country(), school.teachingTypes())));
+		}
+		List<GradeList> curricula = SchoolCurricula.options().stream()
+				.map(choice -> new GradeList(countryOf(choice.code()), choice.grades()))
+				.toList();
+		return new ParentChildrenView(cards, choices, curricula);
+	}
+
+	private Map<Long, CatalogSchool> catalogById() {
+		Map<Long, CatalogSchool> schools = new LinkedHashMap<>();
+		for (CatalogSchool school : schoolCatalogPort.list()) {
+			schools.putIfAbsent(school.id(), school);
+		}
+		return schools;
+	}
+
+	private static ChildCard card(ChildSaved child, Map<Long, CatalogSchool> schools) {
+		CatalogSchool school = child.schoolId() == null ? null : schools.get(child.schoolId());
+		return new ChildCard(
+				child.id(),
+				child.firstName(),
+				child.lastName(),
+				child.age(),
+				countryOf(child.curriculum()),
+				child.curriculum(),
+				child.grade(),
+				child.schoolId(),
+				school == null ? "" : school.name(),
+				child.avatarCode(),
+				child.hasPhoto());
+	}
+
+	private static String countryOf(String curriculum) {
+		if (SchoolCurricula.FRANCE.equals(curriculum)) {
+			return SchoolCurricula.COUNTRY_FRANCE;
+		}
+		if (SchoolCurricula.BELGIUM_FR.equals(curriculum)) {
+			return SchoolCurricula.COUNTRY_BELGIUM;
+		}
+		return "";
+	}
+
+	private CatalogSchool resolveSchool(Long schoolId, String curriculum) {
+		if (schoolId == null) {
+			return null;
+		}
+		CatalogSchool school = catalogById().get(schoolId);
+		if (school == null || !curriculum.equals(SchoolCurricula.forCountry(school.country()))) {
+			throw bad(SCHOOL_UNKNOWN);
+		}
+		return school;
+	}
+
+	private static String requiredGrade(String grade, String curriculum, CatalogSchool school) {
+		if (grade == null || grade.isBlank()) {
+			throw bad(GRADE_REQUIRED);
+		}
+		String value = grade.trim();
+		List<String> allowed = school == null
+				? SchoolCurricula.allForCurriculum(curriculum)
+				: SchoolCurricula.offeredBy(school.country(), school.teachingTypes());
+		if (!allowed.contains(value)) {
+			throw bad(school == null ? GRADE_NOT_IN_CURRICULUM : GRADE_NOT_OFFERED);
+		}
+		return value;
+	}
+
+	private static String curriculumOf(String country) {
+		String curriculum = SchoolCurricula.forCountry(country);
+		if (curriculum == null) {
+			throw bad(COUNTRY_REQUIRED);
+		}
+		return curriculum;
+	}
+
+	private static int parseAge(String age) {
+		if (age == null || age.isBlank()) {
+			throw bad(AGE_INVALID);
+		}
+		try {
+			int value = Integer.parseInt(age.trim());
+			if (value < MIN_AGE || value > MAX_AGE) {
+				throw bad(AGE_INVALID);
+			}
+			return value;
+		} catch (NumberFormatException ex) {
+			throw bad(AGE_INVALID);
+		}
+	}
+
+	private static String requiredName(String value, String message) {
+		if (value == null || value.isBlank()) {
+			throw bad(message);
+		}
+		String trimmed = value.trim();
+		if (trimmed.length() > MAX_NAME) {
+			throw bad(NAME_TOO_LONG);
+		}
+		return trimmed;
+	}
+
+	private static Image resolveImage(String avatarCode, String photoBase64, String contentType) {
+		byte[] photo = decodePhoto(photoBase64);
+		if (photo != null) {
+			String type = imageType(photo, contentType);
+			return new Image(null, photo, type);
+		}
+		if (avatarCode == null || avatarCode.isBlank()) {
+			throw bad(IMAGE_REQUIRED);
+		}
+		String code = avatarCode.trim();
+		if (!AVATARS.contains(code)) {
+			throw bad(AVATAR_UNKNOWN);
+		}
+		return new Image(code, null, null);
+	}
+
+	private static byte[] decodePhoto(String photoBase64) {
+		if (photoBase64 == null || photoBase64.isBlank()) {
+			return null;
+		}
+		String payload = photoBase64.trim();
+		int comma = payload.indexOf(',');
+		if (payload.startsWith("data:") && comma > 0) {
+			payload = payload.substring(comma + 1);
+		}
+		try {
+			byte[] bytes = Base64.getDecoder().decode(payload);
+			if (bytes.length == 0) {
+				throw bad(NOT_AN_IMAGE);
+			}
+			if (bytes.length > MAX_PHOTO_BYTES) {
+				throw bad(IMAGE_TOO_LARGE);
+			}
+			return bytes;
+		} catch (IllegalArgumentException ex) {
+			throw bad(NOT_AN_IMAGE);
+		}
+	}
+
+	private static String imageType(byte[] bytes, String declared) {
+		String detected = sniff(bytes);
+		if (detected == null) {
+			throw bad(NOT_AN_IMAGE);
+		}
+		if (declared != null && !declared.isBlank() && !detected.equalsIgnoreCase(declared.trim())) {
+			throw bad(NOT_AN_IMAGE);
+		}
+		return detected;
+	}
+
+	private static String sniff(byte[] bytes) {
+		if (bytes.length >= 3 && (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8 && (bytes[2] & 0xFF) == 0xFF) {
+			return "image/jpeg";
+		}
+		if (bytes.length >= 8
+				&& (bytes[0] & 0xFF) == 0x89
+				&& bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G') {
+			return "image/png";
+		}
+		if (bytes.length >= 6 && bytes[0] == 'G' && bytes[1] == 'I' && bytes[2] == 'F') {
+			return "image/gif";
+		}
+		if (bytes.length >= 12
+				&& bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
+				&& bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P') {
+			return "image/webp";
+		}
+		return null;
+	}
+
+	private static String requirePin(String pin, String confirmation) {
+		if (!isFourDigits(pin) || !isFourDigits(confirmation)) {
+			throw bad(PIN_FORMAT);
+		}
+		if (!pin.equals(confirmation)) {
+			throw bad(PIN_MISMATCH);
+		}
+		return pin;
+	}
+
+	private static boolean isFourDigits(String value) {
+		if (value == null || value.length() != 4) {
+			return false;
+		}
+		for (int i = 0; i < value.length(); i++) {
+			if (!Character.isDigit(value.charAt(i))) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static void requireParent(String activeRole) {
+		if (!ActiveRoles.PARENT.equals(activeRole)) {
+			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, SpaceHello.DENIED);
+		}
+	}
+
+	private static AuthDomainException bad(String message) {
+		return new AuthDomainException(AuthErrorCode.BAD_REQUEST, message);
+	}
+
+	private record Prepared(
+			String firstName,
+			String lastName,
+			int age,
+			String curriculum,
+			String grade,
+			Long schoolId,
+			String avatarCode,
+			byte[] photo,
+			String photoContentType,
+			String pin) {
+	}
+
+	private record Image(String avatarCode, byte[] photo, String contentType) {
+	}
+}

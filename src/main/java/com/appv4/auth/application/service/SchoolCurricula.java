@@ -105,6 +105,11 @@ public final class SchoolCurricula {
 		return List.copyOf(kept);
 	}
 
+	/** Toutes les classes d'une norme, sans filtre d'école. */
+	public static List<String> allForCurriculum(String curriculum) {
+		return grades(curriculum);
+	}
+
 	public static boolean known(String curriculum) {
 		return FRANCE.equals(curriculum) || BELGIUM_FR.equals(curriculum);
 	}

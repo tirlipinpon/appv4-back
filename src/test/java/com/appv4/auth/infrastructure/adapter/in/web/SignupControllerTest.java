@@ -69,7 +69,8 @@ class SignupControllerTest {
 						.content("{\"email\":\"social@example.com\",\"password\":\"Secret1!\","
 								+ "\"displayName\":\"S\"}"))
 				.andExpect(status().isConflict())
-				.andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Google")));
+				.andExpect(jsonPath("$.message")
+						.value(com.appv4.auth.application.service.SignupWithEmailService.ACCOUNT_CONFLICT_MESSAGE));
 	}
 
 	@Test

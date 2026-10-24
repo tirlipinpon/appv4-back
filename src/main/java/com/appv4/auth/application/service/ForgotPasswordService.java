@@ -7,12 +7,8 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.Locale;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
-
-import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
@@ -52,7 +48,7 @@ public class ForgotPasswordService implements ForgotPasswordUseCase {
 	@Override
 	@Transactional
 	public String requestReset(String email) {
-		String normalized = normalizeEmail(email);
+		String normalized = Emails.requireNormalized(email);
 		authUserAccountPort.findByEmail(normalized).ifPresent(account -> {
 			passwordResetTokenPort.invalidateUnusedForUser(account.id());
 			String clearToken = generateClearToken();
@@ -63,13 +59,6 @@ public class ForgotPasswordService implements ForgotPasswordUseCase {
 			passwordResetMailPort.sendResetLink(account.email(), resetUrl);
 		});
 		return PUBLIC_MESSAGE;
-	}
-
-	private static String normalizeEmail(String email) {
-		if (email == null || email.isBlank()) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "Email obligatoire");
-		}
-		return email.trim().toLowerCase(Locale.ROOT);
 	}
 
 	private static String generateClearToken() {

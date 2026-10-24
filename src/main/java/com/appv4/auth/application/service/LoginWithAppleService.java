@@ -51,12 +51,9 @@ public class LoginWithAppleService implements LoginWithAppleUseCase {
 	}
 
 	private AuthUserAccount createFromFirstConsent(AppleUserProfile profile) {
-		if (profile.email() == null || profile.email().isBlank()) {
-			throw new AuthDomainException(
-					HttpStatus.FORBIDDEN.value(),
-					"Email Apple manquant — 1er consentement requis (scope email)");
-		}
-		String email = profile.email().trim().toLowerCase();
+		String email = Emails.requireNormalizedOrThrow(
+				profile.email(),
+				"Email Apple manquant — 1er consentement requis (scope email)");
 		String displayName = DisplayNames.forProvider(profile.displayName(), email);
 
 		return authUserAccountPort.findByEmail(email)

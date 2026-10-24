@@ -1,7 +1,5 @@
 package com.appv4.auth.application.service;
 
-import java.util.Locale;
-
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.appv4.auth.application.port.out.ActiveRolePort;
@@ -37,7 +35,7 @@ public class LocalAdminSeed {
 		if (email == null || email.isBlank() || rawPassword == null || rawPassword.isBlank()) {
 			return;
 		}
-		String normalized = email.trim().toLowerCase(Locale.ROOT);
+		String normalized = Emails.requireNormalized(email);
 		String hash = passwordEncoder.encode(rawPassword);
 		long userId = authUserAccountPort.findByEmail(normalized)
 				.map(AuthUserAccount::id)

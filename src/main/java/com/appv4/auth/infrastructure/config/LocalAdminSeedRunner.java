@@ -49,6 +49,7 @@ public class LocalAdminSeedRunner implements ApplicationRunner {
 			return;
 		}
 		localAdminSeed.ensure(email, password);
-		LOG.info("Compte admin local prêt pour {}", email.trim().toLowerCase());
+		LOG.info("Compte admin local prêt pour {}",
+				email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT));
 	}
 }

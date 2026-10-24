@@ -9,6 +9,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
+import com.appv4.auth.infrastructure.adapter.out.oauth.OAuthRestClientErrors;
 import com.appv4.auth.infrastructure.config.FacebookOAuthProperties;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -39,9 +40,7 @@ public class HttpFacebookOAuthClient implements FacebookOAuthClient {
 			String accessToken = requestAccessToken(authorizationCode, redirectUri);
 			return fetchUserInfo(accessToken);
 		} catch (RestClientException ex) {
-			throw new AuthDomainException(
-					HttpStatus.UNAUTHORIZED.value(),
-					"Échec échange code Facebook : " + ex.getMessage());
+			throw OAuthRestClientErrors.map(ex, "Facebook");
 		}
 	}
 

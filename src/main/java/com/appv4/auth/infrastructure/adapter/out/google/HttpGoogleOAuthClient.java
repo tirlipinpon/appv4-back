@@ -9,6 +9,7 @@ import org.springframework.web.client.RestClientException;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
+import com.appv4.auth.infrastructure.adapter.out.oauth.OAuthRestClientErrors;
 import com.appv4.auth.infrastructure.config.GoogleOAuthProperties;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -37,9 +38,7 @@ public class HttpGoogleOAuthClient implements GoogleOAuthClient {
 			String accessToken = requestAccessToken(authorizationCode, redirectUri);
 			return fetchUserInfo(accessToken);
 		} catch (RestClientException ex) {
-			throw new AuthDomainException(
-					HttpStatus.UNAUTHORIZED.value(),
-					"Échec échange code Google : " + ex.getMessage());
+			throw OAuthRestClientErrors.map(ex, "Google");
 		}
 	}
 

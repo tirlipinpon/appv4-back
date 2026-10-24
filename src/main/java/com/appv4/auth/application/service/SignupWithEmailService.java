@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.appv4.auth.application.AuthMessages;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
@@ -22,8 +23,8 @@ import com.appv4.auth.application.result.JwtTokenResult;
  */
 public class SignupWithEmailService implements SignupWithEmailUseCase {
 
-	/** Message public unique pour toute collision d'email (local ou social). */
-	public static final String ACCOUNT_CONFLICT_MESSAGE = "Impossible de créer le compte";
+	/** Alias public des tests / OpenAPI — même texte que {@link AuthMessages#ACCOUNT_CONFLICT}. */
+	public static final String ACCOUNT_CONFLICT_MESSAGE = AuthMessages.ACCOUNT_CONFLICT;
 
 	private final AuthUserAccountPort authUserAccountPort;
 	private final PasswordEncoder passwordEncoder;
@@ -46,7 +47,7 @@ public class SignupWithEmailService implements SignupWithEmailUseCase {
 		String name = DisplayNames.requireForSignup(displayName, normalizedEmail);
 
 		if (authUserAccountPort.findSignupStateByEmail(normalizedEmail).isPresent()) {
-			throw new AuthDomainException(HttpStatus.CONFLICT.value(), ACCOUNT_CONFLICT_MESSAGE);
+			throw new AuthDomainException(HttpStatus.CONFLICT.value(), AuthMessages.ACCOUNT_CONFLICT);
 		}
 
 		String hash = passwordEncoder.encode(password);

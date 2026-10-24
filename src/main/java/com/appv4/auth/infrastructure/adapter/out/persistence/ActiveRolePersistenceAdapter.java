@@ -58,10 +58,7 @@ public class ActiveRolePersistenceAdapter implements ActiveRolePort {
 
 	@Override
 	public void grantAdmin(long userId) {
-		if (roleRepository.existsByUserIdAndRole(userId, ActiveRoles.ADMIN)) {
-			return;
-		}
-		roleRepository.save(new BackUserRoleEntity(userId, ActiveRoles.ADMIN));
+		roleRepository.insertIgnoreConflict(userId, ActiveRoles.ADMIN);
 	}
 
 	@Override

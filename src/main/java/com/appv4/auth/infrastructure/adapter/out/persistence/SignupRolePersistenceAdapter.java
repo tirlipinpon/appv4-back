@@ -18,7 +18,6 @@ import com.appv4.auth.application.port.out.SignupRolePort;
 public class SignupRolePersistenceAdapter implements SignupRolePort {
 
 	static final String PARENT = "parent";
-	static final String PENDING = "pending";
 
 	private final BackUserRoleJpaRepository roleRepository;
 	private final BackTeacherRoleRequestJpaRepository requestRepository;
@@ -32,17 +31,11 @@ public class SignupRolePersistenceAdapter implements SignupRolePort {
 
 	@Override
 	public void grantParent(long userId) {
-		if (roleRepository.existsByUserIdAndRole(userId, PARENT)) {
-			return;
-		}
-		roleRepository.save(new BackUserRoleEntity(userId, PARENT));
+		roleRepository.insertIgnoreConflict(userId, PARENT);
 	}
 
 	@Override
 	public void requestTeacher(long userId) {
-		if (requestRepository.existsByUserIdAndStatus(userId, PENDING)) {
-			return;
-		}
-		requestRepository.save(new BackTeacherRoleRequestEntity(userId, PENDING));
+		requestRepository.insertPendingIfAbsent(userId);
 	}
 }

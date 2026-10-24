@@ -18,6 +18,7 @@ public class AppleOAuthProperties {
 	private String privateKey = "";
 	private String authorizationUri = "https://appleid.apple.com/auth/authorize";
 	private String tokenUri = "https://appleid.apple.com/auth/token";
+	private String jwksUri = "https://appleid.apple.com/auth/keys";
 
 	public boolean isConfigured() {
 		return clientId != null && !clientId.isBlank()
@@ -72,5 +73,13 @@ public class AppleOAuthProperties {
 
 	public void setTokenUri(String tokenUri) {
 		this.tokenUri = tokenUri;
+	}
+
+	public String getJwksUri() {
+		return jwksUri;
+	}
+
+	public void setJwksUri(String jwksUri) {
+		this.jwksUri = jwksUri;
 	}
 }

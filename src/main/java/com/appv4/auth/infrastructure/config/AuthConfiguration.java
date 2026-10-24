@@ -58,6 +58,8 @@ import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
 import com.appv4.auth.application.service.TeacherModerationService;
+import com.appv4.auth.infrastructure.adapter.in.web.AuthRateLimitFilter;
+import com.appv4.auth.infrastructure.adapter.in.web.InMemoryAuthRateLimiter;
 import com.appv4.auth.infrastructure.adapter.in.web.JwtAuthenticationFilter;
 import com.appv4.auth.infrastructure.adapter.out.apple.HttpAppleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.facebook.HttpFacebookOAuthClient;
@@ -94,7 +96,8 @@ import com.appv4.configuration.CorsProperties;
 		FacebookOAuthProperties.class,
 		AppleOAuthProperties.class,
 		PasswordResetProperties.class,
-		CorsProperties.class })
+		CorsProperties.class,
+		AuthRateLimitProperties.class })
 public class AuthConfiguration {
 
 	/**
@@ -128,6 +131,21 @@ public class AuthConfiguration {
 	@Bean
 	JwtAuthenticationFilter jwtAuthenticationFilter(JjwtTokenAdapter jjwtTokenAdapter) {
 		return new JwtAuthenticationFilter(jjwtTokenAdapter);
+	}
+
+	/**
+	 * Limiteur en mémoire pour les routes auth publiques (issue #59).
+	 */
+	@Bean
+	InMemoryAuthRateLimiter inMemoryAuthRateLimiter(AuthRateLimitProperties properties) {
+		return new InMemoryAuthRateLimiter(properties.getMaxRequests(), properties.getWindowSeconds());
+	}
+
+	@Bean
+	AuthRateLimitFilter authRateLimitFilter(
+			AuthRateLimitProperties properties,
+			InMemoryAuthRateLimiter inMemoryAuthRateLimiter) {
+		return new AuthRateLimitFilter(properties, inMemoryAuthRateLimiter);
 	}
 
 	@Bean
@@ -312,12 +330,14 @@ public class AuthConfiguration {
 	 *   <li>OpenAPI / Swagger UI publics (SCRUM-147) — UI off hors local</li>
 	 *   <li>{@code /api/int/**} authentifié (admin)</li>
 	 *   <li>Règle finale {@code denyAll} : chemins hors inventaire refusés</li>
+	 *   <li>Rate-limit auth publics (issue #59) : filtre avant JWT → 429</li>
 	 * </ul>
 	 */
 	@Bean
 	SecurityFilterChain securityFilterChain(
 			HttpSecurity http,
 			JwtAuthenticationFilter jwtAuthenticationFilter,
+			AuthRateLimitFilter authRateLimitFilter,
 			CorsConfigurationSource corsConfigurationSource) throws Exception {
 		http
 				.csrf(csrf -> csrf.disable())
@@ -350,6 +370,7 @@ public class AuthConfiguration {
 							HttpStatus.UNAUTHORIZED.value(),
 							HttpStatus.UNAUTHORIZED.getReasonPhrase());
 				}))
+				.addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
 				// Le filtre JWT tourne AVANT le filtre username/password (inutile ici mais ordre standard)
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 		return http.build();

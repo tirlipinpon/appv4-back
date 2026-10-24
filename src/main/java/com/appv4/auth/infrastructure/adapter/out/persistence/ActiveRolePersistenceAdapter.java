@@ -52,28 +52,6 @@ public class ActiveRolePersistenceAdapter implements ActiveRolePort {
 		return requestRepository.existsByUserIdAndStatus(userId, "pending");
 	}
 
-	/**
-	 * Statut à montrer dans l'en-tête (SCRUM-152).
-	 *
-	 * <p><b>Business :</b> une demande en attente compte plus qu'un ancien oui ou un retrait.
-	 * <p><b>Technique :</b> lit les statuts de {@code back_teacher_role_requests}.
-	 * <p><b>Métier / flow :</b> {@code GET /api/int/auth/spaces} après connexion ou F5.
-	 */
-	@Override
-	public String teacherRequestStatus(long userId) {
-		List<String> statuses = requestRepository.findStatusesByUserId(userId);
-		if (statuses.contains("pending")) {
-			return "pending";
-		}
-		if (statuses.contains("approved")) {
-			return "approved";
-		}
-		if (statuses.contains("revoked")) {
-			return "revoked";
-		}
-		return "none";
-	}
-
 	@Override
 	public boolean hasAdminRole(long userId) {
 		return roleRepository.existsByUserIdAndRole(userId, ActiveRoles.ADMIN);

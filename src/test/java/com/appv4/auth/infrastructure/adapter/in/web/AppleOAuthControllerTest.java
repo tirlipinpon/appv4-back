@@ -1,5 +1,6 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -23,6 +24,7 @@ import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AppleOAuthClient.AppleUserProfile;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
+import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.infrastructure.config.AppleOAuthProperties;
 
 @SpringBootTest
@@ -48,6 +50,8 @@ class AppleOAuthControllerTest {
 		appleOAuthProperties.setTeamId("");
 		appleOAuthProperties.setKeyId("");
 		appleOAuthProperties.setPrivateKey("");
+		when(authUserAccountPort.findSessionState(anyLong()))
+				.thenReturn(Optional.of(new SessionState(true, 0)));
 	}
 
 	@Test

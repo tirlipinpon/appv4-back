@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.ActiveRolePort;
+import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
 import com.appv4.auth.application.port.out.TeacherRequestPage;
@@ -38,11 +39,15 @@ class TeacherModerationServiceTest {
 	@Mock
 	private TeacherApprovedMailPort teacherApprovedMailPort;
 
+	@Mock
+	private AuthUserAccountPort authUserAccountPort;
+
 	private TeacherModerationService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new TeacherModerationService(activeRolePort, teacherModerationPort, teacherApprovedMailPort);
+		service = new TeacherModerationService(
+				activeRolePort, teacherModerationPort, teacherApprovedMailPort, authUserAccountPort);
 	}
 
 	@Test
@@ -123,6 +128,7 @@ class TeacherModerationServiceTest {
 		verify(teacherModerationPort).markRevoked(eq(4L), any(Instant.class));
 		verify(teacherModerationPort).revokeTeacher(9L);
 		verify(activeRolePort).saveLastActiveRole(9L, null);
+		verify(authUserAccountPort).bumpSecurityVersion(9L);
 	}
 
 	@Test

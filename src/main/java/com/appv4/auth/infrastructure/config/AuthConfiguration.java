@@ -129,13 +129,19 @@ public class AuthConfiguration {
 	 * Port métier « émettre un JWT » — les use cases login/oauth appelleront ça plus tard.
 	 */
 	@Bean
-	IssueJwtUseCase issueJwtUseCase(JjwtTokenAdapter jjwtTokenAdapter, ActiveRolePort activeRolePort) {
-		return new IssueJwtService(jjwtTokenAdapter, activeRolePort);
+	IssueJwtUseCase issueJwtUseCase(
+			JjwtTokenAdapter jjwtTokenAdapter,
+			ActiveRolePort activeRolePort,
+			AuthUserAccountPort authUserAccountPort) {
+		return new IssueJwtService(jjwtTokenAdapter, activeRolePort, authUserAccountPort);
 	}
 
 	@Bean
-	JwtAuthenticationFilter jwtAuthenticationFilter(JjwtTokenAdapter jjwtTokenAdapter) {
-		return new JwtAuthenticationFilter(jjwtTokenAdapter);
+	JwtAuthenticationFilter jwtAuthenticationFilter(
+			JjwtTokenAdapter jjwtTokenAdapter,
+			AuthUserAccountPort authUserAccountPort,
+			ActiveRolePort activeRolePort) {
+		return new JwtAuthenticationFilter(jjwtTokenAdapter, authUserAccountPort, activeRolePort);
 	}
 
 	/**
@@ -295,8 +301,10 @@ public class AuthConfiguration {
 	TeacherModerationUseCase teacherModerationUseCase(
 			ActiveRolePort activeRolePort,
 			TeacherModerationPort teacherModerationPort,
-			TeacherApprovedMailPort teacherApprovedMailPort) {
-		return new TeacherModerationService(activeRolePort, teacherModerationPort, teacherApprovedMailPort);
+			TeacherApprovedMailPort teacherApprovedMailPort,
+			AuthUserAccountPort authUserAccountPort) {
+		return new TeacherModerationService(
+				activeRolePort, teacherModerationPort, teacherApprovedMailPort, authUserAccountPort);
 	}
 
 	/**

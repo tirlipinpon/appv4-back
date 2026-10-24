@@ -117,7 +117,26 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 						HttpStatus.INTERNAL_SERVER_ERROR.value(),
 						"User introuvable pour renew mdp"));
 		user.setPasswordHash(passwordHash);
+		user.setSecurityVersion(user.getSecurityVersion() + 1);
 		userRepository.save(user);
+	}
+
+	@Override
+	@Transactional
+	public void bumpSecurityVersion(long userId) {
+		BackUserEntity user = userRepository.findById(userId)
+				.orElseThrow(() -> new AuthDomainException(
+						HttpStatus.INTERNAL_SERVER_ERROR.value(),
+						"User introuvable pour invalidation session"));
+		user.setSecurityVersion(user.getSecurityVersion() + 1);
+		userRepository.save(user);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<SessionState> findSessionState(long userId) {
+		return userRepository.findById(userId)
+				.map(user -> new SessionState(user.isActive(), user.getSecurityVersion()));
 	}
 
 	@Override

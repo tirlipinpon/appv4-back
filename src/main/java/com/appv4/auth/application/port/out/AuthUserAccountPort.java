@@ -39,8 +39,19 @@ public interface AuthUserAccountPort {
 
 	/**
 	 * Met à jour le hash mdp (SCRUM-111 renew) — ne touche pas email / display_name / identities.
+	 * Incrémente aussi {@code security_version} pour invalider les JWT déjà émis (issue #49).
 	 */
 	void updatePasswordHash(long userId, String passwordHash);
+
+	/**
+	 * Invalide toutes les sessions JWT du compte (révocation de rôle, désactivation, etc.).
+	 */
+	void bumpSecurityVersion(long userId);
+
+	/**
+	 * État session pour émission / contrôle JWT (actif + version de sécurité).
+	 */
+	Optional<SessionState> findSessionState(long userId);
 
 	/**
 	 * Compte actif pour login email/mdp (SCRUM-117) — inclut le hash (peut être null si social pur).
@@ -48,6 +59,15 @@ public interface AuthUserAccountPort {
 	Optional<AuthUserLoginCandidate> findLoginCandidateByEmail(String email);
 
 	record AuthUserAccount(long id, String email, String displayName, boolean active) {
+	}
+
+	/**
+	 * Snapshot minimal pour valider un JWT face à la base (issue #49).
+	 *
+	 * @param active           compte encore utilisable
+	 * @param securityVersion  doit matcher le claim {@code sv} du jeton
+	 */
+	record SessionState(boolean active, int securityVersion) {
 	}
 
 	record AuthUserSignupState(

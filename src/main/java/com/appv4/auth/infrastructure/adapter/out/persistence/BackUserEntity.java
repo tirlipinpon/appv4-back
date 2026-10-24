@@ -41,6 +41,13 @@ public class BackUserEntity {
 	@Column(name = "is_active", nullable = false)
 	private boolean active = true;
 
+	/**
+	 * Compteur d'invalidation des sessions JWT (issue #49).
+	 * Incrémenté à la révocation de droits, reset mdp, etc. — claim JWT {@code sv}.
+	 */
+	@Column(name = "security_version", nullable = false)
+	private int securityVersion = 0;
+
 	/** Dernier espace ouvert : {@code parent}, {@code teacher}, ou null (SCRUM-124). */
 	@Column(name = "last_active_role", length = 32)
 	private String lastActiveRole;
@@ -101,6 +108,14 @@ public class BackUserEntity {
 
 	public void setActive(boolean active) {
 		this.active = active;
+	}
+
+	public int getSecurityVersion() {
+		return securityVersion;
+	}
+
+	public void setSecurityVersion(int securityVersion) {
+		this.securityVersion = securityVersion;
 	}
 
 	public String getLastActiveRole() {

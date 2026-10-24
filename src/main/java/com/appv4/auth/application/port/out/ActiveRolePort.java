@@ -22,6 +22,13 @@ public interface ActiveRolePort {
 
 	boolean hasPendingTeacherRequest(long userId);
 
+	/**
+	 * État de la demande professeur pour l'en-tête (SCRUM-152).
+	 * {@code none} s'il n'y a aucune ligne. S'il y en a plusieurs :
+	 * pending gagne, puis approved, puis revoked.
+	 */
+	String teacherRequestStatus(long userId);
+
 	/** Vrai si ce compte a le rôle {@code admin} (modération, pas un espace). */
 	boolean hasAdminRole(long userId);
 

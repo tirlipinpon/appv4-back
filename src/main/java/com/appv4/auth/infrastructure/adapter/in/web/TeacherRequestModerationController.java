@@ -3,10 +3,8 @@ package com.appv4.auth.infrastructure.adapter.in.web;
 import java.time.Instant;
 import java.util.List;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.TeacherModerationUseCase;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.auth.application.port.out.TeacherRequestPage;
@@ -58,9 +55,10 @@ public class TeacherRequestModerationController {
 			description = "Le compte n'est pas admin",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	public ResponseEntity<TeacherRequestListResponse> list(
+			@AuthenticationPrincipal AuthenticatedUser principal,
 			@RequestParam(name = "limit", defaultValue = "" + TeacherModerationService.LIST_DEFAULT_LIMIT)
 			int limit) {
-		TeacherRequestPage page = teacherModerationUseCase.list(currentUser().userId(), limit);
+		TeacherRequestPage page = teacherModerationUseCase.list(CurrentAuth.require(principal).userId(), limit);
 		List<TeacherRequestItem> requests = page.items().stream()
 				.map(TeacherRequestModerationController::toItem)
 				.toList();
@@ -78,8 +76,11 @@ public class TeacherRequestModerationController {
 			responseCode = "404",
 			description = "Demande inconnue",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
-	public ResponseEntity<TeacherRequestItem> approve(@PathVariable long id) {
-		return ResponseEntity.ok(toItem(teacherModerationUseCase.approve(currentUser().userId(), id)));
+	public ResponseEntity<TeacherRequestItem> approve(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		return ResponseEntity.ok(toItem(
+				teacherModerationUseCase.approve(CurrentAuth.require(principal).userId(), id)));
 	}
 
 	@PostMapping("/{id}/revoke")
@@ -93,8 +94,11 @@ public class TeacherRequestModerationController {
 			responseCode = "404",
 			description = "Demande inconnue",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
-	public ResponseEntity<TeacherRequestItem> revoke(@PathVariable long id) {
-		return ResponseEntity.ok(toItem(teacherModerationUseCase.revoke(currentUser().userId(), id)));
+	public ResponseEntity<TeacherRequestItem> revoke(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		return ResponseEntity.ok(toItem(
+				teacherModerationUseCase.revoke(CurrentAuth.require(principal).userId(), id)));
 	}
 
 	private static TeacherRequestItem toItem(TeacherRequestView view) {
@@ -106,14 +110,6 @@ public class TeacherRequestModerationController {
 				view.createdAt(),
 				view.reviewedAt(),
 				view.revokedAt());
-	}
-
-	private static AuthenticatedUser currentUser() {
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		if (authentication != null && authentication.getPrincipal() instanceof AuthenticatedUser user) {
-			return user;
-		}
-		throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "Connexion requise.");
 	}
 
 	@Schema(name = "TeacherRequestItem")

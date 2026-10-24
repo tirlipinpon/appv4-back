@@ -2,16 +2,13 @@ package com.appv4.auth.infrastructure.adapter.in.web;
 
 import java.util.List;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.CompleteRolesUseCase;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.auth.application.result.JwtTokenResult;
@@ -53,18 +50,12 @@ public class CompleteRolesController {
 			responseCode = "400",
 			description = "Aucun rôle, ou rôle interdit",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
-	public ResponseEntity<JwtTokenResponse> completeRoles(@Valid @RequestBody CompleteRolesRequest request) {
-		AuthenticatedUser user = currentUser();
+	public ResponseEntity<JwtTokenResponse> completeRoles(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@Valid @RequestBody CompleteRolesRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
 		JwtTokenResult result = completeRolesUseCase.complete(user.userId(), user.email(), request.roles());
 		return ResponseEntity.ok(new JwtTokenResponse(result.token(), result.expiresAtEpochSeconds()));
-	}
-
-	private static AuthenticatedUser currentUser() {
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		if (authentication != null && authentication.getPrincipal() instanceof AuthenticatedUser user) {
-			return user;
-		}
-		throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "Connexion requise.");
 	}
 
 	@Schema(name = "CompleteRolesRequest")

@@ -1,14 +1,11 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.auth.application.service.SpaceHello;
 import com.appv4.configuration.OpenApiConfiguration;
@@ -43,8 +40,10 @@ public class SpaceHelloController {
 			responseCode = "403",
 			description = "Jeton professeur, ou espace non choisi",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
-	public ResponseEntity<HelloMessageResponse> getParentHello() {
-		return ResponseEntity.ok(new HelloMessageResponse(SpaceHello.parentHello(currentActiveRole())));
+	public ResponseEntity<HelloMessageResponse> getParentHello(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		return ResponseEntity.ok(new HelloMessageResponse(
+				SpaceHello.parentHello(CurrentAuth.require(principal).activeRole())));
 	}
 
 	@GetMapping("/teacher/hello")
@@ -54,15 +53,9 @@ public class SpaceHelloController {
 			responseCode = "403",
 			description = "Jeton parent, ou espace non choisi",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
-	public ResponseEntity<HelloMessageResponse> getTeacherHello() {
-		return ResponseEntity.ok(new HelloMessageResponse(SpaceHello.teacherHello(currentActiveRole())));
-	}
-
-	private static String currentActiveRole() {
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		if (authentication != null && authentication.getPrincipal() instanceof AuthenticatedUser user) {
-			return user.activeRole();
-		}
-		throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "Connexion requise.");
+	public ResponseEntity<HelloMessageResponse> getTeacherHello(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		return ResponseEntity.ok(new HelloMessageResponse(
+				SpaceHello.teacherHello(CurrentAuth.require(principal).activeRole())));
 	}
 }

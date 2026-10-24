@@ -41,7 +41,8 @@ class LoginWithGoogleServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new LoginWithGoogleService(googleOAuthClient, authUserAccountPort, issueJwtUseCase);
+		service = new LoginWithGoogleService(
+				googleOAuthClient, authUserAccountPort, issueJwtUseCase, new ImmediateTransactionTemplate());
 	}
 
 	@Test

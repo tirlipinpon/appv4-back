@@ -183,11 +183,19 @@ public class AuthConfiguration {
 	}
 
 	@Bean
+	org.springframework.transaction.support.TransactionTemplate transactionTemplate(
+			org.springframework.transaction.PlatformTransactionManager transactionManager) {
+		return new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+	}
+
+	@Bean
 	LoginWithGoogleUseCase loginWithGoogleUseCase(
 			GoogleOAuthClient googleOAuthClient,
 			AuthUserAccountPort authUserAccountPort,
-			IssueJwtUseCase issueJwtUseCase) {
-		return new LoginWithGoogleService(googleOAuthClient, authUserAccountPort, issueJwtUseCase);
+			IssueJwtUseCase issueJwtUseCase,
+			org.springframework.transaction.support.TransactionTemplate transactionTemplate) {
+		return new LoginWithGoogleService(
+				googleOAuthClient, authUserAccountPort, issueJwtUseCase, transactionTemplate);
 	}
 
 	@Bean
@@ -207,8 +215,10 @@ public class AuthConfiguration {
 	LoginWithFacebookUseCase loginWithFacebookUseCase(
 			FacebookOAuthClient facebookOAuthClient,
 			AuthUserAccountPort authUserAccountPort,
-			IssueJwtUseCase issueJwtUseCase) {
-		return new LoginWithFacebookService(facebookOAuthClient, authUserAccountPort, issueJwtUseCase);
+			IssueJwtUseCase issueJwtUseCase,
+			org.springframework.transaction.support.TransactionTemplate transactionTemplate) {
+		return new LoginWithFacebookService(
+				facebookOAuthClient, authUserAccountPort, issueJwtUseCase, transactionTemplate);
 	}
 
 	@Bean
@@ -227,8 +237,10 @@ public class AuthConfiguration {
 	LoginWithAppleUseCase loginWithAppleUseCase(
 			AppleOAuthClient appleOAuthClient,
 			AuthUserAccountPort authUserAccountPort,
-			IssueJwtUseCase issueJwtUseCase) {
-		return new LoginWithAppleService(appleOAuthClient, authUserAccountPort, issueJwtUseCase);
+			IssueJwtUseCase issueJwtUseCase,
+			org.springframework.transaction.support.TransactionTemplate transactionTemplate) {
+		return new LoginWithAppleService(
+				appleOAuthClient, authUserAccountPort, issueJwtUseCase, transactionTemplate);
 	}
 
 	/**

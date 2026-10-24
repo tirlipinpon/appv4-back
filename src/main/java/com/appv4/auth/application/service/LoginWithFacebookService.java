@@ -1,7 +1,7 @@
 package com.appv4.auth.application.service;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
@@ -13,10 +13,9 @@ import com.appv4.auth.application.port.out.FacebookOAuthClient.FacebookUserProfi
 import com.appv4.auth.application.result.JwtTokenResult;
 
 /**
- * Orchestration login Facebook : profil → upsert user/identity → JWT.
+ * Orchestration login Facebook : profil (réseau) puis upsert + JWT (TX courte).
  *
- * <p><b>Métier / flow :</b> miroir de {@link LoginWithGoogleService} avec
- * {@code provider=facebook}.
+ * <p>L'échange OAuth est hors transaction (issue #39).
  */
 public class LoginWithFacebookService implements LoginWithFacebookUseCase {
 
@@ -25,18 +24,20 @@ public class LoginWithFacebookService implements LoginWithFacebookUseCase {
 	private final FacebookOAuthClient facebookOAuthClient;
 	private final AuthUserAccountPort authUserAccountPort;
 	private final IssueJwtUseCase issueJwtUseCase;
+	private final TransactionTemplate transactionTemplate;
 
 	public LoginWithFacebookService(
 			FacebookOAuthClient facebookOAuthClient,
 			AuthUserAccountPort authUserAccountPort,
-			IssueJwtUseCase issueJwtUseCase) {
+			IssueJwtUseCase issueJwtUseCase,
+			TransactionTemplate transactionTemplate) {
 		this.facebookOAuthClient = facebookOAuthClient;
 		this.authUserAccountPort = authUserAccountPort;
 		this.issueJwtUseCase = issueJwtUseCase;
+		this.transactionTemplate = transactionTemplate;
 	}
 
 	@Override
-	@Transactional
 	public JwtTokenResult login(String authorizationCode, String redirectUri) {
 		FacebookUserProfile profile = facebookOAuthClient.exchangeCode(authorizationCode, redirectUri);
 		String email = Emails.requireNormalizedOrThrow(
@@ -44,6 +45,10 @@ public class LoginWithFacebookService implements LoginWithFacebookUseCase {
 				"Email Facebook manquant — connexion refusée (autorise le scope email)");
 		String displayName = DisplayNames.forProvider(profile.displayName(), email);
 
+		return transactionTemplate.execute(status -> persistAndIssue(profile, email, displayName));
+	}
+
+	private JwtTokenResult persistAndIssue(FacebookUserProfile profile, String email, String displayName) {
 		AuthUserAccount account = authUserAccountPort
 				.findByProviderSubject(PROVIDER_FACEBOOK, profile.subject())
 				.orElseGet(() -> resolveOrCreateAccount(email, displayName, profile));
@@ -72,5 +77,4 @@ public class LoginWithFacebookService implements LoginWithFacebookUseCase {
 		authUserAccountPort.clearPasswordAfterVerifiedSocialLink(existing.id());
 		return existing;
 	}
-
 }

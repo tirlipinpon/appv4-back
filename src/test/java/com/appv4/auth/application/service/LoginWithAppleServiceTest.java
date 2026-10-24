@@ -40,7 +40,8 @@ class LoginWithAppleServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new LoginWithAppleService(appleOAuthClient, authUserAccountPort, issueJwtUseCase);
+		service = new LoginWithAppleService(
+				appleOAuthClient, authUserAccountPort, issueJwtUseCase, new ImmediateTransactionTemplate());
 	}
 
 	@Test

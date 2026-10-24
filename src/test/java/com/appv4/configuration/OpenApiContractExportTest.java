@@ -16,7 +16,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
- * SCRUM-147 — vérifie le contrat et exporte {@code target/openapi.json} pour la CI / le front.
+ * SCRUM-147 — vérifie le contrat et exporte {@code target/openapi.json} pour la CI.
+ *
+ * <p>Le fichier versionné {@code openapi/openapi.json} n'est jamais réécrit ici.
+ * Pour l'actualiser après un vrai changement d'API : lancer les tests, puis
+ * copier {@code target/openapi.json} vers {@code openapi/openapi.json} et committer.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -45,14 +49,20 @@ class OpenApiContractExportTest {
 				.contains("/api/int/hello")
 				.contains("/api/ext/hello");
 
-		// Artefact CI (target/) + contrat versionné pour le front (openapi/)
 		Path targetOut = Path.of("target", "openapi.json");
-		Path repoOut = Path.of("openapi", "openapi.json");
 		Files.createDirectories(targetOut.getParent());
-		Files.createDirectories(repoOut.getParent());
 		Files.writeString(targetOut, body);
-		Files.writeString(repoOut, body);
 		assertThat(targetOut).exists().isRegularFile();
-		assertThat(repoOut).exists().isRegularFile();
+
+		Path repoOut = Path.of("openapi", "openapi.json");
+		assertThat(repoOut)
+				.as("contrat versionné attendu pour le front (SCRUM-148)")
+				.exists()
+				.isRegularFile();
+		String committed = Files.readString(repoOut);
+		assertThat(body)
+				.as("contrat généré dérivé de openapi/openapi.json — "
+						+ "copie target/openapi.json vers openapi/openapi.json après revue")
+				.isEqualTo(committed);
 	}
 }

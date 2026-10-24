@@ -1,11 +1,10 @@
 spring:
   application:
     name: appv4-back
-  # local seulement quand aucun autre profil n'est choisi.
-  # Les tests activent "test" : ils ne doivent pas hériter du profil local
-  # (base de dev, Flyway, seed admin). CI / prod passent par SPRING_PROFILES_ACTIVE.
-  profiles:
-    default: local
+  # Pas de profil par défaut : sans SPRING_PROFILES_ACTIVE (ou .env local),
+  # Swagger / seed admin / application-local.yml ne s'activent pas par oubli.
+  # Local : SPRING_PROFILES_ACTIVE=local (voir .env.example).
+  # Tests : @ActiveProfiles("test"). CI / Azure : variable explicite.
   jpa:
     open-in-view: false
     hibernate:

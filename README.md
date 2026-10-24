@@ -51,6 +51,8 @@ Plus besoin d’exporter manuellement les variables du `.env` en PowerShell : `D
 4. Vérifier : [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health) → `{"status":"UP"}`
 
 Config : `application.yml` + `application-local.yml` (datasource JDBC) + `.env` local.
+Le profil `local` n'est **pas** le défaut : il faut `SPRING_PROFILES_ACTIVE=local` (posé par le `.env`).
+Sans profil, pas de seed admin ni Swagger UI.
 
 ## PostgreSQL local (MVP)
 

@@ -3,6 +3,7 @@ package com.appv4.auth.infrastructure.adapter.out.persistence;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -16,9 +17,11 @@ import com.appv4.auth.application.service.ActiveRoles;
  * <p><b>Business :</b> seuls parent et professeur comptent comme espaces.
  * Une demande professeur pending n'est pas un rôle.
  * <p><b>Technique :</b> {@code back_user_roles} + colonne {@code last_active_role}.
+ * Absent du profil {@code test} : les tests web ne démarrent pas JPA.
  * <p><b>Métier / flow :</b> adapter out du port {@link ActiveRolePort}.
  */
 @Component
+@Profile("!test")
 public class ActiveRolePersistenceAdapter implements ActiveRolePort {
 
 	private final BackUserJpaRepository userRepository;

@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -18,9 +19,11 @@ import com.appv4.auth.application.service.ActiveRoles;
  * <p><b>Business :</b> pending et approved remontent dans la file.
  * Le rôle teacher n'est écrit qu'au oui, et une seule fois.
  * <p><b>Technique :</b> JPA sur les deux tables déjà créées en V5.
+ * Absent du profil {@code test} : les tests web ne démarrent pas JPA.
  * <p><b>Métier / flow :</b> adapter out du port {@link TeacherModerationPort}.
  */
 @Component
+@Profile("!test")
 public class TeacherModerationPersistenceAdapter implements TeacherModerationPort {
 
 	private static final String PENDING = "pending";

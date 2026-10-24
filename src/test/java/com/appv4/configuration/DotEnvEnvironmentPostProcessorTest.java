@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -29,5 +30,19 @@ class DotEnvEnvironmentPostProcessorTest {
 				.containsEntry("QUOTED", "hello world")
 				.containsEntry("EMPTY", "")
 				.doesNotContainKey("NOEQ");
+	}
+
+	@Test
+	void springBootTestStackSkipsPersonalDotEnv() {
+		assertThat(DotEnvEnvironmentPostProcessor.launchedBySpringTest(List.of(
+				"org.springframework.boot.test.context.SpringBootContextLoader",
+				"java.lang.Thread"))).isTrue();
+	}
+
+	@Test
+	void applicationMainStillReadsDotEnv() {
+		assertThat(DotEnvEnvironmentPostProcessor.launchedBySpringTest(List.of(
+				"org.springframework.boot.SpringApplication",
+				"com.appv4.Appv4BackApplication"))).isFalse();
 	}
 }

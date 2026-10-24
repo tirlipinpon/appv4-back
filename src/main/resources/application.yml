@@ -1,9 +1,11 @@
 spring:
   application:
     name: appv4-back
-  # Profil par défaut pour le MVP local (surchargeable via SPRING_PROFILES_ACTIVE)
+  # local seulement quand aucun autre profil n'est choisi.
+  # Les tests activent "test" : ils ne doivent pas hériter du profil local
+  # (base de dev, Flyway, seed admin). CI / prod passent par SPRING_PROFILES_ACTIVE.
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:local}
+    default: local
   jpa:
     open-in-view: false
     hibernate:

@@ -3,6 +3,7 @@ package com.appv4.auth.infrastructure.adapter.out.persistence;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,8 +13,10 @@ import com.appv4.auth.application.port.out.AuthUserAccountPort;
 
 /**
  * Adaptateur JPA — {@code back_users} + {@code back_user_identities}.
+ * Absent du profil {@code test} : les tests web ne démarrent pas JPA.
  */
 @Component
+@Profile("!test")
 public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 
 	private final BackUserJpaRepository userRepository;

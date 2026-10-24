@@ -53,6 +53,9 @@ class SwitchRoleControllerTest {
 	void rememberRoles() {
 		when(activeRolePort.findSpaceRoles(7L)).thenReturn(List.of("parent", "teacher"));
 		when(activeRolePort.findLastActiveRole(7L)).thenAnswer(invocation -> Optional.ofNullable(remembered.get()));
+		when(activeRolePort.loadAuthzSnapshot(7L)).thenAnswer(invocation ->
+				new com.appv4.auth.application.port.out.ActiveRolePort.AuthzSnapshot(
+						List.of("parent", "teacher"), false, remembered.get(), false));
 		Mockito.doAnswer(invocation -> {
 			remembered.set(invocation.getArgument(1));
 			return null;

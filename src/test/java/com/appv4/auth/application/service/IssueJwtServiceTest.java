@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.ActiveRolePort;
+import com.appv4.auth.application.port.out.ActiveRolePort.AuthzSnapshot;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.JwtTokenEncoder;
@@ -53,8 +54,8 @@ class IssueJwtServiceTest {
 
 	@Test
 	void singleRoleIsRememberedAndPutInTheToken() {
-		when(activeRolePort.findSpaceRoles(1L)).thenReturn(List.of("parent"));
-		when(activeRolePort.findLastActiveRole(1L)).thenReturn(Optional.empty());
+		when(activeRolePort.loadAuthzSnapshot(1L))
+				.thenReturn(new AuthzSnapshot(List.of("parent"), false, null, false));
 
 		service.issue(1L, "a@b.com");
 
@@ -64,8 +65,8 @@ class IssueJwtServiceTest {
 
 	@Test
 	void twoRolesReuseAStillValidMemory() {
-		when(activeRolePort.findSpaceRoles(1L)).thenReturn(List.of("parent", "teacher"));
-		when(activeRolePort.findLastActiveRole(1L)).thenReturn(Optional.of("teacher"));
+		when(activeRolePort.loadAuthzSnapshot(1L))
+				.thenReturn(new AuthzSnapshot(List.of("parent", "teacher"), false, "teacher", false));
 
 		service.issue(1L, "a@b.com");
 
@@ -75,8 +76,8 @@ class IssueJwtServiceTest {
 
 	@Test
 	void twoRolesWithoutMemoryDoNotClaimASpace() {
-		when(activeRolePort.findSpaceRoles(1L)).thenReturn(List.of("parent", "teacher"));
-		when(activeRolePort.findLastActiveRole(1L)).thenReturn(Optional.empty());
+		when(activeRolePort.loadAuthzSnapshot(1L))
+				.thenReturn(new AuthzSnapshot(List.of("parent", "teacher"), false, null, false));
 
 		service.issue(1L, "a@b.com");
 
@@ -86,8 +87,8 @@ class IssueJwtServiceTest {
 
 	@Test
 	void staleMemoryIsReplacedWhenOnlyOneRoleRemains() {
-		when(activeRolePort.findSpaceRoles(1L)).thenReturn(List.of("parent"));
-		when(activeRolePort.findLastActiveRole(1L)).thenReturn(Optional.of("teacher"));
+		when(activeRolePort.loadAuthzSnapshot(1L))
+				.thenReturn(new AuthzSnapshot(List.of("parent"), false, "teacher", false));
 
 		service.issue(1L, "a@b.com");
 
@@ -97,9 +98,8 @@ class IssueJwtServiceTest {
 
 	@Test
 	void adminRoleIsAddedWithoutChoosingASpace() {
-		when(activeRolePort.findSpaceRoles(1L)).thenReturn(List.of());
-		when(activeRolePort.findLastActiveRole(1L)).thenReturn(Optional.empty());
-		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+		when(activeRolePort.loadAuthzSnapshot(1L))
+				.thenReturn(new AuthzSnapshot(List.of(), true, null, false));
 
 		service.issue(1L, "a@b.com");
 
@@ -109,8 +109,8 @@ class IssueJwtServiceTest {
 
 	@Test
 	void memoryIsClearedWhenNoSpaceRoleRemains() {
-		when(activeRolePort.findSpaceRoles(1L)).thenReturn(List.of());
-		when(activeRolePort.findLastActiveRole(1L)).thenReturn(Optional.of("parent"));
+		when(activeRolePort.loadAuthzSnapshot(1L))
+				.thenReturn(new AuthzSnapshot(List.of(), false, "parent", false));
 
 		service.issue(1L, "a@b.com");
 

@@ -20,8 +20,13 @@ public interface TeacherModerationPort {
 
 	Optional<TeacherRequestView> findById(long requestId);
 
-	/** Passe à approved, pose la date du oui, efface la date du retrait. */
-	void markApproved(long requestId, Instant reviewedAt);
+	/**
+	 * Passe à approved de façon atomique (issue #46).
+	 *
+	 * <p>Un seul concurrent depuis pending/revoked obtient {@link TeacherApprovalOutcome#FIRST_APPROVAL}
+	 * (à notifier). Les autres / les réapprobations obtiennent {@link TeacherApprovalOutcome#REVALIDATED}.
+	 */
+	TeacherApprovalOutcome markApproved(long requestId, Instant reviewedAt);
 
 	/** Passe à revoked et pose la date du retrait. La date du oui reste. */
 	void markRevoked(long requestId, Instant revokedAt);

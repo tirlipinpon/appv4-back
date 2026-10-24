@@ -9,6 +9,7 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.TeacherModerationUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.TeacherApprovalOutcome;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
 import com.appv4.auth.application.port.out.TeacherRequestPage;
@@ -66,14 +67,12 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 		requireAdmin(callerId);
 		TeacherRequestView current = teacherModerationPort.findById(requestId)
 				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), NOT_FOUND));
-		if (APPROVED.equals(current.status())) {
-			// Oui déjà posé : on rafraîchit la date, sans renvoyer l'email.
-			return applyApproval(current, requestId, false);
-		}
-		if (!PENDING.equals(current.status()) && !REVOKED.equals(current.status())) {
+		if (!PENDING.equals(current.status())
+				&& !APPROVED.equals(current.status())
+				&& !REVOKED.equals(current.status())) {
 			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), NOT_ACCEPTABLE);
 		}
-		return applyApproval(current, requestId, true);
+		return applyApproval(current, requestId);
 	}
 
 	@Override
@@ -108,15 +107,14 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 	}
 
 	/**
-	 * Noyau commun d'approbation (issue #47) : date, rôle teacher, vue.
-	 *
-	 * @param notify vrai pour une première approbation (ou après revoke) — envoie l'email
+	 * Noyau d'approbation : transition atomique (issue #46) + rôle + email seulement
+	 * pour {@link TeacherApprovalOutcome#FIRST_APPROVAL}.
 	 */
-	private TeacherRequestView applyApproval(TeacherRequestView current, long requestId, boolean notify) {
+	private TeacherRequestView applyApproval(TeacherRequestView current, long requestId) {
 		Instant reviewedAt = Instant.now();
-		teacherModerationPort.markApproved(requestId, reviewedAt);
+		TeacherApprovalOutcome outcome = teacherModerationPort.markApproved(requestId, reviewedAt);
 		teacherModerationPort.grantTeacher(current.userId());
-		if (notify) {
+		if (outcome == TeacherApprovalOutcome.FIRST_APPROVAL) {
 			teacherApprovedMailPort.sendTeacherApproved(current.email());
 		}
 		return new TeacherRequestView(

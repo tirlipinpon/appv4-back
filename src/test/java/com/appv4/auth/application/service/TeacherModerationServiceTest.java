@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.TeacherApprovalOutcome;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
 import com.appv4.auth.application.port.out.TeacherRequestPage;
@@ -87,6 +88,8 @@ class TeacherModerationServiceTest {
 		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
 		TeacherRequestView pending = view(4L, "pending", null);
 		when(teacherModerationPort.findById(4L)).thenReturn(Optional.of(pending));
+		when(teacherModerationPort.markApproved(eq(4L), any(Instant.class)))
+				.thenReturn(TeacherApprovalOutcome.FIRST_APPROVAL);
 
 		TeacherRequestView approved = service.approve(1L, 4L);
 
@@ -102,6 +105,8 @@ class TeacherModerationServiceTest {
 		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
 		TeacherRequestView already = view(4L, "approved", Instant.parse("2026-10-23T10:00:00Z"));
 		when(teacherModerationPort.findById(4L)).thenReturn(Optional.of(already));
+		when(teacherModerationPort.markApproved(eq(4L), any(Instant.class)))
+				.thenReturn(TeacherApprovalOutcome.REVALIDATED);
 
 		TeacherRequestView result = service.approve(1L, 4L);
 
@@ -110,6 +115,20 @@ class TeacherModerationServiceTest {
 		verify(teacherModerationPort).markApproved(eq(4L), any(Instant.class));
 		verify(teacherModerationPort).grantTeacher(9L);
 		verify(teacherApprovedMailPort, never()).sendTeacherApproved(any());
+	}
+
+	@Test
+	void concurrentLoserDoesNotSendMail() {
+		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+		TeacherRequestView pending = view(4L, "pending", null);
+		when(teacherModerationPort.findById(4L)).thenReturn(Optional.of(pending));
+		when(teacherModerationPort.markApproved(eq(4L), any(Instant.class)))
+				.thenReturn(TeacherApprovalOutcome.REVALIDATED);
+
+		service.approve(1L, 4L);
+
+		verify(teacherApprovedMailPort, never()).sendTeacherApproved(any());
+		verify(teacherModerationPort).grantTeacher(9L);
 	}
 
 	@Test
@@ -136,6 +155,8 @@ class TeacherModerationServiceTest {
 		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
 		TeacherRequestView revoked = view(4L, "revoked", Instant.parse("2026-10-23T11:00:00Z"));
 		when(teacherModerationPort.findById(4L)).thenReturn(Optional.of(revoked));
+		when(teacherModerationPort.markApproved(eq(4L), any(Instant.class)))
+				.thenReturn(TeacherApprovalOutcome.FIRST_APPROVAL);
 
 		TeacherRequestView approved = service.approve(1L, 4L);
 

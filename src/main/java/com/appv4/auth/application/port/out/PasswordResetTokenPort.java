@@ -19,8 +19,12 @@ public interface PasswordResetTokenPort {
 	 */
 	Optional<ValidResetToken> findValidByTokenHash(String tokenHash);
 
-	/** Marque le jeton consommé ({@code used_at = now}). */
-	void markUsed(long tokenId);
+	/**
+	 * Consomme le jeton de façon atomique (issue #43).
+	 *
+	 * @return {@code true} si cette transaction a gagné ; {@code false} si déjà utilisé
+	 */
+	boolean tryMarkUsed(long tokenId);
 
 	record ValidResetToken(long tokenId, long userId) {
 	}

@@ -67,12 +67,28 @@ class ResetPasswordServiceTest {
 		String hash = ForgotPasswordService.sha256Hex(clear);
 		when(passwordResetTokenPort.findValidByTokenHash(hash))
 				.thenReturn(Optional.of(new ValidResetToken(7L, 42L)));
+		when(passwordResetTokenPort.tryMarkUsed(7L)).thenReturn(true);
 		when(passwordEncoder.encode("Jardin1!")).thenReturn("bcrypt-hash");
 
 		service.reset(clear, "Jardin1!");
 
+		verify(passwordResetTokenPort).tryMarkUsed(7L);
 		verify(authUserAccountPort).updatePasswordHash(42L, "bcrypt-hash");
-		verify(passwordResetTokenPort).markUsed(7L);
 		verify(passwordResetTokenPort).invalidateUnusedForUser(eq(42L));
+	}
+
+	@Test
+	void concurrentLoserDoesNotChangePassword() {
+		String clear = "good-token";
+		String hash = ForgotPasswordService.sha256Hex(clear);
+		when(passwordResetTokenPort.findValidByTokenHash(hash))
+				.thenReturn(Optional.of(new ValidResetToken(7L, 42L)));
+		when(passwordResetTokenPort.tryMarkUsed(7L)).thenReturn(false);
+
+		assertThatThrownBy(() -> service.reset(clear, "Jardin1!"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessageContaining(ResetPasswordService.INVALID_TOKEN_MESSAGE);
+
+		verify(authUserAccountPort, never()).updatePasswordHash(anyLong(), anyString());
 	}
 }

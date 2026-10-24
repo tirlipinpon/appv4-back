@@ -34,4 +34,13 @@ public interface BackPasswordResetTokenJpaRepository extends JpaRepository<BackP
 			where t.user.id = :userId and t.usedAt is null
 			""")
 	int markUnusedAsUsedForUser(@Param("userId") Long userId);
+
+	/** Consommation concurrente-safe : 1 = gagnant, 0 = déjà utilisé / inconnu. */
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query("""
+			update BackPasswordResetTokenEntity t
+			set t.usedAt = :now
+			where t.id = :tokenId and t.usedAt is null and t.expiresAt > :now
+			""")
+	int markUsedIfStillValid(@Param("tokenId") long tokenId, @Param("now") Instant now);
 }

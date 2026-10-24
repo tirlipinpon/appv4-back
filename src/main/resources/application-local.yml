@@ -1,4 +1,5 @@
 # Profil "local" — Postgres via Docker Compose
+# Activé seulement si SPRING_PROFILES_ACTIVE=local (jamais par défaut).
 # Variables : voir .env / .env.example (SPRING_DATASOURCE_* ou POSTGRES_*)
 
 spring:

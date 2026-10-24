@@ -2,7 +2,10 @@ package com.appv4.auth.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
@@ -19,6 +22,7 @@ import com.appv4.auth.application.service.ActiveRoles;
  * <p><b>Business :</b> pending et approved remontent dans la file.
  * Le rôle teacher n'est écrit qu'au oui, et une seule fois.
  * <p><b>Technique :</b> JPA sur les deux tables déjà créées en V5.
+ * Liste : un lot utilisateurs ({@code findAllById}) — pas de N+1 (issue #56).
  * Absent du profil {@code test} : les tests web ne démarrent pas JPA.
  * <p><b>Métier / flow :</b> adapter out du port {@link TeacherModerationPort}.
  */
@@ -45,14 +49,26 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 
 	@Override
 	public List<TeacherRequestView> findPendingAndApproved() {
-		return requestRepository.findByStatusInOrderByCreatedAtAsc(List.of(PENDING, APPROVED, REVOKED)).stream()
-				.map(this::toView)
+		List<BackTeacherRoleRequestEntity> requests = requestRepository
+				.findByStatusInOrderByCreatedAtAsc(List.of(PENDING, APPROVED, REVOKED));
+		if (requests.isEmpty()) {
+			return List.of();
+		}
+		List<Long> userIds = requests.stream()
+				.map(BackTeacherRoleRequestEntity::getUserId)
+				.distinct()
+				.toList();
+		Map<Long, BackUserEntity> usersById = userRepository.findAllById(userIds).stream()
+				.collect(Collectors.toMap(BackUserEntity::getId, Function.identity()));
+		return requests.stream()
+				.map(request -> toView(request, usersById.get(request.getUserId())))
 				.toList();
 	}
 
 	@Override
 	public Optional<TeacherRequestView> findById(long requestId) {
-		return requestRepository.findById(requestId).map(this::toView);
+		return requestRepository.findById(requestId)
+				.map(entity -> toView(entity, userRepository.findById(entity.getUserId()).orElse(null)));
 	}
 
 	@Override
@@ -87,8 +103,7 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 		roleRepository.deleteByUserIdAndRole(userId, ActiveRoles.TEACHER);
 	}
 
-	private TeacherRequestView toView(BackTeacherRoleRequestEntity entity) {
-		BackUserEntity user = userRepository.findById(entity.getUserId()).orElse(null);
+	private TeacherRequestView toView(BackTeacherRoleRequestEntity entity, BackUserEntity user) {
 		String email = user == null ? "" : user.getEmail();
 		String displayName = user == null || user.getDisplayName() == null ? "" : user.getDisplayName();
 		return new TeacherRequestView(

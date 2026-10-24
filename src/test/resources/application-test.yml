@@ -15,3 +15,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+
+# Secret dédié aux tests (pas la clé de démo locale, pas une vraie prod).
+appv4:
+  jwt:
+    secret: appv4-test-jwt-secret-not-for-production-32b

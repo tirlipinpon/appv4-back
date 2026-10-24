@@ -35,11 +35,12 @@ springdoc:
     enabled: false
     path: /swagger-ui.html
 
-# JWT admin (/api/int) — surcharger via APPV4_JWT_SECRET en prod (min. 32 octets)
+# JWT admin (/api/int) — pas de secret de démo ici (issue #62).
+# Hors local : APPV4_JWT_SECRET obligatoire (min. 32 octets). Local : voir application-local.yml.
 # Google OAuth (SCRUM-96) — GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET hors git
 appv4:
   jwt:
-    secret: ${APPV4_JWT_SECRET:appv4-local-dev-jwt-secret-change-me-32b}
+    secret: ${APPV4_JWT_SECRET:}
     issuer: ${APPV4_JWT_ISSUER:appv4-back}
     expiration-minutes: ${APPV4_JWT_EXPIRATION_MINUTES:480}
   oauth:

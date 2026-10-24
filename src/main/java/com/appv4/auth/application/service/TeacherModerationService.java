@@ -67,12 +67,13 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 		TeacherRequestView current = teacherModerationPort.findById(requestId)
 				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), NOT_FOUND));
 		if (APPROVED.equals(current.status())) {
-			return revalidate(current, requestId);
+			// Oui déjà posé : on rafraîchit la date, sans renvoyer l'email.
+			return applyApproval(current, requestId, false);
 		}
 		if (!PENDING.equals(current.status()) && !REVOKED.equals(current.status())) {
 			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), NOT_ACCEPTABLE);
 		}
-		return markApproved(current, requestId);
+		return applyApproval(current, requestId, true);
 	}
 
 	@Override
@@ -106,27 +107,18 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 				revokedAt);
 	}
 
-	/** Un oui déjà posé : on rafraîchit la date, sans renvoyer l'email. */
-	private TeacherRequestView revalidate(TeacherRequestView current, long requestId) {
+	/**
+	 * Noyau commun d'approbation (issue #47) : date, rôle teacher, vue.
+	 *
+	 * @param notify vrai pour une première approbation (ou après revoke) — envoie l'email
+	 */
+	private TeacherRequestView applyApproval(TeacherRequestView current, long requestId, boolean notify) {
 		Instant reviewedAt = Instant.now();
 		teacherModerationPort.markApproved(requestId, reviewedAt);
 		teacherModerationPort.grantTeacher(current.userId());
-		return new TeacherRequestView(
-				current.id(),
-				current.userId(),
-				current.email(),
-				current.displayName(),
-				APPROVED,
-				current.createdAt(),
-				reviewedAt,
-				null);
-	}
-
-	private TeacherRequestView markApproved(TeacherRequestView current, long requestId) {
-		Instant reviewedAt = Instant.now();
-		teacherModerationPort.markApproved(requestId, reviewedAt);
-		teacherModerationPort.grantTeacher(current.userId());
-		teacherApprovedMailPort.sendTeacherApproved(current.email());
+		if (notify) {
+			teacherApprovedMailPort.sendTeacherApproved(current.email());
+		}
 		return new TeacherRequestView(
 				current.id(),
 				current.userId(),

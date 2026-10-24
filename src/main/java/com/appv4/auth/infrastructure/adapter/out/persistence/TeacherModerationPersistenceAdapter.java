@@ -11,10 +11,10 @@ import java.util.stream.Collectors;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.TeacherApprovalOutcome;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
 import com.appv4.auth.application.port.out.TeacherRequestPage;
@@ -94,13 +94,13 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 		if (requestRepository.refreshApproved(requestId, reviewedAt) == 1) {
 			return TeacherApprovalOutcome.REVALIDATED;
 		}
-		throw new AuthDomainException(HttpStatus.NOT_FOUND.value(), "Demande introuvable.");
+		throw new AuthDomainException(AuthErrorCode.NOT_FOUND, "Demande introuvable.");
 	}
 
 	@Override
 	public void markRevoked(long requestId, Instant revokedAt) {
 		BackTeacherRoleRequestEntity entity = requestRepository.findById(requestId)
-				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), "Demande introuvable."));
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, "Demande introuvable."));
 		entity.setStatus(REVOKED);
 		entity.setRevokedAt(revokedAt);
 		requestRepository.save(entity);

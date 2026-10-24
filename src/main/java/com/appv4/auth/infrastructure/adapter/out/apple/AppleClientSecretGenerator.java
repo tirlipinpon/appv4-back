@@ -9,9 +9,9 @@ import java.util.Date;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.infrastructure.config.AppleOAuthProperties;
 
 import io.jsonwebtoken.Jwts;
@@ -50,8 +50,7 @@ public final class AppleClientSecretGenerator {
 			throw ex;
 		} catch (Exception ex) {
 			LOG.warn("Apple client_secret generation failed: {}", ex.toString());
-			throw new AuthDomainException(
-					HttpStatus.SERVICE_UNAVAILABLE.value(),
+			throw new AuthDomainException(AuthErrorCode.SERVICE_UNAVAILABLE,
 					"Impossible de générer client_secret Apple");
 		}
 	}

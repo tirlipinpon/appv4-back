@@ -1,18 +1,22 @@
 package com.appv4.auth.application.exception;
 
 /**
- * Erreur métier auth (mappée en HTTP par le controller advice).
+ * Erreur métier auth — sans statut HTTP (issue #30).
+ *
+ * <p><b>Business :</b> le cœur dit « interdit / introuvable », pas « 403 ».
+ * <p><b>Technique :</b> {@link AuthErrorCode} ; {@code AuthExceptionHandler} traduit en HTTP.
+ * <p><b>Métier / flow :</b> services / ports → cette exception → adaptateur web.
  */
 public class AuthDomainException extends RuntimeException {
 
-	private final int httpStatus;
+	private final AuthErrorCode errorCode;
 
-	public AuthDomainException(int httpStatus, String message) {
+	public AuthDomainException(AuthErrorCode errorCode, String message) {
 		super(message);
-		this.httpStatus = httpStatus;
+		this.errorCode = errorCode == null ? AuthErrorCode.BAD_REQUEST : errorCode;
 	}
 
-	public int getHttpStatus() {
-		return httpStatus;
+	public AuthErrorCode getErrorCode() {
+		return errorCode;
 	}
 }

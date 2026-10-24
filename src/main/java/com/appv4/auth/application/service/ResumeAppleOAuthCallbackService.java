@@ -5,10 +5,10 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
 
-import org.springframework.http.HttpStatus;
 
 import com.appv4.auth.application.config.AppleOAuthSettings;
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ResumeAppleOAuthCallbackUseCase;
 import com.appv4.auth.application.port.out.OAuthBrowserBindingPort;
 
@@ -38,8 +38,7 @@ public class ResumeAppleOAuthCallbackService implements ResumeAppleOAuthCallback
 		AppleOAuthSettings s = settings.get();
 		String resumeUri = oauthBrowserBindingPort.peek(OAuthBrowserBindingPort.PROVIDER_APPLE, state);
 		if (!AppleOAuthReturnUris.isAllowed(resumeUri, s.allowedReturnUriPrefixes())) {
-			throw new AuthDomainException(
-					HttpStatus.BAD_REQUEST.value(),
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST,
 					"URL de reprise Apple non autorisée");
 		}
 		StringBuilder target = new StringBuilder(resumeUri);
@@ -50,7 +49,7 @@ public class ResumeAppleOAuthCallbackService implements ResumeAppleOAuthCallback
 			return URI.create(target.toString());
 		}
 		if (code == null || code.isBlank()) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "code Apple manquant");
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, "code Apple manquant");
 		}
 		target.append("code=")
 				.append(URLEncoder.encode(code, StandardCharsets.UTF_8));

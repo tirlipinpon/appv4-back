@@ -2,12 +2,12 @@ package com.appv4.auth.infrastructure.adapter.out.facebook;
 
 import java.net.URI;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.oauth.OAuthRestClientErrors;
 import com.appv4.auth.infrastructure.config.FacebookOAuthProperties;
@@ -32,8 +32,7 @@ public class HttpFacebookOAuthClient implements FacebookOAuthClient {
 	@Override
 	public FacebookUserProfile exchangeCode(String authorizationCode, String redirectUri) {
 		if (!properties.isConfigured()) {
-			throw new AuthDomainException(
-					HttpStatus.SERVICE_UNAVAILABLE.value(),
+			throw new AuthDomainException(AuthErrorCode.SERVICE_UNAVAILABLE,
 					"Facebook OAuth non configuré (FACEBOOK_APP_ID / FACEBOOK_APP_SECRET)");
 		}
 		try {
@@ -59,8 +58,7 @@ public class HttpFacebookOAuthClient implements FacebookOAuthClient {
 				.body(TokenResponse.class);
 
 		if (token == null || token.accessToken() == null || token.accessToken().isBlank()) {
-			throw new AuthDomainException(
-					HttpStatus.UNAUTHORIZED.value(),
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED,
 					"Réponse token Facebook invalide");
 		}
 		return token.accessToken();
@@ -80,8 +78,7 @@ public class HttpFacebookOAuthClient implements FacebookOAuthClient {
 				.body(UserInfoResponse.class);
 
 		if (info == null || info.id() == null || info.id().isBlank()) {
-			throw new AuthDomainException(
-					HttpStatus.UNAUTHORIZED.value(),
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED,
 					"Profil Facebook invalide");
 		}
 		String name = info.name() != null ? info.name() : "";

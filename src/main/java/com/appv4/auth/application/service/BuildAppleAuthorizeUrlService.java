@@ -4,10 +4,10 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
 
-import org.springframework.http.HttpStatus;
 
 import com.appv4.auth.application.config.AppleOAuthSettings;
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.BuildAppleAuthorizeUrlUseCase;
 
 /**
@@ -29,25 +29,22 @@ public class BuildAppleAuthorizeUrlService implements BuildAppleAuthorizeUrlUseC
 	public String build(String frontendResumeUri, String state) {
 		AppleOAuthSettings s = settings.get();
 		if (!s.isConfigured()) {
-			throw new AuthDomainException(
-					HttpStatus.SERVICE_UNAVAILABLE.value(),
+			throw new AuthDomainException(AuthErrorCode.SERVICE_UNAVAILABLE,
 					"Apple OAuth non configuré (APPLE_CLIENT_ID / TEAM_ID / KEY_ID / PRIVATE_KEY)");
 		}
 		if (!s.isCallbackConfigured()) {
-			throw new AuthDomainException(
-					HttpStatus.SERVICE_UNAVAILABLE.value(),
+			throw new AuthDomainException(AuthErrorCode.SERVICE_UNAVAILABLE,
 					"Apple OAuth callback non configuré (APPLE_CALLBACK_URI)");
 		}
 		if (frontendResumeUri == null || frontendResumeUri.isBlank()) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "redirectUri obligatoire");
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, "redirectUri obligatoire");
 		}
 		if (state == null || state.isBlank()) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), "state OAuth obligatoire");
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, "state OAuth obligatoire");
 		}
 		String resume = frontendResumeUri.trim();
 		if (!AppleOAuthReturnUris.isAllowed(resume, s.allowedReturnUriPrefixes())) {
-			throw new AuthDomainException(
-					HttpStatus.BAD_REQUEST.value(),
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST,
 					"redirectUri non autorisé pour la reprise Apple");
 		}
 		String scope = URLEncoder.encode("name email", StandardCharsets.UTF_8);

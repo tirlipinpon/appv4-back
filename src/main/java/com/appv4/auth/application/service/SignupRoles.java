@@ -5,9 +5,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import org.springframework.http.HttpStatus;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 
 /**
  * Rôles acceptés sur le formulaire d'inscription (SCRUM-121).
@@ -34,8 +34,7 @@ public final class SignupRoles {
 			}
 			String value = role.trim().toLowerCase(Locale.ROOT);
 			if (!PARENT.equals(value) && !TEACHER.equals(value)) {
-				throw new AuthDomainException(
-						HttpStatus.BAD_REQUEST.value(),
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST,
 						"Rôle non autorisé à l'inscription.");
 			}
 			normalized.add(value);
@@ -44,8 +43,7 @@ public final class SignupRoles {
 	}
 
 	private static AuthDomainException missing() {
-		return new AuthDomainException(
-				HttpStatus.BAD_REQUEST.value(),
+		return new AuthDomainException(AuthErrorCode.BAD_REQUEST,
 				"Choisissez au moins Parent ou Professeur.");
 	}
 }

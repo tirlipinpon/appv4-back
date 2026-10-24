@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.appv4.auth.application.config.AppleOAuthSettings;
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.OAuthBrowserBindingPort;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,7 +58,7 @@ class ResumeAppleOAuthCallbackServiceTest {
 	@Test
 	void rejectsWhenPeekFails() {
 		when(binding.peek(OAuthBrowserBindingPort.PROVIDER_APPLE, "bad"))
-				.thenThrow(new AuthDomainException(401, "state OAuth invalide"));
+				.thenThrow(new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "state OAuth invalide"));
 		assertThatThrownBy(() -> service.resume("bad", "code", null))
 				.isInstanceOf(AuthDomainException.class);
 	}

@@ -100,8 +100,8 @@ class SignupWithEmailServiceTest {
 
 		assertThatThrownBy(() -> service.signup("marie@example.com", "Secret1!", "Marie"))
 				.isInstanceOf(AuthDomainException.class)
-				.extracting("httpStatus")
-				.isEqualTo(409);
+				.extracting("errorCode")
+				.isEqualTo(com.appv4.auth.application.exception.AuthErrorCode.CONFLICT);
 		verify(authUserAccountPort, never()).createWithPassword(anyString(), anyString(), anyString());
 	}
 

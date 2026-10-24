@@ -5,12 +5,12 @@ import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.AuthMessages;
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 
 /**
@@ -105,8 +105,7 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 	@Transactional
 	public void linkIdentity(long userId, String provider, String providerSubject, String emailAtProvider) {
 		BackUserEntity user = userRepository.findById(userId)
-				.orElseThrow(() -> new AuthDomainException(
-						HttpStatus.INTERNAL_SERVER_ERROR.value(),
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.INTERNAL_ERROR,
 						"User introuvable pour link identity"));
 		if (identityRepository.findByProviderAndProviderSubject(provider, providerSubject).isPresent()) {
 			return;
@@ -130,8 +129,7 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 	@Transactional
 	public void clearPasswordAfterVerifiedSocialLink(long userId) {
 		BackUserEntity user = userRepository.findById(userId)
-				.orElseThrow(() -> new AuthDomainException(
-						HttpStatus.INTERNAL_SERVER_ERROR.value(),
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.INTERNAL_ERROR,
 						"User introuvable pour clear password"));
 		if (user.getPasswordHash() == null) {
 			return;
@@ -142,15 +140,14 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 	}
 
 	private static AuthDomainException conflict() {
-		return new AuthDomainException(HttpStatus.CONFLICT.value(), AuthMessages.ACCOUNT_CONFLICT);
+		return new AuthDomainException(AuthErrorCode.CONFLICT, AuthMessages.ACCOUNT_CONFLICT);
 	}
 
 	@Override
 	@Transactional
 	public void updatePasswordHash(long userId, String passwordHash) {
 		BackUserEntity user = userRepository.findById(userId)
-				.orElseThrow(() -> new AuthDomainException(
-						HttpStatus.INTERNAL_SERVER_ERROR.value(),
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.INTERNAL_ERROR,
 						"User introuvable pour renew mdp"));
 		user.setPasswordHash(passwordHash);
 		user.setSecurityVersion(user.getSecurityVersion() + 1);
@@ -161,8 +158,7 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 	@Transactional
 	public void bumpSecurityVersion(long userId) {
 		BackUserEntity user = userRepository.findById(userId)
-				.orElseThrow(() -> new AuthDomainException(
-						HttpStatus.INTERNAL_SERVER_ERROR.value(),
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.INTERNAL_ERROR,
 						"User introuvable pour invalidation session"));
 		user.setSecurityVersion(user.getSecurityVersion() + 1);
 		userRepository.save(user);

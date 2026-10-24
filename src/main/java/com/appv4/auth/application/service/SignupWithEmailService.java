@@ -1,11 +1,11 @@
 package com.appv4.auth.application.service;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.AuthMessages;
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
@@ -45,7 +45,7 @@ public class SignupWithEmailService implements SignupWithEmailUseCase {
 		String name = DisplayNames.requireForSignup(displayName, normalizedEmail);
 
 		if (authUserAccountPort.findSignupStateByEmail(normalizedEmail).isPresent()) {
-			throw new AuthDomainException(HttpStatus.CONFLICT.value(), AuthMessages.ACCOUNT_CONFLICT);
+			throw new AuthDomainException(AuthErrorCode.CONFLICT, AuthMessages.ACCOUNT_CONFLICT);
 		}
 
 		String hash = passwordEncoder.encode(password);

@@ -4,10 +4,10 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.service.ActiveRoles;
 
@@ -71,8 +71,7 @@ public class ActiveRolePersistenceAdapter implements ActiveRolePort {
 	@Override
 	public void saveLastActiveRole(long userId, String role) {
 		BackUserEntity user = userRepository.findById(userId)
-				.orElseThrow(() -> new AuthDomainException(
-						HttpStatus.UNAUTHORIZED.value(),
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.UNAUTHORIZED,
 						"Session invalide."));
 		user.setLastActiveRole(role);
 		userRepository.save(user);

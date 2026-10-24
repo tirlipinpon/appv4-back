@@ -9,24 +9,25 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 
 class OAuthRestClientErrorsTest {
 
 	@Test
-	void resourceAccessMapsTo503() {
+	void resourceAccessMapsToServiceUnavailable() {
 		AuthDomainException ex = OAuthRestClientErrors.map(
 				new ResourceAccessException("timeout", new SocketTimeoutException()),
 				"Google");
-		assertThat(ex.getHttpStatus()).isEqualTo(503);
+		assertThat(ex.getErrorCode()).isEqualTo(AuthErrorCode.SERVICE_UNAVAILABLE);
 		assertThat(ex.getMessage()).contains("indisponible");
 	}
 
 	@Test
-	void otherRestClientMapsTo401WithoutLeakingDetail() {
+	void otherRestClientMapsToUnauthorizedWithoutLeakingDetail() {
 		AuthDomainException ex = OAuthRestClientErrors.map(
 				new RestClientException("https://oauth?client_secret=SECRET_MARKER&code=x"),
 				"Google");
-		assertThat(ex.getHttpStatus()).isEqualTo(401);
+		assertThat(ex.getErrorCode()).isEqualTo(AuthErrorCode.UNAUTHORIZED);
 		assertThat(ex.getMessage()).isEqualTo("Échec de connexion Google");
 		assertThat(ex.getMessage()).doesNotContain("SECRET_MARKER");
 	}

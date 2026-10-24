@@ -15,9 +15,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-import org.springframework.http.HttpStatus;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.OAuthBrowserBindingPort;
 import com.appv4.auth.infrastructure.config.JwtProperties;
 
@@ -63,7 +63,7 @@ public class HmacOAuthBrowserBindingAdapter implements OAuthBrowserBindingPort {
 		assertMatch(parsed, provider, redirectUri);
 		Instant prev = consumedUntil.putIfAbsent(parsed.jti(), parsed.expiresAt());
 		if (prev != null) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "state OAuth déjà utilisé");
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "state OAuth déjà utilisé");
 		}
 	}
 
@@ -71,7 +71,7 @@ public class HmacOAuthBrowserBindingAdapter implements OAuthBrowserBindingPort {
 	public String peek(String provider, String state) {
 		Parsed parsed = parseAndVerify(state);
 		if (!provider.equals(parsed.provider())) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "state OAuth invalide");
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "state OAuth invalide");
 		}
 		return parsed.redirectUri();
 	}
@@ -79,13 +79,13 @@ public class HmacOAuthBrowserBindingAdapter implements OAuthBrowserBindingPort {
 	private void assertMatch(Parsed parsed, String provider, String redirectUri) {
 		if (!provider.equals(parsed.provider())
 				|| !redirectUri.trim().equals(parsed.redirectUri())) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "state OAuth invalide");
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "state OAuth invalide");
 		}
 	}
 
 	private Parsed parseAndVerify(String state) {
 		if (state == null || state.isBlank() || !state.contains(".")) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "state OAuth manquant");
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "state OAuth manquant");
 		}
 		int dot = state.indexOf('.');
 		String body = state.substring(0, dot);
@@ -93,26 +93,26 @@ public class HmacOAuthBrowserBindingAdapter implements OAuthBrowserBindingPort {
 		if (!MessageDigest.isEqual(
 				sign(body).getBytes(StandardCharsets.UTF_8),
 				mac.getBytes(StandardCharsets.UTF_8))) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "state OAuth invalide");
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "state OAuth invalide");
 		}
 		String payload;
 		try {
 			payload = new String(Base64.getUrlDecoder().decode(body), StandardCharsets.UTF_8);
 		} catch (IllegalArgumentException ex) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "state OAuth invalide");
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "state OAuth invalide");
 		}
 		String[] parts = payload.split("\\|", 4);
 		if (parts.length != 4) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "state OAuth invalide");
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "state OAuth invalide");
 		}
 		Instant exp;
 		try {
 			exp = Instant.ofEpochSecond(Long.parseLong(parts[2]));
 		} catch (NumberFormatException ex) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "state OAuth invalide");
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "state OAuth invalide");
 		}
 		if (clock.instant().isAfter(exp)) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "state OAuth expiré");
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "state OAuth expiré");
 		}
 		return new Parsed(parts[0], parts[1], exp, parts[3]);
 	}

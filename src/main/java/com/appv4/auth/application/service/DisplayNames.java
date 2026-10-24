@@ -1,8 +1,8 @@
 package com.appv4.auth.application.service;
 
-import org.springframework.http.HttpStatus;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 
 /**
  * Limites du nom affiché alignées sur {@code back_users.display_name} (255) — issue #50.
@@ -20,8 +20,7 @@ public final class DisplayNames {
 	public static String requireForSignup(String displayName, String email) {
 		String resolved = resolve(displayName, email);
 		if (resolved.length() > MAX_LENGTH) {
-			throw new AuthDomainException(
-					HttpStatus.BAD_REQUEST.value(),
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST,
 					"Le nom affiché est trop long (max. " + MAX_LENGTH + " caractères)");
 		}
 		return resolved;

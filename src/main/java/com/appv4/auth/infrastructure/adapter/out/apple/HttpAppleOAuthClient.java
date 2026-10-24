@@ -1,6 +1,5 @@
 package com.appv4.auth.infrastructure.adapter.out.apple;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -8,6 +7,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.infrastructure.adapter.out.oauth.OAuthRestClientErrors;
 import com.appv4.auth.infrastructure.config.AppleOAuthProperties;
@@ -46,15 +46,13 @@ public class HttpAppleOAuthClient implements AppleOAuthClient {
 	@Override
 	public AppleUserProfile exchangeCode(String authorizationCode, String redirectUri) {
 		if (!properties.isConfigured()) {
-			throw new AuthDomainException(
-					HttpStatus.SERVICE_UNAVAILABLE.value(),
+			throw new AuthDomainException(AuthErrorCode.SERVICE_UNAVAILABLE,
 					"Apple OAuth non configuré (APPLE_CLIENT_ID / TEAM_ID / KEY_ID / PRIVATE_KEY)");
 		}
 		try {
 			TokenResponse token = requestTokens(authorizationCode, redirectUri);
 			if (token == null || token.idToken() == null || token.idToken().isBlank()) {
-				throw new AuthDomainException(
-						HttpStatus.UNAUTHORIZED.value(),
+				throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED,
 						"Réponse token Apple invalide (id_token manquant)");
 			}
 			return toProfile(idTokenValidator.validate(token.idToken(), properties.getClientId()));
@@ -83,7 +81,7 @@ public class HttpAppleOAuthClient implements AppleOAuthClient {
 	static AppleUserProfile toProfile(Claims claims) {
 		String sub = claims.getSubject();
 		if (sub == null || sub.isBlank()) {
-			throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "Profil Apple invalide (sub)");
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, "Profil Apple invalide (sub)");
 		}
 		String email = null;
 		Object emailObj = claims.get("email");

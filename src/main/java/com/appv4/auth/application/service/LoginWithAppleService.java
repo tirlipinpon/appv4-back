@@ -1,9 +1,9 @@
 package com.appv4.auth.application.service;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
@@ -50,7 +50,7 @@ public class LoginWithAppleService implements LoginWithAppleUseCase {
 				.orElseGet(() -> createFromFirstConsent(profile));
 
 		if (!account.active()) {
-			throw new AuthDomainException(HttpStatus.FORBIDDEN.value(), "Compte désactivé");
+			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, "Compte désactivé");
 		}
 		return issueJwtUseCase.issue(account.id(), account.email());
 	}

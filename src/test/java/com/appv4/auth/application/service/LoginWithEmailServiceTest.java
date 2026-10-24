@@ -67,8 +67,8 @@ class LoginWithEmailServiceTest {
 		assertThatThrownBy(() -> service.login("ghost@example.com", "Secret1!"))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(LoginWithEmailService.INVALID_CREDENTIALS_MESSAGE)
-				.extracting("httpStatus")
-				.isEqualTo(401);
+				.extracting("errorCode")
+				.isEqualTo(com.appv4.auth.application.exception.AuthErrorCode.UNAUTHORIZED);
 		verify(passwordEncoder).matches("Secret1!", LoginWithEmailService.DUMMY_BCRYPT_HASH);
 		verify(issueJwtUseCase, never()).issue(anyLong(), anyString());
 	}
@@ -83,8 +83,8 @@ class LoginWithEmailServiceTest {
 		assertThatThrownBy(() -> service.login("marie@example.com", "Wrong1!"))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(LoginWithEmailService.INVALID_CREDENTIALS_MESSAGE)
-				.extracting("httpStatus")
-				.isEqualTo(401);
+				.extracting("errorCode")
+				.isEqualTo(com.appv4.auth.application.exception.AuthErrorCode.UNAUTHORIZED);
 		verify(issueJwtUseCase, never()).issue(anyLong(), anyString());
 	}
 
@@ -99,8 +99,8 @@ class LoginWithEmailServiceTest {
 		assertThatThrownBy(() -> service.login("social@example.com", "Secret1!"))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(LoginWithEmailService.INVALID_CREDENTIALS_MESSAGE)
-				.extracting("httpStatus")
-				.isEqualTo(401);
+				.extracting("errorCode")
+				.isEqualTo(com.appv4.auth.application.exception.AuthErrorCode.UNAUTHORIZED);
 		verify(passwordEncoder).matches("Secret1!", LoginWithEmailService.DUMMY_BCRYPT_HASH);
 	}
 
@@ -109,8 +109,8 @@ class LoginWithEmailServiceTest {
 		assertThatThrownBy(() -> service.login("marie@example.com", "  "))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(LoginWithEmailService.INVALID_CREDENTIALS_MESSAGE)
-				.extracting("httpStatus")
-				.isEqualTo(401);
+				.extracting("errorCode")
+				.isEqualTo(com.appv4.auth.application.exception.AuthErrorCode.UNAUTHORIZED);
 		verify(authUserAccountPort, never()).findLoginCandidateByEmail(anyString());
 	}
 }

@@ -2,10 +2,10 @@ package com.appv4.auth.application.service;
 
 import java.time.Instant;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherModerationUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
@@ -66,11 +66,11 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 	public TeacherRequestView approve(long callerId, long requestId) {
 		requireAdmin(callerId);
 		TeacherRequestView current = teacherModerationPort.findById(requestId)
-				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), NOT_FOUND));
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, NOT_FOUND));
 		if (!PENDING.equals(current.status())
 				&& !APPROVED.equals(current.status())
 				&& !REVOKED.equals(current.status())) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), NOT_ACCEPTABLE);
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, NOT_ACCEPTABLE);
 		}
 		return applyApproval(current, requestId);
 	}
@@ -80,7 +80,7 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 	public TeacherRequestView revoke(long callerId, long requestId) {
 		requireAdmin(callerId);
 		TeacherRequestView current = teacherModerationPort.findById(requestId)
-				.orElseThrow(() -> new AuthDomainException(HttpStatus.NOT_FOUND.value(), NOT_FOUND));
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, NOT_FOUND));
 		if (REVOKED.equals(current.status())) {
 			teacherModerationPort.revokeTeacher(current.userId());
 			forgetTeacherSpace(current.userId());
@@ -88,7 +88,7 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 			return current;
 		}
 		if (!APPROVED.equals(current.status())) {
-			throw new AuthDomainException(HttpStatus.BAD_REQUEST.value(), NOT_REVOKABLE);
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, NOT_REVOKABLE);
 		}
 		Instant revokedAt = Instant.now();
 		teacherModerationPort.markRevoked(requestId, revokedAt);
@@ -141,7 +141,7 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 
 	private void requireAdmin(long callerId) {
 		if (!activeRolePort.hasAdminRole(callerId)) {
-			throw new AuthDomainException(HttpStatus.FORBIDDEN.value(), FORBIDDEN);
+			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, FORBIDDEN);
 		}
 	}
 }

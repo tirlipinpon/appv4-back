@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
@@ -51,12 +52,43 @@ public class ActiveRolePersistenceAdapter implements ActiveRolePort {
 		return requestRepository.existsByUserIdAndStatus(userId, "pending");
 	}
 
+	/**
+	 * Statut à montrer dans l'en-tête (SCRUM-152).
+	 *
+	 * <p><b>Business :</b> une demande en attente compte plus qu'un ancien oui ou un retrait.
+	 * <p><b>Technique :</b> lit les statuts de {@code back_teacher_role_requests}.
+	 * <p><b>Métier / flow :</b> {@code GET /api/int/auth/spaces} après connexion ou F5.
+	 */
+	@Override
+	public String teacherRequestStatus(long userId) {
+		List<String> statuses = requestRepository.findStatusesByUserId(userId);
+		if (statuses.contains("pending")) {
+			return "pending";
+		}
+		if (statuses.contains("approved")) {
+			return "approved";
+		}
+		if (statuses.contains("revoked")) {
+			return "revoked";
+		}
+		return "none";
+	}
+
 	@Override
 	public boolean hasAdminRole(long userId) {
 		return roleRepository.existsByUserIdAndRole(userId, ActiveRoles.ADMIN);
 	}
 
+	/**
+	 * Pose le rôle admin (seed local ou futur grant explicite).
+	 *
+	 * <p><b>Business :</b> sans transaction, l'insert native échoue au boot local.
+	 * <p><b>Technique :</b> {@code @Modifying} + flush → exige un EntityManager transactionnel.
+	 * <p><b>Métier / flow :</b> {@link com.appv4.auth.application.service.LocalAdminSeed}
+	 * → ce port → {@code insertIgnoreConflict}.
+	 */
 	@Override
+	@Transactional
 	public void grantAdmin(long userId) {
 		roleRepository.insertIgnoreConflict(userId, ActiveRoles.ADMIN);
 	}

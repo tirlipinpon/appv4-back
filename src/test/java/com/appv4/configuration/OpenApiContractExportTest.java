@@ -48,6 +48,11 @@ class OpenApiContractExportTest {
 				.contains("/api/int/admin/teacher-requests")
 				.contains("/api/int/hello")
 				.contains("/api/ext/hello");
+		// switch-role est authentifié — le contrat doit l'annoncer (issue #51)
+		int switchRoleIdx = body.indexOf("\"operationId\":\"switchRole\"");
+		assertThat(switchRoleIdx).isPositive();
+		String switchRoleSlice = body.substring(switchRoleIdx, Math.min(body.length(), switchRoleIdx + 500));
+		assertThat(switchRoleSlice).contains("\"security\":[{\"bearer-jwt\":[]}]");
 
 		Path targetOut = Path.of("target", "openapi.json");
 		Files.createDirectories(targetOut.getParent());

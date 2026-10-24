@@ -28,6 +28,7 @@ import com.appv4.auth.application.port.in.CompleteRolesUseCase;
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
+import com.appv4.auth.application.port.in.ResumeAppleOAuthCallbackUseCase;
 import com.appv4.auth.application.port.in.LoginWithEmailUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
 import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
@@ -52,6 +53,7 @@ import com.appv4.auth.application.service.CompleteRolesService;
 import com.appv4.auth.application.service.ForgotPasswordService;
 import com.appv4.auth.application.service.IssueJwtService;
 import com.appv4.auth.application.service.LoginWithAppleService;
+import com.appv4.auth.application.service.ResumeAppleOAuthCallbackService;
 import com.appv4.auth.application.service.LoginWithEmailService;
 import com.appv4.auth.application.service.LoginWithFacebookService;
 import com.appv4.auth.application.service.LoginWithGoogleService;
@@ -231,6 +233,11 @@ public class AuthConfiguration {
 	@Bean
 	BuildAppleAuthorizeUrlUseCase buildAppleAuthorizeUrlUseCase(AppleOAuthProperties appleOAuthProperties) {
 		return new BuildAppleAuthorizeUrlService(appleOAuthProperties);
+	}
+
+	@Bean
+	ResumeAppleOAuthCallbackUseCase resumeAppleOAuthCallbackUseCase(AppleOAuthProperties appleOAuthProperties) {
+		return new ResumeAppleOAuthCallbackService(appleOAuthProperties);
 	}
 
 	@Bean

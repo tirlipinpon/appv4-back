@@ -68,4 +68,7 @@ appv4:
       team-id: ${APPLE_TEAM_ID:}
       key-id: ${APPLE_KEY_ID:}
       private-key: ${APPLE_PRIVATE_KEY:}
+      # Return URL HTTPS enregistrée chez Apple (form_post, issue #33)
+      callback-uri: ${APPLE_CALLBACK_URI:}
+      # allowed-return-uri-prefixes: défaut localhost:4200/4201 (voir AppleOAuthProperties)
 

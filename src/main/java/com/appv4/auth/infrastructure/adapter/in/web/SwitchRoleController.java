@@ -1,15 +1,12 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.auth.application.result.JwtTokenResult;
@@ -53,18 +50,12 @@ public class SwitchRoleController {
 			responseCode = "403",
 			description = "Le compte n'a pas ce rôle",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
-	public ResponseEntity<JwtTokenResponse> switchRole(@Valid @RequestBody SwitchRoleRequest request) {
-		AuthenticatedUser user = currentUser();
+	public ResponseEntity<JwtTokenResponse> switchRole(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@Valid @RequestBody SwitchRoleRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
 		JwtTokenResult result = switchActiveRoleUseCase.switchRole(user.userId(), user.email(), request.role());
 		return ResponseEntity.ok(new JwtTokenResponse(result.token(), result.expiresAtEpochSeconds()));
-	}
-
-	private static AuthenticatedUser currentUser() {
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		if (authentication != null && authentication.getPrincipal() instanceof AuthenticatedUser user) {
-			return user;
-		}
-		throw new AuthDomainException(HttpStatus.UNAUTHORIZED.value(), "Connexion requise.");
 	}
 
 	@Schema(name = "SwitchRoleRequest")

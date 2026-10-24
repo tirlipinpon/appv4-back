@@ -72,7 +72,9 @@ public class TestProfileConfiguration {
 
 	@Bean
 	SignupRolePort signupRolePort() {
-		return mock(SignupRolePort.class);
+		SignupRolePort port = mock(SignupRolePort.class, withSettings().strictness(Strictness.LENIENT));
+		when(port.hasCompletedInitialChoice(anyLong())).thenReturn(true);
+		return port;
 	}
 
 	@Bean

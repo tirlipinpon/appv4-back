@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
 import com.appv4.auth.application.service.ParentChildrenService;
 
@@ -55,7 +56,7 @@ public class ChildPersistenceAdapter implements ChildPort {
 	@Override
 	@Transactional(readOnly = true)
 	public List<ChildSaved> findByParent(long parentUserId) {
-		return childRepository.findByParentUserIdOrderByIdAsc(parentUserId).stream()
+		return childRepository.findByParentUserIdAndHiddenFalseOrderByIdAsc(parentUserId).stream()
 				.map(ChildPersistenceAdapter::toSaved)
 				.toList();
 	}
@@ -63,8 +64,58 @@ public class ChildPersistenceAdapter implements ChildPort {
 	@Override
 	@Transactional(readOnly = true)
 	public Optional<ChildSaved> findOwned(long parentUserId, long childId) {
-		return childRepository.findByIdAndParentUserId(childId, parentUserId)
-				.map(ChildPersistenceAdapter::toSaved);
+		return listed(parentUserId, childId).map(ChildPersistenceAdapter::toSaved);
+	}
+
+	@Override
+	@Transactional
+	public Optional<ChildSaved> update(long parentUserId, long childId, ChildChanges changes) {
+		return listed(parentUserId, childId).map(entity -> {
+			entity.applyChanges(
+					changes.firstName(),
+					changes.lastName(),
+					changes.age(),
+					changes.curriculum(),
+					changes.grade(),
+					changes.schoolId(),
+					changes.replaceImage(),
+					changes.avatarCode(),
+					changes.photo(),
+					changes.photoContentType(),
+					changes.pinHash());
+			return toSaved(entity);
+		});
+	}
+
+	@Override
+	@Transactional
+	public boolean deactivate(long parentUserId, long childId) {
+		return changeListed(parentUserId, childId, BackChildEntity::deactivate);
+	}
+
+	@Override
+	@Transactional
+	public boolean reactivate(long parentUserId, long childId) {
+		return changeListed(parentUserId, childId, BackChildEntity::reactivate);
+	}
+
+	@Override
+	@Transactional
+	public boolean hide(long parentUserId, long childId) {
+		return changeListed(parentUserId, childId, BackChildEntity::hide);
+	}
+
+	private Optional<BackChildEntity> listed(long parentUserId, long childId) {
+		return childRepository.findByIdAndParentUserIdAndHiddenFalse(childId, parentUserId);
+	}
+
+	private boolean changeListed(long parentUserId, long childId, java.util.function.Consumer<BackChildEntity> change) {
+		Optional<BackChildEntity> owned = listed(parentUserId, childId);
+		if (owned.isEmpty()) {
+			return false;
+		}
+		change.accept(owned.get());
+		return true;
 	}
 
 	/**
@@ -76,9 +127,9 @@ public class ChildPersistenceAdapter implements ChildPort {
 	@Override
 	@Transactional
 	public void insertLink(long parentUserId, long subjectChildId, long relatedChildId, String relation) {
-		BackChildEntity subject = childRepository.findByIdAndParentUserId(subjectChildId, parentUserId)
+		BackChildEntity subject = childRepository.findByIdAndParentUserIdAndHiddenFalse(subjectChildId, parentUserId)
 				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, ParentChildrenService.CHILD_UNKNOWN));
-		BackChildEntity related = childRepository.findByIdAndParentUserId(relatedChildId, parentUserId)
+		BackChildEntity related = childRepository.findByIdAndParentUserIdAndHiddenFalse(relatedChildId, parentUserId)
 				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, ParentChildrenService.CHILD_UNKNOWN));
 		linkRepository.save(new BackChildLinkEntity(parentUserId, subject, related, relation));
 	}
@@ -99,7 +150,7 @@ public class ChildPersistenceAdapter implements ChildPort {
 	@Override
 	@Transactional(readOnly = true)
 	public Optional<ChildPhoto> findPhoto(long parentUserId, long childId) {
-		return childRepository.findByIdAndParentUserId(childId, parentUserId)
+		return childRepository.findByIdAndParentUserIdAndHiddenFalse(childId, parentUserId)
 				.filter(child -> child.getPhoto() != null)
 				.map(child -> new ChildPhoto(child.getPhoto(), child.getPhotoContentType()));
 	}
@@ -115,6 +166,7 @@ public class ChildPersistenceAdapter implements ChildPort {
 				child.getGradeLabel(),
 				child.getSchoolId(),
 				child.getAvatarCode(),
-				child.getPhoto() != null);
+				child.getPhoto() != null,
+				child.isActive());
 	}
 }

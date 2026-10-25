@@ -38,6 +38,7 @@ public record ParentChildrenView(
 			String schoolName,
 			String avatarCode,
 			boolean hasPhoto,
+			boolean active,
 			List<String> linkPhrases) {
 
 		public ChildCard {

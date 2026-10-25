@@ -14,6 +14,8 @@ import jakarta.persistence.Table;
  * Fiche enfant (SCRUM-156).
  *
  * <p><b>Business :</b> un parent inscrit un enfant avec une classe et un code.
+ * {@code active} faux veut dire désactivé : la fiche reste, elle n'est plus proposée.
+ * {@code hidden} vrai : elle disparaît de l'affichage, la ligne reste.
  * <p><b>Technique :</b> table {@code back_children}. {@code pin_hash} n'est pas un mot de passe adulte.
  */
 @Entity
@@ -60,6 +62,12 @@ public class BackChildEntity {
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 
+	@Column(nullable = false)
+	private boolean active = true;
+
+	@Column(nullable = false)
+	private boolean hidden;
+
 	protected BackChildEntity() {
 	}
 
@@ -86,6 +94,8 @@ public class BackChildEntity {
 		this.photo = photo;
 		this.photoContentType = photoContentType;
 		this.pinHash = pinHash;
+		this.active = true;
+		this.hidden = false;
 	}
 
 	@PrePersist
@@ -137,5 +147,59 @@ public class BackChildEntity {
 
 	public String getPhotoContentType() {
 		return photoContentType;
+	}
+
+	public boolean isActive() {
+		return active;
+	}
+
+	public boolean isHidden() {
+		return hidden;
+	}
+
+	/** L'enfant reste dans la liste. Il n'est plus proposé dans le reste de l'application. */
+	public void deactivate() {
+		this.active = false;
+	}
+
+	/** Le rend de nouveau proposable dans le reste de l'application. */
+	public void reactivate() {
+		this.active = true;
+	}
+
+	/** Le retire de l'affichage. La ligne, le hash et la photo restent. */
+	public void hide() {
+		this.hidden = true;
+	}
+
+	/**
+	 * Remplace les champs modifiables. Un hash null garde le PIN. Sans nouvelle image, photo et avatar restent.
+	 */
+	public void applyChanges(
+			String firstName,
+			String lastName,
+			int age,
+			String curriculum,
+			String gradeLabel,
+			Long schoolId,
+			boolean replaceImage,
+			String avatarCode,
+			byte[] photo,
+			String photoContentType,
+			String pinHash) {
+		this.firstName = firstName;
+		this.lastName = lastName;
+		this.age = (short) age;
+		this.curriculum = curriculum;
+		this.gradeLabel = gradeLabel;
+		this.schoolId = schoolId;
+		if (replaceImage) {
+			this.avatarCode = avatarCode;
+			this.photo = photo;
+			this.photoContentType = photoContentType;
+		}
+		if (pinHash != null) {
+			this.pinHash = pinHash;
+		}
 	}
 }

@@ -62,7 +62,7 @@ class ParentChildrenControllerTest {
 	@Test
 	void parentAddsAChildAndThePinIsNotInTheResponse() throws Exception {
 		when(children.insert(any())).thenReturn(
-				new ChildSaved(3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", null, "fox", false));
+				new ChildSaved(3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", null, "fox", false, true));
 
 		String body = "{\"firstName\":\"Léa\",\"lastName\":\"Martin\",\"age\":\"7\","
 				+ "\"country\":\"France\",\"grade\":\"CE1\",\"avatarCode\":\"fox\","
@@ -75,6 +75,7 @@ class ParentChildrenControllerTest {
 				.andExpect(jsonPath("$.firstName").value("Léa"))
 				.andExpect(jsonPath("$.grade").value("CE1"))
 				.andExpect(jsonPath("$.avatarCode").value("fox"))
+				.andExpect(jsonPath("$.active").value(true))
 				.andExpect(jsonPath("$.pin").doesNotExist())
 				.andExpect(jsonPath("$.pinHash").doesNotExist());
 	}
@@ -106,8 +107,8 @@ class ParentChildrenControllerTest {
 
 	@Test
 	void parentCreatesABrotherAndBothCardsShareThePhrase() throws Exception {
-		ChildSaved lea = new ChildSaved(3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", null, "fox", false);
-		ChildSaved noah = new ChildSaved(4L, 9L, "Noah", "Martin", 8, "FRANCE", "CM1", null, "fox", false);
+		ChildSaved lea = new ChildSaved(3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", null, "fox", false, true);
+		ChildSaved noah = new ChildSaved(4L, 9L, "Noah", "Martin", 8, "FRANCE", "CM1", null, "fox", false, true);
 		when(children.findOwned(9L, 3L)).thenReturn(Optional.of(lea));
 		when(children.insert(any())).thenReturn(noah);
 		when(children.findLinks(9L)).thenReturn(List.of(new ChildLinkView(4L, "Noah", 3L, "Léa", "FRERE")));
@@ -136,9 +137,9 @@ class ParentChildrenControllerTest {
 	@Test
 	void noneLinkAndUnknownSourceCreateNoRelationship() throws Exception {
 		when(children.findOwned(9L, 3L)).thenReturn(Optional.of(
-				new ChildSaved(3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", null, "fox", false)));
+				new ChildSaved(3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", null, "fox", false, true)));
 		when(children.insert(any())).thenReturn(
-				new ChildSaved(5L, 9L, "Tom", "Martin", 7, "FRANCE", "CE1", null, "fox", false));
+				new ChildSaved(5L, 9L, "Tom", "Martin", 7, "FRANCE", "CE1", null, "fox", false, true));
 
 		String none = "{\"firstName\":\"Tom\",\"lastName\":\"Martin\",\"age\":\"7\","
 				+ "\"country\":\"France\",\"grade\":\"CE1\",\"avatarCode\":\"fox\","

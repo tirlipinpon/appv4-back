@@ -6,7 +6,9 @@ import java.util.Optional;
 /**
  * Fiches enfant d'un parent (SCRUM-156).
  *
- * <p><b>Business :</b> un parent ne voit que ses enfants. Le code PIN n'est jamais relu.
+ * <p><b>Business :</b> un parent voit ses enfants encore affichés, même désactivés.
+ * Désactiver les garde dans la liste et les retire du reste de l'application.
+ * Masquer les retire de l'affichage sans effacer la fiche. Le code PIN n'est jamais relu.
  * <p><b>Technique :</b> table {@code back_children}. {@code pin_hash} seulement.
  * <p><b>Métier / flow :</b> port out de {@code /api/int/parent/children}.
  */
@@ -24,10 +26,24 @@ public interface ChildPort {
 	Optional<ChildSaved> findOwned(long parentUserId, long childId);
 
 	/**
-	 * Enregistre le lien. Les deux enfants appartiennent déjà à ce parent.
-	 *
-	 * <p><b>Business :</b> « Aucun » n'appelle pas cette méthode. Le PIN n'est pas recopié.
+	 * Met à jour la fiche de ce parent. {@code pinHash} null garde l'ancien hash.
+	 * {@code replaceImage} faux garde la photo ou l'avatar déjà enregistré.
 	 */
+	Optional<ChildSaved> update(long parentUserId, long childId, ChildChanges changes);
+
+	/** @return faux si cet enfant n'est pas affiché pour ce parent */
+	boolean deactivate(long parentUserId, long childId);
+
+	/** @return faux si cet enfant n'est pas affiché pour ce parent */
+	boolean reactivate(long parentUserId, long childId);
+
+	/**
+	 * Le retire de l'affichage. La ligne, le hash et la photo restent.
+	 *
+	 * @return faux si cet enfant n'est pas affiché pour ce parent
+	 */
+	boolean hide(long parentUserId, long childId);
+
 	void insertLink(long parentUserId, long subjectChildId, long relatedChildId, String relation);
 
 	List<ChildLinkView> findLinks(long parentUserId);
@@ -61,10 +77,29 @@ public interface ChildPort {
 			String grade,
 			Long schoolId,
 			String avatarCode,
-			boolean hasPhoto) {
+			boolean hasPhoto,
+			boolean active) {
 	}
 
 	record ChildPhoto(byte[] bytes, String contentType) {
+	}
+
+	/**
+	 * @param pinHash      null pour conserver le code déjà hashé
+	 * @param replaceImage vrai seulement si une nouvelle photo ou un nouvel avatar est envoyé
+	 */
+	record ChildChanges(
+			String firstName,
+			String lastName,
+			int age,
+			String curriculum,
+			String grade,
+			Long schoolId,
+			boolean replaceImage,
+			String avatarCode,
+			byte[] photo,
+			String photoContentType,
+			String pinHash) {
 	}
 
 	/**

@@ -10,7 +10,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface BackChildJpaRepository extends JpaRepository<BackChildEntity, Long> {
 
-	List<BackChildEntity> findByParentUserIdOrderByIdAsc(long parentUserId);
+	List<BackChildEntity> findByParentUserIdAndHiddenFalseOrderByIdAsc(long parentUserId);
+
+	Optional<BackChildEntity> findByIdAndParentUserIdAndHiddenFalse(long id, long parentUserId);
 
 	Optional<BackChildEntity> findByIdAndParentUserId(long id, long parentUserId);
 }

@@ -5,9 +5,11 @@ import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -102,6 +104,91 @@ public class ParentChildrenController {
 		return ResponseEntity.ok(toChild(card));
 	}
 
+	private static NewChildCommand toCommand(CreateParentChildRequest request) {
+		CreateParentChildRequest body = request == null
+				? new CreateParentChildRequest(null, null, null, null, null, null, null, null, null, null, null, null, null)
+				: request;
+		return new NewChildCommand(
+				body.firstName(),
+				body.lastName(),
+				body.age(),
+				body.country(),
+				body.grade(),
+				body.schoolId(),
+				body.avatarCode(),
+				body.photoBase64(),
+				body.photoContentType(),
+				body.pin(),
+				body.pinConfirmation(),
+				body.fromChildId(),
+				body.link());
+	}
+
+	@PutMapping("/{id}")
+	@Operation(operationId = "updateParentChild", summary = "Modifier un enfant du parent connecté")
+	@ApiResponse(responseCode = "200", description = "Fiche mise à jour, sans le PIN")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Champ refusé",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Enfant introuvable pour ce parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<ParentChildResponse> update(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id,
+			@RequestBody CreateParentChildRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		ChildCard card = parentChildrenUseCase.update(user.userId(), user.activeRole(), id, toCommand(request));
+		return ResponseEntity.ok(toChild(card));
+	}
+
+	@PostMapping("/{id}/deactivate")
+	@Operation(operationId = "deactivateParentChild", summary = "Désactiver un enfant du parent connecté")
+	@ApiResponse(responseCode = "204", description = "Toujours affiché dans la liste, plus proposé ailleurs")
+	@ApiResponse(
+			responseCode = "404",
+			description = "Enfant introuvable pour ce parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> deactivate(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.deactivate(user.userId(), user.activeRole(), id);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{id}/reactivate")
+	@Operation(operationId = "reactivateParentChild", summary = "Réactiver un enfant du parent connecté")
+	@ApiResponse(responseCode = "204", description = "De nouveau proposé dans le reste de l'application")
+	@ApiResponse(
+			responseCode = "404",
+			description = "Enfant introuvable pour ce parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> reactivate(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.reactivate(user.userId(), user.activeRole(), id);
+		return ResponseEntity.noContent().build();
+	}
+
+	@DeleteMapping("/{id}")
+	@Operation(operationId = "deleteParentChild", summary = "Retirer un enfant de l'affichage")
+	@ApiResponse(responseCode = "204", description = "Retiré de l'affichage, fiche conservée en base")
+	@ApiResponse(
+			responseCode = "404",
+			description = "Enfant introuvable pour ce parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> delete(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.hide(user.userId(), user.activeRole(), id);
+		return ResponseEntity.noContent().build();
+	}
+
 	@GetMapping("/{id}/photo")
 	@Operation(operationId = "getParentChildPhoto", summary = "Lire la photo d'un enfant du parent connecté")
 	@ApiResponse(responseCode = "200", description = "Image de l'enfant")
@@ -145,6 +232,7 @@ public class ParentChildrenController {
 				card.schoolName(),
 				card.avatarCode(),
 				card.hasPhoto(),
+				card.active(),
 				card.linkPhrases());
 	}
 
@@ -172,6 +260,8 @@ public class ParentChildrenController {
 			String schoolName,
 			String avatarCode,
 			boolean hasPhoto,
+			@Schema(description = "Faux : encore dans la liste, plus proposé dans le reste de l'application")
+			boolean active,
 			@Schema(description = "Phrases de lien, par exemple « Noah est le frère de Léa ». Vide s'il n'y en a pas.")
 			List<String> linkPhrases) {
 	}

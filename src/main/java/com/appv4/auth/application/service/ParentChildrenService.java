@@ -14,6 +14,7 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
 import com.appv4.auth.application.port.out.ChildPort.ChildPhoto;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
@@ -117,6 +118,76 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 			childPort.insertLink(parentUserId, saved.id(), source.id(), relation);
 		}
 		return card(saved, catalogById(), phrasesFor(parentUserId, saved.id()));
+	}
+
+	/**
+	 * Corrige une fiche déjà affichée. Un PIN vide garde l'ancien code.
+	 *
+	 * <p><b>Business :</b> désactivé ou non, la fiche se corrige. Une fiche retirée de l'affichage est introuvable.
+	 * <p><b>Technique :</b> pas de nouveau lien. L'image n'est remplacée que si une photo ou un avatar est envoyé.
+	 */
+	@Override
+	@Transactional
+	public ChildCard update(long parentUserId, String activeRole, long childId, NewChildCommand command) {
+		requireParent(activeRole);
+		childPort.findOwned(parentUserId, childId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
+		NewChildCommand body = command == null
+				? new NewChildCommand(null, null, null, null, null, null, null, null, null, null, null, null, null)
+				: command;
+		String firstName = requiredName(body.firstName(), FIRST_NAME_REQUIRED);
+		String lastName = requiredName(body.lastName(), LAST_NAME_REQUIRED);
+		int age = parseAge(body.age());
+		String curriculum = curriculumOf(body.country());
+		CatalogSchool school = resolveSchool(body.schoolId(), curriculum);
+		String grade = requiredGrade(body.grade(), curriculum, school);
+		boolean replaceImage = hasPhoto(body) || hasAvatar(body);
+		Image image = replaceImage
+				? resolveImage(body.avatarCode(), body.photoBase64(), body.photoContentType())
+				: new Image(null, null, null);
+		String pinHash = blank(body.pin()) && blank(body.pinConfirmation())
+				? null
+				: passwordEncoder.encode(requirePin(body.pin(), body.pinConfirmation()));
+		ChildSaved saved = childPort.update(parentUserId, childId, new ChildChanges(
+				firstName,
+				lastName,
+				age,
+				curriculum,
+				grade,
+				school == null ? null : school.id(),
+				replaceImage,
+				image.avatarCode(),
+				image.photo(),
+				image.contentType(),
+				pinHash)).orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
+		return card(saved, catalogById(), phrasesFor(parentUserId, saved.id()));
+	}
+
+	@Override
+	@Transactional
+	public void deactivate(long parentUserId, String activeRole, long childId) {
+		requireParent(activeRole);
+		if (!childPort.deactivate(parentUserId, childId)) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+	}
+
+	@Override
+	@Transactional
+	public void reactivate(long parentUserId, String activeRole, long childId) {
+		requireParent(activeRole);
+		if (!childPort.reactivate(parentUserId, childId)) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+	}
+
+	@Override
+	@Transactional
+	public void hide(long parentUserId, String activeRole, long childId) {
+		requireParent(activeRole);
+		if (!childPort.hide(parentUserId, childId)) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
 	}
 
 	@Override
@@ -231,6 +302,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				school == null ? "" : school.name(),
 				child.avatarCode(),
 				child.hasPhoto(),
+				child.active(),
 				linkPhrases);
 	}
 
@@ -381,6 +453,18 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 			throw bad(PIN_MISMATCH);
 		}
 		return pin;
+	}
+
+	private static boolean blank(String value) {
+		return value == null || value.isBlank();
+	}
+
+	private static boolean hasPhoto(NewChildCommand command) {
+		return !blank(command.photoBase64());
+	}
+
+	private static boolean hasAvatar(NewChildCommand command) {
+		return !blank(command.avatarCode());
 	}
 
 	private static boolean isFourDigits(String value) {

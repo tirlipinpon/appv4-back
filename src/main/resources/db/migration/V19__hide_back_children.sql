@@ -3,7 +3,7 @@
 -- hidden = true : il disparaît de l'application. La ligne, le hash et la photo restent.
 
 ALTER TABLE back_children
-    ADD COLUMN hidden BOOLEAN NOT NULL DEFAULT FALSE;
+    ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- L'ancienne désactivation retirait l'enfant de la liste. Ce geste s'appelle maintenant hidden.
 UPDATE back_children

@@ -67,24 +67,47 @@ public class ParentChildrenController {
 	@ApiResponse(responseCode = "200", description = "Fiche créée, sans le PIN")
 	@ApiResponse(
 			responseCode = "400",
-			description = "Champ obligatoire manquant, âge, classe, image ou PIN refusé",
+			description = "Champ obligatoire manquant, âge, classe, image, PIN ou lien refusé",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "L'enfant de départ n'appartient pas à ce parent",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	public ResponseEntity<ParentChildResponse> add(
 			@AuthenticationPrincipal AuthenticatedUser principal,
 			@RequestBody CreateParentChildRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateParentChildRequest body = request == null
-				? new CreateParentChildRequest(null, null, null, null, null, null, null, null, null, null, null)
+				? new CreateParentChildRequest(null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
-		ChildCard card = parentChildrenUseCase.add(user.userId(), user.activeRole(), toCommand(body));
+		ChildCard card = parentChildrenUseCase.add(
+				user.userId(),
+				user.activeRole(),
+				new NewChildCommand(
+						body.firstName(),
+						body.lastName(),
+						body.age(),
+						body.country(),
+						body.grade(),
+						body.schoolId(),
+						body.avatarCode(),
+						body.photoBase64(),
+						body.photoContentType(),
+						body.pin(),
+						body.pinConfirmation(),
+						body.fromChildId(),
+						body.link()));
 		return ResponseEntity.ok(toChild(card));
 	}
 
-	private static NewChildCommand toCommand(CreateParentChildRequest body) {
+	private static NewChildCommand toCommand(CreateParentChildRequest request) {
+		CreateParentChildRequest body = request == null
+				? new CreateParentChildRequest(null, null, null, null, null, null, null, null, null, null, null, null, null)
+				: request;
 		return new NewChildCommand(
 				body.firstName(),
 				body.lastName(),
@@ -96,7 +119,9 @@ public class ParentChildrenController {
 				body.photoBase64(),
 				body.photoContentType(),
 				body.pin(),
-				body.pinConfirmation());
+				body.pinConfirmation(),
+				body.fromChildId(),
+				body.link());
 	}
 
 	@PutMapping("/{id}")
@@ -115,10 +140,7 @@ public class ParentChildrenController {
 			@PathVariable long id,
 			@RequestBody CreateParentChildRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
-		CreateParentChildRequest body = request == null
-				? new CreateParentChildRequest(null, null, null, null, null, null, null, null, null, null, null)
-				: request;
-		ChildCard card = parentChildrenUseCase.update(user.userId(), user.activeRole(), id, toCommand(body));
+		ChildCard card = parentChildrenUseCase.update(user.userId(), user.activeRole(), id, toCommand(request));
 		return ResponseEntity.ok(toChild(card));
 	}
 
@@ -210,7 +232,8 @@ public class ParentChildrenController {
 				card.schoolName(),
 				card.avatarCode(),
 				card.hasPhoto(),
-				card.active());
+				card.active(),
+				card.linkPhrases());
 	}
 
 	@Schema(name = "ParentChildrenResponse")
@@ -238,7 +261,9 @@ public class ParentChildrenController {
 			String avatarCode,
 			boolean hasPhoto,
 			@Schema(description = "Faux : encore dans la liste, plus proposé dans le reste de l'application")
-			boolean active) {
+			boolean active,
+			@Schema(description = "Phrases de lien, par exemple « Noah est le frère de Léa ». Vide s'il n'y en a pas.")
+			List<String> linkPhrases) {
 	}
 
 	@Schema(name = "ParentSchoolOption")
@@ -257,6 +282,10 @@ public class ParentChildrenController {
 			String photoBase64,
 			String photoContentType,
 			String pin,
-			String pinConfirmation) {
+			String pinConfirmation,
+			@Schema(description = "Enfant de départ. Absent pour un formulaire vide.")
+			Long fromChildId,
+			@Schema(description = "AUCUN, FRERE, SOEUR, DEMI_FRERE, DEMI_SOEUR, JUMEAU, JUMELLE, COUSIN ou COUSINE.")
+			String link) {
 	}
 }

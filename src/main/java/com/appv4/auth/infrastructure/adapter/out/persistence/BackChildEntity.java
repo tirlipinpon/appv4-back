@@ -15,6 +15,7 @@ import jakarta.persistence.Table;
  *
  * <p><b>Business :</b> un parent inscrit un enfant avec une classe et un code.
  * {@code active} faux veut dire désactivé : la fiche reste, elle n'est plus proposée.
+ * {@code hidden} vrai : elle disparaît de l'affichage, la ligne reste.
  * <p><b>Technique :</b> table {@code back_children}. {@code pin_hash} n'est pas un mot de passe adulte.
  */
 @Entity
@@ -148,10 +149,6 @@ public class BackChildEntity {
 		return photoContentType;
 	}
 
-	public String getPinHash() {
-		return pinHash;
-	}
-
 	public boolean isActive() {
 		return active;
 	}
@@ -160,9 +157,7 @@ public class BackChildEntity {
 		return hidden;
 	}
 
-	/**
-	 * L'enfant reste dans la liste du parent. Il n'est plus proposé dans le reste de l'application.
-	 */
+	/** L'enfant reste dans la liste. Il n'est plus proposé dans le reste de l'application. */
 	public void deactivate() {
 		this.active = false;
 	}
@@ -172,9 +167,7 @@ public class BackChildEntity {
 		this.active = true;
 	}
 
-	/**
-	 * Le retire de l'affichage. La ligne, le hash et la photo restent.
-	 */
+	/** Le retire de l'affichage. La ligne, le hash et la photo restent. */
 	public void hide() {
 		this.hidden = true;
 	}

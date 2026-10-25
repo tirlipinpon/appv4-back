@@ -38,7 +38,12 @@ public record ParentChildrenView(
 			String schoolName,
 			String avatarCode,
 			boolean hasPhoto,
-			boolean active) {
+			boolean active,
+			List<String> linkPhrases) {
+
+		public ChildCard {
+			linkPhrases = linkPhrases == null ? List.of() : List.copyOf(linkPhrases);
+		}
 	}
 
 	/**

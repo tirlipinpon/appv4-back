@@ -18,6 +18,11 @@ public interface ChildPort {
 
 	List<ChildSaved> findByParent(long parentUserId);
 
+	/**
+	 * Fiche de ce parent. Vide si l'identifiant est à quelqu'un d'autre.
+	 *
+	 * <p><b>Business :</b> on ne part pas de l'enfant d'un autre parent, et on ne montre pas sa fiche.
+	 */
 	Optional<ChildSaved> findOwned(long parentUserId, long childId);
 
 	/**
@@ -26,18 +31,10 @@ public interface ChildPort {
 	 */
 	Optional<ChildSaved> update(long parentUserId, long childId, ChildChanges changes);
 
-	/**
-	 * L'enfant reste affiché. Il n'est plus proposé dans le reste de l'application.
-	 *
-	 * @return faux si cet enfant n'est pas affiché pour ce parent
-	 */
+	/** @return faux si cet enfant n'est pas affiché pour ce parent */
 	boolean deactivate(long parentUserId, long childId);
 
-	/**
-	 * Le rend de nouveau proposable dans le reste de l'application.
-	 *
-	 * @return faux si cet enfant n'est pas affiché pour ce parent
-	 */
+	/** @return faux si cet enfant n'est pas affiché pour ce parent */
 	boolean reactivate(long parentUserId, long childId);
 
 	/**
@@ -46,6 +43,10 @@ public interface ChildPort {
 	 * @return faux si cet enfant n'est pas affiché pour ce parent
 	 */
 	boolean hide(long parentUserId, long childId);
+
+	void insertLink(long parentUserId, long subjectChildId, long relatedChildId, String relation);
+
+	List<ChildLinkView> findLinks(long parentUserId);
 
 	Optional<ChildPhoto> findPhoto(long parentUserId, long childId);
 
@@ -99,5 +100,18 @@ public interface ChildPort {
 			byte[] photo,
 			String photoContentType,
 			String pinHash) {
+	}
+
+	/**
+	 * Lien déjà enregistré. Le sujet est le nouvel enfant, l'autre est l'enfant de départ.
+	 *
+	 * @param relation code fermé, par exemple {@code FRERE}
+	 */
+	record ChildLinkView(
+			long subjectChildId,
+			String subjectFirstName,
+			long relatedChildId,
+			String relatedFirstName,
+			String relation) {
 	}
 }

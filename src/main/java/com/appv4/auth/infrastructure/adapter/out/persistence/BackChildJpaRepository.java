@@ -13,4 +13,6 @@ public interface BackChildJpaRepository extends JpaRepository<BackChildEntity, L
 	List<BackChildEntity> findByParentUserIdAndHiddenFalseOrderByIdAsc(long parentUserId);
 
 	Optional<BackChildEntity> findByIdAndParentUserIdAndHiddenFalse(long id, long parentUserId);
+
+	Optional<BackChildEntity> findByIdAndParentUserId(long id, long parentUserId);
 }

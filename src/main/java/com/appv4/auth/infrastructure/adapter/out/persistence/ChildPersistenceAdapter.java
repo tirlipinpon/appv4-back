@@ -7,7 +7,11 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
+import com.appv4.auth.application.service.ParentChildrenService;
 
 /**
  * Persiste les enfants du parent (SCRUM-156).
@@ -21,9 +25,13 @@ import com.appv4.auth.application.port.out.ChildPort;
 public class ChildPersistenceAdapter implements ChildPort {
 
 	private final BackChildJpaRepository childRepository;
+	private final BackChildLinkJpaRepository linkRepository;
 
-	public ChildPersistenceAdapter(BackChildJpaRepository childRepository) {
+	public ChildPersistenceAdapter(
+			BackChildJpaRepository childRepository,
+			BackChildLinkJpaRepository linkRepository) {
 		this.childRepository = childRepository;
+		this.linkRepository = linkRepository;
 	}
 
 	@Override
@@ -49,6 +57,42 @@ public class ChildPersistenceAdapter implements ChildPort {
 	public List<ChildSaved> findByParent(long parentUserId) {
 		return childRepository.findByParentUserIdOrderByIdAsc(parentUserId).stream()
 				.map(ChildPersistenceAdapter::toSaved)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<ChildSaved> findOwned(long parentUserId, long childId) {
+		return childRepository.findByIdAndParentUserId(childId, parentUserId)
+				.map(ChildPersistenceAdapter::toSaved);
+	}
+
+	/**
+	 * Relie le nouvel enfant à l'enfant de départ, pour le même parent.
+	 *
+	 * <p><b>Business :</b> si l'un des deux n'est pas à ce parent, rien n'est écrit.
+	 * <p><b>Technique :</b> une ligne {@code back_child_links}. Le hash du PIN n'est pas lu.
+	 */
+	@Override
+	@Transactional
+	public void insertLink(long parentUserId, long subjectChildId, long relatedChildId, String relation) {
+		BackChildEntity subject = childRepository.findByIdAndParentUserId(subjectChildId, parentUserId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, ParentChildrenService.CHILD_UNKNOWN));
+		BackChildEntity related = childRepository.findByIdAndParentUserId(relatedChildId, parentUserId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, ParentChildrenService.CHILD_UNKNOWN));
+		linkRepository.save(new BackChildLinkEntity(parentUserId, subject, related, relation));
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<ChildLinkView> findLinks(long parentUserId) {
+		return linkRepository.findDetailedByParentUserId(parentUserId).stream()
+				.map(link -> new ChildLinkView(
+						link.getSubject().getId(),
+						link.getSubject().getFirstName(),
+						link.getRelated().getId(),
+						link.getRelated().getFirstName(),
+						link.getRelation()))
 				.toList();
 	}
 

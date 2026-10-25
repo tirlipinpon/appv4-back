@@ -14,6 +14,7 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
 import com.appv4.auth.application.port.out.ChildPort.ChildPhoto;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildPort.NewChild;
@@ -51,6 +52,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	public static final String PIN_FORMAT = "Le code PIN doit faire 4 chiffres.";
 	public static final String PIN_MISMATCH = "Les deux codes PIN ne sont pas les mêmes.";
 	public static final String CHILD_UNKNOWN = "Cet enfant est introuvable.";
+	public static final String LINK_UNKNOWN = "Ce lien n'est pas proposé.";
+	public static final String LINK_NEEDS_CHILD = "Choisis l'enfant de départ.";
 
 	public static final int MIN_AGE = 2;
 	public static final int MAX_AGE = 18;
@@ -79,14 +82,24 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		return view(parentUserId);
 	}
 
+	/**
+	 * Crée la fiche. Si {@code fromChildId} est présent, le formulaire est parti de cet enfant.
+	 *
+	 * <p><b>Business :</b> l'enfant de départ n'est pas modifié. Son PIN n'est ni relu ni recopié.
+	 * Un lien autre qu'Aucun s'affiche ensuite sur les deux fiches. Un refus ne crée rien.
+	 * <p><b>Technique :</b> validation avant l'insert. Le hash du nouveau PIN est un nouvel encodage.
+	 * <p><b>Métier / flow :</b> même port in que l'ajout vide (SCRUM-156), avec le lien de SCRUM-158.
+	 */
 	@Override
 	@Transactional
 	public ChildCard add(long parentUserId, String activeRole, NewChildCommand command) {
 		requireParent(activeRole);
 		NewChildCommand body = command == null
-				? new NewChildCommand(null, null, null, null, null, null, null, null, null, null, null)
+				? new NewChildCommand(null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: command;
+		ChildSaved source = sourceOf(parentUserId, body.fromChildId());
 		Prepared prepared = prepare(body);
+		String relation = relationOf(body.link(), source != null);
 		String pinHash = passwordEncoder.encode(prepared.pin());
 		ChildSaved saved = childPort.insert(new NewChild(
 				parentUserId,
@@ -100,7 +113,10 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				prepared.photo(),
 				prepared.photoContentType(),
 				pinHash));
-		return card(saved, catalogById());
+		if (relation != null && source != null) {
+			childPort.insertLink(parentUserId, saved.id(), source.id(), relation);
+		}
+		return card(saved, catalogById(), phrasesFor(parentUserId, saved.id()));
 	}
 
 	@Override
@@ -134,11 +150,33 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				pin);
 	}
 
+	private ChildSaved sourceOf(long parentUserId, Long fromChildId) {
+		if (fromChildId == null) {
+			return null;
+		}
+		return childPort.findOwned(parentUserId, fromChildId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
+	}
+
+	private static String relationOf(String link, boolean hasSource) {
+		if (ChildKinship.isNone(link)) {
+			return null;
+		}
+		if (!ChildKinship.isKnown(link)) {
+			throw bad(LINK_UNKNOWN);
+		}
+		if (!hasSource) {
+			throw bad(LINK_NEEDS_CHILD);
+		}
+		return link.trim();
+	}
+
 	private ParentChildrenView view(long parentUserId) {
 		Map<Long, CatalogSchool> schools = catalogById();
+		Map<Long, List<String>> phrases = phrasesByChild(parentUserId);
 		List<ChildCard> cards = new ArrayList<>();
 		for (ChildSaved child : childPort.findByParent(parentUserId)) {
-			cards.add(card(child, schools));
+			cards.add(card(child, schools, phrases.getOrDefault(child.id(), List.of())));
 		}
 		List<SchoolChoice> choices = new ArrayList<>();
 		for (CatalogSchool school : schools.values()) {
@@ -162,7 +200,24 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		return schools;
 	}
 
-	private static ChildCard card(ChildSaved child, Map<Long, CatalogSchool> schools) {
+	private List<String> phrasesFor(long parentUserId, long childId) {
+		return phrasesByChild(parentUserId).getOrDefault(childId, List.of());
+	}
+
+	private Map<Long, List<String>> phrasesByChild(long parentUserId) {
+		Map<Long, List<String>> phrases = new LinkedHashMap<>();
+		for (ChildLinkView link : childPort.findLinks(parentUserId)) {
+			String sentence = ChildKinship.phrase(
+					link.subjectFirstName(),
+					link.relation(),
+					link.relatedFirstName());
+			phrases.computeIfAbsent(link.subjectChildId(), ignored -> new ArrayList<>()).add(sentence);
+			phrases.computeIfAbsent(link.relatedChildId(), ignored -> new ArrayList<>()).add(sentence);
+		}
+		return phrases;
+	}
+
+	private static ChildCard card(ChildSaved child, Map<Long, CatalogSchool> schools, List<String> linkPhrases) {
 		CatalogSchool school = child.schoolId() == null ? null : schools.get(child.schoolId());
 		return new ChildCard(
 				child.id(),
@@ -175,7 +230,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				child.schoolId(),
 				school == null ? "" : school.name(),
 				child.avatarCode(),
-				child.hasPhoto());
+				child.hasPhoto(),
+				linkPhrases);
 	}
 
 	private static String countryOf(String curriculum) {

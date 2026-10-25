@@ -23,6 +23,8 @@ public interface ParentChildrenUseCase {
 	 * @param age               texte saisi, parsé ensuite (2 à 18)
 	 * @param schoolId          école de l'annuaire, ou null
 	 * @param pinConfirmation   seconde saisie, comparée puis oubliée
+	 * @param fromChildId       enfant de départ, ou null pour un formulaire vide
+	 * @param link              code fermé, ou {@code AUCUN} pour ne pas enregistrer de lien
 	 */
 	record NewChildCommand(
 			String firstName,
@@ -35,6 +37,8 @@ public interface ParentChildrenUseCase {
 			String photoBase64,
 			String photoContentType,
 			String pin,
-			String pinConfirmation) {
+			String pinConfirmation,
+			Long fromChildId,
+			String link) {
 	}
 }

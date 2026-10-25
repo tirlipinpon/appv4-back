@@ -62,9 +62,9 @@ class ParentChildrenControllerTest {
 	@Test
 	void parentAddsAChildAndThePinIsNotInTheResponse() throws Exception {
 		when(children.insert(any())).thenReturn(
-				new ChildSaved(3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", null, "fox", false, true));
+				new ChildSaved(3L, 9L, "Léa", "Martin", "FILLE", 7, "FRANCE", "CE1", null, "fox", false, true));
 
-		String body = "{\"firstName\":\"Léa\",\"lastName\":\"Martin\",\"age\":\"7\","
+		String body = "{\"firstName\":\"Léa\",\"lastName\":\"Martin\",\"sex\":\"FILLE\",\"age\":\"7\","
 				+ "\"country\":\"France\",\"grade\":\"CE1\",\"avatarCode\":\"fox\","
 				+ "\"pin\":\"4821\",\"pinConfirmation\":\"4821\"}";
 		mockMvc.perform(post("/api/int/parent/children")
@@ -82,7 +82,7 @@ class ParentChildrenControllerTest {
 
 	@Test
 	void mismatchedPinDoesNotCreateAChild() throws Exception {
-		String body = "{\"firstName\":\"Léa\",\"lastName\":\"Martin\",\"age\":\"7\","
+		String body = "{\"firstName\":\"Léa\",\"lastName\":\"Martin\",\"sex\":\"FILLE\",\"age\":\"7\","
 				+ "\"country\":\"France\",\"grade\":\"CE1\",\"avatarCode\":\"fox\","
 				+ "\"pin\":\"4821\",\"pinConfirmation\":\"4822\"}";
 		mockMvc.perform(post("/api/int/parent/children")
@@ -107,13 +107,14 @@ class ParentChildrenControllerTest {
 
 	@Test
 	void parentCreatesABrotherAndBothCardsShareThePhrase() throws Exception {
-		ChildSaved lea = new ChildSaved(3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", null, "fox", false, true);
-		ChildSaved noah = new ChildSaved(4L, 9L, "Noah", "Martin", 8, "FRANCE", "CM1", null, "fox", false, true);
+		ChildSaved lea = new ChildSaved(3L, 9L, "Léa", "Martin", "FILLE", 7, "FRANCE", "CE1", null, "fox", false, true);
+		ChildSaved noah = new ChildSaved(4L, 9L, "Noah", "Martin", "GARCON", 8, "FRANCE", "CM1", null, "fox", false, true);
 		when(children.findOwned(9L, 3L)).thenReturn(Optional.of(lea));
 		when(children.insert(any())).thenReturn(noah);
-		when(children.findLinks(9L)).thenReturn(List.of(new ChildLinkView(4L, "Noah", 3L, "Léa", "FRERE")));
+		when(children.findLinks(9L)).thenReturn(List.of(
+				new ChildLinkView(4L, "Noah", "GARCON", 3L, "Léa", "FILLE", "FRERE")));
 
-		String body = "{\"firstName\":\"Noah\",\"lastName\":\"Martin\",\"age\":\"8\","
+		String body = "{\"firstName\":\"Noah\",\"lastName\":\"Martin\",\"sex\":\"GARCON\",\"age\":\"8\","
 				+ "\"country\":\"France\",\"grade\":\"CM1\",\"avatarCode\":\"fox\","
 				+ "\"pin\":\"1357\",\"pinConfirmation\":\"1357\",\"fromChildId\":3,\"link\":\"FRERE\"}";
 		mockMvc.perform(post("/api/int/parent/children")
@@ -122,7 +123,9 @@ class ParentChildrenControllerTest {
 						.content(body))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.firstName").value("Noah"))
-				.andExpect(jsonPath("$.linkPhrases[0]").value("Noah est le frère de Léa"))
+				.andExpect(jsonPath("$.linkPhrases[0]").value("Léa est la sœur de Noah"))
+				.andExpect(jsonPath("$.links[0].otherChildId").value(3))
+				.andExpect(jsonPath("$.links[0].label").value("Sœur"))
 				.andExpect(jsonPath("$.pin").doesNotExist())
 				.andExpect(jsonPath("$.pinHash").doesNotExist());
 		verify(children).insertLink(9L, 4L, 3L, "FRERE");
@@ -131,17 +134,21 @@ class ParentChildrenControllerTest {
 		mockMvc.perform(get("/api/int/parent/children").header(HttpHeaders.AUTHORIZATION, bearer("parent")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.children[0].linkPhrases[0]").value("Noah est le frère de Léa"))
-				.andExpect(jsonPath("$.children[1].linkPhrases[0]").value("Noah est le frère de Léa"));
+				.andExpect(jsonPath("$.children[1].linkPhrases[0]").value("Léa est la sœur de Noah"))
+				.andExpect(jsonPath("$.children[0].links[0].otherChildId").value(4))
+				.andExpect(jsonPath("$.children[0].links[0].label").value("Frère"))
+				.andExpect(jsonPath("$.children[1].links[0].otherChildId").value(3))
+				.andExpect(jsonPath("$.children[1].links[0].label").value("Sœur"));
 	}
 
 	@Test
 	void noneLinkAndUnknownSourceCreateNoRelationship() throws Exception {
 		when(children.findOwned(9L, 3L)).thenReturn(Optional.of(
-				new ChildSaved(3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", null, "fox", false, true)));
+				new ChildSaved(3L, 9L, "Léa", "Martin", "FILLE", 7, "FRANCE", "CE1", null, "fox", false, true)));
 		when(children.insert(any())).thenReturn(
-				new ChildSaved(5L, 9L, "Tom", "Martin", 7, "FRANCE", "CE1", null, "fox", false, true));
+				new ChildSaved(5L, 9L, "Tom", "Martin", "GARCON", 7, "FRANCE", "CE1", null, "fox", false, true));
 
-		String none = "{\"firstName\":\"Tom\",\"lastName\":\"Martin\",\"age\":\"7\","
+		String none = "{\"firstName\":\"Tom\",\"lastName\":\"Martin\",\"sex\":\"GARCON\",\"age\":\"7\","
 				+ "\"country\":\"France\",\"grade\":\"CE1\",\"avatarCode\":\"fox\","
 				+ "\"pin\":\"2468\",\"pinConfirmation\":\"2468\",\"fromChildId\":3,\"link\":\"AUCUN\"}";
 		mockMvc.perform(post("/api/int/parent/children")
@@ -149,7 +156,8 @@ class ParentChildrenControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(none))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.linkPhrases").isEmpty());
+				.andExpect(jsonPath("$.linkPhrases").isEmpty())
+				.andExpect(jsonPath("$.links").isEmpty());
 		verify(children, never()).insertLink(anyLong(), anyLong(), anyLong(), any());
 
 		String foreign = "{\"firstName\":\"Nina\",\"lastName\":\"Martin\",\"age\":\"7\","

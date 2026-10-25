@@ -42,6 +42,7 @@ public class ChildPersistenceAdapter implements ChildPort {
 				child.parentUserId(),
 				child.firstName(),
 				child.lastName(),
+				child.sex(),
 				child.age(),
 				child.curriculum(),
 				child.grade(),
@@ -74,6 +75,7 @@ public class ChildPersistenceAdapter implements ChildPort {
 			entity.applyChanges(
 					changes.firstName(),
 					changes.lastName(),
+					changes.sex(),
 					changes.age(),
 					changes.curriculum(),
 					changes.grade(),
@@ -134,6 +136,38 @@ public class ChildPersistenceAdapter implements ChildPort {
 		linkRepository.save(new BackChildLinkEntity(parentUserId, subject, related, relation));
 	}
 
+	/**
+	 * Ajoute le lien à la modification, ou remplace le mot si la paire existe déjà.
+	 *
+	 * <p><b>Business :</b> on ne crée pas un second lien entre les mêmes enfants.
+	 * <p><b>Technique :</b> recherche la paire dans les deux sens, puis met à jour ou insère.
+	 * <p><b>Métier / flow :</b> après {@code PUT /api/int/parent/children/{id}} quand un lien est choisi.
+	 */
+	@Override
+	@Transactional
+	public void saveLink(long parentUserId, long subjectChildId, long relatedChildId, String relation) {
+		Optional<BackChildLinkEntity> existing = linkRepository.findPair(parentUserId, subjectChildId, relatedChildId);
+		if (existing.isPresent()) {
+			existing.get().changeRelation(relation);
+			return;
+		}
+		insertLink(parentUserId, subjectChildId, relatedChildId, relation);
+	}
+
+	/**
+	 * Enlève le lien déjà affiché entre ces deux enfants.
+	 *
+	 * <p><b>Business :</b> les fiches restent. Seule cette parenté disparaît.
+	 * <p><b>Technique :</b> supprime la paire, quel que soit l'enfant créé en second.
+	 * <p><b>Métier / flow :</b> {@code PUT} avec l'autre enfant et le mot Aucun.
+	 */
+	@Override
+	@Transactional
+	public void deleteLink(long parentUserId, long subjectChildId, long relatedChildId) {
+		linkRepository.findPair(parentUserId, subjectChildId, relatedChildId)
+				.ifPresent(linkRepository::delete);
+	}
+
 	@Override
 	@Transactional(readOnly = true)
 	public List<ChildLinkView> findLinks(long parentUserId) {
@@ -141,8 +175,10 @@ public class ChildPersistenceAdapter implements ChildPort {
 				.map(link -> new ChildLinkView(
 						link.getSubject().getId(),
 						link.getSubject().getFirstName(),
+						link.getSubject().getSex(),
 						link.getRelated().getId(),
 						link.getRelated().getFirstName(),
+						link.getRelated().getSex(),
 						link.getRelation()))
 				.toList();
 	}
@@ -161,6 +197,7 @@ public class ChildPersistenceAdapter implements ChildPort {
 				child.getParentUserId(),
 				child.getFirstName(),
 				child.getLastName(),
+				child.getSex(),
 				child.getAge(),
 				child.getCurriculum(),
 				child.getGradeLabel(),

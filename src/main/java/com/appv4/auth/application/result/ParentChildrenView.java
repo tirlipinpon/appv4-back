@@ -30,6 +30,7 @@ public record ParentChildrenView(
 			long id,
 			String firstName,
 			String lastName,
+			String sex,
 			int age,
 			String country,
 			String curriculum,

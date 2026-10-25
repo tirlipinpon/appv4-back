@@ -38,6 +38,7 @@ public interface ParentChildrenUseCase {
 	record NewChildCommand(
 			String firstName,
 			String lastName,
+			String sex,
 			String age,
 			String country,
 			String grade,

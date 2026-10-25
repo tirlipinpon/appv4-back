@@ -42,6 +42,7 @@ public class ChildPersistenceAdapter implements ChildPort {
 				child.parentUserId(),
 				child.firstName(),
 				child.lastName(),
+				child.sex(),
 				child.age(),
 				child.curriculum(),
 				child.grade(),
@@ -74,6 +75,7 @@ public class ChildPersistenceAdapter implements ChildPort {
 			entity.applyChanges(
 					changes.firstName(),
 					changes.lastName(),
+					changes.sex(),
 					changes.age(),
 					changes.curriculum(),
 					changes.grade(),
@@ -173,8 +175,10 @@ public class ChildPersistenceAdapter implements ChildPort {
 				.map(link -> new ChildLinkView(
 						link.getSubject().getId(),
 						link.getSubject().getFirstName(),
+						link.getSubject().getSex(),
 						link.getRelated().getId(),
 						link.getRelated().getFirstName(),
+						link.getRelated().getSex(),
 						link.getRelation()))
 				.toList();
 	}
@@ -193,6 +197,7 @@ public class ChildPersistenceAdapter implements ChildPort {
 				child.getParentUserId(),
 				child.getFirstName(),
 				child.getLastName(),
+				child.getSex(),
 				child.getAge(),
 				child.getCurriculum(),
 				child.getGradeLabel(),

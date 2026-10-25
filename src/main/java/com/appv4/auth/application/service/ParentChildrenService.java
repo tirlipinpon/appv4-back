@@ -57,6 +57,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	public static final String LINK_UNKNOWN = "Ce lien n'est pas proposé.";
 	public static final String LINK_NEEDS_CHILD = "Choisis l'enfant de départ.";
 	public static final String LINK_SELF = "Un enfant ne se lie pas à lui-même.";
+	public static final String SEX_REQUIRED = "Choisis fille, garçon ou non genré.";
+	public static final String SEX_UNKNOWN = "Ce sexe n'est pas proposé.";
 
 	public static final int MIN_AGE = 2;
 	public static final int MAX_AGE = 18;
@@ -98,7 +100,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	public ChildCard add(long parentUserId, String activeRole, NewChildCommand command) {
 		requireParent(activeRole);
 		NewChildCommand body = command == null
-				? new NewChildCommand(null, null, null, null, null, null, null, null, null, null, null, null, null)
+				? new NewChildCommand(
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: command;
 		ChildSaved source = sourceOf(parentUserId, body.fromChildId());
 		Prepared prepared = prepare(body);
@@ -108,6 +111,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				parentUserId,
 				prepared.firstName(),
 				prepared.lastName(),
+				prepared.sex(),
 				prepared.age(),
 				prepared.curriculum(),
 				prepared.grade(),
@@ -140,10 +144,12 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		childPort.findOwned(parentUserId, childId)
 				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
 		NewChildCommand body = command == null
-				? new NewChildCommand(null, null, null, null, null, null, null, null, null, null, null, null, null)
+				? new NewChildCommand(
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: command;
 		String firstName = requiredName(body.firstName(), FIRST_NAME_REQUIRED);
 		String lastName = requiredName(body.lastName(), LAST_NAME_REQUIRED);
+		String sex = requireSex(body.sex());
 		int age = parseAge(body.age());
 		String curriculum = curriculumOf(body.country());
 		CatalogSchool school = resolveSchool(body.schoolId(), curriculum);
@@ -160,6 +166,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		ChildSaved saved = childPort.update(parentUserId, childId, new ChildChanges(
 				firstName,
 				lastName,
+				sex,
 				age,
 				curriculum,
 				grade,
@@ -216,6 +223,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	private Prepared prepare(NewChildCommand command) {
 		String firstName = requiredName(command.firstName(), FIRST_NAME_REQUIRED);
 		String lastName = requiredName(command.lastName(), LAST_NAME_REQUIRED);
+		String sex = requireSex(command.sex());
 		int age = parseAge(command.age());
 		String curriculum = curriculumOf(command.country());
 		CatalogSchool school = resolveSchool(command.schoolId(), curriculum);
@@ -226,6 +234,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		return new Prepared(
 				firstName,
 				lastName,
+				sex,
 				age,
 				curriculum,
 				grade,
@@ -325,17 +334,26 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		Map<Long, List<String>> phrases = new LinkedHashMap<>();
 		Map<Long, List<KinshipMark>> marks = new LinkedHashMap<>();
 		for (ChildLinkView link : childPort.findLinks(parentUserId)) {
-			String sentence = ChildKinship.phrase(
-					link.subjectFirstName(),
-					link.relation(),
-					link.relatedFirstName());
-			String word = ChildKinship.word(link.relation());
-			phrases.computeIfAbsent(link.subjectChildId(), ignored -> new ArrayList<>()).add(sentence);
-			phrases.computeIfAbsent(link.relatedChildId(), ignored -> new ArrayList<>()).add(sentence);
+			phrases.computeIfAbsent(link.subjectChildId(), ignored -> new ArrayList<>())
+					.add(ChildKinship.phrase(
+							link.relatedFirstName(),
+							link.relatedSex(),
+							link.relation(),
+							link.subjectFirstName()));
+			phrases.computeIfAbsent(link.relatedChildId(), ignored -> new ArrayList<>())
+					.add(ChildKinship.phrase(
+							link.subjectFirstName(),
+							link.subjectSex(),
+							link.relation(),
+							link.relatedFirstName()));
 			marks.computeIfAbsent(link.subjectChildId(), ignored -> new ArrayList<>())
-					.add(new KinshipMark(link.relatedChildId(), word));
+					.add(new KinshipMark(
+							link.relatedChildId(),
+							ChildKinship.word(link.relation(), link.relatedSex())));
 			marks.computeIfAbsent(link.relatedChildId(), ignored -> new ArrayList<>())
-					.add(new KinshipMark(link.subjectChildId(), word));
+					.add(new KinshipMark(
+							link.subjectChildId(),
+							ChildKinship.word(link.relation(), link.subjectSex())));
 		}
 		Map<Long, Attached> attached = new LinkedHashMap<>();
 		for (Long childId : phrases.keySet()) {
@@ -354,6 +372,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				child.id(),
 				child.firstName(),
 				child.lastName(),
+				child.sex(),
 				child.age(),
 				countryOf(child.curriculum()),
 				child.curriculum(),
@@ -510,6 +529,17 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		return null;
 	}
 
+	private static String requireSex(String raw) {
+		if (raw == null || raw.isBlank()) {
+			throw bad(SEX_REQUIRED);
+		}
+		String sex = raw.trim();
+		if (!ChildSex.isKnown(sex)) {
+			throw bad(SEX_UNKNOWN);
+		}
+		return sex;
+	}
+
 	private static String requirePin(String pin, String confirmation) {
 		if (!isFourDigits(pin) || !isFourDigits(confirmation)) {
 			throw bad(PIN_FORMAT);
@@ -557,6 +587,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	private record Prepared(
 			String firstName,
 			String lastName,
+			String sex,
 			int age,
 			String curriculum,
 			String grade,

@@ -82,7 +82,8 @@ public class ParentChildrenController {
 			@RequestBody CreateParentChildRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateParentChildRequest body = request == null
-				? new CreateParentChildRequest(null, null, null, null, null, null, null, null, null, null, null, null, null)
+				? new CreateParentChildRequest(
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		ChildCard card = parentChildrenUseCase.add(
 				user.userId(),
@@ -90,6 +91,7 @@ public class ParentChildrenController {
 				new NewChildCommand(
 						body.firstName(),
 						body.lastName(),
+						body.sex(),
 						body.age(),
 						body.country(),
 						body.grade(),
@@ -106,11 +108,13 @@ public class ParentChildrenController {
 
 	private static NewChildCommand toCommand(CreateParentChildRequest request) {
 		CreateParentChildRequest body = request == null
-				? new CreateParentChildRequest(null, null, null, null, null, null, null, null, null, null, null, null, null)
+				? new CreateParentChildRequest(
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		return new NewChildCommand(
 				body.firstName(),
 				body.lastName(),
+				body.sex(),
 				body.age(),
 				body.country(),
 				body.grade(),
@@ -227,6 +231,7 @@ public class ParentChildrenController {
 				card.id(),
 				card.firstName(),
 				card.lastName(),
+				card.sex(),
 				card.age(),
 				card.country(),
 				card.curriculum(),
@@ -256,6 +261,8 @@ public class ParentChildrenController {
 			long id,
 			String firstName,
 			String lastName,
+			@Schema(description = "GARCON, FILLE ou NON_GENRE")
+			String sex,
 			int age,
 			String country,
 			String curriculum,
@@ -287,6 +294,8 @@ public class ParentChildrenController {
 	public record CreateParentChildRequest(
 			String firstName,
 			String lastName,
+			@Schema(description = "GARCON, FILLE ou NON_GENRE")
+			String sex,
 			String age,
 			String country,
 			String grade,

@@ -77,6 +77,7 @@ public interface ChildPort {
 			long parentUserId,
 			String firstName,
 			String lastName,
+			String sex,
 			int age,
 			String curriculum,
 			String grade,
@@ -92,6 +93,7 @@ public interface ChildPort {
 			long parentUserId,
 			String firstName,
 			String lastName,
+			String sex,
 			int age,
 			String curriculum,
 			String grade,
@@ -111,6 +113,7 @@ public interface ChildPort {
 	record ChildChanges(
 			String firstName,
 			String lastName,
+			String sex,
 			int age,
 			String curriculum,
 			String grade,
@@ -130,8 +133,10 @@ public interface ChildPort {
 	record ChildLinkView(
 			long subjectChildId,
 			String subjectFirstName,
+			String subjectSex,
 			long relatedChildId,
 			String relatedFirstName,
+			String relatedSex,
 			String relation) {
 	}
 }

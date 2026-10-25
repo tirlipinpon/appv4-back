@@ -109,6 +109,7 @@ class ParentChildrenServiceTest {
 		NewChildCommand withPhoto = new NewChildCommand(
 				"Noah",
 				"Martin",
+				"GARCON",
 				"8",
 				"Belgique",
 				"3e primaire",
@@ -126,7 +127,7 @@ class ParentChildrenServiceTest {
 		assertThat(service.photo(1L, "parent", card.id()).contentType()).isEqualTo("image/jpeg");
 
 		NewChildCommand text = new NewChildCommand(
-				"Noah", "Martin", "8", "Belgique", "3e primaire", null, null,
+				"Noah", "Martin", "GARCON", "8", "Belgique", "3e primaire", null, null,
 				Base64.getEncoder().encodeToString("bonjour".getBytes()), "text/plain", "9090", "9090", null, null);
 		assertThatThrownBy(() -> service.add(1L, "parent", text))
 				.hasMessage(ParentChildrenService.NOT_AN_IMAGE);
@@ -158,7 +159,20 @@ class ParentChildrenServiceTest {
 			String pin,
 			String confirmation) {
 		return new NewChildCommand(
-				firstName, lastName, age, country, grade, schoolId, avatar, null, null, pin, confirmation, null, null);
+				firstName,
+				lastName,
+				"FILLE",
+				age,
+				country,
+				grade,
+				schoolId,
+				avatar,
+				null,
+				null,
+				pin,
+				confirmation,
+				null,
+				null);
 	}
 
 	@Test
@@ -170,8 +184,8 @@ class ParentChildrenServiceTest {
 		ChildCard noah = service.add(1L, "parent",
 				from(lea.id(), "Noah", "Martin", "8", "France", "CM1", "fox", "1357", "1357", "FRERE"));
 
-		assertThat(noah.linkPhrases()).containsExactly("Noah est le frère de Léa");
-		assertThat(noah.links()).containsExactly(new KinshipMark(lea.id(), "Frère"));
+		assertThat(noah.linkPhrases()).containsExactly("Léa est la sœur de Noah");
+		assertThat(noah.links()).containsExactly(new KinshipMark(lea.id(), "Sœur"));
 		assertThat(noah.schoolId()).isNull();
 		assertThat(children.all.get(0)).isEqualTo(sourceBefore);
 		assertThat(children.inserted.get(0).pinHash()).isEqualTo("hash:4821");
@@ -189,13 +203,13 @@ class ParentChildrenServiceTest {
 		assertThat(cards.get(0).linkPhrases()).containsExactly(
 				"Noah est le frère de Léa",
 				"Emma est la cousine de Léa");
-		assertThat(cards.get(1).linkPhrases()).containsExactly("Noah est le frère de Léa");
+		assertThat(cards.get(1).linkPhrases()).containsExactly("Léa est la sœur de Noah");
 		assertThat(cards.get(2).linkPhrases()).isEmpty();
-		assertThat(cards.get(3).linkPhrases()).containsExactly("Emma est la cousine de Léa");
+		assertThat(cards.get(3).linkPhrases()).containsExactly("Léa est la cousine de Emma");
 		assertThat(cards.get(0).links()).containsExactly(
 				new KinshipMark(cards.get(1).id(), "Frère"),
 				new KinshipMark(cards.get(3).id(), "Cousine"));
-		assertThat(cards.get(1).links()).containsExactly(new KinshipMark(cards.get(0).id(), "Frère"));
+		assertThat(cards.get(1).links()).containsExactly(new KinshipMark(cards.get(0).id(), "Sœur"));
 		assertThat(cards.get(2).links()).isEmpty();
 		assertThat(cards.get(3).links()).containsExactly(new KinshipMark(cards.get(0).id(), "Cousine"));
 		assertThat(children.inserted.get(0).pinHash()).isEqualTo("hash:4821");
@@ -204,14 +218,15 @@ class ParentChildrenServiceTest {
 
 	@Test
 	void kinshipPhrasesUseTheClosedList() {
-		assertThat(ChildKinship.phrase("Nina", "SOEUR", "Léa")).isEqualTo("Nina est la sœur de Léa");
-		assertThat(ChildKinship.phrase("Lino", "DEMI_FRERE", "Léa")).isEqualTo("Lino est le demi-frère de Léa");
-		assertThat(ChildKinship.phrase("Noe", "DEMI_SOEUR", "Léa")).isEqualTo("Noe est la demi-sœur de Léa");
-		assertThat(ChildKinship.phrase("Leo", "JUMEAU", "Léa")).isEqualTo("Leo est le jumeau de Léa");
-		assertThat(ChildKinship.phrase("Lina", "JUMELLE", "Léa")).isEqualTo("Lina est la jumelle de Léa");
-		assertThat(ChildKinship.phrase("Paul", "COUSIN", "Léa")).isEqualTo("Paul est le cousin de Léa");
-		assertThat(ChildKinship.word("FRERE")).isEqualTo("Frère");
-		assertThat(ChildKinship.word("COUSINE")).isEqualTo("Cousine");
+		assertThat(ChildKinship.phrase("Nina", "FILLE", "SOEUR", "Léa")).isEqualTo("Nina est la sœur de Léa");
+		assertThat(ChildKinship.phrase("Lino", "GARCON", "DEMI_SOEUR", "Léa")).isEqualTo("Lino est le demi-frère de Léa");
+		assertThat(ChildKinship.phrase("Noe", "FILLE", "DEMI_FRERE", "Léa")).isEqualTo("Noe est la demi-sœur de Léa");
+		assertThat(ChildKinship.phrase("Leo", "GARCON", "JUMELLE", "Léa")).isEqualTo("Leo est le jumeau de Léa");
+		assertThat(ChildKinship.phrase("Lina", "FILLE", "JUMEAU", "Léa")).isEqualTo("Lina est la jumelle de Léa");
+		assertThat(ChildKinship.phrase("Paul", "GARCON", "COUSINE", "Léa")).isEqualTo("Paul est le cousin de Léa");
+		assertThat(ChildKinship.word("SOEUR", "GARCON")).isEqualTo("Frère");
+		assertThat(ChildKinship.word("FRERE", "FILLE")).isEqualTo("Sœur");
+		assertThat(ChildKinship.word("COUSIN", "NON_GENRE")).isEqualTo("Cousin/cousine");
 	}
 
 	@Test
@@ -260,7 +275,7 @@ class ParentChildrenServiceTest {
 		ChildCard created = service.add(1L, "parent",
 				command("Léa", "Martin", "7", "France", "CE1", null, "fox", "4821", "4821"));
 		NewChildCommand rename = new NewChildCommand(
-				"Léa", "Durand", "8", "France", "CP", null, null, null, null, "", "", null, null);
+				"Léa", "Durand", "FILLE", "8", "France", "CP", null, null, null, null, "", "", null, null);
 
 		ChildCard updated = service.update(1L, "parent", created.id(), rename);
 
@@ -282,14 +297,16 @@ class ParentChildrenServiceTest {
 		ChildCard lea = service.add(1L, "parent",
 				command("Léa", "Martin", "7", "France", "CE1", null, "fox", "4821", "4821"));
 		ChildCard noah = service.add(1L, "parent",
-				command("Noah", "Martin", "8", "France", "CM1", null, "cat", "1357", "1357"));
+				new NewChildCommand(
+						"Noah", "Martin", "GARCON", "8", "France", "CM1",
+						null, "cat", null, null, "1357", "1357", null, null));
 
 		ChildCard linked = service.update(1L, "parent", noah.id(),
 				rename(noah, lea.id(), "FRERE"));
 
-		assertThat(linked.links()).containsExactly(new KinshipMark(lea.id(), "Frère"));
+		assertThat(linked.links()).containsExactly(new KinshipMark(lea.id(), "Sœur"));
 		assertThat(service.update(1L, "parent", noah.id(), rename(noah, null, null)).links())
-				.containsExactly(new KinshipMark(lea.id(), "Frère"));
+				.containsExactly(new KinshipMark(lea.id(), "Sœur"));
 		assertThat(service.list(1L, "parent").children().get(0).links())
 				.containsExactly(new KinshipMark(noah.id(), "Frère"));
 
@@ -310,6 +327,7 @@ class ParentChildrenServiceTest {
 		return new NewChildCommand(
 				child.firstName(),
 				child.lastName(),
+				child.sex(),
 				String.valueOf(child.age()),
 				child.country(),
 				child.grade(),
@@ -335,7 +353,31 @@ class ParentChildrenServiceTest {
 			String confirmation,
 			String link) {
 		return new NewChildCommand(
-				firstName, lastName, age, country, grade, null, avatar, null, null, pin, confirmation, sourceId, link);
+				firstName,
+				lastName,
+				sexFor(link),
+				age,
+				country,
+				grade,
+				null,
+				avatar,
+				null,
+				null,
+				pin,
+				confirmation,
+				sourceId,
+				link);
+	}
+
+	/** Le code du test donne un sexe cohérent. En production, c'est la fiche qui décide. */
+	private static String sexFor(String link) {
+		if (link == null) {
+			return "FILLE";
+		}
+		return switch (link) {
+			case "FRERE", "DEMI_FRERE", "JUMEAU", "COUSIN" -> "GARCON";
+			default -> "FILLE";
+		};
 	}
 
 	private static final class MemoryChildren implements ChildPort {
@@ -358,6 +400,7 @@ class ParentChildrenServiceTest {
 					child.parentUserId(),
 					child.firstName(),
 					child.lastName(),
+					child.sex(),
 					child.age(),
 					child.curriculum(),
 					child.grade(),
@@ -393,6 +436,7 @@ class ParentChildrenServiceTest {
 							previous.parentUserId(),
 							changes.firstName(),
 							changes.lastName(),
+							changes.sex(),
 							changes.age(),
 							changes.curriculum(),
 							changes.grade(),
@@ -409,6 +453,7 @@ class ParentChildrenServiceTest {
 						current.parentUserId(),
 						changes.firstName(),
 						changes.lastName(),
+						changes.sex(),
 						changes.age(),
 						changes.curriculum(),
 						changes.grade(),
@@ -483,8 +528,10 @@ class ParentChildrenServiceTest {
 				found.add(new ChildLinkView(
 						subject.id(),
 						subject.firstName(),
+						subject.sex(),
 						related.id(),
 						related.firstName(),
+						related.sex(),
 						link.relation()));
 			}
 			return found;
@@ -524,6 +571,7 @@ class ParentChildrenServiceTest {
 					current.parentUserId(),
 					current.firstName(),
 					current.lastName(),
+					current.sex(),
 					current.age(),
 					current.curriculum(),
 					current.grade(),

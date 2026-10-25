@@ -146,7 +146,31 @@ class TeacherSubjectServiceTest {
 
 		assertThat(names(FRENCH_SCHOOL, "CE1")).containsExactly("Lecture");
 		assertThat(names(FRENCH_SCHOOL, "CE2")).containsExactly("Mathématiques");
+		assertThat(subjects.stored(maths.id())).isTrue();
 		assertThat(profiles.schoolsOf(TEACHER_ID).get(0).grades()).containsExactly("CE1", "CE2");
+	}
+
+	@Test
+	void deactivateStaysOnTheTeacherPageAndHidingFreesTheName() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+
+		service.deactivate(TEACHER_ID, "teacher", maths.id());
+		assertThat(service.list(TEACHER_ID, "teacher").schools().get(0).grades().get(0).subjects())
+				.extracting(SubjectLine::name, SubjectLine::active)
+				.containsExactly(org.assertj.core.groups.Tuple.tuple("Mathématiques", false));
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
+				.hasMessage(TeacherSubjectService.NAME_TAKEN);
+
+		service.reactivate(TEACHER_ID, "teacher", maths.id());
+		assertThat(service.list(TEACHER_ID, "teacher").schools().get(0).grades().get(0).subjects().get(0).active())
+				.isTrue();
+
+		service.remove(TEACHER_ID, "teacher", maths.id());
+		assertThat(names(FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(subjects.stored(maths.id())).isTrue();
+		SubjectLine again = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		assertThat(again.name()).isEqualTo("Mathématiques");
+		assertThat(again.id()).isNotEqualTo(maths.id());
 	}
 
 	@Test
@@ -245,10 +269,20 @@ class TeacherSubjectServiceTest {
 	private static final class MemorySubjects implements TeacherSubjectPort {
 
 		private final List<StoredSubject> rows = new ArrayList<>();
+		private final java.util.Set<Long> hidden = new java.util.HashSet<>();
 		private long nextId = 1L;
 
 		List<StoredSubject> all() {
 			return List.copyOf(rows);
+		}
+
+		boolean stored(long id) {
+			for (StoredSubject row : rows) {
+				if (row.id() == id) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 		StoredSubject find(long id) {
@@ -264,7 +298,7 @@ class TeacherSubjectServiceTest {
 		public List<StoredSubject> findByUser(long userId) {
 			List<StoredSubject> owned = new ArrayList<>();
 			for (StoredSubject row : rows) {
-				if (row.userId() == userId) {
+				if (row.userId() == userId && !hidden.contains(row.id())) {
 					owned.add(row);
 				}
 			}
@@ -273,7 +307,7 @@ class TeacherSubjectServiceTest {
 
 		@Override
 		public StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey) {
-			StoredSubject saved = new StoredSubject(nextId++, userId, schoolId, grade, name);
+			StoredSubject saved = new StoredSubject(nextId++, userId, schoolId, grade, name, true);
 			rows.add(saved);
 			return saved;
 		}
@@ -281,7 +315,7 @@ class TeacherSubjectServiceTest {
 		@Override
 		public Optional<StoredSubject> findOwned(long userId, long subjectId) {
 			for (StoredSubject row : rows) {
-				if (row.id() == subjectId && row.userId() == userId) {
+				if (row.id() == subjectId && row.userId() == userId && !hidden.contains(row.id())) {
 					return Optional.of(row);
 				}
 			}
@@ -292,9 +326,9 @@ class TeacherSubjectServiceTest {
 		public Optional<StoredSubject> rename(long userId, long subjectId, String name, String nameKey) {
 			for (int index = 0; index < rows.size(); index++) {
 				StoredSubject row = rows.get(index);
-				if (row.id() == subjectId && row.userId() == userId) {
+				if (row.id() == subjectId && row.userId() == userId && !hidden.contains(row.id())) {
 					StoredSubject renamed = new StoredSubject(
-							row.id(), row.userId(), row.schoolId(), row.grade(), name);
+							row.id(), row.userId(), row.schoolId(), row.grade(), name, row.active());
 					rows.set(index, renamed);
 					return Optional.of(renamed);
 				}
@@ -303,14 +337,44 @@ class TeacherSubjectServiceTest {
 		}
 
 		@Override
-		public boolean delete(long userId, long subjectId) {
-			return rows.removeIf(row -> row.userId() == userId && row.id() == subjectId);
+		public boolean deactivate(long userId, long subjectId) {
+			return replaceActive(userId, subjectId, false);
+		}
+
+		@Override
+		public boolean reactivate(long userId, long subjectId) {
+			return replaceActive(userId, subjectId, true);
+		}
+
+		@Override
+		public boolean hide(long userId, long subjectId) {
+			for (StoredSubject row : rows) {
+				if (row.userId() == userId && row.id() == subjectId && hidden.add(row.id())) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		private boolean replaceActive(long userId, long subjectId, boolean active) {
+			for (int index = 0; index < rows.size(); index++) {
+				StoredSubject row = rows.get(index);
+				if (row.id() == subjectId && row.userId() == userId && !hidden.contains(row.id())) {
+					rows.set(index, new StoredSubject(
+							row.id(), row.userId(), row.schoolId(), row.grade(), row.name(), active));
+					return true;
+				}
+			}
+			return false;
 		}
 
 		@Override
 		public boolean nameTaken(long userId, long schoolId, String grade, String nameKey, Long exceptId) {
 			for (StoredSubject row : rows) {
 				if (row.userId() != userId || row.schoolId() != schoolId || !grade.equals(row.grade())) {
+					continue;
+				}
+				if (hidden.contains(row.id())) {
 					continue;
 				}
 				if (exceptId != null && exceptId == row.id()) {

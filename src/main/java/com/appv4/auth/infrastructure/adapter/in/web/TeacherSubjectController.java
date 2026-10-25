@@ -81,7 +81,7 @@ public class TeacherSubjectController {
 				: request;
 		SubjectLine line = teacherSubjectUseCase.create(
 				user.userId(), user.activeRole(), body.schoolId(), body.grade(), body.name());
-		return ResponseEntity.ok(new TeacherSubjectItem(line.id(), line.name()));
+		return ResponseEntity.ok(new TeacherSubjectItem(line.id(), line.name(), line.active()));
 	}
 
 	@PutMapping("/{id}")
@@ -106,12 +106,12 @@ public class TeacherSubjectController {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		RenameTeacherSubjectRequest body = request == null ? new RenameTeacherSubjectRequest(null) : request;
 		SubjectLine line = teacherSubjectUseCase.rename(user.userId(), user.activeRole(), id, body.name());
-		return ResponseEntity.ok(new TeacherSubjectItem(line.id(), line.name()));
+		return ResponseEntity.ok(new TeacherSubjectItem(line.id(), line.name(), line.active()));
 	}
 
 	@DeleteMapping("/{id}")
 	@Operation(operationId = "deleteTeacherSubject", summary = "Retirer une matière du professeur connecté")
-	@ApiResponse(responseCode = "204", description = "Matière retirée. L'année du profil reste cochée")
+	@ApiResponse(responseCode = "204", description = "Retirée de la page. La ligne reste en base")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace professeur",
@@ -125,6 +125,44 @@ public class TeacherSubjectController {
 			@PathVariable long id) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		teacherSubjectUseCase.remove(user.userId(), user.activeRole(), id);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{id}/deactivate")
+	@Operation(operationId = "deactivateTeacherSubject", summary = "Désactiver une matière du professeur connecté")
+	@ApiResponse(responseCode = "204", description = "Reste dans sa liste, plus proposée dans le reste de l'application")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière introuvable pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> deactivate(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		teacherSubjectUseCase.deactivate(user.userId(), user.activeRole(), id);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{id}/reactivate")
+	@Operation(operationId = "reactivateTeacherSubject", summary = "Réactiver une matière du professeur connecté")
+	@ApiResponse(responseCode = "204", description = "De nouveau proposée dans le reste de l'application")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière introuvable pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> reactivate(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		teacherSubjectUseCase.reactivate(user.userId(), user.activeRole(), id);
 		return ResponseEntity.noContent().build();
 	}
 
@@ -145,7 +183,7 @@ public class TeacherSubjectController {
 	}
 
 	private static TeacherSubjectItem item(SubjectLine subject) {
-		return new TeacherSubjectItem(subject.id(), subject.name());
+		return new TeacherSubjectItem(subject.id(), subject.name(), subject.active());
 	}
 
 	@Schema(name = "TeacherSubjectsResponse")
@@ -161,7 +199,7 @@ public class TeacherSubjectController {
 	}
 
 	@Schema(name = "TeacherSubjectItem")
-	public record TeacherSubjectItem(long id, String name) {
+	public record TeacherSubjectItem(long id, String name, boolean active) {
 	}
 
 	@Schema(name = "CreateTeacherSubjectRequest")

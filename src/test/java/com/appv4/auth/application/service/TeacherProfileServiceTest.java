@@ -181,10 +181,10 @@ class TeacherProfileServiceTest {
 		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
 				new TeacherSchoolCommand(1L, null, List.of("CE1", "CE2")),
 				new TeacherSchoolCommand(2L, null, List.of("3e primaire"))));
-		subjects.seed(new StoredSubject(1L, TEACHER_ID, 1L, "CE1", "Lecture"));
-		subjects.seed(new StoredSubject(2L, TEACHER_ID, 1L, "CE2", "Mathématiques"));
-		subjects.seed(new StoredSubject(3L, TEACHER_ID, 2L, "3e primaire", "Éveil"));
-		subjects.seed(new StoredSubject(4L, OTHER_ID, 1L, "CE1", "Calcul"));
+		subjects.seed(new StoredSubject(1L, TEACHER_ID, 1L, "CE1", "Lecture", true));
+		subjects.seed(new StoredSubject(2L, TEACHER_ID, 1L, "CE2", "Mathématiques", true));
+		subjects.seed(new StoredSubject(3L, TEACHER_ID, 2L, "3e primaire", "Éveil", true));
+		subjects.seed(new StoredSubject(4L, OTHER_ID, 1L, "CE1", "Calcul", true));
 
 		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
 				new TeacherSchoolCommand(1L, null, List.of("CE1")),
@@ -307,8 +307,18 @@ class TeacherProfileServiceTest {
 		}
 
 		@Override
-		public boolean delete(long userId, long subjectId) {
+		public boolean hide(long userId, long subjectId) {
 			return rows.removeIf(row -> row.userId() == userId && row.id() == subjectId);
+		}
+
+		@Override
+		public boolean deactivate(long userId, long subjectId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public boolean reactivate(long userId, long subjectId) {
+			throw new UnsupportedOperationException();
 		}
 
 		@Override

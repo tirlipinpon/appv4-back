@@ -21,5 +21,10 @@ public interface TeacherSubjectUseCase {
 
 	SubjectLine rename(long userId, String activeRole, long subjectId, String name);
 
+	void deactivate(long userId, String activeRole, long subjectId);
+
+	void reactivate(long userId, String activeRole, long subjectId);
+
+	/** Retire la matière de la page. La ligne reste en base. */
 	void remove(long userId, String activeRole, long subjectId);
 }

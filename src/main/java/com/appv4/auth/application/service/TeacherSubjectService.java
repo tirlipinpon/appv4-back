@@ -33,7 +33,7 @@ import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
  * vers un collègue ne sont pas encore exposés.
  * <p><b>Métier / flow :</b> port in → profil (écoles et années) + port matières.
  * Retirer une année du profil est fait par {@link TeacherProfileService}, qui
- * efface les matières de cette année.
+ * cache les matières de cette année sans effacer la ligne.
  */
 public class TeacherSubjectService implements TeacherSubjectUseCase {
 
@@ -80,7 +80,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw bad(NAME_TAKEN);
 		}
 		StoredSubject saved = teacherSubjectPort.insert(userId, schoolId, grade, trimmed, key);
-		return new SubjectLine(saved.id(), saved.name());
+		return line(saved);
 	}
 
 	@Override
@@ -98,7 +98,27 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		StoredSubject saved = teacherSubjectPort
 				.rename(userId, subjectId, trimmed, key)
 				.orElseThrow(() -> missing());
-		return new SubjectLine(saved.id(), saved.name());
+		return line(saved);
+	}
+
+	@Override
+	@Transactional
+	public void deactivate(long userId, String activeRole, long subjectId) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		if (!teacherSubjectPort.deactivate(userId, subjectId)) {
+			throw missing();
+		}
+	}
+
+	@Override
+	@Transactional
+	public void reactivate(long userId, String activeRole, long subjectId) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		if (!teacherSubjectPort.reactivate(userId, subjectId)) {
+			throw missing();
+		}
 	}
 
 	@Override
@@ -106,7 +126,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public void remove(long userId, String activeRole, long subjectId) {
 		requireTeacher(activeRole);
 		requireAccount(userId);
-		if (!teacherSubjectPort.delete(userId, subjectId)) {
+		if (!teacherSubjectPort.hide(userId, subjectId)) {
 			throw missing();
 		}
 	}
@@ -144,9 +164,13 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		matches.sort((left, right) -> order.compare(left.name(), right.name()));
 		List<SubjectLine> lines = new ArrayList<>();
 		for (StoredSubject subject : matches) {
-			lines.add(new SubjectLine(subject.id(), subject.name()));
+			lines.add(line(subject));
 		}
 		return List.copyOf(lines);
+	}
+
+	private static SubjectLine line(StoredSubject subject) {
+		return new SubjectLine(subject.id(), subject.name(), subject.active());
 	}
 
 	private static String schoolName(long schoolId, List<CatalogSchool> catalog) {

@@ -165,7 +165,7 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 
 	/**
 	 * Les matières suivent les années cochées. Une année absente de {@code links}
-	 * n'a plus de matière. Les matières d'un autre professeur ne sont pas lues.
+	 * n'est plus affichée. Les matières d'un autre professeur ne sont pas lues.
 	 */
 	private void dropSubjectsOutside(long userId, List<TeacherSchoolLink> links) {
 		Set<SubjectClassKey> kept = new HashSet<>();
@@ -180,7 +180,7 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 		}
 		for (StoredSubject subject : owned) {
 			if (!kept.contains(new SubjectClassKey(subject.schoolId(), subject.grade()))) {
-				teacherSubjectPort.delete(userId, subject.id());
+				teacherSubjectPort.hide(userId, subject.id());
 			}
 		}
 	}

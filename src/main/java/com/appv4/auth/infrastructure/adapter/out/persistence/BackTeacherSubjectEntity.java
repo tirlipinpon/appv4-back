@@ -6,23 +6,18 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 
 /**
  * Une matière d'un professeur, pour une école et une année (SCRUM-161).
  *
- * <p><b>Business :</b> le professeur la nomme. Elle ne se partage pas encore.
+ * <p><b>Business :</b> le professeur la nomme. La désactiver la laisse dans sa liste
+ * et la retire du reste de l'application. La retirer la cache, la ligne reste.
  * {@code originSubjectId} reste vide : un clone futur le remplira.
  * <p><b>Technique :</b> table {@code back_teacher_subjects}. Pas un objet du domaine.
- * Les formes de questions sont dans {@code back_subject_question_forms}, sans mapping
- * tant qu'aucune route ne les écrit.
+ * L'unicité du nom ne concerne que les lignes encore affichées.
  */
 @Entity
-@Table(
-		name = "back_teacher_subjects",
-		uniqueConstraints = @UniqueConstraint(
-				name = "uq_back_teacher_subjects_owner_class_name",
-				columnNames = { "user_id", "school_id", "grade_label", "name_key" }))
+@Table(name = "back_teacher_subjects")
 public class BackTeacherSubjectEntity {
 
 	@Id
@@ -50,6 +45,12 @@ public class BackTeacherSubjectEntity {
 	@Column(name = "origin_subject_id")
 	private Long originSubjectId;
 
+	@Column(nullable = false)
+	private boolean active = true;
+
+	@Column(nullable = false)
+	private boolean hidden;
+
 	protected BackTeacherSubjectEntity() {
 	}
 
@@ -59,6 +60,8 @@ public class BackTeacherSubjectEntity {
 		this.gradeLabel = gradeLabel;
 		this.name = name;
 		this.nameKey = nameKey;
+		this.active = true;
+		this.hidden = false;
 	}
 
 	public Long getId() {
@@ -85,8 +88,31 @@ public class BackTeacherSubjectEntity {
 		return nameKey;
 	}
 
+	public boolean isActive() {
+		return active;
+	}
+
+	public boolean isHidden() {
+		return hidden;
+	}
+
 	public void rename(String nextName, String nextKey) {
 		this.name = nextName;
 		this.nameKey = nextKey;
+	}
+
+	/** Reste dans la liste du professeur, plus proposée ailleurs. */
+	public void deactivate() {
+		this.active = false;
+	}
+
+	/** De nouveau proposée dans le reste de l'application. */
+	public void reactivate() {
+		this.active = true;
+	}
+
+	/** Disparaît de la page. La ligne reste. */
+	public void hide() {
+		this.hidden = true;
 	}
 }

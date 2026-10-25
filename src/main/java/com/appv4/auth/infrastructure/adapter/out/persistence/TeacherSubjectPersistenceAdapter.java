@@ -3,6 +3,7 @@ package com.appv4.auth.infrastructure.adapter.out.persistence;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -38,7 +39,9 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	public List<StoredSubject> findByUser(long userId) {
 		List<StoredSubject> rows = new ArrayList<>();
 		for (BackTeacherSubjectEntity entity : repository.findByUserIdOrderByIdAsc(userId)) {
-			rows.add(toStored(entity));
+			if (!entity.isHidden()) {
+				rows.add(toStored(entity));
+			}
 		}
 		return List.copyOf(rows);
 	}
@@ -57,13 +60,13 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	@Override
 	@Transactional(readOnly = true)
 	public Optional<StoredSubject> findOwned(long userId, long subjectId) {
-		return repository.findByIdAndUserId(subjectId, userId).map(TeacherSubjectPersistenceAdapter::toStored);
+		return visible(userId, subjectId).map(TeacherSubjectPersistenceAdapter::toStored);
 	}
 
 	@Override
 	@Transactional
 	public Optional<StoredSubject> rename(long userId, long subjectId, String name, String nameKey) {
-		Optional<BackTeacherSubjectEntity> found = repository.findByIdAndUserId(subjectId, userId);
+		Optional<BackTeacherSubjectEntity> found = visible(userId, subjectId);
 		if (found.isEmpty()) {
 			return Optional.empty();
 		}
@@ -78,12 +81,39 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 
 	@Override
 	@Transactional
-	public boolean delete(long userId, long subjectId) {
+	public boolean deactivate(long userId, long subjectId) {
+		return changeVisible(userId, subjectId, BackTeacherSubjectEntity::deactivate);
+	}
+
+	@Override
+	@Transactional
+	public boolean reactivate(long userId, long subjectId) {
+		return changeVisible(userId, subjectId, BackTeacherSubjectEntity::reactivate);
+	}
+
+	@Override
+	@Transactional
+	public boolean hide(long userId, long subjectId) {
+		return changeVisible(userId, subjectId, BackTeacherSubjectEntity::hide);
+	}
+
+	private Optional<BackTeacherSubjectEntity> visible(long userId, long subjectId) {
 		Optional<BackTeacherSubjectEntity> found = repository.findByIdAndUserId(subjectId, userId);
+		if (found.isEmpty() || found.get().isHidden()) {
+			return Optional.empty();
+		}
+		return found;
+	}
+
+	private boolean changeVisible(
+			long userId,
+			long subjectId,
+			Consumer<BackTeacherSubjectEntity> change) {
+		Optional<BackTeacherSubjectEntity> found = visible(userId, subjectId);
 		if (found.isEmpty()) {
 			return false;
 		}
-		repository.delete(found.get());
+		change.accept(found.get());
 		repository.flush();
 		return true;
 	}
@@ -92,7 +122,7 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	@Transactional(readOnly = true)
 	public boolean nameTaken(long userId, long schoolId, String grade, String nameKey, Long exceptId) {
 		for (BackTeacherSubjectEntity row : repository.findByUserIdOrderByIdAsc(userId)) {
-			if (row.getSchoolId() != schoolId || !grade.equals(row.getGradeLabel())) {
+			if (row.isHidden() || row.getSchoolId() != schoolId || !grade.equals(row.getGradeLabel())) {
 				continue;
 			}
 			if (!nameKey.equals(row.getNameKey())) {
@@ -112,7 +142,8 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 				entity.getUserId(),
 				entity.getSchoolId(),
 				entity.getGradeLabel(),
-				entity.getName());
+				entity.getName(),
+				entity.isActive());
 	}
 
 	private static AuthDomainException taken() {

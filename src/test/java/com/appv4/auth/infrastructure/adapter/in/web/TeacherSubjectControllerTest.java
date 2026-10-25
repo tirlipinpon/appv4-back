@@ -70,14 +70,15 @@ class TeacherSubjectControllerTest {
 		when(profiles.findSchools(9L)).thenReturn(List.of(
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE2", "CE1"))));
 		when(subjects.findByUser(9L)).thenReturn(List.of(
-				new StoredSubject(2L, 9L, 1L, "CE1", "Mathématiques"),
-				new StoredSubject(1L, 9L, 1L, "CE1", "Français")));
+				new StoredSubject(2L, 9L, 1L, "CE1", "Mathématiques", true),
+				new StoredSubject(1L, 9L, 1L, "CE1", "Français", true)));
 
 		mockMvc.perform(get("/api/int/teacher/subjects").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.schools[0].schoolId").value(1))
 				.andExpect(jsonPath("$.schools[0].grades[0].grade").value("CE1"))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].name").value("Français"))
+				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].active").value(true))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[1].name").value("Mathématiques"))
 				.andExpect(jsonPath("$.schools[0].grades[1].grade").value("CE2"))
 				.andExpect(jsonPath("$.schools[0].grades[1].subjects").isEmpty());
@@ -89,7 +90,7 @@ class TeacherSubjectControllerTest {
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
 		when(subjects.nameTaken(9L, 1L, "CE1", "mathématiques", null)).thenReturn(false);
 		when(subjects.insert(9L, 1L, "CE1", "Mathématiques", "mathématiques"))
-				.thenReturn(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques"));
+				.thenReturn(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", true));
 
 		mockMvc.perform(post("/api/int/teacher/subjects")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -99,7 +100,8 @@ class TeacherSubjectControllerTest {
 								"""))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.id").value(5))
-				.andExpect(jsonPath("$.name").value("Mathématiques"));
+				.andExpect(jsonPath("$.name").value("Mathématiques"))
+				.andExpect(jsonPath("$.active").value(true));
 	}
 
 	@Test
@@ -158,11 +160,11 @@ class TeacherSubjectControllerTest {
 	void renameAndDeleteStayOnTheOwnedSubject() throws Exception {
 		when(profiles.findSchools(9L)).thenReturn(List.of(
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
-		when(subjects.findOwned(9L, 4L)).thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Français")));
+		when(subjects.findOwned(9L, 4L)).thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Français", true)));
 		when(subjects.nameTaken(9L, 1L, "CE1", "lecture", 4L)).thenReturn(false);
 		when(subjects.rename(9L, 4L, "Lecture", "lecture"))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Lecture")));
-		when(subjects.delete(9L, 4L)).thenReturn(true);
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Lecture", true)));
+		when(subjects.hide(9L, 4L)).thenReturn(true);
 
 		mockMvc.perform(put("/api/int/teacher/subjects/4")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -179,7 +181,7 @@ class TeacherSubjectControllerTest {
 	@Test
 	void unknownSubjectIsNotFound() throws Exception {
 		when(subjects.findOwned(9L, 4L)).thenReturn(Optional.empty());
-		when(subjects.delete(9L, 4L)).thenReturn(false);
+		when(subjects.hide(9L, 4L)).thenReturn(false);
 
 		mockMvc.perform(put("/api/int/teacher/subjects/4")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -191,6 +193,20 @@ class TeacherSubjectControllerTest {
 		mockMvc.perform(delete("/api/int/teacher/subjects/4")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void deactivateLeavesTheSubjectForTheTeacher() throws Exception {
+		when(subjects.deactivate(9L, 4L)).thenReturn(true);
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/deactivate")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
+				.andExpect(status().isNoContent());
+
+		verify(subjects).deactivate(9L, 4L);
+		verify(subjects, never()).hide(
+				org.mockito.ArgumentMatchers.anyLong(),
+				org.mockito.ArgumentMatchers.anyLong());
 	}
 
 	@Test

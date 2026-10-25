@@ -37,6 +37,6 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 	/**
 	 * Le nom affiché, tel qu'il a été saisi (espaces autour déjà retirés).
 	 */
-	public record SubjectLine(long id, String name) {
+	public record SubjectLine(long id, String name, boolean active) {
 	}
 }

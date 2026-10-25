@@ -27,7 +27,8 @@ import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
  *
  * <p><b>Business :</b> il crée, voit, renomme et retire un nom dans une année
  * déjà cochée. Deux classes peuvent porter le même nom : ce sont deux matières.
- * Un autre professeur ne les voit pas. Pas d'exercice dans cette story.
+ * La même école et la même année n'en ont qu'une : un autre professeur ne la recrée pas.
+ * Un autre professeur ne voit pas celles qu'il n'a pas créées. Pas d'exercice dans cette story.
  * <p><b>Technique :</b> le nom affiché est coupé des espaces autour, 100 caractères
  * maximum. La comparaison ignore la casse. Les formes de questions et le clone
  * vers un collègue ne sont pas encore exposés.
@@ -76,7 +77,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		requireClass(userId, schoolId, grade);
 		String trimmed = requiredName(name);
 		String key = nameKey(trimmed);
-		if (teacherSubjectPort.nameTaken(userId, schoolId, grade, key, null)) {
+		if (teacherSubjectPort.nameTaken(schoolId, grade, key, null)) {
 			throw bad(NAME_TAKEN);
 		}
 		StoredSubject saved = teacherSubjectPort.insert(userId, schoolId, grade, trimmed, key);
@@ -92,7 +93,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		requireClass(userId, current.schoolId(), current.grade());
 		String trimmed = requiredName(name);
 		String key = nameKey(trimmed);
-		if (teacherSubjectPort.nameTaken(userId, current.schoolId(), current.grade(), key, subjectId)) {
+		if (teacherSubjectPort.nameTaken(current.schoolId(), current.grade(), key, subjectId)) {
 			throw bad(NAME_TAKEN);
 		}
 		StoredSubject saved = teacherSubjectPort

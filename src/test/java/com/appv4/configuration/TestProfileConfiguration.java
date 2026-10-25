@@ -19,6 +19,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
@@ -109,6 +110,11 @@ public class TestProfileConfiguration {
 	@Bean
 	ChildPort childPort() {
 		return mock(ChildPort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	@Bean
+	ChildSubjectPort childSubjectPort() {
+		return mock(ChildSubjectPort.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
 	@Bean

@@ -43,6 +43,7 @@ import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
@@ -66,6 +67,7 @@ import com.appv4.auth.application.service.ResumeAppleOAuthCallbackService;
 import com.appv4.auth.application.service.LoginWithEmailService;
 import com.appv4.auth.application.service.LoginWithFacebookService;
 import com.appv4.auth.application.service.LoginWithGoogleService;
+import com.appv4.auth.application.service.ChildSubjectService;
 import com.appv4.auth.application.service.ParentChildrenService;
 import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
@@ -401,8 +403,23 @@ public class AuthConfiguration {
 	ParentChildrenUseCase parentChildrenUseCase(
 			ChildPort childPort,
 			SchoolCatalogPort schoolCatalogPort,
-			PasswordEncoder passwordEncoder) {
-		return new ParentChildrenService(childPort, schoolCatalogPort, passwordEncoder);
+			PasswordEncoder passwordEncoder,
+			ChildSubjectPort childSubjectPort,
+			ChildSubjectService childSubjectService) {
+		return new ParentChildrenService(
+				childPort, schoolCatalogPort, passwordEncoder, childSubjectPort, childSubjectService);
+	}
+
+	/**
+	 * Matières d'un enfant (SCRUM-162) — le parent ajoute ou retire un lien.
+	 * La matière du professeur n'est pas modifiée.
+	 */
+	@Bean
+	ChildSubjectService childSubjectService(
+			ChildPort childPort,
+			ChildSubjectPort childSubjectPort,
+			SchoolCatalogPort schoolCatalogPort) {
+		return new ChildSubjectService(childPort, childSubjectPort, schoolCatalogPort);
 	}
 
 	/**

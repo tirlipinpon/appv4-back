@@ -233,7 +233,9 @@ public class ParentChildrenController {
 				card.avatarCode(),
 				card.hasPhoto(),
 				card.active(),
-				card.linkPhrases());
+				card.linkPhrases(),
+				card.schoolSubjectCount(),
+				card.extraSubjectCount());
 	}
 
 	@Schema(name = "ParentChildrenResponse")
@@ -263,7 +265,11 @@ public class ParentChildrenController {
 			@Schema(description = "Faux : encore dans la liste, plus proposé dans le reste de l'application")
 			boolean active,
 			@Schema(description = "Phrases de lien, par exemple « Noah est le frère de Léa ». Vide s'il n'y en a pas.")
-			List<String> linkPhrases) {
+			List<String> linkPhrases,
+			@Schema(description = "Matières visibles de la même école et de la même année")
+			int schoolSubjectCount,
+			@Schema(description = "Autres matières visibles, hors de sa classe")
+			int extraSubjectCount) {
 	}
 
 	@Schema(name = "ParentSchoolOption")

@@ -48,11 +48,12 @@ public interface TeacherSubjectPort {
 	boolean hide(long userId, long subjectId);
 
 	/**
-	 * Vrai si une matière encore affichée de cette classe a déjà ce nom, à la casse près.
+	 * Vrai si une matière encore affichée de cette école et de cette année a déjà ce nom.
+	 * Le professeur qui l'a créée n'importe pas : la classe n'en a qu'une.
 	 *
 	 * @param exceptId matière en cours de renommage, ignorée ; null à la création
 	 */
-	boolean nameTaken(long userId, long schoolId, String grade, String nameKey, Long exceptId);
+	boolean nameTaken(long schoolId, String grade, String nameKey, Long exceptId);
 
 	/**
 	 * @param grade  année scolaire, le libellé du profil (CE1, 3e primaire)

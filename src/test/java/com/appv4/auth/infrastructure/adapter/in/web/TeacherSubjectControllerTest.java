@@ -88,7 +88,7 @@ class TeacherSubjectControllerTest {
 	void createTrimsTheName() throws Exception {
 		when(profiles.findSchools(9L)).thenReturn(List.of(
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
-		when(subjects.nameTaken(9L, 1L, "CE1", "mathématiques", null)).thenReturn(false);
+		when(subjects.nameTaken(1L, "CE1", "mathématiques", null)).thenReturn(false);
 		when(subjects.insert(9L, 1L, "CE1", "Mathématiques", "mathématiques"))
 				.thenReturn(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", true));
 
@@ -108,7 +108,7 @@ class TeacherSubjectControllerTest {
 	void blankTooLongOrTakenNameIsRefused() throws Exception {
 		when(profiles.findSchools(9L)).thenReturn(List.of(
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
-		when(subjects.nameTaken(9L, 1L, "CE1", "lecture", null)).thenReturn(true);
+		when(subjects.nameTaken(1L, "CE1", "lecture", null)).thenReturn(true);
 
 		mockMvc.perform(post("/api/int/teacher/subjects")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -161,7 +161,7 @@ class TeacherSubjectControllerTest {
 		when(profiles.findSchools(9L)).thenReturn(List.of(
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
 		when(subjects.findOwned(9L, 4L)).thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Français", true)));
-		when(subjects.nameTaken(9L, 1L, "CE1", "lecture", 4L)).thenReturn(false);
+		when(subjects.nameTaken(1L, "CE1", "lecture", 4L)).thenReturn(false);
 		when(subjects.rename(9L, 4L, "Lecture", "lecture"))
 				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Lecture", true)));
 		when(subjects.hide(9L, 4L)).thenReturn(true);

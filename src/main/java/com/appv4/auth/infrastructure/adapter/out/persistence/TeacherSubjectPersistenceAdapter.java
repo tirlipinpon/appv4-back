@@ -120,12 +120,9 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 
 	@Override
 	@Transactional(readOnly = true)
-	public boolean nameTaken(long userId, long schoolId, String grade, String nameKey, Long exceptId) {
-		for (BackTeacherSubjectEntity row : repository.findByUserIdOrderByIdAsc(userId)) {
-			if (row.isHidden() || row.getSchoolId() != schoolId || !grade.equals(row.getGradeLabel())) {
-				continue;
-			}
-			if (!nameKey.equals(row.getNameKey())) {
+	public boolean nameTaken(long schoolId, String grade, String nameKey, Long exceptId) {
+		for (BackTeacherSubjectEntity row : repository.findBySchoolIdAndGradeLabelOrderByIdAsc(schoolId, grade)) {
+			if (row.isHidden() || !nameKey.equals(row.getNameKey())) {
 				continue;
 			}
 			if (exceptId != null && exceptId.equals(row.getId())) {

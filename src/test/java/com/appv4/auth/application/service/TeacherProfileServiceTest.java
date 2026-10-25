@@ -322,7 +322,7 @@ class TeacherProfileServiceTest {
 		}
 
 		@Override
-		public boolean nameTaken(long userId, long schoolId, String grade, String nameKey, Long exceptId) {
+		public boolean nameTaken(long schoolId, String grade, String nameKey, Long exceptId) {
 			throw new UnsupportedOperationException();
 		}
 	}

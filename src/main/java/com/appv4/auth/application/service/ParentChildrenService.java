@@ -18,6 +18,8 @@ import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
 import com.appv4.auth.application.port.out.ChildPort.ChildPhoto;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort.CountedLink;
 import com.appv4.auth.application.port.out.ChildPort.NewChild;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
@@ -66,18 +68,24 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	private final ChildPort childPort;
 	private final SchoolCatalogPort schoolCatalogPort;
 	private final PasswordEncoder passwordEncoder;
+	private final ChildSubjectPort childSubjectPort;
+	private final ChildSubjectService childSubjectService;
 
 	public ParentChildrenService(
 			ChildPort childPort,
 			SchoolCatalogPort schoolCatalogPort,
-			PasswordEncoder passwordEncoder) {
+			PasswordEncoder passwordEncoder,
+			ChildSubjectPort childSubjectPort,
+			ChildSubjectService childSubjectService) {
 		this.childPort = childPort;
 		this.schoolCatalogPort = schoolCatalogPort;
 		this.passwordEncoder = passwordEncoder;
+		this.childSubjectPort = childSubjectPort;
+		this.childSubjectService = childSubjectService;
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public ParentChildrenView list(long parentUserId, String activeRole) {
 		requireParent(activeRole);
 		return view(parentUserId);
@@ -117,7 +125,9 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		if (relation != null && source != null) {
 			childPort.insertLink(parentUserId, saved.id(), source.id(), relation);
 		}
-		return card(saved, catalogById(), phrasesFor(parentUserId, saved.id()));
+		childSubjectService.ensureDefaults(parentUserId);
+		return card(saved, catalogById(), phrasesFor(parentUserId, saved.id()),
+				countsFor(parentUserId, saved));
 	}
 
 	/**
@@ -160,7 +170,9 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				image.photo(),
 				image.contentType(),
 				pinHash)).orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
-		return card(saved, catalogById(), phrasesFor(parentUserId, saved.id()));
+		childSubjectService.ensureDefaults(parentUserId);
+		return card(saved, catalogById(), phrasesFor(parentUserId, saved.id()),
+				countsFor(parentUserId, saved));
 	}
 
 	@Override
@@ -243,11 +255,14 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	}
 
 	private ParentChildrenView view(long parentUserId) {
+		childSubjectService.ensureDefaults(parentUserId);
 		Map<Long, CatalogSchool> schools = catalogById();
 		Map<Long, List<String>> phrases = phrasesByChild(parentUserId);
+		Map<Long, int[]> counts = subjectCounts(parentUserId);
 		List<ChildCard> cards = new ArrayList<>();
 		for (ChildSaved child : childPort.findByParent(parentUserId)) {
-			cards.add(card(child, schools, phrases.getOrDefault(child.id(), List.of())));
+			int[] pair = counts.getOrDefault(child.id(), new int[] {0, 0});
+			cards.add(card(child, schools, phrases.getOrDefault(child.id(), List.of()), pair));
 		}
 		List<SchoolChoice> choices = new ArrayList<>();
 		for (CatalogSchool school : schools.values()) {
@@ -288,7 +303,11 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		return phrases;
 	}
 
-	private static ChildCard card(ChildSaved child, Map<Long, CatalogSchool> schools, List<String> linkPhrases) {
+	private static ChildCard card(
+			ChildSaved child,
+			Map<Long, CatalogSchool> schools,
+			List<String> linkPhrases,
+			int[] subjectCounts) {
 		CatalogSchool school = child.schoolId() == null ? null : schools.get(child.schoolId());
 		return new ChildCard(
 				child.id(),
@@ -303,7 +322,38 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				child.avatarCode(),
 				child.hasPhoto(),
 				child.active(),
-				linkPhrases);
+				linkPhrases,
+				subjectCounts[0],
+				subjectCounts[1]);
+	}
+
+	private int[] countsFor(long parentUserId, ChildSaved child) {
+		return subjectCounts(parentUserId).getOrDefault(child.id(), new int[] {0, 0});
+	}
+
+	private Map<Long, int[]> subjectCounts(long parentUserId) {
+		Map<Long, int[]> counts = new LinkedHashMap<>();
+		List<CountedLink> links = childSubjectPort.visibleLinksForParent(parentUserId);
+		if (links == null) {
+			return counts;
+		}
+		Map<Long, ChildSaved> children = new LinkedHashMap<>();
+		for (ChildSaved child : childPort.findByParent(parentUserId)) {
+			children.put(child.id(), child);
+		}
+		for (CountedLink link : links) {
+			ChildSaved child = children.get(link.childId());
+			if (child == null) {
+				continue;
+			}
+			int[] pair = counts.computeIfAbsent(child.id(), ignored -> new int[] {0, 0});
+			if (ChildSubjectService.sameClass(child, link.schoolId(), link.grade())) {
+				pair[0]++;
+			} else {
+				pair[1]++;
+			}
+		}
+		return counts;
 	}
 
 	private static String countryOf(String curriculum) {

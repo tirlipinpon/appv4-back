@@ -197,6 +197,25 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
+	void anotherTeacherCannotCreateTheSameNameInTheSameClass() {
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		profiles.put(OTHER_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1", "CE2"))));
+
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
+				.hasMessage(TeacherSubjectService.NAME_TAKEN);
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+
+		SubjectLine sciences = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Sciences");
+		SubjectLine otherYear = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
+
+		assertThat(sciences.name()).isEqualTo("Sciences");
+		assertThat(otherYear.name()).isEqualTo("Mathématiques");
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+	}
+
+	@Test
 	void gradeMissingFromTheProfileIsRefused() {
 		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CM1", "Sciences"))
 				.hasMessage(TeacherSubjectService.CLASS_NOT_ON_PROFILE);
@@ -369,9 +388,9 @@ class TeacherSubjectServiceTest {
 		}
 
 		@Override
-		public boolean nameTaken(long userId, long schoolId, String grade, String nameKey, Long exceptId) {
+		public boolean nameTaken(long schoolId, String grade, String nameKey, Long exceptId) {
 			for (StoredSubject row : rows) {
-				if (row.userId() != userId || row.schoolId() != schoolId || !grade.equals(row.grade())) {
+				if (row.schoolId() != schoolId || !grade.equals(row.grade())) {
 					continue;
 				}
 				if (hidden.contains(row.id())) {

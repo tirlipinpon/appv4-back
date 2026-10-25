@@ -21,6 +21,7 @@ import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
@@ -89,6 +90,11 @@ public class TestProfileConfiguration {
 	@Bean
 	TeacherProfilePort teacherProfilePort() {
 		return mock(TeacherProfilePort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	@Bean
+	TeacherSubjectPort teacherSubjectPort() {
+		return mock(TeacherSubjectPort.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
 	/**

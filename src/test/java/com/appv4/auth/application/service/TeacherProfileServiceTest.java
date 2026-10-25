@@ -19,6 +19,8 @@ import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
+import com.appv4.auth.application.port.out.TeacherSubjectPort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.result.TeacherProfileView;
 
 class TeacherProfileServiceTest {
@@ -27,16 +29,18 @@ class TeacherProfileServiceTest {
 	private static final long OTHER_ID = 10L;
 
 	private MemoryProfile profiles;
+	private MemorySubjects subjects;
 	private List<CatalogSchool> catalog;
 	private TeacherProfileService service;
 
 	@BeforeEach
 	void setUp() {
 		profiles = new MemoryProfile();
+		subjects = new MemorySubjects();
 		profiles.seed(TEACHER_ID, "prof@example.com", "Ancien nom");
 		profiles.seed(OTHER_ID, "autre@example.com", "Autre");
 		catalog = new ArrayList<>();
-		service = new TeacherProfileService(profiles, () -> catalog);
+		service = new TeacherProfileService(profiles, () -> catalog, subjects);
 	}
 
 	@Test
@@ -170,6 +174,41 @@ class TeacherProfileServiceTest {
 				List.of("CP")));
 	}
 
+	@Test
+	void uncheckingAGradeDeletesItsSubjectsAndLeavesTheOthers() {
+		catalog.add(school(1L, "École française", SchoolCurricula.COUNTRY_FRANCE, "Primaire"));
+		catalog.add(school(2L, "École belge", SchoolCurricula.COUNTRY_BELGIUM, "Primaire"));
+		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, null, List.of("CE1", "CE2")),
+				new TeacherSchoolCommand(2L, null, List.of("3e primaire"))));
+		subjects.seed(new StoredSubject(1L, TEACHER_ID, 1L, "CE1", "Lecture"));
+		subjects.seed(new StoredSubject(2L, TEACHER_ID, 1L, "CE2", "Mathématiques"));
+		subjects.seed(new StoredSubject(3L, TEACHER_ID, 2L, "3e primaire", "Éveil"));
+		subjects.seed(new StoredSubject(4L, OTHER_ID, 1L, "CE1", "Calcul"));
+
+		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, null, List.of("CE1")),
+				new TeacherSchoolCommand(2L, null, List.of("3e primaire"))));
+
+		assertThat(subjects.remaining(TEACHER_ID)).extracting(StoredSubject::id).containsExactly(1L, 3L);
+		assertThat(subjects.remaining(OTHER_ID)).extracting(StoredSubject::name).containsExactly("Calcul");
+
+		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, null, List.of("CE1")),
+				new TeacherSchoolCommand(9L, null, List.of("CE1")))))
+				.hasMessage(TeacherProfileService.SCHOOL_UNKNOWN);
+		assertThat(subjects.remaining(TEACHER_ID)).extracting(StoredSubject::id).containsExactly(1L, 3L);
+
+		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, null, List.of("CE1"))));
+		assertThat(subjects.remaining(TEACHER_ID)).extracting(StoredSubject::id).containsExactly(1L);
+		assertThat(subjects.remaining(OTHER_ID)).extracting(StoredSubject::name).containsExactly("Calcul");
+
+		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(1L, null, List.of("CE1", "CE2"))));
+		assertThat(subjects.remaining(TEACHER_ID)).extracting(StoredSubject::name).containsExactly("Lecture");
+	}
+
 	private static CatalogSchool school(long id, String name, String country, String teachingTypes) {
 		return new CatalogSchool(id, name, country, teachingTypes);
 	}
@@ -225,6 +264,56 @@ class TeacherProfileServiceTest {
 		@Override
 		public void replaceSchools(long userId, List<TeacherSchoolLink> links) {
 			schools.put(userId, List.copyOf(links));
+		}
+	}
+
+	private static final class MemorySubjects implements TeacherSubjectPort {
+
+		private final List<StoredSubject> rows = new ArrayList<>();
+
+		void seed(StoredSubject subject) {
+			rows.add(subject);
+		}
+
+		List<StoredSubject> remaining(long userId) {
+			List<StoredSubject> kept = new ArrayList<>();
+			for (StoredSubject row : rows) {
+				if (row.userId() == userId) {
+					kept.add(row);
+				}
+			}
+			return kept;
+		}
+
+		@Override
+		public List<StoredSubject> findByUser(long userId) {
+			return remaining(userId);
+		}
+
+		@Override
+		public StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public Optional<StoredSubject> findOwned(long userId, long subjectId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public Optional<StoredSubject> rename(
+				long userId, long subjectId, String name, String nameKey) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public boolean delete(long userId, long subjectId) {
+			return rows.removeIf(row -> row.userId() == userId && row.id() == subjectId);
+		}
+
+		@Override
+		public boolean nameTaken(long userId, long schoolId, String grade, String nameKey, Long exceptId) {
+			throw new UnsupportedOperationException();
 		}
 	}
 }

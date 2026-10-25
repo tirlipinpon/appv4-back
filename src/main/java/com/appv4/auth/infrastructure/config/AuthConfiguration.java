@@ -39,6 +39,7 @@ import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
 import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
 import com.appv4.auth.application.port.in.TeacherModerationUseCase;
 import com.appv4.auth.application.port.in.TeacherProfileUseCase;
+import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
@@ -52,6 +53,7 @@ import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.service.AddMissingSpaceService;
 import com.appv4.auth.application.service.BuildAppleAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildFacebookAuthorizeUrlService;
@@ -70,6 +72,7 @@ import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
 import com.appv4.auth.application.service.TeacherModerationService;
 import com.appv4.auth.application.service.TeacherProfileService;
+import com.appv4.auth.application.service.TeacherSubjectService;
 import com.appv4.auth.infrastructure.adapter.in.web.AuthRateLimitFilter;
 import com.appv4.auth.infrastructure.adapter.in.web.InMemoryAuthRateLimiter;
 import com.appv4.auth.infrastructure.adapter.in.web.JwtAuthenticationFilter;
@@ -374,8 +377,21 @@ public class AuthConfiguration {
 	@Bean
 	TeacherProfileUseCase teacherProfileUseCase(
 			TeacherProfilePort teacherProfilePort,
+			SchoolCatalogPort schoolCatalogPort,
+			TeacherSubjectPort teacherSubjectPort) {
+		return new TeacherProfileService(teacherProfilePort, schoolCatalogPort, teacherSubjectPort);
+	}
+
+	/**
+	 * Matières du professeur (SCRUM-161) — un nom par classe déjà cochée sur le profil.
+	 * Le clone et les formes de questions ne sont pas branchés ici.
+	 */
+	@Bean
+	TeacherSubjectUseCase teacherSubjectUseCase(
+			TeacherSubjectPort teacherSubjectPort,
+			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort) {
-		return new TeacherProfileService(teacherProfilePort, schoolCatalogPort);
+		return new TeacherSubjectService(teacherSubjectPort, teacherProfilePort, schoolCatalogPort);
 	}
 
 	/**

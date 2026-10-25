@@ -35,6 +35,16 @@ public final class ChildKinship {
 			"COUSIN", "est le cousin de",
 			"COUSINE", "est la cousine de");
 
+	private static final Map<String, String> WORD = Map.of(
+			"FRERE", "Frère",
+			"SOEUR", "Sœur",
+			"DEMI_FRERE", "Demi-frère",
+			"DEMI_SOEUR", "Demi-sœur",
+			"JUMEAU", "Jumeau",
+			"JUMELLE", "Jumelle",
+			"COUSIN", "Cousin",
+			"COUSINE", "Cousine");
+
 	private ChildKinship() {
 	}
 
@@ -56,5 +66,18 @@ public final class ChildKinship {
 			throw new IllegalArgumentException(code);
 		}
 		return subjectFirstName + " " + wording + " " + relatedFirstName;
+	}
+
+	/**
+	 * Mot court entre les deux portraits, par exemple « Frère ».
+	 *
+	 * <p><b>Business :</b> la ligne visuelle montre ce mot, pas la phrase entière.
+	 */
+	public static String word(String code) {
+		String word = WORD.get(code);
+		if (word == null) {
+			throw new IllegalArgumentException(code);
+		}
+		return word;
 	}
 }

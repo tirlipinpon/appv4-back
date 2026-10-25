@@ -19,6 +19,7 @@ import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildPort.NewChild;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.result.ParentChildrenView.ChildCard;
+import com.appv4.auth.application.result.ParentChildrenView.KinshipMark;
 
 class ParentChildrenServiceTest {
 
@@ -170,6 +171,7 @@ class ParentChildrenServiceTest {
 				from(lea.id(), "Noah", "Martin", "8", "France", "CM1", "fox", "1357", "1357", "FRERE"));
 
 		assertThat(noah.linkPhrases()).containsExactly("Noah est le frère de Léa");
+		assertThat(noah.links()).containsExactly(new KinshipMark(lea.id(), "Frère"));
 		assertThat(noah.schoolId()).isNull();
 		assertThat(children.all.get(0)).isEqualTo(sourceBefore);
 		assertThat(children.inserted.get(0).pinHash()).isEqualTo("hash:4821");
@@ -190,6 +192,12 @@ class ParentChildrenServiceTest {
 		assertThat(cards.get(1).linkPhrases()).containsExactly("Noah est le frère de Léa");
 		assertThat(cards.get(2).linkPhrases()).isEmpty();
 		assertThat(cards.get(3).linkPhrases()).containsExactly("Emma est la cousine de Léa");
+		assertThat(cards.get(0).links()).containsExactly(
+				new KinshipMark(cards.get(1).id(), "Frère"),
+				new KinshipMark(cards.get(3).id(), "Cousine"));
+		assertThat(cards.get(1).links()).containsExactly(new KinshipMark(cards.get(0).id(), "Frère"));
+		assertThat(cards.get(2).links()).isEmpty();
+		assertThat(cards.get(3).links()).containsExactly(new KinshipMark(cards.get(0).id(), "Cousine"));
 		assertThat(children.inserted.get(0).pinHash()).isEqualTo("hash:4821");
 		assertThat(service.list(2L, "parent").children()).isEmpty();
 	}
@@ -202,6 +210,8 @@ class ParentChildrenServiceTest {
 		assertThat(ChildKinship.phrase("Leo", "JUMEAU", "Léa")).isEqualTo("Leo est le jumeau de Léa");
 		assertThat(ChildKinship.phrase("Lina", "JUMELLE", "Léa")).isEqualTo("Lina est la jumelle de Léa");
 		assertThat(ChildKinship.phrase("Paul", "COUSIN", "Léa")).isEqualTo("Paul est le cousin de Léa");
+		assertThat(ChildKinship.word("FRERE")).isEqualTo("Frère");
+		assertThat(ChildKinship.word("COUSINE")).isEqualTo("Cousine");
 	}
 
 	@Test
@@ -265,6 +275,52 @@ class ParentChildrenServiceTest {
 		assertThat(service.list(1L, "parent").children()).isEmpty();
 		assertThatThrownBy(() -> service.update(1L, "parent", created.id(), rename))
 				.hasMessage(ParentChildrenService.CHILD_UNKNOWN);
+	}
+
+	@Test
+	void updateLinksAnExistingChildAndChangesTheWordWithoutASecondRow() {
+		ChildCard lea = service.add(1L, "parent",
+				command("Léa", "Martin", "7", "France", "CE1", null, "fox", "4821", "4821"));
+		ChildCard noah = service.add(1L, "parent",
+				command("Noah", "Martin", "8", "France", "CM1", null, "cat", "1357", "1357"));
+
+		ChildCard linked = service.update(1L, "parent", noah.id(),
+				rename(noah, lea.id(), "FRERE"));
+
+		assertThat(linked.links()).containsExactly(new KinshipMark(lea.id(), "Frère"));
+		assertThat(service.update(1L, "parent", noah.id(), rename(noah, null, null)).links())
+				.containsExactly(new KinshipMark(lea.id(), "Frère"));
+		assertThat(service.list(1L, "parent").children().get(0).links())
+				.containsExactly(new KinshipMark(noah.id(), "Frère"));
+
+		ChildCard changed = service.update(1L, "parent", lea.id(),
+				rename(lea, noah.id(), "COUSIN"));
+
+		assertThat(changed.links()).containsExactly(new KinshipMark(noah.id(), "Cousin"));
+		assertThat(children.links).hasSize(1);
+		assertThat(service.update(1L, "parent", noah.id(), rename(noah, lea.id(), "AUCUN")).links())
+				.isEmpty();
+		assertThat(service.list(1L, "parent").children().get(0).links()).isEmpty();
+		assertThat(children.links).isEmpty();
+		assertThatThrownBy(() -> service.update(1L, "parent", noah.id(), rename(noah, noah.id(), "FRERE")))
+				.hasMessage(ParentChildrenService.LINK_SELF);
+	}
+
+	private static NewChildCommand rename(ChildCard child, Long otherId, String link) {
+		return new NewChildCommand(
+				child.firstName(),
+				child.lastName(),
+				String.valueOf(child.age()),
+				child.country(),
+				child.grade(),
+				child.schoolId(),
+				null,
+				null,
+				null,
+				"",
+				"",
+				otherId,
+				link);
 	}
 
 	private static NewChildCommand from(
@@ -384,6 +440,35 @@ class ParentChildrenServiceTest {
 		@Override
 		public void insertLink(long parentUserId, long subjectChildId, long relatedChildId, String relation) {
 			links.add(new StoredLink(parentUserId, subjectChildId, relatedChildId, relation));
+		}
+
+		@Override
+		public void saveLink(long parentUserId, long subjectChildId, long relatedChildId, String relation) {
+			for (int i = 0; i < links.size(); i++) {
+				StoredLink link = links.get(i);
+				boolean direct = link.subjectChildId() == subjectChildId
+						&& link.relatedChildId() == relatedChildId;
+				boolean reverse = link.subjectChildId() == relatedChildId
+						&& link.relatedChildId() == subjectChildId;
+				boolean samePair = link.parentUserId() == parentUserId && (direct || reverse);
+				if (samePair) {
+					links.set(i, new StoredLink(
+							parentUserId, link.subjectChildId(), link.relatedChildId(), relation));
+					return;
+				}
+			}
+			insertLink(parentUserId, subjectChildId, relatedChildId, relation);
+		}
+
+		@Override
+		public void deleteLink(long parentUserId, long subjectChildId, long relatedChildId) {
+			links.removeIf(link -> {
+				boolean direct = link.subjectChildId() == subjectChildId
+						&& link.relatedChildId() == relatedChildId;
+				boolean reverse = link.subjectChildId() == relatedChildId
+						&& link.relatedChildId() == subjectChildId;
+				return link.parentUserId() == parentUserId && (direct || reverse);
+			});
 		}
 
 		@Override

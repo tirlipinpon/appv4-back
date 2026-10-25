@@ -24,6 +24,7 @@ import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.result.ParentChildrenView;
 import com.appv4.auth.application.result.ParentChildrenView.ChildCard;
 import com.appv4.auth.application.result.ParentChildrenView.GradeList;
+import com.appv4.auth.application.result.ParentChildrenView.KinshipMark;
 import com.appv4.auth.application.result.ParentChildrenView.SchoolChoice;
 
 /**
@@ -55,6 +56,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	public static final String CHILD_UNKNOWN = "Cet enfant est introuvable.";
 	public static final String LINK_UNKNOWN = "Ce lien n'est pas proposé.";
 	public static final String LINK_NEEDS_CHILD = "Choisis l'enfant de départ.";
+	public static final String LINK_SELF = "Un enfant ne se lie pas à lui-même.";
 
 	public static final int MIN_AGE = 2;
 	public static final int MAX_AGE = 18;
@@ -117,14 +119,19 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		if (relation != null && source != null) {
 			childPort.insertLink(parentUserId, saved.id(), source.id(), relation);
 		}
-		return card(saved, catalogById(), phrasesFor(parentUserId, saved.id()));
+		Attached attached = attachedFor(parentUserId, saved.id());
+		return card(saved, catalogById(), attached.phrases(), attached.marks());
 	}
 
 	/**
 	 * Corrige une fiche déjà affichée. Un PIN vide garde l'ancien code.
+	 * Un lien choisi est créé, ou son mot est mis à jour si les deux enfants sont déjà liés.
 	 *
 	 * <p><b>Business :</b> désactivé ou non, la fiche se corrige. Une fiche retirée de l'affichage est introuvable.
-	 * <p><b>Technique :</b> pas de nouveau lien. L'image n'est remplacée que si une photo ou un avatar est envoyé.
+	 * « Aucun » avec un enfant choisi retire ce lien. Sans enfant choisi, les liens restent.
+	 * <p><b>Technique :</b> l'image n'est remplacée que si une photo ou un avatar est envoyé.
+	 * Le lien est validé avant l'écriture de la fiche.
+	 * <p><b>Métier / flow :</b> même formulaire que l'ajout, sur {@code PUT}.
 	 */
 	@Override
 	@Transactional
@@ -148,6 +155,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		String pinHash = blank(body.pin()) && blank(body.pinConfirmation())
 				? null
 				: passwordEncoder.encode(requirePin(body.pin(), body.pinConfirmation()));
+		Long otherId = body.fromChildId();
+		LinkEdit linkEdit = linkOnUpdate(parentUserId, childId, otherId, body.link());
 		ChildSaved saved = childPort.update(parentUserId, childId, new ChildChanges(
 				firstName,
 				lastName,
@@ -160,7 +169,13 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				image.photo(),
 				image.contentType(),
 				pinHash)).orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
-		return card(saved, catalogById(), phrasesFor(parentUserId, saved.id()));
+		if (otherId != null && linkEdit.remove()) {
+			childPort.deleteLink(parentUserId, saved.id(), otherId);
+		} else if (otherId != null && linkEdit.relation() != null) {
+			childPort.saveLink(parentUserId, saved.id(), otherId, linkEdit.relation());
+		}
+		Attached attached = attachedFor(parentUserId, saved.id());
+		return card(saved, catalogById(), attached.phrases(), attached.marks());
 	}
 
 	@Override
@@ -242,12 +257,38 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		return link.trim();
 	}
 
+	/**
+	 * Lien demandé à la modification.
+	 *
+	 * <p><b>Business :</b> sans enfant choisi, rien ne change. Avec un enfant et « Aucun », ce lien part.
+	 * L'autre enfant doit être à ce parent, et pas la fiche en cours.
+	 */
+	private LinkEdit linkOnUpdate(long parentUserId, long childId, Long otherId, String link) {
+		if (otherId == null) {
+			return LinkEdit.KEEP;
+		}
+		if (otherId.longValue() == childId) {
+			throw bad(LINK_SELF);
+		}
+		sourceOf(parentUserId, otherId);
+		if (ChildKinship.isNone(link)) {
+			return LinkEdit.REMOVE;
+		}
+		return new LinkEdit(false, relationOf(link, true));
+	}
+
+	private record LinkEdit(boolean remove, String relation) {
+		private static final LinkEdit KEEP = new LinkEdit(false, null);
+		private static final LinkEdit REMOVE = new LinkEdit(true, null);
+	}
+
 	private ParentChildrenView view(long parentUserId) {
 		Map<Long, CatalogSchool> schools = catalogById();
-		Map<Long, List<String>> phrases = phrasesByChild(parentUserId);
+		Map<Long, Attached> attached = attachedByChild(parentUserId);
 		List<ChildCard> cards = new ArrayList<>();
 		for (ChildSaved child : childPort.findByParent(parentUserId)) {
-			cards.add(card(child, schools, phrases.getOrDefault(child.id(), List.of())));
+			Attached links = attached.getOrDefault(child.id(), Attached.NONE);
+			cards.add(card(child, schools, links.phrases(), links.marks()));
 		}
 		List<SchoolChoice> choices = new ArrayList<>();
 		for (CatalogSchool school : schools.values()) {
@@ -271,24 +312,43 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		return schools;
 	}
 
-	private List<String> phrasesFor(long parentUserId, long childId) {
-		return phrasesByChild(parentUserId).getOrDefault(childId, List.of());
+	private Attached attachedFor(long parentUserId, long childId) {
+		return attachedByChild(parentUserId).getOrDefault(childId, Attached.NONE);
 	}
 
-	private Map<Long, List<String>> phrasesByChild(long parentUserId) {
+	/**
+	 * Phrase et mot court, sur les deux enfants du lien.
+	 *
+	 * <p><b>Business :</b> chaque fiche retrouve l'autre, avec sa photo ou son avatar.
+	 */
+	private Map<Long, Attached> attachedByChild(long parentUserId) {
 		Map<Long, List<String>> phrases = new LinkedHashMap<>();
+		Map<Long, List<KinshipMark>> marks = new LinkedHashMap<>();
 		for (ChildLinkView link : childPort.findLinks(parentUserId)) {
 			String sentence = ChildKinship.phrase(
 					link.subjectFirstName(),
 					link.relation(),
 					link.relatedFirstName());
+			String word = ChildKinship.word(link.relation());
 			phrases.computeIfAbsent(link.subjectChildId(), ignored -> new ArrayList<>()).add(sentence);
 			phrases.computeIfAbsent(link.relatedChildId(), ignored -> new ArrayList<>()).add(sentence);
+			marks.computeIfAbsent(link.subjectChildId(), ignored -> new ArrayList<>())
+					.add(new KinshipMark(link.relatedChildId(), word));
+			marks.computeIfAbsent(link.relatedChildId(), ignored -> new ArrayList<>())
+					.add(new KinshipMark(link.subjectChildId(), word));
 		}
-		return phrases;
+		Map<Long, Attached> attached = new LinkedHashMap<>();
+		for (Long childId : phrases.keySet()) {
+			attached.put(childId, new Attached(phrases.get(childId), marks.get(childId)));
+		}
+		return attached;
 	}
 
-	private static ChildCard card(ChildSaved child, Map<Long, CatalogSchool> schools, List<String> linkPhrases) {
+	private static ChildCard card(
+			ChildSaved child,
+			Map<Long, CatalogSchool> schools,
+			List<String> linkPhrases,
+			List<KinshipMark> links) {
 		CatalogSchool school = child.schoolId() == null ? null : schools.get(child.schoolId());
 		return new ChildCard(
 				child.id(),
@@ -303,7 +363,12 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				child.avatarCode(),
 				child.hasPhoto(),
 				child.active(),
-				linkPhrases);
+				linkPhrases,
+				links);
+	}
+
+	private record Attached(List<String> phrases, List<KinshipMark> marks) {
+		private static final Attached NONE = new Attached(List.of(), List.of());
 	}
 
 	private static String countryOf(String curriculum) {

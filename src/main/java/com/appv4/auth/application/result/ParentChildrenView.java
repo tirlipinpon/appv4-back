@@ -39,11 +39,23 @@ public record ParentChildrenView(
 			String avatarCode,
 			boolean hasPhoto,
 			boolean active,
-			List<String> linkPhrases) {
+			List<String> linkPhrases,
+			List<KinshipMark> links) {
 
 		public ChildCard {
 			linkPhrases = linkPhrases == null ? List.of() : List.copyOf(linkPhrases);
+			links = links == null ? List.of() : List.copyOf(links);
 		}
+	}
+
+	/**
+	 * Lien court vers un autre enfant du même parent.
+	 *
+	 * <p><b>Business :</b> la liste montre sa photo ou son avatar, et le mot (frère, sœur…).
+	 * <p><b>Technique :</b> {@code otherChildId} désigne l'autre fiche. {@code label} est le mot court.
+	 * <p><b>Métier / flow :</b> relu avec la liste, après l'enregistrement du lien (SCRUM-158).
+	 */
+	public record KinshipMark(long otherChildId, String label) {
 	}
 
 	/**

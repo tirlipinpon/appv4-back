@@ -46,6 +46,26 @@ public interface ChildPort {
 
 	void insertLink(long parentUserId, long subjectChildId, long relatedChildId, String relation);
 
+	/**
+	 * Crée le lien, ou change le mot si ces deux enfants sont déjà liés, dans un sens ou l'autre.
+	 *
+	 * <p><b>Business :</b> modifier une fiche peut ajouter un frère, une sœur, un cousin.
+	 * Le lien déjà affiché garde la même paire et change seulement de mot.
+	 * <p><b>Technique :</b> une ligne {@code back_child_links}. Pas de seconde ligne pour la paire inverse.
+	 * <p><b>Métier / flow :</b> appelé par la modification, après la validation du code fermé.
+	 */
+	void saveLink(long parentUserId, long subjectChildId, long relatedChildId, String relation);
+
+	/**
+	 * Retire le lien entre ces deux enfants, dans un sens ou dans l'autre.
+	 *
+	 * <p><b>Business :</b> « Aucun » sur une fiche déjà liée enlève la ligne affichée.
+	 * Les autres liens de l'enfant restent.
+	 * <p><b>Technique :</b> supprime la ligne {@code back_child_links}. Les fiches restent.
+	 * <p><b>Métier / flow :</b> modification, quand l'autre enfant est choisi et le mot est Aucun.
+	 */
+	void deleteLink(long parentUserId, long subjectChildId, long relatedChildId);
+
 	List<ChildLinkView> findLinks(long parentUserId);
 
 	Optional<ChildPhoto> findPhoto(long parentUserId, long childId);

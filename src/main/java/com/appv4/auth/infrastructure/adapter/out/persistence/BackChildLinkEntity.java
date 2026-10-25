@@ -85,4 +85,9 @@ public class BackChildLinkEntity {
 	public String getRelation() {
 		return relation;
 	}
+
+	/** Le mot change. La paire d'enfants reste la même. */
+	public void changeRelation(String relation) {
+		this.relation = relation;
+	}
 }

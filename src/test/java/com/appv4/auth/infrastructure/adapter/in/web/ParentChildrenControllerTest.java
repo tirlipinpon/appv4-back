@@ -123,6 +123,8 @@ class ParentChildrenControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.firstName").value("Noah"))
 				.andExpect(jsonPath("$.linkPhrases[0]").value("Noah est le frère de Léa"))
+				.andExpect(jsonPath("$.links[0].otherChildId").value(3))
+				.andExpect(jsonPath("$.links[0].label").value("Frère"))
 				.andExpect(jsonPath("$.pin").doesNotExist())
 				.andExpect(jsonPath("$.pinHash").doesNotExist());
 		verify(children).insertLink(9L, 4L, 3L, "FRERE");
@@ -131,7 +133,11 @@ class ParentChildrenControllerTest {
 		mockMvc.perform(get("/api/int/parent/children").header(HttpHeaders.AUTHORIZATION, bearer("parent")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.children[0].linkPhrases[0]").value("Noah est le frère de Léa"))
-				.andExpect(jsonPath("$.children[1].linkPhrases[0]").value("Noah est le frère de Léa"));
+				.andExpect(jsonPath("$.children[1].linkPhrases[0]").value("Noah est le frère de Léa"))
+				.andExpect(jsonPath("$.children[0].links[0].otherChildId").value(4))
+				.andExpect(jsonPath("$.children[0].links[0].label").value("Frère"))
+				.andExpect(jsonPath("$.children[1].links[0].otherChildId").value(3))
+				.andExpect(jsonPath("$.children[1].links[0].label").value("Frère"));
 	}
 
 	@Test
@@ -149,7 +155,8 @@ class ParentChildrenControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(none))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.linkPhrases").isEmpty());
+				.andExpect(jsonPath("$.linkPhrases").isEmpty())
+				.andExpect(jsonPath("$.links").isEmpty());
 		verify(children, never()).insertLink(anyLong(), anyLong(), anyLong(), any());
 
 		String foreign = "{\"firstName\":\"Nina\",\"lastName\":\"Martin\",\"age\":\"7\","

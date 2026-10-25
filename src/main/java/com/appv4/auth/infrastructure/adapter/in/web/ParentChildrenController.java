@@ -220,6 +220,9 @@ public class ParentChildrenController {
 	}
 
 	private static ParentChildResponse toChild(ChildCard card) {
+		List<ParentChildLink> links = card.links().stream()
+				.map(mark -> new ParentChildLink(mark.otherChildId(), mark.label()))
+				.toList();
 		return new ParentChildResponse(
 				card.id(),
 				card.firstName(),
@@ -233,7 +236,8 @@ public class ParentChildrenController {
 				card.avatarCode(),
 				card.hasPhoto(),
 				card.active(),
-				card.linkPhrases());
+				card.linkPhrases(),
+				links);
 	}
 
 	@Schema(name = "ParentChildrenResponse")
@@ -263,7 +267,16 @@ public class ParentChildrenController {
 			@Schema(description = "Faux : encore dans la liste, plus proposé dans le reste de l'application")
 			boolean active,
 			@Schema(description = "Phrases de lien, par exemple « Noah est le frère de Léa ». Vide s'il n'y en a pas.")
-			List<String> linkPhrases) {
+			List<String> linkPhrases,
+			@Schema(description = "L'autre enfant du lien, pour afficher sa photo ou son avatar, et le mot court.")
+			List<ParentChildLink> links) {
+	}
+
+	@Schema(name = "ParentChildLink")
+	public record ParentChildLink(
+			long otherChildId,
+			@Schema(description = "Mot court du lien, par exemple « Frère ».")
+			String label) {
 	}
 
 	@Schema(name = "ParentSchoolOption")

@@ -30,6 +30,12 @@ public interface TeacherProfilePort {
 	void replaceSchools(long userId, List<TeacherSchoolLink> schools);
 
 	/**
+	 * Comptes qui ont cette école et cette année sur leur profil (SCRUM-189).
+	 * Le filtre « rôle teacher accordé » se fait ensuite dans le service.
+	 */
+	List<Long> findUserIdsWithClass(long schoolId, String grade);
+
+	/**
 	 * @param email       email du compte, jamais modifié par ce port
 	 * @param displayName nom affiché actuel
 	 */

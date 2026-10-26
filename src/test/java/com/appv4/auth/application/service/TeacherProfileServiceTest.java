@@ -265,6 +265,11 @@ class TeacherProfileServiceTest {
 		public void replaceSchools(long userId, List<TeacherSchoolLink> links) {
 			schools.put(userId, List.copyOf(links));
 		}
+
+		@Override
+		public List<Long> findUserIdsWithClass(long schoolId, String grade) {
+			throw new UnsupportedOperationException();
+		}
 	}
 
 	private static final class MemorySubjects implements TeacherSubjectPort {
@@ -348,6 +353,46 @@ class TeacherProfileServiceTest {
 
 		@Override
 		public boolean nameTaken(long schoolId, String grade, String nameKey, Long exceptId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public Optional<StoredSubject> findVisible(long subjectId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public StoredTransferRequest insertTransferRequest(long subjectId, long fromUserId, long toUserId, String mode) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public boolean hasPendingTransfer(long subjectId, long toUserId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public List<StoredTransferRequest> findPendingTransfersTo(long toUserId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public Optional<StoredTransferRequest> findPendingTransferForTarget(long requestId, long toUserId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public void markTransferAccepted(long requestId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public void markTransferRejected(long requestId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public void cancelPendingTransfers(long subjectId, Long exceptRequestId) {
 			throw new UnsupportedOperationException();
 		}
 	}

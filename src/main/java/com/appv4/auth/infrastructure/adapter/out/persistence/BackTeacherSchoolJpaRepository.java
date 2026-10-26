@@ -14,6 +14,15 @@ public interface BackTeacherSchoolJpaRepository extends JpaRepository<BackTeache
 
 	List<BackTeacherSchoolEntity> findByUserIdOrderByIdAsc(long userId);
 
+	@Query("""
+			select distinct school.userId
+			from BackTeacherSchoolEntity school, BackTeacherSchoolGradeEntity grade
+			where school.id = grade.teacherSchoolId
+			  and school.schoolId = :schoolId
+			  and grade.gradeLabel = :grade
+			""")
+	List<Long> findUserIdsWithClass(@Param("schoolId") long schoolId, @Param("grade") String grade);
+
 	@Modifying(clearAutomatically = true, flushAutomatically = true)
 	@Query("delete from BackTeacherSchoolEntity school where school.userId = :userId")
 	void deleteByUserId(@Param("userId") long userId);

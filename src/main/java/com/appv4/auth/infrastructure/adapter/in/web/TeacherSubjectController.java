@@ -15,8 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
+import com.appv4.auth.application.result.TeacherSubjectColleaguesView;
 import com.appv4.auth.application.result.TeacherSubjectsView;
 import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
+import com.appv4.auth.application.result.TeacherTransferInvitesView;
 import com.appv4.configuration.OpenApiConfiguration;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,11 +29,10 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Matières du professeur connecté (SCRUM-161, SCRUM-172).
+ * Matières du professeur connecté (SCRUM-161, SCRUM-172, SCRUM-189).
  *
- * <p><b>Business :</b> il crée, voit, renomme, retire, désactive et transfère
- * (déplacer ou partager) une matière de ses classes. Un parent, ou une demande
- * professeur encore en attente, n'ouvre pas ça. Pas d'exercice créé ici.
+ * <p><b>Business :</b> il crée, voit, renomme, retire, désactive et propose un
+ * transfert (déplacer ou partager). Le collègue accepte ou refuse. Pas d'exercice.
  * <p><b>Technique :</b> {@code /api/int/teacher/subjects}, JWT obligatoire.
  * L'espace actif du jeton doit être {@code teacher}.
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link TeacherSubjectUseCase}.
@@ -166,14 +167,39 @@ public class TeacherSubjectController {
 		return ResponseEntity.noContent().build();
 	}
 
+	@GetMapping("/{id}/colleagues")
+	@Operation(
+			operationId = "listTeacherSubjectColleagues",
+			summary = "Lister les collègues à qui proposer un transfert")
+	@ApiResponse(responseCode = "200", description = "Professeurs acceptés avec la même classe, triés par nom")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière introuvable pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectColleaguesResponse> colleagues(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		TeacherSubjectColleaguesView view =
+				teacherSubjectUseCase.listColleagues(user.userId(), user.activeRole(), id);
+		List<TeacherSubjectColleagueItem> items = view.colleagues().stream()
+				.map(line -> new TeacherSubjectColleagueItem(line.userId(), line.displayName()))
+				.toList();
+		return ResponseEntity.ok(new TeacherSubjectColleaguesResponse(items));
+	}
+
 	@PostMapping("/{id}/transfer")
 	@Operation(
 			operationId = "transferTeacherSubject",
-			summary = "Déplacer ou partager une matière avec un collègue")
-	@ApiResponse(responseCode = "204", description = "Même matière, accès mis à jour (pas une copie)")
+			summary = "Proposer de déplacer ou partager une matière avec un collègue")
+	@ApiResponse(responseCode = "204", description = "Demande créée ; l'accès ne change qu'après acceptation")
 	@ApiResponse(
 			responseCode = "400",
-			description = "Email, mode, collègue ou classe invalides",
+			description = "Mode, collègue ou demande déjà en attente",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	@ApiResponse(
 			responseCode = "403",
@@ -191,8 +217,78 @@ public class TeacherSubjectController {
 		TransferTeacherSubjectRequest body = request == null
 				? new TransferTeacherSubjectRequest(null, null)
 				: request;
-		teacherSubjectUseCase.transfer(
-				user.userId(), user.activeRole(), id, body.email(), body.mode());
+		teacherSubjectUseCase.requestTransfer(
+				user.userId(), user.activeRole(), id, body.colleagueUserId(), body.mode());
+		return ResponseEntity.noContent().build();
+	}
+
+	@GetMapping("/transfer-invites")
+	@Operation(
+			operationId = "listTeacherSubjectTransferInvites",
+			summary = "Lister les demandes de transfert reçues")
+	@ApiResponse(responseCode = "200", description = "Demandes en attente avec le détail matière et mode")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherTransferInvitesResponse> transferInvites(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		TeacherTransferInvitesView view =
+				teacherSubjectUseCase.listTransferInvites(user.userId(), user.activeRole());
+		List<TeacherTransferInviteItem> items = view.invites().stream()
+				.map(line -> new TeacherTransferInviteItem(
+						line.id(),
+						line.subjectId(),
+						line.subjectName(),
+						line.schoolId(),
+						line.schoolName(),
+						line.grade(),
+						line.mode(),
+						line.fromDisplayName()))
+				.toList();
+		return ResponseEntity.ok(new TeacherTransferInvitesResponse(items));
+	}
+
+	@PostMapping("/transfer-invites/{inviteId}/accept")
+	@Operation(operationId = "acceptTeacherSubjectTransfer", summary = "Accepter une demande de transfert")
+	@ApiResponse(responseCode = "204", description = "Accès mis à jour (même matière, pas une copie)")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Demande plus valable",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Demande introuvable",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> acceptTransfer(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long inviteId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		teacherSubjectUseCase.acceptTransfer(user.userId(), user.activeRole(), inviteId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/transfer-invites/{inviteId}/reject")
+	@Operation(operationId = "rejectTeacherSubjectTransfer", summary = "Refuser une demande de transfert")
+	@ApiResponse(responseCode = "204", description = "Demande refusée, accès inchangé")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Demande introuvable",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> rejectTransfer(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long inviteId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		teacherSubjectUseCase.rejectTransfer(user.userId(), user.activeRole(), inviteId);
 		return ResponseEntity.noContent().build();
 	}
 
@@ -243,7 +339,31 @@ public class TeacherSubjectController {
 
 	@Schema(name = "TransferTeacherSubjectRequest")
 	public record TransferTeacherSubjectRequest(
-			@Schema(description = "Email du collègue, espaces retirés, casse ignorée") String email,
+			@Schema(description = "Identifiant du collègue choisi dans la liste") Long colleagueUserId,
 			@Schema(description = "move ou share", allowableValues = { "move", "share" }) String mode) {
+	}
+
+	@Schema(name = "TeacherSubjectColleaguesResponse")
+	public record TeacherSubjectColleaguesResponse(List<TeacherSubjectColleagueItem> colleagues) {
+	}
+
+	@Schema(name = "TeacherSubjectColleagueItem")
+	public record TeacherSubjectColleagueItem(long userId, String displayName) {
+	}
+
+	@Schema(name = "TeacherTransferInvitesResponse")
+	public record TeacherTransferInvitesResponse(List<TeacherTransferInviteItem> invites) {
+	}
+
+	@Schema(name = "TeacherTransferInviteItem")
+	public record TeacherTransferInviteItem(
+			long id,
+			long subjectId,
+			String subjectName,
+			long schoolId,
+			String schoolName,
+			String grade,
+			String mode,
+			String fromDisplayName) {
 	}
 }

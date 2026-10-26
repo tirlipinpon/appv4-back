@@ -115,6 +115,22 @@ public final class SchoolCurricula {
 	}
 
 	/**
+	 * Nom de la norme, celui déjà proposé au professeur.
+	 * Vide si le code n'est ni la France ni la Belgique francophone.
+	 */
+	public static String label(String curriculum) {
+		if (curriculum == null) {
+			return "";
+		}
+		for (CurriculumChoice choice : options()) {
+			if (choice.code().equals(curriculum)) {
+				return choice.label();
+			}
+		}
+		return "";
+	}
+
+	/**
 	 * Années connues de cette norme, dans l'ordre d'affichage, sans doublon.
 	 */
 	public static List<String> ordered(String curriculum, Collection<String> selected) {

@@ -322,6 +322,31 @@ class TeacherProfileServiceTest {
 		}
 
 		@Override
+		public List<String> otherAccessNames(long subjectId, long viewerUserId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public List<String> allAccessNames(long subjectId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public void addAccess(long subjectId, long userId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public void replaceAccessWith(long subjectId, long soleUserId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public boolean hasAccess(long subjectId, long userId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
 		public boolean nameTaken(long schoolId, String grade, String nameKey, Long exceptId) {
 			throw new UnsupportedOperationException();
 		}

@@ -388,15 +388,22 @@ public class AuthConfiguration {
 	}
 
 	/**
-	 * Matières du professeur (SCRUM-161) — un nom par classe déjà cochée sur le profil.
-	 * Le clone et les formes de questions ne sont pas branchés ici.
+	 * Matières du professeur (SCRUM-161, SCRUM-172) — créer, retirer, déplacer ou partager.
+	 * Les formes de questions ne sont pas branchées ici.
 	 */
 	@Bean
 	TeacherSubjectUseCase teacherSubjectUseCase(
 			TeacherSubjectPort teacherSubjectPort,
 			TeacherProfilePort teacherProfilePort,
-			SchoolCatalogPort schoolCatalogPort) {
-		return new TeacherSubjectService(teacherSubjectPort, teacherProfilePort, schoolCatalogPort);
+			SchoolCatalogPort schoolCatalogPort,
+			AuthUserAccountPort authUserAccountPort,
+			ActiveRolePort activeRolePort) {
+		return new TeacherSubjectService(
+				teacherSubjectPort,
+				teacherProfilePort,
+				schoolCatalogPort,
+				authUserAccountPort,
+				activeRolePort);
 	}
 
 	/**

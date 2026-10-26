@@ -27,11 +27,11 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Matières du professeur connecté (SCRUM-161).
+ * Matières du professeur connecté (SCRUM-161, SCRUM-172).
  *
- * <p><b>Business :</b> il crée, voit, renomme et retire un nom dans chacune de ses
- * classes. Un parent, ou une demande professeur encore en attente, n'ouvre pas ça.
- * Pas d'exercice, pas de forme de question, pas de copie vers un autre professeur.
+ * <p><b>Business :</b> il crée, voit, renomme, retire, désactive et transfère
+ * (déplacer ou partager) une matière de ses classes. Un parent, ou une demande
+ * professeur encore en attente, n'ouvre pas ça. Pas d'exercice créé ici.
  * <p><b>Technique :</b> {@code /api/int/teacher/subjects}, JWT obligatoire.
  * L'espace actif du jeton doit être {@code teacher}.
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link TeacherSubjectUseCase}.
@@ -81,7 +81,7 @@ public class TeacherSubjectController {
 				: request;
 		SubjectLine line = teacherSubjectUseCase.create(
 				user.userId(), user.activeRole(), body.schoolId(), body.grade(), body.name());
-		return ResponseEntity.ok(new TeacherSubjectItem(line.id(), line.name(), line.active()));
+		return ResponseEntity.ok(item(line));
 	}
 
 	@PutMapping("/{id}")
@@ -106,12 +106,12 @@ public class TeacherSubjectController {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		RenameTeacherSubjectRequest body = request == null ? new RenameTeacherSubjectRequest(null) : request;
 		SubjectLine line = teacherSubjectUseCase.rename(user.userId(), user.activeRole(), id, body.name());
-		return ResponseEntity.ok(new TeacherSubjectItem(line.id(), line.name(), line.active()));
+		return ResponseEntity.ok(item(line));
 	}
 
 	@DeleteMapping("/{id}")
 	@Operation(operationId = "deleteTeacherSubject", summary = "Retirer une matière du professeur connecté")
-	@ApiResponse(responseCode = "204", description = "Retirée de la page. La ligne reste en base")
+	@ApiResponse(responseCode = "204", description = "Accès retiré. Cachée seulement s'il ne reste personne")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace professeur",
@@ -130,7 +130,7 @@ public class TeacherSubjectController {
 
 	@PostMapping("/{id}/deactivate")
 	@Operation(operationId = "deactivateTeacherSubject", summary = "Désactiver une matière du professeur connecté")
-	@ApiResponse(responseCode = "204", description = "Reste dans sa liste, plus proposée dans le reste de l'application")
+	@ApiResponse(responseCode = "204", description = "Reste dans les listes, plus proposée dans le reste de l'application")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace professeur",
@@ -166,6 +166,36 @@ public class TeacherSubjectController {
 		return ResponseEntity.noContent().build();
 	}
 
+	@PostMapping("/{id}/transfer")
+	@Operation(
+			operationId = "transferTeacherSubject",
+			summary = "Déplacer ou partager une matière avec un collègue")
+	@ApiResponse(responseCode = "204", description = "Même matière, accès mis à jour (pas une copie)")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Email, mode, collègue ou classe invalides",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière introuvable pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> transfer(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id,
+			@RequestBody TransferTeacherSubjectRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		TransferTeacherSubjectRequest body = request == null
+				? new TransferTeacherSubjectRequest(null, null)
+				: request;
+		teacherSubjectUseCase.transfer(
+				user.userId(), user.activeRole(), id, body.email(), body.mode());
+		return ResponseEntity.noContent().build();
+	}
+
 	private static TeacherSubjectsResponse toResponse(TeacherSubjectsView view) {
 		List<TeacherSubjectSchool> schools = view.schools().stream()
 				.map(school -> new TeacherSubjectSchool(
@@ -183,7 +213,8 @@ public class TeacherSubjectController {
 	}
 
 	private static TeacherSubjectItem item(SubjectLine subject) {
-		return new TeacherSubjectItem(subject.id(), subject.name(), subject.active());
+		return new TeacherSubjectItem(
+				subject.id(), subject.name(), subject.active(), subject.sharedWith());
 	}
 
 	@Schema(name = "TeacherSubjectsResponse")
@@ -199,7 +230,7 @@ public class TeacherSubjectController {
 	}
 
 	@Schema(name = "TeacherSubjectItem")
-	public record TeacherSubjectItem(long id, String name, boolean active) {
+	public record TeacherSubjectItem(long id, String name, boolean active, List<String> sharedWith) {
 	}
 
 	@Schema(name = "CreateTeacherSubjectRequest")
@@ -208,5 +239,11 @@ public class TeacherSubjectController {
 
 	@Schema(name = "RenameTeacherSubjectRequest")
 	public record RenameTeacherSubjectRequest(String name) {
+	}
+
+	@Schema(name = "TransferTeacherSubjectRequest")
+	public record TransferTeacherSubjectRequest(
+			@Schema(description = "Email du collègue, espaces retirés, casse ignorée") String email,
+			@Schema(description = "move ou share", allowableValues = { "move", "share" }) String mode) {
 	}
 }

@@ -20,6 +20,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.EnrolledChildPort;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
@@ -103,6 +104,12 @@ public class TestProfileConfiguration {
 	@Bean
 	ChildPort childPort() {
 		return mock(ChildPort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	/** Lecture des élèves d'une classe (SCRUM-160). Pas de Postgres dans les tests web. */
+	@Bean
+	EnrolledChildPort enrolledChildPort() {
+		return mock(EnrolledChildPort.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
 	@Bean

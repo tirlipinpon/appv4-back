@@ -34,14 +34,17 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 
 	private final BackTeacherSubjectJpaRepository subjects;
 	private final BackTeacherSubjectAccessJpaRepository access;
+	private final BackTeacherSubjectTransferRequestJpaRepository transfers;
 	private final BackUserJpaRepository users;
 
 	public TeacherSubjectPersistenceAdapter(
 			BackTeacherSubjectJpaRepository subjects,
 			BackTeacherSubjectAccessJpaRepository access,
+			BackTeacherSubjectTransferRequestJpaRepository transfers,
 			BackUserJpaRepository users) {
 		this.subjects = subjects;
 		this.access = access;
+		this.transfers = transfers;
 		this.users = users;
 	}
 
@@ -76,6 +79,16 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	@Transactional(readOnly = true)
 	public Optional<StoredSubject> findOwned(long userId, long subjectId) {
 		return visible(userId, subjectId).map(TeacherSubjectPersistenceAdapter::toStored);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<StoredSubject> findVisible(long subjectId) {
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty() || found.get().isHidden()) {
+			return Optional.empty();
+		}
+		return found.map(TeacherSubjectPersistenceAdapter::toStored);
 	}
 
 	@Override
@@ -170,6 +183,66 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		return access.existsBySubjectIdAndUserId(subjectId, userId);
 	}
 
+	@Override
+	@Transactional
+	public StoredTransferRequest insertTransferRequest(
+			long subjectId, long fromUserId, long toUserId, String mode) {
+		BackTeacherSubjectTransferRequestEntity saved = transfers.saveAndFlush(
+				new BackTeacherSubjectTransferRequestEntity(subjectId, fromUserId, toUserId, mode));
+		return toTransfer(saved);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public boolean hasPendingTransfer(long subjectId, long toUserId) {
+		return transfers.existsBySubjectIdAndToUserIdAndStatus(subjectId, toUserId, "pending");
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<StoredTransferRequest> findPendingTransfersTo(long toUserId) {
+		List<StoredTransferRequest> rows = new ArrayList<>();
+		for (BackTeacherSubjectTransferRequestEntity row
+				: transfers.findByToUserIdAndStatusOrderByIdAsc(toUserId, "pending")) {
+			rows.add(toTransfer(row));
+		}
+		return List.copyOf(rows);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<StoredTransferRequest> findPendingTransferForTarget(long requestId, long toUserId) {
+		return transfers.findByIdAndToUserIdAndStatus(requestId, toUserId, "pending").map(
+				TeacherSubjectPersistenceAdapter::toTransfer);
+	}
+
+	@Override
+	@Transactional
+	public void markTransferAccepted(long requestId) {
+		transfers.findById(requestId).ifPresent(BackTeacherSubjectTransferRequestEntity::accept);
+		transfers.flush();
+	}
+
+	@Override
+	@Transactional
+	public void markTransferRejected(long requestId) {
+		transfers.findById(requestId).ifPresent(BackTeacherSubjectTransferRequestEntity::reject);
+		transfers.flush();
+	}
+
+	@Override
+	@Transactional
+	public void cancelPendingTransfers(long subjectId, Long exceptRequestId) {
+		for (BackTeacherSubjectTransferRequestEntity row
+				: transfers.findBySubjectIdAndStatusOrderByIdAsc(subjectId, "pending")) {
+			if (exceptRequestId != null && exceptRequestId.equals(row.getId())) {
+				continue;
+			}
+			row.cancel();
+		}
+		transfers.flush();
+	}
+
 	private Optional<BackTeacherSubjectEntity> visible(long userId, long subjectId) {
 		if (!access.existsBySubjectIdAndUserId(subjectId, userId)) {
 			return Optional.empty();
@@ -239,6 +312,16 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 				entity.getGradeLabel(),
 				entity.getName(),
 				entity.isActive());
+	}
+
+	private static StoredTransferRequest toTransfer(BackTeacherSubjectTransferRequestEntity entity) {
+		return new StoredTransferRequest(
+				entity.getId(),
+				entity.getSubjectId(),
+				entity.getFromUserId(),
+				entity.getToUserId(),
+				entity.getMode(),
+				entity.getStatus());
 	}
 
 	private static AuthDomainException taken() {

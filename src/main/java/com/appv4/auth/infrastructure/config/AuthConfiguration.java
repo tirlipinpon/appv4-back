@@ -388,21 +388,19 @@ public class AuthConfiguration {
 	}
 
 	/**
-	 * Matières du professeur (SCRUM-161, SCRUM-172) — créer, retirer, déplacer ou partager.
-	 * Les formes de questions ne sont pas branchées ici.
+	 * Matières du professeur (SCRUM-161, SCRUM-172, SCRUM-189) — créer, retirer,
+	 * proposer un transfert ; le collègue accepte.
 	 */
 	@Bean
 	TeacherSubjectUseCase teacherSubjectUseCase(
 			TeacherSubjectPort teacherSubjectPort,
 			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort,
-			AuthUserAccountPort authUserAccountPort,
 			ActiveRolePort activeRolePort) {
 		return new TeacherSubjectService(
 				teacherSubjectPort,
 				teacherProfilePort,
 				schoolCatalogPort,
-				authUserAccountPort,
 				activeRolePort);
 	}
 

@@ -82,6 +82,12 @@ public class TeacherProfilePersistenceAdapter implements TeacherProfilePort {
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public List<Long> findUserIdsWithClass(long schoolId, String grade) {
+		return List.copyOf(schoolRepository.findUserIdsWithClass(schoolId, grade));
+	}
+
+	@Override
 	@Transactional
 	public void replaceSchools(long userId, List<TeacherSchoolLink> schools) {
 		List<BackTeacherSchoolEntity> existing = schoolRepository.findByUserIdOrderByIdAsc(userId);

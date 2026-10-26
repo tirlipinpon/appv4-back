@@ -12,32 +12,32 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
-import com.appv4.auth.application.port.out.AuthUserAccountPort;
-import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
+import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredTransferRequest;
+import com.appv4.auth.application.result.TeacherSubjectColleaguesView;
+import com.appv4.auth.application.result.TeacherSubjectColleaguesView.ColleagueLine;
 import com.appv4.auth.application.result.TeacherSubjectsView;
 import com.appv4.auth.application.result.TeacherSubjectsView.GradeGroup;
 import com.appv4.auth.application.result.TeacherSubjectsView.SchoolGroup;
 import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
+import com.appv4.auth.application.result.TeacherTransferInvitesView;
+import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
 
 /**
- * Matières d'un professeur, classe par classe (SCRUM-161, SCRUM-172).
+ * Matières d'un professeur, classe par classe (SCRUM-161, SCRUM-172, SCRUM-189).
  *
  * <p><b>Business :</b> il crée, voit, renomme et retire un nom dans une année
- * déjà cochée. Il peut déplacer ou partager la même matière avec un collègue
- * accepté qui a cette classe. Pas de copie : les enfants et les formes futures
- * restent sur le même id.
+ * déjà cochée. Il propose un déplacement ou un partage à un collègue de la
+ * liste ; le collègue accepte ou refuse. Pas de copie : même id.
  * <p><b>Technique :</b> le nom affiché est coupé des espaces autour, 100 caractères
- * maximum. La comparaison ignore la casse. L'accès se lit dans
- * {@code back_teacher_subject_access}.
- * <p><b>Métier / flow :</b> port in → profil + comptes + rôles + port matières.
- * Retirer une année du profil est fait par {@link TeacherProfileService}, qui
- * retire l'accès sans effacer la ligne de matière.
+ * maximum. Les demandes vivent dans {@code back_teacher_subject_transfer_requests}.
+ * <p><b>Métier / flow :</b> port in → profil + rôles + port matières.
  */
 public class TeacherSubjectService implements TeacherSubjectUseCase {
 
@@ -47,30 +47,29 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public static final String NAME_TAKEN = "Une matière de ce nom existe déjà dans cette classe.";
 	public static final String CLASS_NOT_ON_PROFILE = "Cette classe n'est pas sur ton profil.";
 	public static final String SUBJECT_MISSING = "Cette matière n'existe pas.";
-	public static final String EMAIL_REQUIRED = "Indique l'email du professeur.";
 	public static final String MODE_REQUIRED = "Choisis de déplacer ou de partager.";
-	public static final String TEACHER_UNKNOWN = "Aucun professeur accepté avec cet email.";
-	public static final String COLLEAGUE_CLASS_MISSING = "Ce professeur n'a pas cette classe sur son profil.";
+	public static final String COLLEAGUE_REQUIRED = "Choisis un collègue.";
+	public static final String COLLEAGUE_NOT_ELIGIBLE = "Ce professeur n'est pas dans la liste.";
 	public static final String ALREADY_HAS = "Ce professeur a déjà cette matière.";
+	public static final String INVITE_PENDING = "Une demande est déjà en attente pour ce collègue.";
+	public static final String INVITE_MISSING = "Cette demande n'existe pas.";
+	public static final String INVITE_STALE = "Cette demande n'est plus valable.";
 	public static final String MODE_MOVE = "move";
 	public static final String MODE_SHARE = "share";
 
 	private final TeacherSubjectPort teacherSubjectPort;
 	private final TeacherProfilePort teacherProfilePort;
 	private final SchoolCatalogPort schoolCatalogPort;
-	private final AuthUserAccountPort authUserAccountPort;
 	private final ActiveRolePort activeRolePort;
 
 	public TeacherSubjectService(
 			TeacherSubjectPort teacherSubjectPort,
 			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort,
-			AuthUserAccountPort authUserAccountPort,
 			ActiveRolePort activeRolePort) {
 		this.teacherSubjectPort = teacherSubjectPort;
 		this.teacherProfilePort = teacherProfilePort;
 		this.schoolCatalogPort = schoolCatalogPort;
-		this.authUserAccountPort = authUserAccountPort;
 		this.activeRolePort = activeRolePort;
 	}
 
@@ -149,31 +148,152 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public TeacherSubjectColleaguesView listColleagues(long userId, String activeRole, long subjectId) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		StoredSubject subject = requireOwned(userId, subjectId);
+		requireClass(userId, subject.schoolId(), subject.grade());
+		// Liste commune : le refus « déjà cette matière » se joue au moment du partage.
+		return new TeacherSubjectColleaguesView(eligibleColleagues(userId, subject, MODE_MOVE));
+	}
+
+	@Override
 	@Transactional
-	public void transfer(long userId, String activeRole, long subjectId, String email, String mode) {
+	public void requestTransfer(
+			long userId, String activeRole, long subjectId, Long colleagueUserId, String mode) {
 		requireTeacher(activeRole);
 		requireAccount(userId);
 		StoredSubject subject = requireOwned(userId, subjectId);
 		requireClass(userId, subject.schoolId(), subject.grade());
 		String transferMode = requireMode(mode);
-		String normalized = requireColleagueEmail(email);
-		AuthUserAccount colleague = findAcceptedTeacher(normalized);
-		if (colleague.id() == userId) {
+		if (colleagueUserId == null) {
+			throw bad(COLLEAGUE_REQUIRED);
+		}
+		if (colleagueUserId == userId) {
 			throw bad(ALREADY_HAS);
 		}
-		boolean alreadyHas = teacherSubjectPort.hasAccess(subjectId, colleague.id());
-		// Partager vers quelqu'un qui l'a déjà : refus. Déplacer vers un co-prof : OK (il reste seul).
-		if (MODE_SHARE.equals(transferMode) && alreadyHas) {
-			throw bad(ALREADY_HAS);
+		if (!isEligibleColleague(userId, subject, colleagueUserId, transferMode)) {
+			if (MODE_SHARE.equals(transferMode) && teacherSubjectPort.hasAccess(subjectId, colleagueUserId)) {
+				throw bad(ALREADY_HAS);
+			}
+			throw bad(COLLEAGUE_NOT_ELIGIBLE);
 		}
-		if (!hasClass(colleague.id(), subject.schoolId(), subject.grade())) {
-			throw bad(COLLEAGUE_CLASS_MISSING);
+		if (teacherSubjectPort.hasPendingTransfer(subjectId, colleagueUserId)) {
+			throw bad(INVITE_PENDING);
 		}
-		if (MODE_MOVE.equals(transferMode)) {
-			teacherSubjectPort.replaceAccessWith(subjectId, colleague.id());
+		teacherSubjectPort.insertTransferRequest(subjectId, userId, colleagueUserId, transferMode);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public TeacherTransferInvitesView listTransferInvites(long userId, String activeRole) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		List<CatalogSchool> catalog = schoolCatalogPort.list();
+		List<InviteLine> lines = new ArrayList<>();
+		for (StoredTransferRequest request : teacherSubjectPort.findPendingTransfersTo(userId)) {
+			Optional<StoredSubject> subject = teacherSubjectPort.findVisible(request.subjectId());
+			if (subject.isEmpty()) {
+				continue;
+			}
+			StoredSubject row = subject.get();
+			String fromName = teacherProfilePort.findAccount(request.fromUserId())
+					.map(TeacherAccount::displayName)
+					.orElse("");
+			lines.add(new InviteLine(
+					request.id(),
+					row.id(),
+					row.name(),
+					row.schoolId(),
+					schoolName(row.schoolId(), catalog),
+					row.grade(),
+					request.mode(),
+					fromName == null ? "" : fromName));
+		}
+		return new TeacherTransferInvitesView(lines);
+	}
+
+	@Override
+	@Transactional
+	public void acceptTransfer(long userId, String activeRole, long inviteId) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		StoredTransferRequest request = teacherSubjectPort
+				.findPendingTransferForTarget(inviteId, userId)
+				.orElseThrow(() -> inviteMissing());
+		StoredSubject subject = teacherSubjectPort.findVisible(request.subjectId())
+				.orElseThrow(() -> bad(INVITE_STALE));
+		if (!teacherSubjectPort.hasAccess(request.subjectId(), request.fromUserId())) {
+			throw bad(INVITE_STALE);
+		}
+		if (!hasClass(userId, subject.schoolId(), subject.grade())) {
+			throw bad(INVITE_STALE);
+		}
+		if (MODE_SHARE.equals(request.mode()) && teacherSubjectPort.hasAccess(request.subjectId(), userId)) {
+			teacherSubjectPort.markTransferAccepted(inviteId);
+			return;
+		}
+		if (MODE_MOVE.equals(request.mode())) {
+			teacherSubjectPort.replaceAccessWith(request.subjectId(), userId);
+			teacherSubjectPort.markTransferAccepted(inviteId);
+			teacherSubjectPort.cancelPendingTransfers(request.subjectId(), inviteId);
 		} else {
-			teacherSubjectPort.addAccess(subjectId, colleague.id());
+			teacherSubjectPort.addAccess(request.subjectId(), userId);
+			teacherSubjectPort.markTransferAccepted(inviteId);
 		}
+	}
+
+	@Override
+	@Transactional
+	public void rejectTransfer(long userId, String activeRole, long inviteId) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		StoredTransferRequest request = teacherSubjectPort
+				.findPendingTransferForTarget(inviteId, userId)
+				.orElseThrow(() -> inviteMissing());
+		teacherSubjectPort.markTransferRejected(request.id());
+	}
+
+	private List<ColleagueLine> eligibleColleagues(long userId, StoredSubject subject, String mode) {
+		List<ColleagueLine> lines = new ArrayList<>();
+		for (Long candidate : teacherProfilePort.findUserIdsWithClass(subject.schoolId(), subject.grade())) {
+			if (candidate == null || candidate == userId) {
+				continue;
+			}
+			if (!isAcceptedTeacher(candidate)) {
+				continue;
+			}
+			if (MODE_SHARE.equals(mode) && teacherSubjectPort.hasAccess(subject.id(), candidate)) {
+				continue;
+			}
+			String name = teacherProfilePort.findAccount(candidate)
+					.map(TeacherAccount::displayName)
+					.orElse("");
+			lines.add(new ColleagueLine(candidate, name == null ? "" : name));
+		}
+		Collator order = Collator.getInstance(Locale.FRENCH);
+		order.setStrength(Collator.PRIMARY);
+		lines.sort((left, right) -> order.compare(left.displayName(), right.displayName()));
+		return List.copyOf(lines);
+	}
+
+	private boolean isEligibleColleague(
+			long userId, StoredSubject subject, long colleagueUserId, String mode) {
+		if (colleagueUserId == userId || !isAcceptedTeacher(colleagueUserId)) {
+			return false;
+		}
+		if (!hasClass(colleagueUserId, subject.schoolId(), subject.grade())) {
+			return false;
+		}
+		if (MODE_SHARE.equals(mode) && teacherSubjectPort.hasAccess(subject.id(), colleagueUserId)) {
+			return false;
+		}
+		return true;
+	}
+
+	private boolean isAcceptedTeacher(long userId) {
+		return activeRolePort.findSpaceRoles(userId).contains(ActiveRoles.TEACHER);
 	}
 
 	private TeacherSubjectsView grouped(long userId) {
@@ -258,25 +378,6 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		return found.get();
 	}
 
-	private AuthUserAccount findAcceptedTeacher(String normalizedEmail) {
-		Optional<AuthUserAccount> found = authUserAccountPort.findByEmail(normalizedEmail);
-		if (found == null || found.isEmpty() || !found.get().active()) {
-			throw bad(TEACHER_UNKNOWN);
-		}
-		AuthUserAccount account = found.get();
-		if (!activeRolePort.findSpaceRoles(account.id()).contains(ActiveRoles.TEACHER)) {
-			throw bad(TEACHER_UNKNOWN);
-		}
-		return account;
-	}
-
-	private static String requireColleagueEmail(String email) {
-		if (email == null || email.isBlank()) {
-			throw bad(EMAIL_REQUIRED);
-		}
-		return email.trim().toLowerCase(Locale.ROOT);
-	}
-
 	private static String requireMode(String mode) {
 		if (mode == null || mode.isBlank()) {
 			throw bad(MODE_REQUIRED);
@@ -321,5 +422,9 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 
 	private static AuthDomainException missing() {
 		return new AuthDomainException(AuthErrorCode.NOT_FOUND, SUBJECT_MISSING);
+	}
+
+	private static AuthDomainException inviteMissing() {
+		return new AuthDomainException(AuthErrorCode.NOT_FOUND, INVITE_MISSING);
 	}
 }

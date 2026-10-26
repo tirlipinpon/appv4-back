@@ -27,6 +27,9 @@ public interface TeacherSubjectPort {
 	 */
 	Optional<StoredSubject> findOwned(long userId, long subjectId);
 
+	/** Matière encore affichée, quel que soit l'accès (détail d'une demande). */
+	Optional<StoredSubject> findVisible(long subjectId);
+
 	Optional<StoredSubject> rename(long userId, long subjectId, String name, String nameKey);
 
 	/**
@@ -73,6 +76,23 @@ public interface TeacherSubjectPort {
 
 	boolean hasAccess(long subjectId, long userId);
 
+	/** Crée une demande pending. */
+	StoredTransferRequest insertTransferRequest(
+			long subjectId, long fromUserId, long toUserId, String mode);
+
+	boolean hasPendingTransfer(long subjectId, long toUserId);
+
+	List<StoredTransferRequest> findPendingTransfersTo(long toUserId);
+
+	Optional<StoredTransferRequest> findPendingTransferForTarget(long requestId, long toUserId);
+
+	void markTransferAccepted(long requestId);
+
+	void markTransferRejected(long requestId);
+
+	/** Annule les autres demandes pending de cette matière (après un move accepté). */
+	void cancelPendingTransfers(long subjectId, Long exceptRequestId);
+
 	/**
 	 * Vrai si une matière encore affichée de cette école et de cette année a déjà ce nom.
 	 * Le professeur qui l'a créée n'importe pas : la classe n'en a qu'une.
@@ -86,6 +106,20 @@ public interface TeacherSubjectPort {
 	 * @param active faux : visible seulement chez les professeurs qui y ont accès
 	 */
 	record StoredSubject(long id, long userId, long schoolId, String grade, String name, boolean active) {
+	}
+
+	/**
+	 * Demande de transfert encore ouverte ou déjà tranchée.
+	 *
+	 * @param mode {@code move} ou {@code share}
+	 */
+	record StoredTransferRequest(
+			long id,
+			long subjectId,
+			long fromUserId,
+			long toUserId,
+			String mode,
+			String status) {
 	}
 
 	/**

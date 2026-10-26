@@ -271,6 +271,11 @@ class TeacherStudentsServiceTest {
 		public void replaceSchools(long userId, List<TeacherSchoolLink> next) {
 			throw new AssertionError("le profil ne change pas depuis cette lecture");
 		}
+
+		@Override
+		public List<Long> findUserIdsWithClass(long schoolId, String grade) {
+			throw new AssertionError("pas de transfert ici");
+		}
 	}
 
 	private static final class MemoryRoster implements EnrolledChildPort {

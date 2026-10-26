@@ -17,19 +17,16 @@ import org.junit.jupiter.api.Test;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.ActiveRolePort;
-import com.appv4.auth.application.port.out.AuthUserAccountPort;
-import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
-import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserLoginCandidate;
-import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserSignupState;
-import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredTransferRequest;
 import com.appv4.auth.application.result.TeacherSubjectsView;
 import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
+import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
 
 class TeacherSubjectServiceTest {
 
@@ -42,7 +39,6 @@ class TeacherSubjectServiceTest {
 
 	private MemoryProfile profiles;
 	private MemorySubjects subjects;
-	private MemoryAccounts accounts;
 	private MemoryRoles roles;
 	private TeacherSubjectService service;
 
@@ -50,16 +46,11 @@ class TeacherSubjectServiceTest {
 	void setUp() {
 		profiles = new MemoryProfile();
 		subjects = new MemorySubjects();
-		accounts = new MemoryAccounts();
 		roles = new MemoryRoles();
 		profiles.seed(TEACHER_ID, "prof@example.com", "Anne");
 		profiles.seed(OTHER_ID, "camille@example.com", "Camille");
 		profiles.seed(THIRD_ID, "luc@example.com", "Luc");
 		profiles.seed(PARENT_ID, "parent@example.com", "Parent");
-		accounts.seed(TEACHER_ID, "prof@example.com", "Anne", true);
-		accounts.seed(OTHER_ID, "camille@example.com", "Camille", true);
-		accounts.seed(THIRD_ID, "luc@example.com", "Luc", true);
-		accounts.seed(PARENT_ID, "parent@example.com", "Parent", true);
 		roles.grantTeacher(TEACHER_ID);
 		roles.grantTeacher(OTHER_ID);
 		roles.grantTeacher(THIRD_ID);
@@ -76,7 +67,7 @@ class TeacherSubjectServiceTest {
 		List<CatalogSchool> catalog = List.of(
 				new CatalogSchool(FRENCH_SCHOOL, "École française", "France", "Primaire"),
 				new CatalogSchool(BELGIAN_SCHOOL, "École belge", "Belgique", "Primaire"));
-		service = new TeacherSubjectService(subjects, profiles, () -> catalog, accounts, roles);
+		service = new TeacherSubjectService(subjects, profiles, () -> catalog, roles);
 	}
 
 	@Test
@@ -243,23 +234,39 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
-	void shareKeepsSameIdAndShowsSharedWith() {
+	void shareInviteNeedsAcceptBeforeAccessChanges() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 
-		service.transfer(TEACHER_ID, "teacher", maths.id(), "  Camille@Example.com ", "share");
+		assertThat(service.listColleagues(TEACHER_ID, "teacher", maths.id()).colleagues())
+				.extracting(c -> c.userId(), c -> c.displayName())
+				.containsExactly(org.assertj.core.groups.Tuple.tuple(OTHER_ID, "Camille"));
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		InviteLine invite = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0);
+		assertThat(invite.subjectName()).isEqualTo("Mathématiques");
+		assertThat(invite.mode()).isEqualTo("share");
+		assertThat(invite.fromDisplayName()).isEqualTo("Anne");
+		assertThat(invite.schoolName()).isEqualTo("École française");
+		assertThat(invite.grade()).isEqualTo("CE1");
+
+		service.acceptTransfer(OTHER_ID, "teacher", invite.id());
 
 		SubjectLine anne = lineOf(TEACHER_ID, maths.id());
 		SubjectLine camille = lineOf(OTHER_ID, maths.id());
 		assertThat(anne.id()).isEqualTo(camille.id());
 		assertThat(anne.sharedWith()).containsExactly("Camille");
 		assertThat(camille.sharedWith()).containsExactly("Anne");
-		assertThat(subjects.accessCount(maths.id())).isEqualTo(2);
+		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites()).isEmpty();
 	}
 
 	@Test
-	void sharedColleagueCanRenameAndDeactivate() {
+	void sharedColleagueCanRenameAndDeactivateAfterAccept() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
-		service.transfer(TEACHER_ID, "teacher", maths.id(), "camille@example.com", "share");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
+		service.acceptTransfer(OTHER_ID, "teacher", inviteId);
 
 		service.rename(OTHER_ID, "teacher", maths.id(), "Maths");
 		service.deactivate(OTHER_ID, "teacher", maths.id());
@@ -271,43 +278,45 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
-	void removeSharedAccessKeepsSubjectForColleague() {
+	void rejectKeepsAccessUnchanged() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
-		service.transfer(TEACHER_ID, "teacher", maths.id(), "camille@example.com", "share");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
+		service.rejectTransfer(OTHER_ID, "teacher", inviteId);
 
-		service.remove(TEACHER_ID, "teacher", maths.id());
-
-		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
-		assertThat(lineOf(OTHER_ID, maths.id()).sharedWith()).isEmpty();
-		assertThat(subjects.hidden(maths.id())).isFalse();
-		assertThatThrownBy(() -> service.rename(TEACHER_ID, "teacher", maths.id(), "Autre"))
-				.hasMessage(TeacherSubjectService.SUBJECT_MISSING);
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith()).isEmpty();
+		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites()).isEmpty();
 	}
 
 	@Test
-	void moveGivesSoleAccessToColleague() {
+	void moveInviteGivesSoleAccessAfterAccept() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
-
-		service.transfer(TEACHER_ID, "teacher", maths.id(), "camille@example.com", "move");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
+		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
+		service.acceptTransfer(OTHER_ID, "teacher", inviteId);
 
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
 		assertThat(lineOf(OTHER_ID, maths.id()).sharedWith()).isEmpty();
 		assertThat(subjects.accessCount(maths.id())).isEqualTo(1);
 		assertThat(subjects.find(maths.id()).userId()).isEqualTo(OTHER_ID);
-		assertThatThrownBy(() -> service.transfer(
-						TEACHER_ID, "teacher", maths.id(), "luc@example.com", "share"))
-				.hasMessage(TeacherSubjectService.SUBJECT_MISSING);
 	}
 
 	@Test
-	void moveAmongThreeLeavesOnlyTheChosenTeacher() {
+	void moveAmongThreeLeavesOnlyChosenAfterAccept() {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
-		service.transfer(TEACHER_ID, "teacher", maths.id(), "camille@example.com", "share");
-		service.transfer(TEACHER_ID, "teacher", maths.id(), "luc@example.com", "share");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		service.acceptTransfer(THIRD_ID, "teacher",
+				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
 
-		service.transfer(OTHER_ID, "teacher", maths.id(), "prof@example.com", "move");
+		service.requestTransfer(OTHER_ID, "teacher", maths.id(), TEACHER_ID, "move");
+		service.acceptTransfer(TEACHER_ID, "teacher",
+				service.listTransferInvites(TEACHER_ID, "teacher").invites().get(0).id());
 
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
 		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith()).isEmpty();
@@ -317,31 +326,25 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
-	void transferValidatesEmailModeAndColleague() {
+	void transferValidatesColleagueAndPending() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 
-		assertThatThrownBy(() -> service.transfer(TEACHER_ID, "teacher", maths.id(), "  ", "share"))
-				.hasMessage(TeacherSubjectService.EMAIL_REQUIRED);
-		assertThatThrownBy(() -> service.transfer(TEACHER_ID, "teacher", maths.id(), "a@b.com", "clone"))
+		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), null, "share"))
+				.hasMessage(TeacherSubjectService.COLLEAGUE_REQUIRED);
+		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "clone"))
 				.hasMessage(TeacherSubjectService.MODE_REQUIRED);
-		assertThatThrownBy(() -> service.transfer(
-						TEACHER_ID, "teacher", maths.id(), "inconnu@example.com", "share"))
-				.hasMessage(TeacherSubjectService.TEACHER_UNKNOWN);
-		assertThatThrownBy(() -> service.transfer(
-						TEACHER_ID, "teacher", maths.id(), "parent@example.com", "share"))
-				.hasMessage(TeacherSubjectService.TEACHER_UNKNOWN);
-		assertThatThrownBy(() -> service.transfer(
-						TEACHER_ID, "teacher", maths.id(), "luc@example.com", "move"))
-				.hasMessage(TeacherSubjectService.COLLEAGUE_CLASS_MISSING);
-		assertThatThrownBy(() -> service.transfer(
-						TEACHER_ID, "teacher", maths.id(), "prof@example.com", "share"))
+		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "move"))
+				.hasMessage(TeacherSubjectService.COLLEAGUE_NOT_ELIGIBLE);
+		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), TEACHER_ID, "share"))
 				.hasMessage(TeacherSubjectService.ALREADY_HAS);
 
-		service.transfer(TEACHER_ID, "teacher", maths.id(), "camille@example.com", "share");
-		assertThatThrownBy(() -> service.transfer(
-						TEACHER_ID, "teacher", maths.id(), "camille@example.com", "share"))
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share"))
+				.hasMessage(TeacherSubjectService.INVITE_PENDING);
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share"))
 				.hasMessage(TeacherSubjectService.ALREADY_HAS);
-		assertThat(subjects.accessCount(maths.id())).isEqualTo(2);
 	}
 
 	@Test
@@ -421,71 +424,18 @@ class TeacherSubjectServiceTest {
 		public void replaceSchools(long userId, List<TeacherSchoolLink> links) {
 			throw new UnsupportedOperationException();
 		}
-	}
-
-	private static final class MemoryAccounts implements AuthUserAccountPort {
-
-		private final Map<String, AuthUserAccount> byEmail = new HashMap<>();
-
-		void seed(long id, String email, String displayName, boolean active) {
-			byEmail.put(email.toLowerCase(java.util.Locale.ROOT),
-					new AuthUserAccount(id, email, displayName, active));
-		}
 
 		@Override
-		public Optional<AuthUserAccount> findByEmail(String email) {
-			return Optional.ofNullable(byEmail.get(email));
-		}
-
-		@Override
-		public Optional<AuthUserAccount> findByProviderSubject(String provider, String providerSubject) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public Optional<AuthUserSignupState> findSignupStateByEmail(String email) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public AuthUserAccount createWithIdentity(
-				String email, String displayName, String provider, String providerSubject, String emailAtProvider) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public AuthUserAccount createWithPassword(String email, String displayName, String passwordHash) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void linkIdentity(long userId, String provider, String providerSubject, String emailAtProvider) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void clearPasswordAfterVerifiedSocialLink(long userId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void updatePasswordHash(long userId, String passwordHash) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void bumpSecurityVersion(long userId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public Optional<SessionState> findSessionState(long userId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public Optional<AuthUserLoginCandidate> findLoginCandidateByEmail(String email) {
-			throw new UnsupportedOperationException();
+		public List<Long> findUserIdsWithClass(long schoolId, String grade) {
+			List<Long> ids = new ArrayList<>();
+			for (Map.Entry<Long, List<TeacherSchoolLink>> entry : schools.entrySet()) {
+				for (TeacherSchoolLink link : entry.getValue()) {
+					if (link.schoolId() == schoolId && link.grades().contains(grade)) {
+						ids.add(entry.getKey());
+					}
+				}
+			}
+			return ids;
 		}
 	}
 
@@ -711,6 +661,96 @@ class TeacherSubjectServiceTest {
 				}
 			}
 			return false;
+		}
+
+
+		private final List<StoredTransferRequest> transfers = new ArrayList<>();
+		private long nextTransferId = 1L;
+
+		@Override
+		public Optional<StoredSubject> findVisible(long subjectId) {
+			for (StoredSubject row : rows) {
+				if (row.id() == subjectId && !hidden.contains(row.id())) {
+					return Optional.of(row);
+				}
+			}
+			return Optional.empty();
+		}
+
+		@Override
+		public StoredTransferRequest insertTransferRequest(
+				long subjectId, long fromUserId, long toUserId, String mode) {
+			StoredTransferRequest saved = new StoredTransferRequest(
+					nextTransferId++, subjectId, fromUserId, toUserId, mode, "pending");
+			transfers.add(saved);
+			return saved;
+		}
+
+		@Override
+		public boolean hasPendingTransfer(long subjectId, long toUserId) {
+			for (StoredTransferRequest row : transfers) {
+				if (row.subjectId() == subjectId && row.toUserId() == toUserId && "pending".equals(row.status())) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		@Override
+		public List<StoredTransferRequest> findPendingTransfersTo(long toUserId) {
+			List<StoredTransferRequest> found = new ArrayList<>();
+			for (StoredTransferRequest row : transfers) {
+				if (row.toUserId() == toUserId && "pending".equals(row.status())) {
+					found.add(row);
+				}
+			}
+			return found;
+		}
+
+		@Override
+		public Optional<StoredTransferRequest> findPendingTransferForTarget(long requestId, long toUserId) {
+			for (StoredTransferRequest row : transfers) {
+				if (row.id() == requestId && row.toUserId() == toUserId && "pending".equals(row.status())) {
+					return Optional.of(row);
+				}
+			}
+			return Optional.empty();
+		}
+
+		@Override
+		public void markTransferAccepted(long requestId) {
+			replaceTransferStatus(requestId, "accepted");
+		}
+
+		@Override
+		public void markTransferRejected(long requestId) {
+			replaceTransferStatus(requestId, "rejected");
+		}
+
+		@Override
+		public void cancelPendingTransfers(long subjectId, Long exceptRequestId) {
+			for (int i = 0; i < transfers.size(); i++) {
+				StoredTransferRequest row = transfers.get(i);
+				if (row.subjectId() != subjectId || !"pending".equals(row.status())) {
+					continue;
+				}
+				if (exceptRequestId != null && exceptRequestId == row.id()) {
+					continue;
+				}
+				transfers.set(i, new StoredTransferRequest(
+						row.id(), row.subjectId(), row.fromUserId(), row.toUserId(), row.mode(), "cancelled"));
+			}
+		}
+
+		private void replaceTransferStatus(long requestId, String status) {
+			for (int i = 0; i < transfers.size(); i++) {
+				StoredTransferRequest row = transfers.get(i);
+				if (row.id() == requestId) {
+					transfers.set(i, new StoredTransferRequest(
+							row.id(), row.subjectId(), row.fromUserId(), row.toUserId(), row.mode(), status));
+					return;
+				}
+			}
 		}
 
 		@Override

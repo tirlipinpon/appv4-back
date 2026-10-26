@@ -35,6 +35,9 @@ public class BackChildEntity {
 	@Column(name = "last_name", nullable = false, length = 100)
 	private String lastName;
 
+	@Column(nullable = false, length = 16)
+	private String sex;
+
 	@Column(nullable = false)
 	private short age;
 
@@ -75,6 +78,7 @@ public class BackChildEntity {
 			long parentUserId,
 			String firstName,
 			String lastName,
+			String sex,
 			int age,
 			String curriculum,
 			String gradeLabel,
@@ -86,6 +90,7 @@ public class BackChildEntity {
 		this.parentUserId = parentUserId;
 		this.firstName = firstName;
 		this.lastName = lastName;
+		this.sex = sex;
 		this.age = (short) age;
 		this.curriculum = curriculum;
 		this.gradeLabel = gradeLabel;
@@ -119,6 +124,10 @@ public class BackChildEntity {
 
 	public String getLastName() {
 		return lastName;
+	}
+
+	public String getSex() {
+		return sex;
 	}
 
 	public short getAge() {
@@ -178,6 +187,7 @@ public class BackChildEntity {
 	public void applyChanges(
 			String firstName,
 			String lastName,
+			String sex,
 			int age,
 			String curriculum,
 			String gradeLabel,
@@ -189,6 +199,7 @@ public class BackChildEntity {
 			String pinHash) {
 		this.firstName = firstName;
 		this.lastName = lastName;
+		this.sex = sex;
 		this.age = (short) age;
 		this.curriculum = curriculum;
 		this.gradeLabel = gradeLabel;

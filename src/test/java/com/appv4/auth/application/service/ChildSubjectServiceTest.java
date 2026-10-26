@@ -146,7 +146,8 @@ class ChildSubjectServiceTest {
 	}
 
 	private static ChildSaved saved(long id, long parentId, String firstName, Long schoolId, String grade) {
-		return new ChildSaved(id, parentId, firstName, "Martin", 7, "FRANCE", grade, schoolId, "fox", false, true);
+		return new ChildSaved(
+				id, parentId, firstName, "Martin", "FILLE", 7, "FRANCE", grade, schoolId, "fox", false, true);
 	}
 
 	private static final class MemoryChildren implements ChildPort {
@@ -166,6 +167,7 @@ class ChildSubjectServiceTest {
 							row.parentUserId(),
 							row.firstName(),
 							row.lastName(),
+							row.sex(),
 							row.age(),
 							row.curriculum(),
 							grade,
@@ -225,6 +227,16 @@ class ChildSubjectServiceTest {
 
 		@Override
 		public void insertLink(long parentUserId, long subjectChildId, long relatedChildId, String relation) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public void saveLink(long parentUserId, long subjectChildId, long relatedChildId, String relation) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public void deleteLink(long parentUserId, long subjectChildId, long relatedChildId) {
 			throw new UnsupportedOperationException();
 		}
 

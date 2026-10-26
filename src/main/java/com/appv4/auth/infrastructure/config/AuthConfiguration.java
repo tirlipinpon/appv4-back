@@ -39,12 +39,14 @@ import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
 import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
 import com.appv4.auth.application.port.in.TeacherModerationUseCase;
 import com.appv4.auth.application.port.in.TeacherProfileUseCase;
+import com.appv4.auth.application.port.in.TeacherStudentsUseCase;
 import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.EnrolledChildPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
@@ -74,6 +76,7 @@ import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
 import com.appv4.auth.application.service.TeacherModerationService;
 import com.appv4.auth.application.service.TeacherProfileService;
+import com.appv4.auth.application.service.TeacherStudentsService;
 import com.appv4.auth.application.service.TeacherSubjectService;
 import com.appv4.auth.infrastructure.adapter.in.web.AuthRateLimitFilter;
 import com.appv4.auth.infrastructure.adapter.in.web.InMemoryAuthRateLimiter;
@@ -394,6 +397,17 @@ public class AuthConfiguration {
 			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort) {
 		return new TeacherSubjectService(teacherSubjectPort, teacherProfilePort, schoolCatalogPort);
+	}
+
+	/**
+	 * Élèves des classes du professeur (SCRUM-160) — lecture seule, sans PIN ni parent.
+	 */
+	@Bean
+	TeacherStudentsUseCase teacherStudentsUseCase(
+			EnrolledChildPort enrolledChildPort,
+			TeacherProfilePort teacherProfilePort,
+			SchoolCatalogPort schoolCatalogPort) {
+		return new TeacherStudentsService(enrolledChildPort, teacherProfilePort, schoolCatalogPort);
 	}
 
 	/**

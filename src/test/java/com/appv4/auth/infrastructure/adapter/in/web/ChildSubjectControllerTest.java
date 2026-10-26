@@ -36,7 +36,7 @@ import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
 class ChildSubjectControllerTest {
 
 	private static final ChildSaved LEA = new ChildSaved(
-			3L, 9L, "Léa", "Martin", 7, "FRANCE", "CE1", 1L, "fox", false, true);
+			3L, 9L, "Léa", "Martin", "FILLE", 7, "FRANCE", "CE1", 1L, "fox", false, true);
 
 	@Autowired
 	private MockMvc mockMvc;

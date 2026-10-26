@@ -82,7 +82,8 @@ public class ParentChildrenController {
 			@RequestBody CreateParentChildRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateParentChildRequest body = request == null
-				? new CreateParentChildRequest(null, null, null, null, null, null, null, null, null, null, null, null, null)
+				? new CreateParentChildRequest(
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		ChildCard card = parentChildrenUseCase.add(
 				user.userId(),
@@ -90,6 +91,7 @@ public class ParentChildrenController {
 				new NewChildCommand(
 						body.firstName(),
 						body.lastName(),
+						body.sex(),
 						body.age(),
 						body.country(),
 						body.grade(),
@@ -106,11 +108,13 @@ public class ParentChildrenController {
 
 	private static NewChildCommand toCommand(CreateParentChildRequest request) {
 		CreateParentChildRequest body = request == null
-				? new CreateParentChildRequest(null, null, null, null, null, null, null, null, null, null, null, null, null)
+				? new CreateParentChildRequest(
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		return new NewChildCommand(
 				body.firstName(),
 				body.lastName(),
+				body.sex(),
 				body.age(),
 				body.country(),
 				body.grade(),
@@ -220,10 +224,14 @@ public class ParentChildrenController {
 	}
 
 	private static ParentChildResponse toChild(ChildCard card) {
+		List<ParentChildLink> links = card.links().stream()
+				.map(mark -> new ParentChildLink(mark.otherChildId(), mark.label()))
+				.toList();
 		return new ParentChildResponse(
 				card.id(),
 				card.firstName(),
 				card.lastName(),
+				card.sex(),
 				card.age(),
 				card.country(),
 				card.curriculum(),
@@ -235,7 +243,8 @@ public class ParentChildrenController {
 				card.active(),
 				card.linkPhrases(),
 				card.schoolSubjectCount(),
-				card.extraSubjectCount());
+				card.extraSubjectCount(),
+				links);
 	}
 
 	@Schema(name = "ParentChildrenResponse")
@@ -254,6 +263,8 @@ public class ParentChildrenController {
 			long id,
 			String firstName,
 			String lastName,
+			@Schema(description = "GARCON, FILLE ou NON_GENRE")
+			String sex,
 			int age,
 			String country,
 			String curriculum,
@@ -269,7 +280,16 @@ public class ParentChildrenController {
 			@Schema(description = "Matières visibles de la même école et de la même année")
 			int schoolSubjectCount,
 			@Schema(description = "Autres matières visibles, hors de sa classe")
-			int extraSubjectCount) {
+			int extraSubjectCount,
+			@Schema(description = "L'autre enfant du lien, pour afficher sa photo ou son avatar, et le mot court.")
+			List<ParentChildLink> links) {
+	}
+
+	@Schema(name = "ParentChildLink")
+	public record ParentChildLink(
+			long otherChildId,
+			@Schema(description = "Mot court du lien, par exemple « Frère ».")
+			String label) {
 	}
 
 	@Schema(name = "ParentSchoolOption")
@@ -280,6 +300,8 @@ public class ParentChildrenController {
 	public record CreateParentChildRequest(
 			String firstName,
 			String lastName,
+			@Schema(description = "GARCON, FILLE ou NON_GENRE")
+			String sex,
 			String age,
 			String country,
 			String grade,

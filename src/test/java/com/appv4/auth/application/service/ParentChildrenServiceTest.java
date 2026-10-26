@@ -17,6 +17,7 @@ import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildPort.NewChild;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.result.ParentChildrenView.ChildCard;
 import com.appv4.auth.application.result.ParentChildrenView.KinshipMark;
@@ -42,7 +43,9 @@ class ParentChildrenServiceTest {
 				return encodedPassword.equals("hash:" + rawPassword);
 			}
 		};
-		service = new ParentChildrenService(children, () -> catalog, encoder);
+		NoChildSubjects links = new NoChildSubjects();
+		service = new ParentChildrenService(
+				children, () -> catalog, encoder, links, new ChildSubjectService(children, links, () -> catalog));
 	}
 
 	@Test
@@ -600,6 +603,33 @@ class ParentChildrenServiceTest {
 				return java.util.Optional.empty();
 			}
 			return java.util.Optional.of(new ChildPhoto(match.photo(), match.photoContentType()));
+		}
+	}
+
+	private static final class NoChildSubjects implements ChildSubjectPort {
+
+		@Override
+		public java.util.List<CatalogSubject> visibleSubjects() {
+			return java.util.List.of();
+		}
+
+		@Override
+		public List<StoredLink> linksOf(long childId) {
+			return java.util.List.of();
+		}
+
+		@Override
+		public java.util.List<CountedLink> visibleLinksForParent(long parentUserId) {
+			return java.util.List.of();
+		}
+
+		@Override
+		public void save(long childId, long subjectId, boolean excluded) {
+		}
+
+		@Override
+		public boolean deleteLink(long childId, long subjectId) {
+			return false;
 		}
 	}
 }

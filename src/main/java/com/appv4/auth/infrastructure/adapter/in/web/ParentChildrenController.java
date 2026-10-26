@@ -242,6 +242,8 @@ public class ParentChildrenController {
 				card.hasPhoto(),
 				card.active(),
 				card.linkPhrases(),
+				card.schoolSubjectCount(),
+				card.extraSubjectCount(),
 				links);
 	}
 
@@ -275,6 +277,10 @@ public class ParentChildrenController {
 			boolean active,
 			@Schema(description = "Phrases de lien, par exemple « Noah est le frère de Léa ». Vide s'il n'y en a pas.")
 			List<String> linkPhrases,
+			@Schema(description = "Matières visibles de la même école et de la même année")
+			int schoolSubjectCount,
+			@Schema(description = "Autres matières visibles, hors de sa classe")
+			int extraSubjectCount,
 			@Schema(description = "L'autre enfant du lien, pour afficher sa photo ou son avatar, et le mot court.")
 			List<ParentChildLink> links) {
 	}

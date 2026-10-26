@@ -40,9 +40,11 @@ import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
 import com.appv4.auth.application.port.in.TeacherModerationUseCase;
 import com.appv4.auth.application.port.in.TeacherProfileUseCase;
 import com.appv4.auth.application.port.in.TeacherStudentsUseCase;
+import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
@@ -54,6 +56,7 @@ import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.service.AddMissingSpaceService;
 import com.appv4.auth.application.service.BuildAppleAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildFacebookAuthorizeUrlService;
@@ -66,6 +69,7 @@ import com.appv4.auth.application.service.ResumeAppleOAuthCallbackService;
 import com.appv4.auth.application.service.LoginWithEmailService;
 import com.appv4.auth.application.service.LoginWithFacebookService;
 import com.appv4.auth.application.service.LoginWithGoogleService;
+import com.appv4.auth.application.service.ChildSubjectService;
 import com.appv4.auth.application.service.ParentChildrenService;
 import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
@@ -73,6 +77,7 @@ import com.appv4.auth.application.service.SwitchActiveRoleService;
 import com.appv4.auth.application.service.TeacherModerationService;
 import com.appv4.auth.application.service.TeacherProfileService;
 import com.appv4.auth.application.service.TeacherStudentsService;
+import com.appv4.auth.application.service.TeacherSubjectService;
 import com.appv4.auth.infrastructure.adapter.in.web.AuthRateLimitFilter;
 import com.appv4.auth.infrastructure.adapter.in.web.InMemoryAuthRateLimiter;
 import com.appv4.auth.infrastructure.adapter.in.web.JwtAuthenticationFilter;
@@ -377,8 +382,21 @@ public class AuthConfiguration {
 	@Bean
 	TeacherProfileUseCase teacherProfileUseCase(
 			TeacherProfilePort teacherProfilePort,
+			SchoolCatalogPort schoolCatalogPort,
+			TeacherSubjectPort teacherSubjectPort) {
+		return new TeacherProfileService(teacherProfilePort, schoolCatalogPort, teacherSubjectPort);
+	}
+
+	/**
+	 * Matières du professeur (SCRUM-161) — un nom par classe déjà cochée sur le profil.
+	 * Le clone et les formes de questions ne sont pas branchés ici.
+	 */
+	@Bean
+	TeacherSubjectUseCase teacherSubjectUseCase(
+			TeacherSubjectPort teacherSubjectPort,
+			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort) {
-		return new TeacherProfileService(teacherProfilePort, schoolCatalogPort);
+		return new TeacherSubjectService(teacherSubjectPort, teacherProfilePort, schoolCatalogPort);
 	}
 
 	/**
@@ -399,8 +417,23 @@ public class AuthConfiguration {
 	ParentChildrenUseCase parentChildrenUseCase(
 			ChildPort childPort,
 			SchoolCatalogPort schoolCatalogPort,
-			PasswordEncoder passwordEncoder) {
-		return new ParentChildrenService(childPort, schoolCatalogPort, passwordEncoder);
+			PasswordEncoder passwordEncoder,
+			ChildSubjectPort childSubjectPort,
+			ChildSubjectService childSubjectService) {
+		return new ParentChildrenService(
+				childPort, schoolCatalogPort, passwordEncoder, childSubjectPort, childSubjectService);
+	}
+
+	/**
+	 * Matières d'un enfant (SCRUM-162) — le parent ajoute ou retire un lien.
+	 * La matière du professeur n'est pas modifiée.
+	 */
+	@Bean
+	ChildSubjectService childSubjectService(
+			ChildPort childPort,
+			ChildSubjectPort childSubjectPort,
+			SchoolCatalogPort schoolCatalogPort) {
+		return new ChildSubjectService(childPort, childSubjectPort, schoolCatalogPort);
 	}
 
 	/**

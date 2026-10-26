@@ -19,9 +19,11 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
@@ -92,6 +94,11 @@ public class TestProfileConfiguration {
 		return mock(TeacherProfilePort.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
+	@Bean
+	TeacherSubjectPort teacherSubjectPort() {
+		return mock(TeacherSubjectPort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
 	/**
 	 * Les tests web ne démarrent pas Postgres. L'annuaire réel est vide ici ;
 	 * les trois écoles d'exemple sont vérifiées sur la base locale.
@@ -110,6 +117,11 @@ public class TestProfileConfiguration {
 	@Bean
 	EnrolledChildPort enrolledChildPort() {
 		return mock(EnrolledChildPort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	@Bean
+	ChildSubjectPort childSubjectPort() {
+		return mock(ChildSubjectPort.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
 	@Bean

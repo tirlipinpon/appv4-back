@@ -41,6 +41,8 @@ public record ParentChildrenView(
 			boolean hasPhoto,
 			boolean active,
 			List<String> linkPhrases,
+			int schoolSubjectCount,
+			int extraSubjectCount,
 			List<KinshipMark> links) {
 
 		public ChildCard {

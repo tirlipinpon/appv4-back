@@ -11,7 +11,8 @@ import jakarta.persistence.Table;
  * Accès d'un professeur à une matière (SCRUM-172).
  *
  * <p><b>Business :</b> plusieurs professeurs peuvent agir sur la même matière
- * (partage). Déplacer ne laisse qu'une ligne d'accès.
+ * (partage). Déplacer ne laisse qu'une ligne d'accès. {@code active} est
+ * personnel : le créateur peut aussi désactiver pour des co-profs choisis.
  * <p><b>Technique :</b> table {@code back_teacher_subject_access}.
  * <p><b>Métier / flow :</b> créé à l'ajout de matière, enrichi par
  * {@code POST .../transfer}, retiré par DELETE matière.
@@ -30,12 +31,16 @@ public class BackTeacherSubjectAccessEntity {
 	@Column(name = "user_id", nullable = false)
 	private long userId;
 
+	@Column(nullable = false)
+	private boolean active = true;
+
 	protected BackTeacherSubjectAccessEntity() {
 	}
 
 	public BackTeacherSubjectAccessEntity(long subjectId, long userId) {
 		this.subjectId = subjectId;
 		this.userId = userId;
+		this.active = true;
 	}
 
 	public Long getId() {
@@ -48,5 +53,17 @@ public class BackTeacherSubjectAccessEntity {
 
 	public long getUserId() {
 		return userId;
+	}
+
+	public boolean isActive() {
+		return active;
+	}
+
+	public void deactivate() {
+		this.active = false;
+	}
+
+	public void reactivate() {
+		this.active = true;
 	}
 }

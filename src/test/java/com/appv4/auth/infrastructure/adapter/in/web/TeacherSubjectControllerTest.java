@@ -56,6 +56,8 @@ class TeacherSubjectControllerTest {
 		when(profiles.findAccount(9L)).thenReturn(Optional.of(new TeacherAccount("prof@example.com", "Martin")));
 		when(profiles.findSchools(9L)).thenReturn(List.of());
 		when(subjects.findByUser(9L)).thenReturn(List.of());
+		when(subjects.otherAccessHolders(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
+				.thenReturn(List.of());
 		when(subjects.otherAccessNames(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
 				.thenReturn(List.of());
 	}
@@ -199,13 +201,25 @@ class TeacherSubjectControllerTest {
 
 	@Test
 	void deactivateLeavesTheSubjectForTheTeacher() throws Exception {
-		when(subjects.deactivate(9L, 4L)).thenReturn(true);
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Français", true)));
+		when(subjects.accessUserIds(4L)).thenReturn(List.of(9L));
+		when(subjects.deactivateAccesses(
+						org.mockito.ArgumentMatchers.eq(9L),
+						org.mockito.ArgumentMatchers.eq(4L),
+						org.mockito.ArgumentMatchers.anyList()))
+				.thenReturn(true);
 
 		mockMvc.perform(post("/api/int/teacher/subjects/4/deactivate")
-						.header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"alsoUserIds\":[]}"))
 				.andExpect(status().isNoContent());
 
-		verify(subjects).deactivate(9L, 4L);
+		verify(subjects).deactivateAccesses(
+				org.mockito.ArgumentMatchers.eq(9L),
+				org.mockito.ArgumentMatchers.eq(4L),
+				org.mockito.ArgumentMatchers.anyList());
 		verify(subjects, never()).hide(
 				org.mockito.ArgumentMatchers.anyLong(),
 				org.mockito.ArgumentMatchers.anyLong());

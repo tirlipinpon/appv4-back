@@ -20,6 +20,8 @@ import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.AccessHolder;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredDeactivateNotice;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.result.TeacherProfileView;
 
@@ -317,7 +319,7 @@ class TeacherProfileServiceTest {
 		}
 
 		@Override
-		public boolean deactivate(long userId, long subjectId) {
+		public boolean deactivateAccesses(long actorUserId, long subjectId, List<Long> userIds) {
 			throw new UnsupportedOperationException();
 		}
 
@@ -327,7 +329,33 @@ class TeacherProfileServiceTest {
 		}
 
 		@Override
+		public List<Long> accessUserIds(long subjectId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public List<AccessHolder> otherAccessHolders(long subjectId, long viewerUserId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
 		public List<String> otherAccessNames(long subjectId, long viewerUserId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public void insertDeactivateNotices(
+				long subjectId, long fromUserId, List<Long> toUserIds, List<Long> deactivatedUserIds) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public List<StoredDeactivateNotice> findOpenDeactivateNoticesTo(long toUserId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public boolean dismissDeactivateNotice(long noticeId, long toUserId) {
 			throw new UnsupportedOperationException();
 		}
 

@@ -2,9 +2,11 @@ package com.appv4.auth.application.service;
 
 import java.text.Collator;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,13 +20,18 @@ import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.AccessHolder;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredDeactivateNotice;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredTransferRequest;
+import com.appv4.auth.application.result.TeacherDeactivateNoticesView;
+import com.appv4.auth.application.result.TeacherDeactivateNoticesView.NoticeLine;
 import com.appv4.auth.application.result.TeacherSubjectColleaguesView;
 import com.appv4.auth.application.result.TeacherSubjectColleaguesView.ColleagueLine;
 import com.appv4.auth.application.result.TeacherSubjectsView;
 import com.appv4.auth.application.result.TeacherSubjectsView.GradeGroup;
 import com.appv4.auth.application.result.TeacherSubjectsView.SchoolGroup;
+import com.appv4.auth.application.result.TeacherSubjectsView.SharedHolder;
 import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
 import com.appv4.auth.application.result.TeacherTransferInvitesView;
 import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
@@ -34,7 +41,9 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
  *
  * <p><b>Business :</b> il crée, voit, renomme et retire un nom dans une année
  * déjà cochée. Il propose un déplacement ou un partage à un collègue de la
- * liste ; le collègue accepte ou refuse. Pas de copie : même id.
+ * liste ; le collègue accepte ou refuse. La désactivation est par accès : le
+ * non-créateur seulement pour lui ; le créateur peut cibler des co-profs et
+ * les autres détenteurs reçoivent une alerte. Pas de copie : même id.
  * <p><b>Technique :</b> le nom affiché est coupé des espaces autour, 100 caractères
  * maximum. Les demandes vivent dans {@code back_teacher_subject_transfer_requests}.
  * <p><b>Métier / flow :</b> port in → profil + rôles + port matières.
@@ -54,6 +63,10 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public static final String INVITE_PENDING = "Une demande est déjà en attente pour ce collègue.";
 	public static final String INVITE_MISSING = "Cette demande n'existe pas.";
 	public static final String INVITE_STALE = "Cette demande n'est plus valable.";
+	public static final String ALSO_NOT_ALLOWED =
+			"Seul le créateur peut désactiver pour d'autres professeurs.";
+	public static final String ALSO_NOT_HOLDER = "Ce professeur n'a pas cette matière.";
+	public static final String NOTICE_MISSING = "Cette alerte n'existe pas.";
 	public static final String MODE_MOVE = "move";
 	public static final String MODE_SHARE = "share";
 
@@ -119,11 +132,47 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 
 	@Override
 	@Transactional
-	public void deactivate(long userId, String activeRole, long subjectId) {
+	public void deactivate(long userId, String activeRole, long subjectId, List<Long> alsoUserIds) {
 		requireTeacher(activeRole);
 		requireAccount(userId);
-		if (!teacherSubjectPort.deactivate(userId, subjectId)) {
+		StoredSubject subject = requireOwned(userId, subjectId);
+		boolean owner = subject.userId() == userId;
+		List<Long> also = normalizeAlso(alsoUserIds);
+		if (!owner && !also.isEmpty()) {
+			throw bad(ALSO_NOT_ALLOWED);
+		}
+		Set<Long> holders = new LinkedHashSet<>(teacherSubjectPort.accessUserIds(subjectId));
+		if (owner) {
+			for (Long other : also) {
+				if (other == userId) {
+					continue;
+				}
+				if (!holders.contains(other)) {
+					throw bad(ALSO_NOT_HOLDER);
+				}
+			}
+		}
+		LinkedHashSet<Long> targets = new LinkedHashSet<>();
+		targets.add(userId);
+		if (owner) {
+			for (Long other : also) {
+				if (other != userId) {
+					targets.add(other);
+				}
+			}
+		}
+		if (!teacherSubjectPort.deactivateAccesses(userId, subjectId, List.copyOf(targets))) {
 			throw missing();
+		}
+		if (owner && holders.size() > 1) {
+			List<Long> recipients = new ArrayList<>();
+			for (Long holder : holders) {
+				if (holder != userId) {
+					recipients.add(holder);
+				}
+			}
+			teacherSubjectPort.insertDeactivateNotices(
+					subjectId, userId, recipients, List.copyOf(targets));
 		}
 	}
 
@@ -255,6 +304,42 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		teacherSubjectPort.markTransferRejected(request.id());
 	}
 
+	@Override
+	@Transactional(readOnly = true)
+	public TeacherDeactivateNoticesView listDeactivateNotices(long userId, String activeRole) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		List<NoticeLine> lines = new ArrayList<>();
+		for (StoredDeactivateNotice notice : teacherSubjectPort.findOpenDeactivateNoticesTo(userId)) {
+			Optional<StoredSubject> subject = teacherSubjectPort.findVisible(notice.subjectId());
+			if (subject.isEmpty()) {
+				continue;
+			}
+			String fromName = teacherProfilePort.findAccount(notice.fromUserId())
+					.map(TeacherAccount::displayName)
+					.orElse("");
+			lines.add(new NoticeLine(
+					notice.id(),
+					subject.get().id(),
+					subject.get().name(),
+					deactivateNoticeMessage(
+							fromName == null ? "" : fromName,
+							subject.get().name(),
+							notice.deactivatedUserIds())));
+		}
+		return new TeacherDeactivateNoticesView(lines);
+	}
+
+	@Override
+	@Transactional
+	public void dismissDeactivateNotice(long userId, String activeRole, long noticeId) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		if (!teacherSubjectPort.dismissDeactivateNotice(noticeId, userId)) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, NOTICE_MISSING);
+		}
+	}
+
 	private List<ColleagueLine> eligibleColleagues(long userId, StoredSubject subject, String mode) {
 		List<ColleagueLine> lines = new ArrayList<>();
 		for (Long candidate : teacherProfilePort.findUserIdsWithClass(subject.schoolId(), subject.grade())) {
@@ -336,11 +421,59 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	}
 
 	private SubjectLine line(long userId, StoredSubject subject) {
-		List<String> shared = teacherSubjectPort.otherAccessNames(subject.id(), userId);
-		if (shared == null) {
-			shared = List.of();
+		List<AccessHolder> holders = teacherSubjectPort.otherAccessHolders(subject.id(), userId);
+		if (holders == null) {
+			holders = List.of();
 		}
-		return new SubjectLine(subject.id(), subject.name(), subject.active(), shared);
+		List<SharedHolder> shared = holders.stream()
+				.map(holder -> new SharedHolder(holder.userId(), holder.displayName()))
+				.toList();
+		return new SubjectLine(
+				subject.id(),
+				subject.name(),
+				subject.active(),
+				subject.userId() == userId,
+				shared);
+	}
+
+	private String deactivateNoticeMessage(
+			String fromName, String subjectName, List<Long> deactivatedUserIds) {
+		String actor = fromName == null || fromName.isBlank() ? "Un professeur" : fromName;
+		String subject = subjectName == null || subjectName.isBlank() ? "une matière" : subjectName;
+		List<Long> ids = deactivatedUserIds == null ? List.of() : deactivatedUserIds;
+		List<String> others = new ArrayList<>();
+		for (Long id : ids) {
+			if (id == null) {
+				continue;
+			}
+			String name = teacherProfilePort.findAccount(id)
+					.map(TeacherAccount::displayName)
+					.orElse("");
+			if (name == null || name.isBlank() || name.equals(fromName)) {
+				continue;
+			}
+			others.add(name);
+		}
+		Collator order = Collator.getInstance(Locale.FRENCH);
+		order.setStrength(Collator.PRIMARY);
+		others.sort(order);
+		if (others.isEmpty()) {
+			return actor + " a désactivé " + subject + " pour soi.";
+		}
+		return actor + " a désactivé " + subject + " pour soi et " + String.join(", ", others) + ".";
+	}
+
+	private static List<Long> normalizeAlso(List<Long> alsoUserIds) {
+		if (alsoUserIds == null || alsoUserIds.isEmpty()) {
+			return List.of();
+		}
+		LinkedHashSet<Long> unique = new LinkedHashSet<>();
+		for (Long id : alsoUserIds) {
+			if (id != null) {
+				unique.add(id);
+			}
+		}
+		return List.copyOf(unique);
 	}
 
 	private static String schoolName(long schoolId, List<CatalogSchool> catalog) {
@@ -428,3 +561,4 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		return new AuthDomainException(AuthErrorCode.NOT_FOUND, INVITE_MISSING);
 	}
 }
+

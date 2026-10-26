@@ -8,6 +8,7 @@ import java.util.Optional;
  *
  * <p><b>Business :</b> une matière a un nom, une école et une année. Plusieurs
  * professeurs peuvent y avoir accès (partage). Déplacer ne laisse qu'un accès.
+ * La désactivation est par accès ; le créateur peut cibler des co-profs.
  * Ce n'est jamais une copie : même id, mêmes liens enfants, mêmes formes futures.
  * <p><b>Technique :</b> {@code back_teacher_subjects} + {@code back_teacher_subject_access}.
  * {@code name_key} est le nom en minuscules. {@code origin_subject_id} reste vide.
@@ -17,30 +18,32 @@ import java.util.Optional;
  */
 public interface TeacherSubjectPort {
 
-	/** Matières encore affichées auxquelles ce professeur a accès. */
+	/** Matières encore affichées auxquelles ce professeur a accès. {@code active} = accès du viewer. */
 	List<StoredSubject> findByUser(long userId);
 
 	StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey);
 
 	/**
-	 * Matière visible à laquelle ce professeur a encore accès.
+	 * Matière visible à laquelle ce professeur a encore accès. {@code active} = accès du viewer.
 	 */
 	Optional<StoredSubject> findOwned(long userId, long subjectId);
 
-	/** Matière encore affichée, quel que soit l'accès (détail d'une demande). */
+	/** Matière encore affichée, quel que soit l'accès (détail d'une demande). {@code active} = flag global. */
 	Optional<StoredSubject> findVisible(long subjectId);
 
 	Optional<StoredSubject> rename(long userId, long subjectId, String name, String nameKey);
 
 	/**
-	 * La matière reste dans les listes des professeurs qui y ont accès.
-	 * Le reste de l'application ne la propose plus.
+	 * Désactive les accès indiqués (le caller doit en faire partie) et resynchronise
+	 * {@code back_teacher_subjects.active} (vrai s'il reste au moins un accès actif).
 	 *
-	 * @return faux si elle n'est pas affichée pour ce professeur
+	 * @return faux si le caller n'a pas accès ou si la matière est cachée
 	 */
-	boolean deactivate(long userId, long subjectId);
+	boolean deactivateAccesses(long actorUserId, long subjectId, List<Long> userIds);
 
 	/**
+	 * Réactive uniquement l'accès du professeur et resynchronise le flag global.
+	 *
 	 * @return faux si elle n'est pas affichée pour ce professeur
 	 */
 	boolean reactivate(long userId, long subjectId);
@@ -52,6 +55,14 @@ public interface TeacherSubjectPort {
 	 * @return faux si ce professeur n'avait pas accès, ou si elle est déjà cachée
 	 */
 	boolean hide(long userId, long subjectId);
+
+	/** Identifiants des professeurs qui ont encore un accès (ordre d'insertion). */
+	List<Long> accessUserIds(long subjectId);
+
+	/**
+	 * Autres détenteurs (id + nom affiché), tri français par nom.
+	 */
+	List<AccessHolder> otherAccessHolders(long subjectId, long viewerUserId);
 
 	/**
 	 * Noms affichés des autres professeurs qui ont accès, tri français.
@@ -94,6 +105,21 @@ public interface TeacherSubjectPort {
 	void cancelPendingTransfers(long subjectId, Long exceptRequestId);
 
 	/**
+	 * Crée une alerte ouverte pour chaque destinataire.
+	 *
+	 * @param deactivatedUserIds créateur + co-profs choisis, dans un ordre stable
+	 */
+	void insertDeactivateNotices(
+			long subjectId, long fromUserId, List<Long> toUserIds, List<Long> deactivatedUserIds);
+
+	List<StoredDeactivateNotice> findOpenDeactivateNoticesTo(long toUserId);
+
+	/**
+	 * @return faux si la notice n'existe pas, n'est pas pour ce destinataire, ou déjà dismissée
+	 */
+	boolean dismissDeactivateNotice(long noticeId, long toUserId);
+
+	/**
 	 * Vrai si une matière encore affichée de cette école et de cette année a déjà ce nom.
 	 * Le professeur qui l'a créée n'importe pas : la classe n'en a qu'une.
 	 *
@@ -103,9 +129,13 @@ public interface TeacherSubjectPort {
 
 	/**
 	 * @param grade  année scolaire, le libellé du profil (CE1, 3e primaire)
-	 * @param active faux : visible seulement chez les professeurs qui y ont accès
+	 * @param active pour {@link #findByUser}/{@link #findOwned} : accès du viewer ;
+	 *               pour {@link #findVisible} : flag global matière
 	 */
 	record StoredSubject(long id, long userId, long schoolId, String grade, String name, boolean active) {
+	}
+
+	record AccessHolder(long userId, String displayName) {
 	}
 
 	/**
@@ -120,6 +150,17 @@ public interface TeacherSubjectPort {
 			long toUserId,
 			String mode,
 			String status) {
+	}
+
+	/**
+	 * @param deactivatedUserIds créateur + co-profs choisis au moment de la désactivation
+	 */
+	record StoredDeactivateNotice(
+			long id,
+			long subjectId,
+			long fromUserId,
+			long toUserId,
+			List<Long> deactivatedUserIds) {
 	}
 
 	/**

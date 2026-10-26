@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
+import com.appv4.auth.application.result.TeacherDeactivateNoticesView;
 import com.appv4.auth.application.result.TeacherSubjectColleaguesView;
 import com.appv4.auth.application.result.TeacherSubjectsView;
 import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
@@ -32,7 +33,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * Matières du professeur connecté (SCRUM-161, SCRUM-172, SCRUM-189).
  *
  * <p><b>Business :</b> il crée, voit, renomme, retire, désactive et propose un
- * transfert (déplacer ou partager). Le collègue accepte ou refuse. Pas d'exercice.
+ * transfert (déplacer ou partager). La désactivation est par accès ; le créateur
+ * peut cibler des co-profs et les autres détenteurs reçoivent une alerte.
  * <p><b>Technique :</b> {@code /api/int/teacher/subjects}, JWT obligatoire.
  * L'espace actif du jeton doit être {@code teacher}.
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link TeacherSubjectUseCase}.
@@ -130,8 +132,16 @@ public class TeacherSubjectController {
 	}
 
 	@PostMapping("/{id}/deactivate")
-	@Operation(operationId = "deactivateTeacherSubject", summary = "Désactiver une matière du professeur connecté")
-	@ApiResponse(responseCode = "204", description = "Reste dans les listes, plus proposée dans le reste de l'application")
+	@Operation(
+			operationId = "deactivateTeacherSubject",
+			summary = "Désactiver une matière pour soi, et éventuellement des co-profs si créateur")
+	@ApiResponse(
+			responseCode = "204",
+			description = "Accès désactivés ; alerte envoyée aux autres détenteurs si créateur et matière partagée")
+	@ApiResponse(
+			responseCode = "400",
+			description = "alsoUserIds non autorisé ou collègue sans accès",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace professeur",
@@ -142,9 +152,13 @@ public class TeacherSubjectController {
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	public ResponseEntity<Void> deactivate(
 			@AuthenticationPrincipal AuthenticatedUser principal,
-			@PathVariable long id) {
+			@PathVariable long id,
+			@RequestBody(required = false) DeactivateTeacherSubjectRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
-		teacherSubjectUseCase.deactivate(user.userId(), user.activeRole(), id);
+		DeactivateTeacherSubjectRequest body = request == null
+				? new DeactivateTeacherSubjectRequest(null)
+				: request;
+		teacherSubjectUseCase.deactivate(user.userId(), user.activeRole(), id, body.alsoUserIds());
 		return ResponseEntity.noContent().build();
 	}
 
@@ -292,6 +306,46 @@ public class TeacherSubjectController {
 		return ResponseEntity.noContent().build();
 	}
 
+	@GetMapping("/deactivate-notices")
+	@Operation(
+			operationId = "listTeacherSubjectDeactivateNotices",
+			summary = "Lister les alertes de désactivation reçues")
+	@ApiResponse(responseCode = "200", description = "Alertes non dismissées, message prêt à afficher")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherDeactivateNoticesResponse> deactivateNotices(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		TeacherDeactivateNoticesView view =
+				teacherSubjectUseCase.listDeactivateNotices(user.userId(), user.activeRole());
+		List<TeacherDeactivateNoticeItem> items = view.notices().stream()
+				.map(line -> new TeacherDeactivateNoticeItem(
+						line.id(), line.subjectId(), line.subjectName(), line.message()))
+				.toList();
+		return ResponseEntity.ok(new TeacherDeactivateNoticesResponse(items));
+	}
+
+	@PostMapping("/deactivate-notices/{noticeId}/dismiss")
+	@Operation(operationId = "dismissTeacherSubjectDeactivateNotice", summary = "Fermer une alerte de désactivation")
+	@ApiResponse(responseCode = "204", description = "Alerte dismissée")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Alerte introuvable",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> dismissDeactivateNotice(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long noticeId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		teacherSubjectUseCase.dismissDeactivateNotice(user.userId(), user.activeRole(), noticeId);
+		return ResponseEntity.noContent().build();
+	}
+
 	private static TeacherSubjectsResponse toResponse(TeacherSubjectsView view) {
 		List<TeacherSubjectSchool> schools = view.schools().stream()
 				.map(school -> new TeacherSubjectSchool(
@@ -309,8 +363,11 @@ public class TeacherSubjectController {
 	}
 
 	private static TeacherSubjectItem item(SubjectLine subject) {
+		List<TeacherSubjectSharedHolder> shared = subject.sharedWith().stream()
+				.map(holder -> new TeacherSubjectSharedHolder(holder.userId(), holder.displayName()))
+				.toList();
 		return new TeacherSubjectItem(
-				subject.id(), subject.name(), subject.active(), subject.sharedWith());
+				subject.id(), subject.name(), subject.active(), subject.ownedByMe(), shared);
 	}
 
 	@Schema(name = "TeacherSubjectsResponse")
@@ -326,7 +383,16 @@ public class TeacherSubjectController {
 	}
 
 	@Schema(name = "TeacherSubjectItem")
-	public record TeacherSubjectItem(long id, String name, boolean active, List<String> sharedWith) {
+	public record TeacherSubjectItem(
+			long id,
+			String name,
+			boolean active,
+			boolean ownedByMe,
+			List<TeacherSubjectSharedHolder> sharedWith) {
+	}
+
+	@Schema(name = "TeacherSubjectSharedHolder")
+	public record TeacherSubjectSharedHolder(long userId, String displayName) {
 	}
 
 	@Schema(name = "CreateTeacherSubjectRequest")
@@ -335,6 +401,11 @@ public class TeacherSubjectController {
 
 	@Schema(name = "RenameTeacherSubjectRequest")
 	public record RenameTeacherSubjectRequest(String name) {
+	}
+
+	@Schema(name = "DeactivateTeacherSubjectRequest")
+	public record DeactivateTeacherSubjectRequest(
+			@Schema(description = "Co-profs à désactiver aussi (créateur uniquement)") List<Long> alsoUserIds) {
 	}
 
 	@Schema(name = "TransferTeacherSubjectRequest")
@@ -365,5 +436,14 @@ public class TeacherSubjectController {
 			String grade,
 			String mode,
 			String fromDisplayName) {
+	}
+
+	@Schema(name = "TeacherDeactivateNoticesResponse")
+	public record TeacherDeactivateNoticesResponse(List<TeacherDeactivateNoticeItem> notices) {
+	}
+
+	@Schema(name = "TeacherDeactivateNoticeItem")
+	public record TeacherDeactivateNoticeItem(
+			long id, long subjectId, String subjectName, String message) {
 	}
 }

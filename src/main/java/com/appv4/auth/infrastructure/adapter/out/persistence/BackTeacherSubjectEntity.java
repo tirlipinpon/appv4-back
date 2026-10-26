@@ -10,8 +10,9 @@ import jakarta.persistence.Table;
 /**
  * Une matière d'une classe, partagée entre un ou plusieurs professeurs (SCRUM-161, SCRUM-172).
  *
- * <p><b>Business :</b> le professeur la nomme. La désactiver la laisse dans les listes
- * et la retire du reste de l'application. Retirer un accès ne cache la ligne que s'il
+ * <p><b>Business :</b> le professeur la nomme. {@code active} suit les accès : vrai
+ * tant qu'au moins un professeur a un accès actif. La désactivation personnelle vit
+ * sur {@code back_teacher_subject_access}. Retirer un accès ne cache la ligne que s'il
  * ne reste plus personne. {@code userId} reste le créateur tant qu'on ne déplace pas.
  * <p><b>Technique :</b> table {@code back_teacher_subjects}. Les co-profs sont dans
  * {@code back_teacher_subject_access}.

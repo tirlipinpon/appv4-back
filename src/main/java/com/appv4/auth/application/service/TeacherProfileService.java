@@ -165,7 +165,8 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 
 	/**
 	 * Les matières suivent les années cochées. Une année absente de {@code links}
-	 * n'est plus affichée. Les matières d'un autre professeur ne sont pas lues.
+	 * retire l'accès de ce professeur. S'il était le dernier, la matière est cachée.
+	 * Les matières d'un collègue seules ne sont pas lues ici.
 	 */
 	private void dropSubjectsOutside(long userId, List<TeacherSchoolLink> links) {
 		Set<SubjectClassKey> kept = new HashSet<>();

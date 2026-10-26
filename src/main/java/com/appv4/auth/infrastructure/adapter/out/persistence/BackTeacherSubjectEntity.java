@@ -8,13 +8,14 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * Une matière d'un professeur, pour une école et une année (SCRUM-161).
+ * Une matière d'une classe, partagée entre un ou plusieurs professeurs (SCRUM-161, SCRUM-172).
  *
- * <p><b>Business :</b> le professeur la nomme. La désactiver la laisse dans sa liste
- * et la retire du reste de l'application. La retirer la cache, la ligne reste.
- * {@code originSubjectId} reste vide : un clone futur le remplira.
- * <p><b>Technique :</b> table {@code back_teacher_subjects}. Pas un objet du domaine.
- * L'unicité du nom ne concerne que les lignes encore affichées.
+ * <p><b>Business :</b> le professeur la nomme. La désactiver la laisse dans les listes
+ * et la retire du reste de l'application. Retirer un accès ne cache la ligne que s'il
+ * ne reste plus personne. {@code userId} reste le créateur tant qu'on ne déplace pas.
+ * <p><b>Technique :</b> table {@code back_teacher_subjects}. Les co-profs sont dans
+ * {@code back_teacher_subject_access}.
+ * <p><b>Métier / flow :</b> une seule ligne ; les formes de questions suivront cet id.
  */
 @Entity
 @Table(name = "back_teacher_subjects")
@@ -70,6 +71,11 @@ public class BackTeacherSubjectEntity {
 
 	public long getUserId() {
 		return userId;
+	}
+
+	/** Après un déplacement, aligne le propriétaire technique sur le collègue. */
+	public void assignTo(long nextUserId) {
+		this.userId = nextUserId;
 	}
 
 	public long getSchoolId() {

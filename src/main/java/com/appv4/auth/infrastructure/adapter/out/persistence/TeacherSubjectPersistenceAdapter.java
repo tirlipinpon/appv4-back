@@ -1,7 +1,11 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
+import java.text.Collator;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -16,32 +20,41 @@ import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.service.TeacherSubjectService;
 
 /**
- * Persiste les matières du professeur (SCRUM-161).
+ * Persiste les matières et leurs accès professeurs (SCRUM-161, SCRUM-172).
  *
- * <p><b>Business :</b> seules les matières de ce professeur sont lues ou modifiées.
- * Un nom déjà pris dans la même classe ne crée pas une seconde ligne.
- * <p><b>Technique :</b> {@code back_teacher_subjects}. {@code origin_subject_id} n'est
- * pas rempli. Absent du profil {@code test} : les tests web ne démarrent pas JPA.
+ * <p><b>Business :</b> une matière n'est lue ou modifiée que si le professeur y a
+ * accès. Partager ajoute un accès. Déplacer remplace tous les accès.
+ * <p><b>Technique :</b> {@code back_teacher_subjects} + {@code back_teacher_subject_access}.
+ * Absent du profil {@code test} : les tests web ne démarrent pas JPA.
  * <p><b>Métier / flow :</b> adapter out du port {@link TeacherSubjectPort}.
  */
 @Component
 @Profile("!test")
 public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 
-	private final BackTeacherSubjectJpaRepository repository;
+	private final BackTeacherSubjectJpaRepository subjects;
+	private final BackTeacherSubjectAccessJpaRepository access;
+	private final BackUserJpaRepository users;
 
-	public TeacherSubjectPersistenceAdapter(BackTeacherSubjectJpaRepository repository) {
-		this.repository = repository;
+	public TeacherSubjectPersistenceAdapter(
+			BackTeacherSubjectJpaRepository subjects,
+			BackTeacherSubjectAccessJpaRepository access,
+			BackUserJpaRepository users) {
+		this.subjects = subjects;
+		this.access = access;
+		this.users = users;
 	}
 
 	@Override
 	@Transactional(readOnly = true)
 	public List<StoredSubject> findByUser(long userId) {
 		List<StoredSubject> rows = new ArrayList<>();
-		for (BackTeacherSubjectEntity entity : repository.findByUserIdOrderByIdAsc(userId)) {
-			if (!entity.isHidden()) {
-				rows.add(toStored(entity));
+		for (BackTeacherSubjectAccessEntity link : access.findByUserIdOrderByIdAsc(userId)) {
+			Optional<BackTeacherSubjectEntity> found = subjects.findById(link.getSubjectId());
+			if (found.isEmpty() || found.get().isHidden()) {
+				continue;
 			}
+			rows.add(toStored(found.get()));
 		}
 		return List.copyOf(rows);
 	}
@@ -51,7 +64,9 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	public StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey) {
 		BackTeacherSubjectEntity entity = new BackTeacherSubjectEntity(userId, schoolId, grade, name, nameKey);
 		try {
-			return toStored(repository.saveAndFlush(entity));
+			BackTeacherSubjectEntity saved = subjects.saveAndFlush(entity);
+			access.saveAndFlush(new BackTeacherSubjectAccessEntity(saved.getId(), userId));
+			return toStored(saved);
 		} catch (DataIntegrityViolationException ex) {
 			throw taken();
 		}
@@ -73,7 +88,7 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		BackTeacherSubjectEntity entity = found.get();
 		entity.rename(name, nameKey);
 		try {
-			return Optional.of(toStored(repository.saveAndFlush(entity)));
+			return Optional.of(toStored(subjects.saveAndFlush(entity)));
 		} catch (DataIntegrityViolationException ex) {
 			throw taken();
 		}
@@ -94,11 +109,72 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	@Override
 	@Transactional
 	public boolean hide(long userId, long subjectId) {
-		return changeVisible(userId, subjectId, BackTeacherSubjectEntity::hide);
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty() || found.get().isHidden()) {
+			return false;
+		}
+		if (access.deleteBySubjectIdAndUserId(subjectId, userId) == 0) {
+			return false;
+		}
+		if (access.countBySubjectId(subjectId) == 0) {
+			found.get().hide();
+			subjects.flush();
+		}
+		return true;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<String> otherAccessNames(long subjectId, long viewerUserId) {
+		List<String> names = new ArrayList<>();
+		Map<Long, String> byId = displayNames(access.findBySubjectIdOrderByIdAsc(subjectId));
+		for (Map.Entry<Long, String> entry : byId.entrySet()) {
+			if (entry.getKey() != viewerUserId) {
+				names.add(entry.getValue());
+			}
+		}
+		return sorted(names);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<String> allAccessNames(long subjectId) {
+		return sorted(new ArrayList<>(displayNames(access.findBySubjectIdOrderByIdAsc(subjectId)).values()));
+	}
+
+	@Override
+	@Transactional
+	public void addAccess(long subjectId, long userId) {
+		if (access.existsBySubjectIdAndUserId(subjectId, userId)) {
+			return;
+		}
+		access.saveAndFlush(new BackTeacherSubjectAccessEntity(subjectId, userId));
+	}
+
+	@Override
+	@Transactional
+	public void replaceAccessWith(long subjectId, long soleUserId) {
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty() || found.get().isHidden()) {
+			return;
+		}
+		access.deleteBySubjectId(subjectId);
+		access.saveAndFlush(new BackTeacherSubjectAccessEntity(subjectId, soleUserId));
+		found.get().assignTo(soleUserId);
+		subjects.flush();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public boolean hasAccess(long subjectId, long userId) {
+		return access.existsBySubjectIdAndUserId(subjectId, userId);
 	}
 
 	private Optional<BackTeacherSubjectEntity> visible(long userId, long subjectId) {
-		Optional<BackTeacherSubjectEntity> found = repository.findByIdAndUserId(subjectId, userId);
+		if (!access.existsBySubjectIdAndUserId(subjectId, userId)) {
+			return Optional.empty();
+		}
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
 		if (found.isEmpty() || found.get().isHidden()) {
 			return Optional.empty();
 		}
@@ -114,14 +190,14 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 			return false;
 		}
 		change.accept(found.get());
-		repository.flush();
+		subjects.flush();
 		return true;
 	}
 
 	@Override
 	@Transactional(readOnly = true)
 	public boolean nameTaken(long schoolId, String grade, String nameKey, Long exceptId) {
-		for (BackTeacherSubjectEntity row : repository.findBySchoolIdAndGradeLabelOrderByIdAsc(schoolId, grade)) {
+		for (BackTeacherSubjectEntity row : subjects.findBySchoolIdAndGradeLabelOrderByIdAsc(schoolId, grade)) {
 			if (row.isHidden() || !nameKey.equals(row.getNameKey())) {
 				continue;
 			}
@@ -131,6 +207,28 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 			return true;
 		}
 		return false;
+	}
+
+	private Map<Long, String> displayNames(List<BackTeacherSubjectAccessEntity> links) {
+		Map<Long, String> names = new HashMap<>();
+		if (links.isEmpty()) {
+			return names;
+		}
+		List<Long> ids = links.stream().map(BackTeacherSubjectAccessEntity::getUserId).distinct().toList();
+		for (BackUserEntity user : users.findAllById(ids)) {
+			names.put(user.getId(), user.getDisplayName() == null ? "" : user.getDisplayName());
+		}
+		for (Long id : ids) {
+			names.putIfAbsent(id, "");
+		}
+		return names;
+	}
+
+	private static List<String> sorted(List<String> names) {
+		Collator order = Collator.getInstance(Locale.FRENCH);
+		order.setStrength(Collator.PRIMARY);
+		names.sort(order);
+		return List.copyOf(names);
 	}
 
 	private static StoredSubject toStored(BackTeacherSubjectEntity entity) {

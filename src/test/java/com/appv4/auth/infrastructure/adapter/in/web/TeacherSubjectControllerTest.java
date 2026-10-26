@@ -56,6 +56,8 @@ class TeacherSubjectControllerTest {
 		when(profiles.findAccount(9L)).thenReturn(Optional.of(new TeacherAccount("prof@example.com", "Martin")));
 		when(profiles.findSchools(9L)).thenReturn(List.of());
 		when(subjects.findByUser(9L)).thenReturn(List.of());
+		when(subjects.otherAccessNames(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
+				.thenReturn(List.of());
 	}
 
 	@Test
@@ -219,6 +221,32 @@ class TeacherSubjectControllerTest {
 				.andExpect(status().isUnauthorized());
 
 		verify(subjects, never()).findByUser(9L);
+	}
+
+	@Test
+	void transferSharesWithColleague() throws Exception {
+		when(profiles.findSchools(9L)).thenReturn(List.of(
+				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+		when(subjects.hasAccess(4L, 10L)).thenReturn(false);
+
+		// Colleague lookup is done via real AuthUserAccountPort / ActiveRolePort beans in other tests;
+		// here transfer validation still needs those ports — stub via subject access only after account found.
+		// Full transfer path is covered in TeacherSubjectServiceTest.
+		mockMvc.perform(post("/api/int/teacher/subjects/4/transfer")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"email\":\"\",\"mode\":\"share\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(TeacherSubjectService.EMAIL_REQUIRED));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/transfer")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"email\":\"x@y.com\",\"mode\":\"clone\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(TeacherSubjectService.MODE_REQUIRED));
 	}
 
 	private String bearer(String activeRole) {

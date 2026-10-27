@@ -12,10 +12,11 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView;
  * Créer, revoir, renommer, retirer et proposer un transfert de matières
  * (SCRUM-161, SCRUM-172, SCRUM-189).
  *
- * <p><b>Business :</b> le professeur ne pose une matière que sur une année déjà
- * cochée. Il propose un déplacement ou un partage à un collègue de la liste ;
- * le collègue accepte ou refuse avant que l'accès change. La désactivation est
- * personnelle ; le créateur peut aussi cibler des co-profs.
+	 * <p><b>Business :</b> le professeur ne pose une matière que sur une année déjà
+	 * cochée. Si le nom existe déjà, il peut demander au créateur de la partager.
+	 * Il propose aussi un déplacement ou un partage à un collègue de la liste ;
+	 * le collègue accepte ou refuse avant que l'accès change. La désactivation est
+	 * personnelle ; le créateur peut aussi cibler des co-profs.
  * <p><b>Technique :</b> l'identifiant vient du jeton, jamais du corps de la requête.
  * <p><b>Métier / flow :</b> port in de {@code /api/int/teacher/subjects}.
  */
@@ -34,6 +35,19 @@ public interface TeacherSubjectUseCase {
 	 * <p><b>Métier / flow :</b> après le refus {@code REMOVED_RESTORABLE} de {@link #create}.
 	 */
 	SubjectLine restore(long userId, String activeRole, Long schoolId, String grade, String name);
+
+	/**
+	 * Demande au créateur de partager une matière déjà présente dans la classe.
+	 *
+	 * <p><b>Business :</b> le professeur a tapé un nom déjà pris. Il n'en crée pas
+	 * une deuxième. Le créateur accepte ou refuse ; s'il accepte, les deux voient
+	 * la même matière.
+	 * <p><b>Technique :</b> même corps que la création. Mode {@code ask} dans
+	 * {@code back_teacher_subject_transfer_requests}.
+	 * <p><b>Métier / flow :</b> après le message « tu peux demander à … de la partager »
+	 * renvoyé par {@link #create}.
+	 */
+	void requestShare(long userId, String activeRole, Long schoolId, String grade, String name);
 
 	SubjectLine rename(long userId, String activeRole, long subjectId, String name);
 

@@ -13,9 +13,11 @@ import jakarta.persistence.Table;
  * Demande de transfert de matière en attente (SCRUM-189).
  *
  * <p><b>Business :</b> le collègue doit accepter avant que l'accès change.
- * <p><b>Technique :</b> {@code back_teacher_subject_transfer_requests}.
- * <p><b>Métier / flow :</b> créée par POST transfer → acceptée ou refusée
- * par le destinataire.
+ * {@code ask} : un professeur demande au créateur de partager une matière déjà créée.
+ * <p><b>Technique :</b> {@code back_teacher_subject_transfer_requests}. Mode
+ * {@code move}, {@code share} ou {@code ask}.
+ * <p><b>Métier / flow :</b> créée par POST transfer ou POST share-requests →
+ * acceptée ou refusée par le destinataire.
  */
 @Entity
 @Table(name = "back_teacher_subject_transfer_requests")

@@ -21,4 +21,7 @@ public interface BackTeacherSubjectTransferRequestJpaRepository
 			long id, long toUserId, String status);
 
 	boolean existsBySubjectIdAndToUserIdAndStatus(long subjectId, long toUserId, String status);
+
+	boolean existsBySubjectIdAndFromUserIdAndToUserIdAndStatus(
+			long subjectId, long fromUserId, long toUserId, String status);
 }

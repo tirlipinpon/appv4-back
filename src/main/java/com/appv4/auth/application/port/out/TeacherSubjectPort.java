@@ -64,6 +64,12 @@ public interface TeacherSubjectPort {
 	Optional<StoredSubject> findRemovedByName(long schoolId, String grade, String nameKey);
 
 	/**
+	 * Matière encore affichée de cette école et de cette année qui porte ce nom.
+	 * Vide si le nom est libre ou si la ligne est cachée.
+	 */
+	Optional<StoredSubject> findVisibleByName(long schoolId, String grade, String nameKey);
+
+	/**
 	 * Réaffiche la matière retirée et donne un accès actif à ce professeur.
 	 * Même id : les liens déjà posés restent.
 	 *
@@ -107,6 +113,9 @@ public interface TeacherSubjectPort {
 			long subjectId, long fromUserId, long toUserId, String mode);
 
 	boolean hasPendingTransfer(long subjectId, long toUserId);
+
+	/** Vrai s'il existe déjà une demande pending de ce professeur vers ce destinataire. */
+	boolean hasPendingTransferBetween(long subjectId, long fromUserId, long toUserId);
 
 	List<StoredTransferRequest> findPendingTransfersTo(long toUserId);
 
@@ -156,7 +165,7 @@ public interface TeacherSubjectPort {
 	/**
 	 * Demande de transfert encore ouverte ou déjà tranchée.
 	 *
-	 * @param mode {@code move} ou {@code share}
+	 * @param mode {@code move}, {@code share} ou {@code ask}
 	 */
 	record StoredTransferRequest(
 			long id,

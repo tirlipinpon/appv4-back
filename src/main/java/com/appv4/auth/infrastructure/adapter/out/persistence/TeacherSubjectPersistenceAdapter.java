@@ -203,6 +203,18 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public Optional<StoredSubject> findVisibleByName(long schoolId, String grade, String nameKey) {
+		for (BackTeacherSubjectEntity row : subjects.findBySchoolIdAndGradeLabelOrderByIdAsc(schoolId, grade)) {
+			if (row.isHidden() || row.getNameKey() == null || !nameKey.equals(row.getNameKey())) {
+				continue;
+			}
+			return Optional.of(toStored(row, row.isActive()));
+		}
+		return Optional.empty();
+	}
+
+	@Override
 	@Transactional
 	public Optional<StoredSubject> restore(long userId, long subjectId) {
 		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
@@ -312,6 +324,13 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	@Transactional(readOnly = true)
 	public boolean hasPendingTransfer(long subjectId, long toUserId) {
 		return transfers.existsBySubjectIdAndToUserIdAndStatus(subjectId, toUserId, "pending");
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public boolean hasPendingTransferBetween(long subjectId, long fromUserId, long toUserId) {
+		return transfers.existsBySubjectIdAndFromUserIdAndToUserIdAndStatus(
+				subjectId, fromUserId, toUserId, "pending");
 	}
 
 	@Override

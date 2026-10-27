@@ -324,6 +324,11 @@ class TeacherProfileServiceTest {
 		}
 
 		@Override
+		public Optional<StoredSubject> findVisibleByName(long schoolId, String grade, String nameKey) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
 		public Optional<StoredSubject> restore(long userId, long subjectId) {
 			throw new UnsupportedOperationException();
 		}
@@ -406,6 +411,11 @@ class TeacherProfileServiceTest {
 
 		@Override
 		public boolean hasPendingTransfer(long subjectId, long toUserId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public boolean hasPendingTransferBetween(long subjectId, long fromUserId, long toUserId) {
 			throw new UnsupportedOperationException();
 		}
 

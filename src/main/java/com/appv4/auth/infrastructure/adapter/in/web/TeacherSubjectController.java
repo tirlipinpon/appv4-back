@@ -34,7 +34,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  *
  * <p><b>Business :</b> il crée, voit, renomme, retire, désactive et propose un
  * transfert (déplacer ou partager). Retaper le nom d'une matière retirée propose
- * de la réactiver. La désactivation est par accès ; le créateur
+ * de la réactiver. Retaper le nom d'une matière déjà créée propose de demander
+ * au créateur de la partager. La désactivation est par accès ; le créateur
  * peut cibler des co-profs et les autres détenteurs reçoivent une alerte.
  * <p><b>Technique :</b> {@code /api/int/teacher/subjects}, JWT obligatoire.
  * L'espace actif du jeton doit être {@code teacher}.
@@ -70,7 +71,8 @@ public class TeacherSubjectController {
 	@ApiResponse(responseCode = "200", description = "Matière créée")
 	@ApiResponse(
 			responseCode = "400",
-			description = "Nom vide, trop long, déjà pris, matière retirée à réactiver, ou classe absente du profil",
+			description = "Nom vide, trop long, déjà pris, demande de partage possible, "
+					+ "matière retirée à réactiver, ou classe absente du profil",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	@ApiResponse(
 			responseCode = "403",
@@ -115,6 +117,31 @@ public class TeacherSubjectController {
 		SubjectLine line = teacherSubjectUseCase.restore(
 				user.userId(), user.activeRole(), body.schoolId(), body.grade(), body.name());
 		return ResponseEntity.ok(item(line));
+	}
+
+	@PostMapping("/share-requests")
+	@Operation(
+			operationId = "requestTeacherSubjectShare",
+			summary = "Demander au créateur de partager une matière déjà existante")
+	@ApiResponse(responseCode = "204", description = "Demande créée ; l'accès ne change qu'après acceptation du créateur")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Nom invalide, classe absente, matière introuvable, déjà détenue, ou demande en attente",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> requestShare(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@RequestBody CreateTeacherSubjectRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		CreateTeacherSubjectRequest body = request == null
+				? new CreateTeacherSubjectRequest(null, null, null)
+				: request;
+		teacherSubjectUseCase.requestShare(
+				user.userId(), user.activeRole(), body.schoolId(), body.grade(), body.name());
+		return ResponseEntity.noContent().build();
 	}
 
 	@PutMapping("/{id}")

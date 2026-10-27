@@ -41,8 +41,10 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
  *
  * <p><b>Business :</b> il crée, voit, renomme et retire un nom dans une année
  * déjà cochée. S'il retape le nom d'une matière retirée, on lui propose de
- * la réactiver (même enregistrement). Il propose un déplacement ou un partage
- * à un collègue de la liste ; le collègue accepte ou refuse. La désactivation est par accès :
+ * la réactiver (même enregistrement). Si le nom est déjà pris par un collègue,
+ * il peut demander au créateur de la partager. Il propose aussi un déplacement
+ * ou un partage à un collègue de la liste ; le collègue accepte ou refuse.
+ * La désactivation est par accès :
  * le non-créateur seulement pour lui ; le créateur peut cibler des co-profs et
  * les autres détenteurs reçoivent une alerte. Pas de copie : même id.
  * <p><b>Technique :</b> le nom affiché est coupé des espaces autour, 100 caractères
@@ -55,6 +57,15 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public static final String NAME_REQUIRED = "Le nom est obligatoire.";
 	public static final String NAME_TOO_LONG = "Le nom dépasse 100 caractères.";
 	public static final String NAME_TAKEN = "Une matière de ce nom existe déjà dans cette classe.";
+	/**
+	 * Début du message quand un autre professeur a déjà créé ce nom.
+	 * La suite est son nom affiché, puis {@link #NAME_CAN_ASK_SUFFIX}.
+	 */
+	public static final String NAME_CAN_ASK_PREFIX =
+			"Une matière de ce nom existe déjà. Tu peux demander à ";
+	public static final String NAME_CAN_ASK_SUFFIX = " de la partager.";
+	public static final String ASK_PENDING =
+			"Une demande de partage est déjà en attente auprès du professeur qui a créé cette matière.";
 	public static final String REMOVED_RESTORABLE =
 			"Cette matière a été retirée. Tu peux la réactiver.";
 	public static final String CLASS_NOT_ON_PROFILE = "Cette classe n'est pas sur ton profil.";
@@ -72,6 +83,21 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public static final String NOTICE_MISSING = "Cette alerte n'existe pas.";
 	public static final String MODE_MOVE = "move";
 	public static final String MODE_SHARE = "share";
+	/** Le collègue demande au créateur de partager. L'accès ne change qu'après acceptation. */
+	public static final String MODE_ASK = "ask";
+
+	/**
+	 * Message affiché quand le nom est déjà pris et que le professeur peut
+	 * demander au créateur de partager.
+	 *
+	 * @param creatorDisplayName nom affiché du créateur ; « son créateur » s'il est vide
+	 */
+	public static String nameCanAsk(String creatorDisplayName) {
+		String who = creatorDisplayName == null || creatorDisplayName.isBlank()
+				? "son créateur"
+				: creatorDisplayName.trim();
+		return NAME_CAN_ASK_PREFIX + who + NAME_CAN_ASK_SUFFIX;
+	}
 
 	private final TeacherSubjectPort teacherSubjectPort;
 	private final TeacherProfilePort teacherProfilePort;
@@ -112,7 +138,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw bad(REMOVED_RESTORABLE);
 		}
 		if (teacherSubjectPort.nameTaken(schoolId, grade, key, null)) {
-			throw bad(NAME_TAKEN);
+			throw bad(takenMessage(userId, schoolId, grade, key));
 		}
 		StoredSubject saved = teacherSubjectPort.insert(userId, schoolId, grade, trimmed, key);
 		return line(userId, saved);
@@ -144,6 +170,23 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw missing();
 		}
 		return line(userId, saved.get());
+	}
+
+	@Override
+	@Transactional
+	public void requestShare(long userId, String activeRole, Long schoolId, String grade, String name) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		if (schoolId == null || grade == null || grade.isBlank()) {
+			throw bad(CLASS_NOT_ON_PROFILE);
+		}
+		requireClass(userId, schoolId, grade);
+		String key = nameKey(requiredName(name));
+		StoredSubject subject = shareable(userId, schoolId, grade, key);
+		if (teacherSubjectPort.hasPendingTransferBetween(subject.id(), userId, subject.userId())) {
+			throw bad(ASK_PENDING);
+		}
+		teacherSubjectPort.insertTransferRequest(subject.id(), userId, subject.userId(), MODE_ASK);
 	}
 
 	@Override
@@ -307,6 +350,10 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				.orElseThrow(() -> inviteMissing());
 		StoredSubject subject = teacherSubjectPort.findVisible(request.subjectId())
 				.orElseThrow(() -> bad(INVITE_STALE));
+		if (MODE_ASK.equals(request.mode())) {
+			acceptShareAsk(userId, request, subject);
+			return;
+		}
 		if (!teacherSubjectPort.hasAccess(request.subjectId(), request.fromUserId())) {
 			throw bad(INVITE_STALE);
 		}
@@ -571,6 +618,66 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw bad(NAME_TOO_LONG);
 		}
 		return trimmed;
+	}
+
+	/**
+	 * Le créateur accepte : le demandeur reçoit un accès, le créateur garde le sien.
+	 */
+	private void acceptShareAsk(long userId, StoredTransferRequest request, StoredSubject subject) {
+		if (subject.userId() != userId || !teacherSubjectPort.hasAccess(request.subjectId(), userId)) {
+			throw bad(INVITE_STALE);
+		}
+		if (!hasClass(request.fromUserId(), subject.schoolId(), subject.grade())) {
+			throw bad(INVITE_STALE);
+		}
+		if (!teacherSubjectPort.hasAccess(request.subjectId(), request.fromUserId())) {
+			teacherSubjectPort.addAccess(request.subjectId(), request.fromUserId());
+		}
+		teacherSubjectPort.markTransferAccepted(request.id());
+	}
+
+	/**
+	 * Message quand le nom est déjà pris. Propose une demande de partage seulement
+	 * si un autre professeur, encore détenteur, a créé la matière.
+	 */
+	private String takenMessage(long userId, long schoolId, String grade, String key) {
+		Optional<StoredSubject> existing = teacherSubjectPort.findVisibleByName(schoolId, grade, key);
+		if (existing == null || existing.isEmpty()) {
+			return NAME_TAKEN;
+		}
+		StoredSubject subject = existing.get();
+		if (subject.userId() == userId || teacherSubjectPort.hasAccess(subject.id(), userId)) {
+			return NAME_TAKEN;
+		}
+		if (!teacherSubjectPort.hasAccess(subject.id(), subject.userId())) {
+			return NAME_TAKEN;
+		}
+		if (teacherSubjectPort.hasPendingTransferBetween(subject.id(), userId, subject.userId())) {
+			return ASK_PENDING;
+		}
+		String creator = teacherProfilePort.findAccount(subject.userId())
+				.map(TeacherAccount::displayName)
+				.orElse("");
+		return nameCanAsk(creator);
+	}
+
+	/**
+	 * Matière visible qu'un autre professeur a créée et qu'il détient encore.
+	 * Le demandeur n'y a pas accès.
+	 */
+	private StoredSubject shareable(long userId, long schoolId, String grade, String key) {
+		Optional<StoredSubject> existing = teacherSubjectPort.findVisibleByName(schoolId, grade, key);
+		if (existing == null || existing.isEmpty()) {
+			throw bad(NAME_TAKEN);
+		}
+		StoredSubject subject = existing.get();
+		if (subject.userId() == userId || teacherSubjectPort.hasAccess(subject.id(), userId)) {
+			throw bad(NAME_TAKEN);
+		}
+		if (!teacherSubjectPort.hasAccess(subject.id(), subject.userId())) {
+			throw bad(NAME_TAKEN);
+		}
+		return subject;
 	}
 
 	/**

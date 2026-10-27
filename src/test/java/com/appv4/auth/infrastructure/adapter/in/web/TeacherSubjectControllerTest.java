@@ -179,6 +179,33 @@ class TeacherSubjectControllerTest {
 	}
 
 	@Test
+	void takenNameOfAnotherTeacherOffersAShareRequest() throws Exception {
+		when(profiles.findSchools(9L)).thenReturn(List.of(
+				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
+		when(subjects.nameTaken(1L, "CE1", "mathématiques", null)).thenReturn(true);
+		when(subjects.findVisibleByName(1L, "CE1", "mathématiques"))
+				.thenReturn(Optional.of(new StoredSubject(5L, 4L, 1L, "CE1", "Mathématiques", true)));
+		when(subjects.hasAccess(5L, 9L)).thenReturn(false);
+		when(subjects.hasAccess(5L, 4L)).thenReturn(true);
+		when(profiles.findAccount(4L)).thenReturn(Optional.of(new TeacherAccount("anne@example.com", "Anne")));
+
+		mockMvc.perform(post("/api/int/teacher/subjects")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"schoolId\":1,\"grade\":\"CE1\",\"name\":\"Mathématiques\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(TeacherSubjectService.nameCanAsk("Anne")));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/share-requests")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"schoolId\":1,\"grade\":\"CE1\",\"name\":\"Mathématiques\"}"))
+				.andExpect(status().isNoContent());
+
+		verify(subjects).insertTransferRequest(5L, 9L, 4L, TeacherSubjectService.MODE_ASK);
+	}
+
+	@Test
 	void classMissingFromTheProfileIsRefused() throws Exception {
 		mockMvc.perform(post("/api/int/teacher/subjects")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))

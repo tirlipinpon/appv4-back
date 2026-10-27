@@ -231,7 +231,7 @@ class TeacherSubjectServiceTest {
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1", "CE2"))));
 
 		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
-				.hasMessage(TeacherSubjectService.NAME_TAKEN);
+				.hasMessage(TeacherSubjectService.nameCanAsk("Anne"));
 		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
 
@@ -241,6 +241,40 @@ class TeacherSubjectServiceTest {
 		assertThat(sciences.name()).isEqualTo("Sciences");
 		assertThat(otherYear.name()).isEqualTo("Mathématiques");
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+	}
+
+	@Test
+	void askingTheCreatorToShareGrantsAccessOnlyAfterAccept() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
+				.hasMessage(TeacherSubjectService.nameCanAsk("Anne"));
+
+		service.requestShare(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "  Mathématiques  ");
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques"))
+				.hasMessage(TeacherSubjectService.ASK_PENDING);
+		assertThatThrownBy(() -> service.requestShare(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques"))
+				.hasMessage(TeacherSubjectService.ASK_PENDING);
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+
+		InviteLine invite = service.listTransferInvites(TEACHER_ID, "teacher").invites().get(0);
+		assertThat(invite.mode()).isEqualTo(TeacherSubjectService.MODE_ASK);
+		assertThat(invite.fromDisplayName()).isEqualTo("Camille");
+		assertThat(invite.subjectId()).isEqualTo(maths.id());
+
+		service.rejectTransfer(TEACHER_ID, "teacher", invite.id());
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(service.listTransferInvites(TEACHER_ID, "teacher").invites()).isEmpty();
+
+		service.requestShare(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		long inviteId = service.listTransferInvites(TEACHER_ID, "teacher").invites().get(0).id();
+		service.acceptTransfer(TEACHER_ID, "teacher", inviteId);
+
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(service.list(OTHER_ID, "teacher").schools().get(0).grades().get(0).subjects().get(0).ownedByMe())
+				.isFalse();
+		assertThat(subjects.accessCount(maths.id())).isEqualTo(2);
 	}
 
 	@Test
@@ -707,6 +741,19 @@ class TeacherSubjectServiceTest {
 		}
 
 		@Override
+		public Optional<StoredSubject> findVisibleByName(long schoolId, String grade, String nameKey) {
+			for (StoredSubject row : rows) {
+				if (row.schoolId() != schoolId || !grade.equals(row.grade()) || hidden.contains(row.id())) {
+					continue;
+				}
+				if (nameKey.equals(row.name().toLowerCase(java.util.Locale.ROOT))) {
+					return Optional.of(row);
+				}
+			}
+			return Optional.empty();
+		}
+
+		@Override
 		public Optional<StoredSubject> restore(long userId, long subjectId) {
 			for (int index = 0; index < rows.size(); index++) {
 				StoredSubject row = rows.get(index);
@@ -829,6 +876,19 @@ class TeacherSubjectServiceTest {
 		public boolean hasPendingTransfer(long subjectId, long toUserId) {
 			for (StoredTransferRequest row : transfers) {
 				if (row.subjectId() == subjectId && row.toUserId() == toUserId && "pending".equals(row.status())) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		@Override
+		public boolean hasPendingTransferBetween(long subjectId, long fromUserId, long toUserId) {
+			for (StoredTransferRequest row : transfers) {
+				if (row.subjectId() == subjectId
+						&& row.fromUserId() == fromUserId
+						&& row.toUserId() == toUserId
+						&& "pending".equals(row.status())) {
 					return true;
 				}
 			}

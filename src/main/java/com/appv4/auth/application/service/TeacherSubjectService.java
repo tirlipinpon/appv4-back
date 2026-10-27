@@ -1,6 +1,7 @@
 package com.appv4.auth.application.service;
 
 import java.text.Collator;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -41,8 +42,11 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
  *
  * <p><b>Business :</b> il crée, voit, renomme et retire un nom dans une année
  * déjà cochée. S'il retape le nom d'une matière retirée, on lui propose de
- * la réactiver (même enregistrement). Il propose un déplacement ou un partage
- * à un collègue de la liste ; le collègue accepte ou refuse. La désactivation est par accès :
+ * la réactiver (même enregistrement). Si le nom est déjà pris, ou s'il
+ * ressemble fortement à une matière encore visible, il peut demander au
+ * créateur qui la possède encore de la partager. Il propose aussi un déplacement
+ * ou un partage à un collègue de la liste ; le collègue accepte ou refuse.
+ * La désactivation est par accès :
  * le non-créateur seulement pour lui ; le créateur peut cibler des co-profs et
  * les autres détenteurs reçoivent une alerte. Pas de copie : même id.
  * <p><b>Technique :</b> le nom affiché est coupé des espaces autour, 100 caractères
@@ -55,6 +59,15 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public static final String NAME_REQUIRED = "Le nom est obligatoire.";
 	public static final String NAME_TOO_LONG = "Le nom dépasse 100 caractères.";
 	public static final String NAME_TAKEN = "Une matière de ce nom existe déjà dans cette classe.";
+	/**
+	 * Début du message quand un autre professeur a déjà créé ce nom.
+	 * La suite est son nom affiché, puis {@link #NAME_CAN_ASK_SUFFIX}.
+	 */
+	public static final String NAME_CAN_ASK_PREFIX =
+			"Une matière de ce nom existe déjà. Tu peux demander à ";
+	public static final String NAME_CAN_ASK_SUFFIX = " de la partager.";
+	public static final String ASK_PENDING =
+			"Une demande de partage est déjà en attente auprès du professeur qui a créé cette matière.";
 	public static final String REMOVED_RESTORABLE =
 			"Cette matière a été retirée. Tu peux la réactiver.";
 	public static final String CLASS_NOT_ON_PROFILE = "Cette classe n'est pas sur ton profil.";
@@ -72,6 +85,39 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public static final String NOTICE_MISSING = "Cette alerte n'existe pas.";
 	public static final String MODE_MOVE = "move";
 	public static final String MODE_SHARE = "share";
+	/** Le collègue demande au créateur de partager. L'accès ne change qu'après acceptation. */
+	public static final String MODE_ASK = "ask";
+
+	/**
+	 * Message affiché quand le nom est déjà pris et que le professeur peut
+	 * demander au créateur de partager.
+	 *
+	 * @param creatorDisplayName nom affiché du créateur ; « son créateur » s'il est vide
+	 */
+	public static String nameCanAsk(String creatorDisplayName) {
+		String who = creatorDisplayName == null || creatorDisplayName.isBlank()
+				? "son créateur"
+				: creatorDisplayName.trim();
+		return NAME_CAN_ASK_PREFIX + who + NAME_CAN_ASK_SUFFIX;
+	}
+
+	/**
+	 * Message quand le nom tapé n'est pas le même, mais très proche d'une matière
+	 * encore visible dont le créateur a toujours l'accès.
+	 */
+	public static String nameSimilarCanAsk(String existingName, String creatorDisplayName) {
+		String subject = existingName == null || existingName.isBlank() ? "une matière" : existingName.trim();
+		String who = creatorDisplayName == null || creatorDisplayName.isBlank()
+				? "son créateur"
+				: creatorDisplayName.trim();
+		return "Ce nom ressemble à " + subject + ". Tu peux demander à " + who + NAME_CAN_ASK_SUFFIX;
+	}
+
+	/** Le professeur a déjà une matière très proche : pas de deuxième création. */
+	public static String similarOwn(String existingName) {
+		String subject = existingName == null || existingName.isBlank() ? "une matière" : existingName.trim();
+		return "Tu as déjà une matière proche : " + subject + ".";
+	}
 
 	private final TeacherSubjectPort teacherSubjectPort;
 	private final TeacherProfilePort teacherProfilePort;
@@ -112,7 +158,11 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw bad(REMOVED_RESTORABLE);
 		}
 		if (teacherSubjectPort.nameTaken(schoolId, grade, key, null)) {
-			throw bad(NAME_TAKEN);
+			throw bad(takenMessage(userId, schoolId, grade, key));
+		}
+		String near = nearMessage(userId, schoolId, grade, key);
+		if (near != null) {
+			throw bad(near);
 		}
 		StoredSubject saved = teacherSubjectPort.insert(userId, schoolId, grade, trimmed, key);
 		return line(userId, saved);
@@ -144,6 +194,23 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw missing();
 		}
 		return line(userId, saved.get());
+	}
+
+	@Override
+	@Transactional
+	public void requestShare(long userId, String activeRole, Long schoolId, String grade, String name) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		if (schoolId == null || grade == null || grade.isBlank()) {
+			throw bad(CLASS_NOT_ON_PROFILE);
+		}
+		requireClass(userId, schoolId, grade);
+		String key = nameKey(requiredName(name));
+		StoredSubject subject = shareable(userId, schoolId, grade, key);
+		if (teacherSubjectPort.hasPendingTransferBetween(subject.id(), userId, subject.userId())) {
+			throw bad(ASK_PENDING);
+		}
+		teacherSubjectPort.insertTransferRequest(subject.id(), userId, subject.userId(), MODE_ASK);
 	}
 
 	@Override
@@ -307,6 +374,10 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				.orElseThrow(() -> inviteMissing());
 		StoredSubject subject = teacherSubjectPort.findVisible(request.subjectId())
 				.orElseThrow(() -> bad(INVITE_STALE));
+		if (MODE_ASK.equals(request.mode())) {
+			acceptShareAsk(userId, request, subject);
+			return;
+		}
 		if (!teacherSubjectPort.hasAccess(request.subjectId(), request.fromUserId())) {
 			throw bad(INVITE_STALE);
 		}
@@ -571,6 +642,214 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw bad(NAME_TOO_LONG);
 		}
 		return trimmed;
+	}
+
+	/**
+	 * Le créateur accepte : le demandeur reçoit un accès, le créateur garde le sien.
+	 */
+	private void acceptShareAsk(long userId, StoredTransferRequest request, StoredSubject subject) {
+		if (subject.userId() != userId || !teacherSubjectPort.hasAccess(request.subjectId(), userId)) {
+			throw bad(INVITE_STALE);
+		}
+		if (!hasClass(request.fromUserId(), subject.schoolId(), subject.grade())) {
+			throw bad(INVITE_STALE);
+		}
+		if (!teacherSubjectPort.hasAccess(request.subjectId(), request.fromUserId())) {
+			teacherSubjectPort.addAccess(request.subjectId(), request.fromUserId());
+		}
+		teacherSubjectPort.markTransferAccepted(request.id());
+	}
+
+	/**
+	 * Message quand le nom est déjà pris. Propose une demande de partage seulement
+	 * si un autre professeur, encore détenteur, a créé la matière.
+	 */
+	private String takenMessage(long userId, long schoolId, String grade, String key) {
+		Optional<StoredSubject> existing = teacherSubjectPort.findVisibleByName(schoolId, grade, key);
+		if (existing == null || existing.isEmpty()) {
+			return NAME_TAKEN;
+		}
+		StoredSubject subject = existing.get();
+		if (subject.userId() == userId || teacherSubjectPort.hasAccess(subject.id(), userId)) {
+			return NAME_TAKEN;
+		}
+		if (!teacherSubjectPort.hasAccess(subject.id(), subject.userId())) {
+			return NAME_TAKEN;
+		}
+		if (teacherSubjectPort.hasPendingTransferBetween(subject.id(), userId, subject.userId())) {
+			return ASK_PENDING;
+		}
+		String creator = teacherProfilePort.findAccount(subject.userId())
+				.map(TeacherAccount::displayName)
+				.orElse("");
+		return nameCanAsk(creator);
+	}
+
+	/**
+	 * Matière visible qu'un autre professeur a créée et qu'il détient encore.
+	 * Le demandeur n'y a pas accès.
+	 */
+	private StoredSubject shareable(long userId, long schoolId, String grade, String key) {
+		Optional<StoredSubject> existing = teacherSubjectPort.findVisibleByName(schoolId, grade, key);
+		if (existing != null && existing.isPresent()) {
+			return requireShareable(userId, existing.get(), false);
+		}
+		StoredSubject near = closestSimilar(schoolId, grade, key).orElse(null);
+		if (near == null) {
+			throw missing();
+		}
+		return requireShareable(userId, near, true);
+	}
+
+	/**
+	 * Le demandeur n'a pas la matière. Le créateur enregistré la possède encore.
+	 *
+	 * @param similar vrai si le nom tapé n'est pas exactement celui de la matière
+	 */
+	private StoredSubject requireShareable(long userId, StoredSubject subject, boolean similar) {
+		if (subject.userId() == userId || teacherSubjectPort.hasAccess(subject.id(), userId)) {
+			throw bad(similar ? similarOwn(subject.name()) : NAME_TAKEN);
+		}
+		if (!teacherSubjectPort.hasAccess(subject.id(), subject.userId())) {
+			throw bad(similar ? SUBJECT_MISSING : NAME_TAKEN);
+		}
+		return subject;
+	}
+
+	/**
+	 * Bloque la création si un nom très proche est encore visible.
+	 * Une matière retirée ne passe pas ici : seul le nom exact propose la réactivation.
+	 *
+	 * @return message à afficher, ou null pour laisser créer
+	 */
+	private String nearMessage(long userId, long schoolId, String grade, String key) {
+		Optional<StoredSubject> near = closestSimilar(schoolId, grade, key);
+		if (near == null || near.isEmpty()) {
+			return null;
+		}
+		StoredSubject subject = near.get();
+		if (subject.userId() == userId || teacherSubjectPort.hasAccess(subject.id(), userId)) {
+			return similarOwn(subject.name());
+		}
+		if (!teacherSubjectPort.hasAccess(subject.id(), subject.userId())) {
+			return null;
+		}
+		if (teacherSubjectPort.hasPendingTransferBetween(subject.id(), userId, subject.userId())) {
+			return ASK_PENDING;
+		}
+		String creator = teacherProfilePort.findAccount(subject.userId())
+				.map(TeacherAccount::displayName)
+				.orElse("");
+		return nameSimilarCanAsk(subject.name(), creator);
+	}
+
+	/** La matière visible la plus proche, hors nom exactement identique. */
+	private Optional<StoredSubject> closestSimilar(long schoolId, String grade, String key) {
+		List<StoredSubject> rows = teacherSubjectPort.findVisibleInClass(schoolId, grade);
+		if (rows == null || rows.isEmpty()) {
+			return Optional.empty();
+		}
+		StoredSubject best = null;
+		int bestScore = Integer.MAX_VALUE;
+		for (StoredSubject row : rows) {
+			if (row == null || row.name() == null) {
+				continue;
+			}
+			String other = nameKey(row.name());
+			if (key.equals(other)) {
+				continue;
+			}
+			Integer score = similarityScore(key, other);
+			if (score == null || score >= bestScore) {
+				continue;
+			}
+			best = row;
+			bestScore = score;
+		}
+		return best == null ? Optional.empty() : Optional.of(best);
+	}
+
+	/**
+	 * Score de proximité, plus petit = plus proche. Null si le nom n'est pas assez proche.
+	 * Les accents et la ponctuation ne comptent pas. Un mot trop court ne déclenche rien.
+	 */
+	private static Integer similarityScore(String typedKey, String existingKey) {
+		String typed = fold(typedKey);
+		String existing = fold(existingKey);
+		if (typed.isEmpty() || existing.isEmpty()) {
+			return null;
+		}
+		if (typed.equals(existing)) {
+			return 0;
+		}
+		if (typed.length() < 4 || existing.length() < 4) {
+			return null;
+		}
+		int distance = levenshtein(typed, existing);
+		int shorter = Math.min(typed.length(), existing.length());
+		if (distance <= 1 && shorter >= 5) {
+			return distance;
+		}
+		if (distance <= 2 && shorter >= 8) {
+			return distance;
+		}
+		int prefix = commonPrefix(typed, existing);
+		if (prefix >= 4 && prefix >= shorter - 1) {
+			return Math.max(typed.length(), existing.length()) - prefix;
+		}
+		return null;
+	}
+
+	/** Minuscules, sans accent ni signe, pour comparer deux noms. */
+	private static String fold(String value) {
+		if (value == null || value.isEmpty()) {
+			return "";
+		}
+		String normalized = Normalizer.normalize(value, Normalizer.Form.NFD);
+		StringBuilder folded = new StringBuilder(normalized.length());
+		for (int i = 0; i < normalized.length(); i++) {
+			char c = normalized.charAt(i);
+			if (Character.getType(c) == Character.NON_SPACING_MARK) {
+				continue;
+			}
+			if (Character.isLetterOrDigit(c)) {
+				folded.append(Character.toLowerCase(c));
+			}
+		}
+		return folded.toString();
+	}
+
+	private static int commonPrefix(String left, String right) {
+		int limit = Math.min(left.length(), right.length());
+		int i = 0;
+		while (i < limit && left.charAt(i) == right.charAt(i)) {
+			i++;
+		}
+		return i;
+	}
+
+	private static int levenshtein(String left, String right) {
+		int n = left.length();
+		int m = right.length();
+		int[] previous = new int[m + 1];
+		int[] current = new int[m + 1];
+		for (int j = 0; j <= m; j++) {
+			previous[j] = j;
+		}
+		for (int i = 1; i <= n; i++) {
+			current[0] = i;
+			char c = left.charAt(i - 1);
+			for (int j = 1; j <= m; j++) {
+				int cost = c == right.charAt(j - 1) ? 0 : 1;
+				current[j] = Math.min(
+						Math.min(current[j - 1] + 1, previous[j] + 1),
+						previous[j - 1] + cost);
+			}
+			int[] swap = previous;
+			previous = current;
+			current = swap;
+		}
+		return previous[m];
 	}
 
 	/**

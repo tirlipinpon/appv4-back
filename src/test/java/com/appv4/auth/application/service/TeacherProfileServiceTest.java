@@ -329,6 +329,11 @@ class TeacherProfileServiceTest {
 		}
 
 		@Override
+		public List<StoredSubject> findVisibleInClass(long schoolId, String grade) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
 		public Optional<StoredSubject> restore(long userId, long subjectId) {
 			throw new UnsupportedOperationException();
 		}

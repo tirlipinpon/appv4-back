@@ -278,6 +278,46 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
+	void aVeryCloseNameAsksTheCreatorWhoStillHasItAndDoesNotCreateAnother() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Éveil");
+
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Maths"))
+				.hasMessage(TeacherSubjectService.nameSimilarCanAsk("Mathématiques", "Anne"));
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "eveil"))
+				.hasMessage(TeacherSubjectService.nameSimilarCanAsk("Éveil", "Anne"));
+
+		service.requestShare(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Maths");
+		long inviteId = service.listTransferInvites(TEACHER_ID, "teacher").invites().get(0).id();
+		service.acceptTransfer(TEACHER_ID, "teacher", inviteId);
+
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Éveil", "Mathématiques");
+		assertThat(subjects.accessCount(maths.id())).isEqualTo(2);
+	}
+
+	@Test
+	void aCloseNameOfOnesOwnSubjectIsRefusedWithoutAShareRequest() {
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Maths"))
+				.hasMessage(TeacherSubjectService.similarOwn("Mathématiques"));
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+	}
+
+	@Test
+	void aDifferentNameIsStillCreatedAndARemovedNameStaysARestore() {
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine history = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Histoire");
+		assertThat(history.name()).isEqualTo("Histoire");
+
+		SubjectLine calcul = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Calcul");
+		service.remove(TEACHER_ID, "teacher", calcul.id());
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Calcul"))
+				.hasMessage(TeacherSubjectService.REMOVED_RESTORABLE);
+	}
+
+	@Test
 	void anotherTeacherCanBringBackARemovedSubject() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 		service.remove(TEACHER_ID, "teacher", maths.id());
@@ -751,6 +791,17 @@ class TeacherSubjectServiceTest {
 				}
 			}
 			return Optional.empty();
+		}
+
+		@Override
+		public List<StoredSubject> findVisibleInClass(long schoolId, String grade) {
+			List<StoredSubject> found = new ArrayList<>();
+			for (StoredSubject row : rows) {
+				if (row.schoolId() == schoolId && grade.equals(row.grade()) && !hidden.contains(row.id())) {
+					found.add(row);
+				}
+			}
+			return found;
 		}
 
 		@Override

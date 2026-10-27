@@ -215,6 +215,19 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public List<StoredSubject> findVisibleInClass(long schoolId, String grade) {
+		List<StoredSubject> rows = new ArrayList<>();
+		for (BackTeacherSubjectEntity row : subjects.findBySchoolIdAndGradeLabelOrderByIdAsc(schoolId, grade)) {
+			if (row.isHidden()) {
+				continue;
+			}
+			rows.add(toStored(row, row.isActive()));
+		}
+		return List.copyOf(rows);
+	}
+
+	@Override
 	@Transactional
 	public Optional<StoredSubject> restore(long userId, long subjectId) {
 		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);

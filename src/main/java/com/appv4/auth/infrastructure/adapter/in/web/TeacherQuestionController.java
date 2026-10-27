@@ -1,0 +1,229 @@
+package com.appv4.auth.infrastructure.adapter.in.web;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
+import com.appv4.auth.application.result.TeacherQuestionFormsView;
+import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ChoiceLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
+import com.appv4.configuration.OpenApiConfiguration;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+/**
+ * Choix multiple du professeur connecté (SCRUM-174).
+ *
+ * <p><b>Business :</b> il voit les formes proposables, puis il prépare un énoncé
+ * dans une matière à laquelle il a accès. Il peut corriger un énoncé déjà là.
+ * La forme de cette question ne change pas. Une autre forme n'est pas acceptée.
+ * <p><b>Technique :</b> {@code /api/int/teacher/question-forms} et
+ * {@code /api/int/teacher/subjects/{id}/questions}. JWT obligatoire, espace {@code teacher}.
+ * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link TeacherQuestionUseCase}.
+ */
+@RestController
+@RequestMapping("/api/int/teacher")
+@Tag(name = "Professeur — questions")
+@SecurityRequirement(name = OpenApiConfiguration.BEARER_JWT)
+public class TeacherQuestionController {
+
+	private final TeacherQuestionUseCase teacherQuestionUseCase;
+
+	public TeacherQuestionController(TeacherQuestionUseCase teacherQuestionUseCase) {
+		this.teacherQuestionUseCase = teacherQuestionUseCase;
+	}
+
+	@GetMapping("/question-forms")
+	@Operation(operationId = "listTeacherQuestionForms", summary = "Lister les formes de questions proposables")
+	@ApiResponse(responseCode = "200", description = "Formes que le professeur peut préparer maintenant")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherQuestionFormsResponse> listForms(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		return ResponseEntity.ok(forms(teacherQuestionUseCase.listForms(user.userId(), user.activeRole())));
+	}
+
+	@GetMapping("/subjects/{subjectId}/questions")
+	@Operation(operationId = "listTeacherSubjectQuestions", summary = "Lister les questions d'une matière")
+	@ApiResponse(responseCode = "200", description = "Énoncés de cette matière, du plus ancien au plus récent")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectQuestionsResponse> list(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		return ResponseEntity.ok(questions(
+				teacherQuestionUseCase.list(user.userId(), user.activeRole(), subjectId)));
+	}
+
+	@PostMapping("/subjects/{subjectId}/questions")
+	@Operation(operationId = "createTeacherSubjectQuestion", summary = "Ajouter un choix multiple à une matière")
+	@ApiResponse(responseCode = "200", description = "Question enregistrée")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Forme inconnue, énoncé vide, moins de deux propositions, ou aucune bonne réponse",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectQuestionItem> create(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@RequestBody CreateTeacherSubjectQuestionRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		CreateTeacherSubjectQuestionRequest body = request == null
+				? new CreateTeacherSubjectQuestionRequest(null, null, null)
+				: request;
+		QuestionLine line = teacherQuestionUseCase.create(
+				user.userId(),
+				user.activeRole(),
+				subjectId,
+				body.formCode(),
+				body.prompt(),
+				inputs(body.choices()));
+		return ResponseEntity.ok(item(line));
+	}
+
+	@PutMapping("/subjects/{subjectId}/questions/{questionId}")
+	@Operation(operationId = "updateTeacherSubjectQuestion", summary = "Corriger un choix multiple déjà enregistré")
+	@ApiResponse(responseCode = "200", description = "Question corrigée, la forme ne change pas")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Forme inconnue ou différente, énoncé vide, moins de deux propositions, ou aucune bonne réponse",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière ou question absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectQuestionItem> update(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@PathVariable long questionId,
+			@RequestBody CreateTeacherSubjectQuestionRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		CreateTeacherSubjectQuestionRequest body = request == null
+				? new CreateTeacherSubjectQuestionRequest(null, null, null)
+				: request;
+		QuestionLine line = teacherQuestionUseCase.update(
+				user.userId(),
+				user.activeRole(),
+				subjectId,
+				questionId,
+				body.formCode(),
+				body.prompt(),
+				inputs(body.choices()));
+		return ResponseEntity.ok(item(line));
+	}
+
+	private static List<ChoiceInput> inputs(List<TeacherQuestionChoiceInput> choices) {
+		if (choices == null) {
+			return List.of();
+		}
+		List<ChoiceInput> inputs = new ArrayList<>();
+		for (TeacherQuestionChoiceInput choice : choices) {
+			if (choice == null) {
+				continue;
+			}
+			inputs.add(new ChoiceInput(choice.label(), choice.correct()));
+		}
+		return inputs;
+	}
+
+	private static TeacherQuestionFormsResponse forms(TeacherQuestionFormsView view) {
+		List<TeacherQuestionFormItem> items = new ArrayList<>();
+		for (FormLine form : view.forms()) {
+			items.add(new TeacherQuestionFormItem(form.code(), form.label(), form.sortOrder()));
+		}
+		return new TeacherQuestionFormsResponse(items);
+	}
+
+	private static TeacherSubjectQuestionsResponse questions(TeacherSubjectQuestionsView view) {
+		List<TeacherSubjectQuestionItem> items = new ArrayList<>();
+		for (QuestionLine line : view.questions()) {
+			items.add(item(line));
+		}
+		return new TeacherSubjectQuestionsResponse(items);
+	}
+
+	private static TeacherSubjectQuestionItem item(QuestionLine line) {
+		List<TeacherQuestionChoiceItem> choices = new ArrayList<>();
+		for (ChoiceLine choice : line.choices()) {
+			choices.add(new TeacherQuestionChoiceItem(choice.id(), choice.label(), choice.correct()));
+		}
+		return new TeacherSubjectQuestionItem(
+				line.id(), line.formCode(), line.formLabel(), line.prompt(), choices);
+	}
+
+	@Schema(name = "TeacherQuestionFormsResponse")
+	public record TeacherQuestionFormsResponse(List<TeacherQuestionFormItem> forms) {
+	}
+
+	@Schema(name = "TeacherQuestionFormItem")
+	public record TeacherQuestionFormItem(String code, String label, int sortOrder) {
+	}
+
+	@Schema(name = "TeacherSubjectQuestionsResponse")
+	public record TeacherSubjectQuestionsResponse(List<TeacherSubjectQuestionItem> questions) {
+	}
+
+	@Schema(name = "TeacherSubjectQuestionItem")
+	public record TeacherSubjectQuestionItem(
+			long id,
+			String formCode,
+			String formLabel,
+			String prompt,
+			List<TeacherQuestionChoiceItem> choices) {
+	}
+
+	@Schema(name = "TeacherQuestionChoiceItem")
+	public record TeacherQuestionChoiceItem(long id, String label, boolean correct) {
+	}
+
+	@Schema(name = "CreateTeacherSubjectQuestionRequest")
+	public record CreateTeacherSubjectQuestionRequest(
+			String formCode,
+			String prompt,
+			List<TeacherQuestionChoiceInput> choices) {
+	}
+
+	@Schema(name = "TeacherQuestionChoiceInput")
+	public record TeacherQuestionChoiceInput(String label, Boolean correct) {
+	}
+}

@@ -23,6 +23,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
@@ -97,6 +98,12 @@ public class TestProfileConfiguration {
 	@Bean
 	TeacherSubjectPort teacherSubjectPort() {
 		return mock(TeacherSubjectPort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	/** Choix multiples d'une matière (SCRUM-174). Pas de Postgres dans les tests web. */
+	@Bean
+	TeacherQuestionPort teacherQuestionPort() {
+		return mock(TeacherQuestionPort.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
 	/**

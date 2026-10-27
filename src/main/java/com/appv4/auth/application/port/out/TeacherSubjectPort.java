@@ -69,6 +69,9 @@ public interface TeacherSubjectPort {
 	 */
 	Optional<StoredSubject> findVisibleByName(long schoolId, String grade, String nameKey);
 
+	/** Matières encore affichées de cette école et de cette année. */
+	List<StoredSubject> findVisibleInClass(long schoolId, String grade);
+
 	/**
 	 * Réaffiche la matière retirée et donne un accès actif à ce professeur.
 	 * Même id : les liens déjà posés restent.

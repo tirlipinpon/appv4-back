@@ -1,6 +1,7 @@
 package com.appv4.auth.application.service;
 
 import java.text.Collator;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -41,8 +42,9 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
  *
  * <p><b>Business :</b> il crée, voit, renomme et retire un nom dans une année
  * déjà cochée. S'il retape le nom d'une matière retirée, on lui propose de
- * la réactiver (même enregistrement). Si le nom est déjà pris par un collègue,
- * il peut demander au créateur de la partager. Il propose aussi un déplacement
+ * la réactiver (même enregistrement). Si le nom est déjà pris, ou s'il
+ * ressemble fortement à une matière encore visible, il peut demander au
+ * créateur qui la possède encore de la partager. Il propose aussi un déplacement
  * ou un partage à un collègue de la liste ; le collègue accepte ou refuse.
  * La désactivation est par accès :
  * le non-créateur seulement pour lui ; le créateur peut cibler des co-profs et
@@ -99,6 +101,24 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		return NAME_CAN_ASK_PREFIX + who + NAME_CAN_ASK_SUFFIX;
 	}
 
+	/**
+	 * Message quand le nom tapé n'est pas le même, mais très proche d'une matière
+	 * encore visible dont le créateur a toujours l'accès.
+	 */
+	public static String nameSimilarCanAsk(String existingName, String creatorDisplayName) {
+		String subject = existingName == null || existingName.isBlank() ? "une matière" : existingName.trim();
+		String who = creatorDisplayName == null || creatorDisplayName.isBlank()
+				? "son créateur"
+				: creatorDisplayName.trim();
+		return "Ce nom ressemble à " + subject + ". Tu peux demander à " + who + NAME_CAN_ASK_SUFFIX;
+	}
+
+	/** Le professeur a déjà une matière très proche : pas de deuxième création. */
+	public static String similarOwn(String existingName) {
+		String subject = existingName == null || existingName.isBlank() ? "une matière" : existingName.trim();
+		return "Tu as déjà une matière proche : " + subject + ".";
+	}
+
 	private final TeacherSubjectPort teacherSubjectPort;
 	private final TeacherProfilePort teacherProfilePort;
 	private final SchoolCatalogPort schoolCatalogPort;
@@ -139,6 +159,10 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		}
 		if (teacherSubjectPort.nameTaken(schoolId, grade, key, null)) {
 			throw bad(takenMessage(userId, schoolId, grade, key));
+		}
+		String near = nearMessage(userId, schoolId, grade, key);
+		if (near != null) {
+			throw bad(near);
 		}
 		StoredSubject saved = teacherSubjectPort.insert(userId, schoolId, grade, trimmed, key);
 		return line(userId, saved);
@@ -667,17 +691,165 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	 */
 	private StoredSubject shareable(long userId, long schoolId, String grade, String key) {
 		Optional<StoredSubject> existing = teacherSubjectPort.findVisibleByName(schoolId, grade, key);
-		if (existing == null || existing.isEmpty()) {
-			throw bad(NAME_TAKEN);
+		if (existing != null && existing.isPresent()) {
+			return requireShareable(userId, existing.get(), false);
 		}
-		StoredSubject subject = existing.get();
+		StoredSubject near = closestSimilar(schoolId, grade, key).orElse(null);
+		if (near == null) {
+			throw missing();
+		}
+		return requireShareable(userId, near, true);
+	}
+
+	/**
+	 * Le demandeur n'a pas la matière. Le créateur enregistré la possède encore.
+	 *
+	 * @param similar vrai si le nom tapé n'est pas exactement celui de la matière
+	 */
+	private StoredSubject requireShareable(long userId, StoredSubject subject, boolean similar) {
 		if (subject.userId() == userId || teacherSubjectPort.hasAccess(subject.id(), userId)) {
-			throw bad(NAME_TAKEN);
+			throw bad(similar ? similarOwn(subject.name()) : NAME_TAKEN);
 		}
 		if (!teacherSubjectPort.hasAccess(subject.id(), subject.userId())) {
-			throw bad(NAME_TAKEN);
+			throw bad(similar ? SUBJECT_MISSING : NAME_TAKEN);
 		}
 		return subject;
+	}
+
+	/**
+	 * Bloque la création si un nom très proche est encore visible.
+	 * Une matière retirée ne passe pas ici : seul le nom exact propose la réactivation.
+	 *
+	 * @return message à afficher, ou null pour laisser créer
+	 */
+	private String nearMessage(long userId, long schoolId, String grade, String key) {
+		Optional<StoredSubject> near = closestSimilar(schoolId, grade, key);
+		if (near == null || near.isEmpty()) {
+			return null;
+		}
+		StoredSubject subject = near.get();
+		if (subject.userId() == userId || teacherSubjectPort.hasAccess(subject.id(), userId)) {
+			return similarOwn(subject.name());
+		}
+		if (!teacherSubjectPort.hasAccess(subject.id(), subject.userId())) {
+			return null;
+		}
+		if (teacherSubjectPort.hasPendingTransferBetween(subject.id(), userId, subject.userId())) {
+			return ASK_PENDING;
+		}
+		String creator = teacherProfilePort.findAccount(subject.userId())
+				.map(TeacherAccount::displayName)
+				.orElse("");
+		return nameSimilarCanAsk(subject.name(), creator);
+	}
+
+	/** La matière visible la plus proche, hors nom exactement identique. */
+	private Optional<StoredSubject> closestSimilar(long schoolId, String grade, String key) {
+		List<StoredSubject> rows = teacherSubjectPort.findVisibleInClass(schoolId, grade);
+		if (rows == null || rows.isEmpty()) {
+			return Optional.empty();
+		}
+		StoredSubject best = null;
+		int bestScore = Integer.MAX_VALUE;
+		for (StoredSubject row : rows) {
+			if (row == null || row.name() == null) {
+				continue;
+			}
+			String other = nameKey(row.name());
+			if (key.equals(other)) {
+				continue;
+			}
+			Integer score = similarityScore(key, other);
+			if (score == null || score >= bestScore) {
+				continue;
+			}
+			best = row;
+			bestScore = score;
+		}
+		return best == null ? Optional.empty() : Optional.of(best);
+	}
+
+	/**
+	 * Score de proximité, plus petit = plus proche. Null si le nom n'est pas assez proche.
+	 * Les accents et la ponctuation ne comptent pas. Un mot trop court ne déclenche rien.
+	 */
+	private static Integer similarityScore(String typedKey, String existingKey) {
+		String typed = fold(typedKey);
+		String existing = fold(existingKey);
+		if (typed.isEmpty() || existing.isEmpty()) {
+			return null;
+		}
+		if (typed.equals(existing)) {
+			return 0;
+		}
+		if (typed.length() < 4 || existing.length() < 4) {
+			return null;
+		}
+		int distance = levenshtein(typed, existing);
+		int shorter = Math.min(typed.length(), existing.length());
+		if (distance <= 1 && shorter >= 5) {
+			return distance;
+		}
+		if (distance <= 2 && shorter >= 8) {
+			return distance;
+		}
+		int prefix = commonPrefix(typed, existing);
+		if (prefix >= 4 && prefix >= shorter - 1) {
+			return Math.max(typed.length(), existing.length()) - prefix;
+		}
+		return null;
+	}
+
+	/** Minuscules, sans accent ni signe, pour comparer deux noms. */
+	private static String fold(String value) {
+		if (value == null || value.isEmpty()) {
+			return "";
+		}
+		String normalized = Normalizer.normalize(value, Normalizer.Form.NFD);
+		StringBuilder folded = new StringBuilder(normalized.length());
+		for (int i = 0; i < normalized.length(); i++) {
+			char c = normalized.charAt(i);
+			if (Character.getType(c) == Character.NON_SPACING_MARK) {
+				continue;
+			}
+			if (Character.isLetterOrDigit(c)) {
+				folded.append(Character.toLowerCase(c));
+			}
+		}
+		return folded.toString();
+	}
+
+	private static int commonPrefix(String left, String right) {
+		int limit = Math.min(left.length(), right.length());
+		int i = 0;
+		while (i < limit && left.charAt(i) == right.charAt(i)) {
+			i++;
+		}
+		return i;
+	}
+
+	private static int levenshtein(String left, String right) {
+		int n = left.length();
+		int m = right.length();
+		int[] previous = new int[m + 1];
+		int[] current = new int[m + 1];
+		for (int j = 0; j <= m; j++) {
+			previous[j] = j;
+		}
+		for (int i = 1; i <= n; i++) {
+			current[0] = i;
+			char c = left.charAt(i - 1);
+			for (int j = 1; j <= m; j++) {
+				int cost = c == right.charAt(j - 1) ? 0 : 1;
+				current[j] = Math.min(
+						Math.min(current[j - 1] + 1, previous[j] + 1),
+						previous[j - 1] + cost);
+			}
+			int[] swap = previous;
+			previous = current;
+			current = swap;
+		}
+		return previous[m];
 	}
 
 	/**

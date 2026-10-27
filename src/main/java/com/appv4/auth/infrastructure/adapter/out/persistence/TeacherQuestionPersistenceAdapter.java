@@ -10,6 +10,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 
 /**
  * Persiste les choix multiples d'une matière (SCRUM-174).
@@ -26,14 +31,17 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 
 	private final BackSubjectQuestionJpaRepository questions;
 	private final BackSubjectQuestionChoiceJpaRepository choices;
+	private final BackSubjectQuestionPairJpaRepository pairs;
 	private final BackSubjectQuestionFormJpaRepository forms;
 
 	public TeacherQuestionPersistenceAdapter(
 			BackSubjectQuestionJpaRepository questions,
 			BackSubjectQuestionChoiceJpaRepository choices,
+			BackSubjectQuestionPairJpaRepository pairs,
 			BackSubjectQuestionFormJpaRepository forms) {
 		this.questions = questions;
 		this.choices = choices;
+		this.pairs = pairs;
 		this.forms = forms;
 	}
 
@@ -49,7 +57,12 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 
 	@Override
 	@Transactional
-	public StoredQuestion insert(long subjectId, String formCode, String prompt, List<ChoiceDraft> drafts) {
+	public StoredQuestion insert(
+			long subjectId,
+			String formCode,
+			String prompt,
+			List<ChoiceDraft> choiceDrafts,
+			List<PairDraft> pairDrafts) {
 		BackSubjectQuestionEntity saved = questions.saveAndFlush(
 				new BackSubjectQuestionEntity(subjectId, formCode, prompt));
 		return new StoredQuestion(
@@ -57,7 +70,8 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 				saved.getSubjectId(),
 				saved.getFormCode(),
 				saved.getPrompt(),
-				writeChoices(saved.getId(), drafts));
+				writeChoices(saved.getId(), choiceDrafts),
+				writePairs(saved.getId(), pairDrafts));
 	}
 
 	@Override
@@ -70,18 +84,22 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 
 	@Override
 	@Transactional
-	public StoredQuestion replace(long questionId, String prompt, List<ChoiceDraft> drafts) {
+	public StoredQuestion replace(
+			long questionId, String prompt, List<ChoiceDraft> choiceDrafts, List<PairDraft> pairDrafts) {
 		BackSubjectQuestionEntity question = questions.findById(questionId).orElseThrow();
 		question.setPrompt(prompt);
 		questions.saveAndFlush(question);
 		choices.deleteByQuestionId(questionId);
 		choices.flush();
+		pairs.deleteByQuestionId(questionId);
+		pairs.flush();
 		return new StoredQuestion(
 				question.getId(),
 				question.getSubjectId(),
 				question.getFormCode(),
 				question.getPrompt(),
-				writeChoices(questionId, drafts));
+				writeChoices(questionId, choiceDrafts),
+				writePairs(questionId, pairDrafts));
 	}
 
 	@Override
@@ -111,6 +129,21 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 		return List.copyOf(storedChoices);
 	}
 
+	private List<StoredPair> writePairs(long questionId, List<PairDraft> drafts) {
+		List<StoredPair> storedPairs = new ArrayList<>();
+		if (drafts == null) {
+			return List.of();
+		}
+		int order = 0;
+		for (PairDraft draft : drafts) {
+			BackSubjectQuestionPairEntity pair = pairs.saveAndFlush(new BackSubjectQuestionPairEntity(
+					questionId, draft.questionSide(), draft.answerSide(), order));
+			storedPairs.add(new StoredPair(pair.getId(), pair.getQuestionSide(), pair.getAnswerSide()));
+			order++;
+		}
+		return List.copyOf(storedPairs);
+	}
+
 	private StoredQuestion toStored(BackSubjectQuestionEntity question) {
 		List<StoredChoice> storedChoices = new ArrayList<>();
 		for (BackSubjectQuestionChoiceEntity choice : choices.findByQuestionIdOrderBySortOrderAsc(question.getId())) {
@@ -121,6 +154,15 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 				question.getSubjectId(),
 				question.getFormCode(),
 				question.getPrompt(),
-				List.copyOf(storedChoices));
+				List.copyOf(storedChoices),
+				storedPairs(question.getId()));
+	}
+
+	private List<StoredPair> storedPairs(long questionId) {
+		List<StoredPair> storedPairs = new ArrayList<>();
+		for (BackSubjectQuestionPairEntity pair : pairs.findByQuestionIdOrderBySortOrderAsc(questionId)) {
+			storedPairs.add(new StoredPair(pair.getId(), pair.getQuestionSide(), pair.getAnswerSide()));
+		}
+		return List.copyOf(storedPairs);
 	}
 }

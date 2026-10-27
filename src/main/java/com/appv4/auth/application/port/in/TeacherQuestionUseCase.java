@@ -7,14 +7,14 @@ import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 
 /**
- * Préparer un choix multiple dans une matière (SCRUM-174).
+ * Préparer une question dans une matière (SCRUM-174, SCRUM-175).
  *
  * <p><b>Business :</b> le professeur choisit une forme dans la liste que l'API
- * propose, puis saisit l'énoncé et les propositions. Aujourd'hui une seule
- * forme est proposable : le choix multiple. L'élève ne joue pas encore ici.
- * <p><b>Technique :</b> l'identifiant vient du jeton. Une proposition vide
- * n'est pas enregistrée. Moins de deux propositions, ou aucune bonne réponse,
- * est refusé.
+ * propose. Le choix multiple a un énoncé et des propositions. Le Memory a des
+ * paires, et l'énoncé peut rester vide. L'élève ne joue pas encore ici.
+ * <p><b>Technique :</b> l'identifiant vient du jeton. Une proposition vide, ou
+ * une paire incomplète, n'est pas enregistrée. Moins de deux propositions, ou
+ * aucune bonne réponse, est refusé. Moins de deux paires aussi.
  * <p><b>Métier / flow :</b> port in de {@code /api/int/teacher/question-forms}
  * et {@code /api/int/teacher/subjects/{id}/questions}. Corriger un énoncé
  * déjà enregistré passe par le même port, sans changer la forme.
@@ -31,10 +31,11 @@ public interface TeacherQuestionUseCase {
 			long subjectId,
 			String formCode,
 			String prompt,
-			List<ChoiceInput> choices);
+			List<ChoiceInput> choices,
+			List<PairInput> pairs);
 
 	/**
-	 * Remplace l'énoncé et les propositions. La forme déjà enregistrée reste.
+	 * Remplace le contenu. La forme déjà enregistrée reste.
 	 */
 	QuestionLine update(
 			long userId,
@@ -43,11 +44,16 @@ public interface TeacherQuestionUseCase {
 			long questionId,
 			String formCode,
 			String prompt,
-			List<ChoiceInput> choices);
+			List<ChoiceInput> choices,
+			List<PairInput> pairs);
 
 	/**
 	 * @param correct {@code null} compte comme faux
 	 */
 	record ChoiceInput(String label, Boolean correct) {
+	}
+
+	/** Côté question et côté réponse d'une paire Memory. */
+	record PairInput(String questionSide, String answerSide) {
 	}
 }

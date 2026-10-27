@@ -15,11 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ChoiceLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.PairLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 import com.appv4.configuration.OpenApiConfiguration;
 
@@ -31,11 +33,12 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Choix multiple du professeur connecté (SCRUM-174).
+ * Choix multiple du professeur connecté, et Memory (SCRUM-174, SCRUM-175).
  *
  * <p><b>Business :</b> il voit les formes proposables, puis il prépare un énoncé
- * dans une matière à laquelle il a accès. Il peut corriger un énoncé déjà là.
- * La forme de cette question ne change pas. Une autre forme n'est pas acceptée.
+ * ou des paires dans une matière à laquelle il a accès. Il peut corriger une
+ * question déjà là. La forme de cette question ne change pas. Une autre forme
+ * n'est pas acceptée. L'élève ne joue pas ici.
  * <p><b>Technique :</b> {@code /api/int/teacher/question-forms} et
  * {@code /api/int/teacher/subjects/{id}/questions}. JWT obligatoire, espace {@code teacher}.
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link TeacherQuestionUseCase}.
@@ -105,7 +108,7 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -113,7 +116,8 @@ public class TeacherQuestionController {
 				subjectId,
 				body.formCode(),
 				body.prompt(),
-				inputs(body.choices()));
+				inputs(body.choices()),
+				pairInputs(body.pairs()));
 		return ResponseEntity.ok(item(line));
 	}
 
@@ -139,7 +143,7 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -148,7 +152,8 @@ public class TeacherQuestionController {
 				questionId,
 				body.formCode(),
 				body.prompt(),
-				inputs(body.choices()));
+				inputs(body.choices()),
+				pairInputs(body.pairs()));
 		return ResponseEntity.ok(item(line));
 	}
 
@@ -162,6 +167,20 @@ public class TeacherQuestionController {
 				continue;
 			}
 			inputs.add(new ChoiceInput(choice.label(), choice.correct()));
+		}
+		return inputs;
+	}
+
+	private static List<PairInput> pairInputs(List<TeacherQuestionPairInput> pairs) {
+		if (pairs == null) {
+			return List.of();
+		}
+		List<PairInput> inputs = new ArrayList<>();
+		for (TeacherQuestionPairInput pair : pairs) {
+			if (pair == null) {
+				continue;
+			}
+			inputs.add(new PairInput(pair.questionSide(), pair.answerSide()));
 		}
 		return inputs;
 	}
@@ -187,8 +206,12 @@ public class TeacherQuestionController {
 		for (ChoiceLine choice : line.choices()) {
 			choices.add(new TeacherQuestionChoiceItem(choice.id(), choice.label(), choice.correct()));
 		}
+		List<TeacherQuestionPairItem> pairs = new ArrayList<>();
+		for (PairLine pair : line.pairs()) {
+			pairs.add(new TeacherQuestionPairItem(pair.id(), pair.questionSide(), pair.answerSide()));
+		}
 		return new TeacherSubjectQuestionItem(
-				line.id(), line.formCode(), line.formLabel(), line.prompt(), choices);
+				line.id(), line.formCode(), line.formLabel(), line.prompt(), choices, pairs);
 	}
 
 	@Schema(name = "TeacherQuestionFormsResponse")
@@ -209,21 +232,31 @@ public class TeacherQuestionController {
 			String formCode,
 			String formLabel,
 			String prompt,
-			List<TeacherQuestionChoiceItem> choices) {
+			List<TeacherQuestionChoiceItem> choices,
+			List<TeacherQuestionPairItem> pairs) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
 	public record TeacherQuestionChoiceItem(long id, String label, boolean correct) {
 	}
 
+	@Schema(name = "TeacherQuestionPairItem")
+	public record TeacherQuestionPairItem(long id, String questionSide, String answerSide) {
+	}
+
 	@Schema(name = "CreateTeacherSubjectQuestionRequest")
 	public record CreateTeacherSubjectQuestionRequest(
 			String formCode,
 			String prompt,
-			List<TeacherQuestionChoiceInput> choices) {
+			List<TeacherQuestionChoiceInput> choices,
+			List<TeacherQuestionPairInput> pairs) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceInput")
 	public record TeacherQuestionChoiceInput(String label, Boolean correct) {
+	}
+
+	@Schema(name = "TeacherQuestionPairInput")
+	public record TeacherQuestionPairInput(String questionSide, String answerSide) {
 	}
 }

@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,7 +23,8 @@ import com.appv4.auth.application.service.TeacherSubjectService;
  * Persiste les matières et leurs accès professeurs (SCRUM-161, SCRUM-172).
  *
  * <p><b>Business :</b> une matière n'est lue ou modifiée que si le professeur y a
- * accès. Partager ajoute un accès. Déplacer remplace tous les accès.
+ * accès. Partager ajoute un accès. Déplacer remplace tous les accès. La
+ * désactivation est par ligne d'accès ; le flag matière suit « au moins un actif ».
  * <p><b>Technique :</b> {@code back_teacher_subjects} + {@code back_teacher_subject_access}.
  * Absent du profil {@code test} : les tests web ne démarrent pas JPA.
  * <p><b>Métier / flow :</b> adapter out du port {@link TeacherSubjectPort}.
@@ -35,16 +36,19 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	private final BackTeacherSubjectJpaRepository subjects;
 	private final BackTeacherSubjectAccessJpaRepository access;
 	private final BackTeacherSubjectTransferRequestJpaRepository transfers;
+	private final BackTeacherSubjectDeactivateNoticeJpaRepository notices;
 	private final BackUserJpaRepository users;
 
 	public TeacherSubjectPersistenceAdapter(
 			BackTeacherSubjectJpaRepository subjects,
 			BackTeacherSubjectAccessJpaRepository access,
 			BackTeacherSubjectTransferRequestJpaRepository transfers,
+			BackTeacherSubjectDeactivateNoticeJpaRepository notices,
 			BackUserJpaRepository users) {
 		this.subjects = subjects;
 		this.access = access;
 		this.transfers = transfers;
+		this.notices = notices;
 		this.users = users;
 	}
 
@@ -57,7 +61,7 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 			if (found.isEmpty() || found.get().isHidden()) {
 				continue;
 			}
-			rows.add(toStored(found.get()));
+			rows.add(toStored(found.get(), link.isActive()));
 		}
 		return List.copyOf(rows);
 	}
@@ -69,7 +73,7 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		try {
 			BackTeacherSubjectEntity saved = subjects.saveAndFlush(entity);
 			access.saveAndFlush(new BackTeacherSubjectAccessEntity(saved.getId(), userId));
-			return toStored(saved);
+			return toStored(saved, true);
 		} catch (DataIntegrityViolationException ex) {
 			throw taken();
 		}
@@ -78,7 +82,15 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	@Override
 	@Transactional(readOnly = true)
 	public Optional<StoredSubject> findOwned(long userId, long subjectId) {
-		return visible(userId, subjectId).map(TeacherSubjectPersistenceAdapter::toStored);
+		Optional<BackTeacherSubjectAccessEntity> link = access.findBySubjectIdAndUserId(subjectId, userId);
+		if (link.isEmpty()) {
+			return Optional.empty();
+		}
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty() || found.get().isHidden()) {
+			return Optional.empty();
+		}
+		return Optional.of(toStored(found.get(), link.get().isActive()));
 	}
 
 	@Override
@@ -88,20 +100,21 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		if (found.isEmpty() || found.get().isHidden()) {
 			return Optional.empty();
 		}
-		return found.map(TeacherSubjectPersistenceAdapter::toStored);
+		return found.map(entity -> toStored(entity, entity.isActive()));
 	}
 
 	@Override
 	@Transactional
 	public Optional<StoredSubject> rename(long userId, long subjectId, String name, String nameKey) {
-		Optional<BackTeacherSubjectEntity> found = visible(userId, subjectId);
-		if (found.isEmpty()) {
+		Optional<StoredSubject> owned = findOwned(userId, subjectId);
+		if (owned.isEmpty()) {
 			return Optional.empty();
 		}
-		BackTeacherSubjectEntity entity = found.get();
+		BackTeacherSubjectEntity entity = subjects.findById(subjectId).orElseThrow();
 		entity.rename(name, nameKey);
 		try {
-			return Optional.of(toStored(subjects.saveAndFlush(entity)));
+			BackTeacherSubjectEntity saved = subjects.saveAndFlush(entity);
+			return Optional.of(toStored(saved, owned.get().active()));
 		} catch (DataIntegrityViolationException ex) {
 			throw taken();
 		}
@@ -109,14 +122,40 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 
 	@Override
 	@Transactional
-	public boolean deactivate(long userId, long subjectId) {
-		return changeVisible(userId, subjectId, BackTeacherSubjectEntity::deactivate);
+	public boolean deactivateAccesses(long actorUserId, long subjectId, List<Long> userIds) {
+		if (findOwned(actorUserId, subjectId).isEmpty()) {
+			return false;
+		}
+		List<Long> targets = userIds == null ? List.of() : userIds;
+		for (Long target : targets) {
+			if (target == null) {
+				continue;
+			}
+			access.findBySubjectIdAndUserId(subjectId, target).ifPresent(link -> {
+				link.deactivate();
+				access.save(link);
+			});
+		}
+		access.flush();
+		syncSubjectActive(subjectId);
+		return true;
 	}
 
 	@Override
 	@Transactional
 	public boolean reactivate(long userId, long subjectId) {
-		return changeVisible(userId, subjectId, BackTeacherSubjectEntity::reactivate);
+		Optional<BackTeacherSubjectAccessEntity> link = access.findBySubjectIdAndUserId(subjectId, userId);
+		if (link.isEmpty()) {
+			return false;
+		}
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty() || found.get().isHidden()) {
+			return false;
+		}
+		link.get().reactivate();
+		access.flush();
+		syncSubjectActive(subjectId);
+		return true;
 	}
 
 	@Override
@@ -129,24 +168,98 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		if (access.deleteBySubjectIdAndUserId(subjectId, userId) == 0) {
 			return false;
 		}
+		// Le delete vide le contexte JPA : l'entité lue avant est détachée.
+		// On relit, sinon hidden ne serait pas enregistré et le nom resterait pris.
 		if (access.countBySubjectId(subjectId) == 0) {
-			found.get().hide();
-			subjects.flush();
+			Optional<BackTeacherSubjectEntity> again = subjects.findById(subjectId);
+			if (again.isEmpty()) {
+				return false;
+			}
+			again.get().hide();
+			subjects.saveAndFlush(again.get());
+		} else {
+			syncSubjectActive(subjectId);
 		}
 		return true;
 	}
 
 	@Override
 	@Transactional(readOnly = true)
-	public List<String> otherAccessNames(long subjectId, long viewerUserId) {
-		List<String> names = new ArrayList<>();
+	public Optional<StoredSubject> findRemovedByName(long schoolId, String grade, String nameKey) {
+		BackTeacherSubjectEntity match = null;
+		for (BackTeacherSubjectEntity row : subjects.findBySchoolIdAndGradeLabelOrderByIdAsc(schoolId, grade)) {
+			if (row.getNameKey() == null || !nameKey.equals(row.getNameKey())) {
+				continue;
+			}
+			if (!row.isHidden() && access.countBySubjectId(row.getId()) > 0) {
+				continue;
+			}
+			match = row;
+		}
+		if (match == null) {
+			return Optional.empty();
+		}
+		return Optional.of(toStored(match, false));
+	}
+
+	@Override
+	@Transactional
+	public Optional<StoredSubject> restore(long userId, long subjectId) {
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty()) {
+			return Optional.empty();
+		}
+		BackTeacherSubjectEntity entity = found.get();
+		boolean noAccess = access.countBySubjectId(subjectId) == 0;
+		if (!entity.isHidden() && !noAccess) {
+			return Optional.empty();
+		}
+		if (entity.isHidden()) {
+			entity.unhide();
+		}
+		entity.reactivate();
+		subjects.saveAndFlush(entity);
+		Optional<BackTeacherSubjectAccessEntity> link = access.findBySubjectIdAndUserId(subjectId, userId);
+		if (link.isEmpty()) {
+			access.saveAndFlush(new BackTeacherSubjectAccessEntity(subjectId, userId));
+		} else if (!link.get().isActive()) {
+			link.get().reactivate();
+			access.flush();
+		}
+		syncSubjectActive(subjectId);
+		return Optional.of(toStored(entity, true));
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Long> accessUserIds(long subjectId) {
+		return access.findBySubjectIdOrderByIdAsc(subjectId).stream()
+				.map(BackTeacherSubjectAccessEntity::getUserId)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<AccessHolder> otherAccessHolders(long subjectId, long viewerUserId) {
+		List<AccessHolder> holders = new ArrayList<>();
 		Map<Long, String> byId = displayNames(access.findBySubjectIdOrderByIdAsc(subjectId));
 		for (Map.Entry<Long, String> entry : byId.entrySet()) {
 			if (entry.getKey() != viewerUserId) {
-				names.add(entry.getValue());
+				holders.add(new AccessHolder(entry.getKey(), entry.getValue()));
 			}
 		}
-		return sorted(names);
+		Collator order = Collator.getInstance(Locale.FRENCH);
+		order.setStrength(Collator.PRIMARY);
+		holders.sort((left, right) -> order.compare(left.displayName(), right.displayName()));
+		return List.copyOf(holders);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<String> otherAccessNames(long subjectId, long viewerUserId) {
+		return otherAccessHolders(subjectId, viewerUserId).stream()
+				.map(AccessHolder::displayName)
+				.toList();
 	}
 
 	@Override
@@ -174,6 +287,9 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		access.deleteBySubjectId(subjectId);
 		access.saveAndFlush(new BackTeacherSubjectAccessEntity(subjectId, soleUserId));
 		found.get().assignTo(soleUserId);
+		if (!found.get().isActive()) {
+			found.get().reactivate();
+		}
 		subjects.flush();
 	}
 
@@ -243,27 +359,42 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		transfers.flush();
 	}
 
-	private Optional<BackTeacherSubjectEntity> visible(long userId, long subjectId) {
-		if (!access.existsBySubjectIdAndUserId(subjectId, userId)) {
-			return Optional.empty();
+	@Override
+	@Transactional
+	public void insertDeactivateNotices(
+			long subjectId, long fromUserId, List<Long> toUserIds, List<Long> deactivatedUserIds) {
+		String encoded = encodeIds(deactivatedUserIds);
+		for (Long toUserId : toUserIds) {
+			if (toUserId == null || toUserId == fromUserId) {
+				continue;
+			}
+			notices.save(new BackTeacherSubjectDeactivateNoticeEntity(
+					subjectId, fromUserId, toUserId, encoded));
 		}
-		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
-		if (found.isEmpty() || found.get().isHidden()) {
-			return Optional.empty();
-		}
-		return found;
+		notices.flush();
 	}
 
-	private boolean changeVisible(
-			long userId,
-			long subjectId,
-			Consumer<BackTeacherSubjectEntity> change) {
-		Optional<BackTeacherSubjectEntity> found = visible(userId, subjectId);
+	@Override
+	@Transactional(readOnly = true)
+	public List<StoredDeactivateNotice> findOpenDeactivateNoticesTo(long toUserId) {
+		List<StoredDeactivateNotice> rows = new ArrayList<>();
+		for (BackTeacherSubjectDeactivateNoticeEntity row
+				: notices.findByToUserIdAndDismissedAtIsNullOrderByIdAsc(toUserId)) {
+			rows.add(toNotice(row));
+		}
+		return List.copyOf(rows);
+	}
+
+	@Override
+	@Transactional
+	public boolean dismissDeactivateNotice(long noticeId, long toUserId) {
+		Optional<BackTeacherSubjectDeactivateNoticeEntity> found =
+				notices.findByIdAndToUserIdAndDismissedAtIsNull(noticeId, toUserId);
 		if (found.isEmpty()) {
 			return false;
 		}
-		change.accept(found.get());
-		subjects.flush();
+		found.get().dismiss();
+		notices.flush();
 		return true;
 	}
 
@@ -280,6 +411,27 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 			return true;
 		}
 		return false;
+	}
+
+	private void syncSubjectActive(long subjectId) {
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty()) {
+			return;
+		}
+		boolean anyActive = false;
+		for (BackTeacherSubjectAccessEntity link : access.findBySubjectIdOrderByIdAsc(subjectId)) {
+			if (link.isActive()) {
+				anyActive = true;
+				break;
+			}
+		}
+		BackTeacherSubjectEntity entity = found.get();
+		if (anyActive) {
+			entity.reactivate();
+		} else {
+			entity.deactivate();
+		}
+		subjects.flush();
 	}
 
 	private Map<Long, String> displayNames(List<BackTeacherSubjectAccessEntity> links) {
@@ -304,14 +456,14 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		return List.copyOf(names);
 	}
 
-	private static StoredSubject toStored(BackTeacherSubjectEntity entity) {
+	private static StoredSubject toStored(BackTeacherSubjectEntity entity, boolean active) {
 		return new StoredSubject(
 				entity.getId(),
 				entity.getUserId(),
 				entity.getSchoolId(),
 				entity.getGradeLabel(),
 				entity.getName(),
-				entity.isActive());
+				active);
 	}
 
 	private static StoredTransferRequest toTransfer(BackTeacherSubjectTransferRequestEntity entity) {
@@ -322,6 +474,37 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 				entity.getToUserId(),
 				entity.getMode(),
 				entity.getStatus());
+	}
+
+	private static StoredDeactivateNotice toNotice(BackTeacherSubjectDeactivateNoticeEntity entity) {
+		return new StoredDeactivateNotice(
+				entity.getId(),
+				entity.getSubjectId(),
+				entity.getFromUserId(),
+				entity.getToUserId(),
+				decodeIds(entity.getDeactivatedUserIds()));
+	}
+
+	private static String encodeIds(List<Long> ids) {
+		if (ids == null || ids.isEmpty()) {
+			return "";
+		}
+		return ids.stream().map(String::valueOf).collect(Collectors.joining(","));
+	}
+
+	private static List<Long> decodeIds(String raw) {
+		if (raw == null || raw.isBlank()) {
+			return List.of();
+		}
+		List<Long> ids = new ArrayList<>();
+		for (String part : raw.split(",")) {
+			String trimmed = part.trim();
+			if (trimmed.isEmpty()) {
+				continue;
+			}
+			ids.add(Long.parseLong(trimmed));
+		}
+		return List.copyOf(ids);
 	}
 
 	private static AuthDomainException taken() {

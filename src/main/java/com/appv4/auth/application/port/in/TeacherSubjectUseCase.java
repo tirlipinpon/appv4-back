@@ -1,5 +1,8 @@
 package com.appv4.auth.application.port.in;
 
+import java.util.List;
+
+import com.appv4.auth.application.result.TeacherDeactivateNoticesView;
 import com.appv4.auth.application.result.TeacherSubjectColleaguesView;
 import com.appv4.auth.application.result.TeacherSubjectsView;
 import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
@@ -11,7 +14,8 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView;
  *
  * <p><b>Business :</b> le professeur ne pose une matière que sur une année déjà
  * cochée. Il propose un déplacement ou un partage à un collègue de la liste ;
- * le collègue accepte ou refuse avant que l'accès change.
+ * le collègue accepte ou refuse avant que l'accès change. La désactivation est
+ * personnelle ; le créateur peut aussi cibler des co-profs.
  * <p><b>Technique :</b> l'identifiant vient du jeton, jamais du corps de la requête.
  * <p><b>Métier / flow :</b> port in de {@code /api/int/teacher/subjects}.
  */
@@ -21,9 +25,23 @@ public interface TeacherSubjectUseCase {
 
 	SubjectLine create(long userId, String activeRole, Long schoolId, String grade, String name);
 
+	/**
+	 * Ramène la matière retirée de cette classe, le même enregistrement.
+	 *
+	 * <p><b>Business :</b> le professeur retape le nom et confirme. Une matière
+	 * encore affichée ne se réactive pas par ici.
+	 * <p><b>Technique :</b> même corps que la création (école, année, nom).
+	 * <p><b>Métier / flow :</b> après le refus {@code REMOVED_RESTORABLE} de {@link #create}.
+	 */
+	SubjectLine restore(long userId, String activeRole, Long schoolId, String grade, String name);
+
 	SubjectLine rename(long userId, String activeRole, long subjectId, String name);
 
-	void deactivate(long userId, String activeRole, long subjectId);
+	/**
+	 * Désactive toujours l'accès du connecté. Le créateur peut ajouter des
+	 * {@code alsoUserIds} (co-profs détenteurs) ; les autres détenteurs reçoivent une alerte.
+	 */
+	void deactivate(long userId, String activeRole, long subjectId, List<Long> alsoUserIds);
 
 	void reactivate(long userId, String activeRole, long subjectId);
 
@@ -45,4 +63,8 @@ public interface TeacherSubjectUseCase {
 	void acceptTransfer(long userId, String activeRole, long inviteId);
 
 	void rejectTransfer(long userId, String activeRole, long inviteId);
+
+	TeacherDeactivateNoticesView listDeactivateNotices(long userId, String activeRole);
+
+	void dismissDeactivateNotice(long userId, String activeRole, long noticeId);
 }

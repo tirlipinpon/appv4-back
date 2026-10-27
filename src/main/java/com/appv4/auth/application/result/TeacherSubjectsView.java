@@ -9,6 +9,7 @@ import java.util.List;
  * années suivent la liste fermée. Les matières d'une année sont triées par nom.
  * Une année sans matière a une liste vide : l'écran affiche « Aucune matière ».
  * {@code sharedWith} liste les co-profs quand la matière est partagée.
+ * {@code ownedByMe} est vrai si ce professeur est le créateur / propriétaire.
  * <p><b>Technique :</b> pas d'exercice, pas de forme de question, pas d'élève.
  * <p><b>Métier / flow :</b> résultat de {@code GET /api/int/teacher/subjects}.
  */
@@ -37,12 +38,22 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 
 	/**
 	 * @param name       nom affiché, espaces autour déjà retirés
-	 * @param sharedWith noms affichés des autres professeurs, tri français ; vide si seul
+	 * @param active     accès du professeur connecté
+	 * @param ownedByMe  vrai si {@code user_id} de la matière = connecté
+	 * @param sharedWith co-profs (id + nom), tri français ; vide si seul
 	 */
-	public record SubjectLine(long id, String name, boolean active, List<String> sharedWith) {
+	public record SubjectLine(
+			long id,
+			String name,
+			boolean active,
+			boolean ownedByMe,
+			List<SharedHolder> sharedWith) {
 
 		public SubjectLine {
 			sharedWith = sharedWith == null ? List.of() : List.copyOf(sharedWith);
 		}
+	}
+
+	public record SharedHolder(long userId, String displayName) {
 	}
 }

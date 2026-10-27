@@ -22,9 +22,12 @@ import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.AccessHolder;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredDeactivateNotice;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredTransferRequest;
 import com.appv4.auth.application.result.TeacherSubjectsView;
+import com.appv4.auth.application.result.TeacherSubjectsView.SharedHolder;
 import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
 import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
 
@@ -169,13 +172,13 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
-	void deactivateStaysOnTheTeacherPageAndHidingFreesTheName() {
+	void deactivateStaysListedAndRemovingOffersTheSameSubjectBack() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 
-		service.deactivate(TEACHER_ID, "teacher", maths.id());
+		service.deactivate(TEACHER_ID, "teacher", maths.id(), List.of());
 		assertThat(service.list(TEACHER_ID, "teacher").schools().get(0).grades().get(0).subjects())
-				.extracting(SubjectLine::name, SubjectLine::active)
-				.containsExactly(org.assertj.core.groups.Tuple.tuple("Mathématiques", false));
+				.extracting(SubjectLine::name, SubjectLine::active, SubjectLine::ownedByMe)
+				.containsExactly(org.assertj.core.groups.Tuple.tuple("Mathématiques", false, true));
 		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
 				.hasMessage(TeacherSubjectService.NAME_TAKEN);
 
@@ -186,9 +189,16 @@ class TeacherSubjectServiceTest {
 		service.remove(TEACHER_ID, "teacher", maths.id());
 		assertThat(names(FRENCH_SCHOOL, "CE1")).isEmpty();
 		assertThat(subjects.stored(maths.id())).isTrue();
-		SubjectLine again = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		assertThat(subjects.hidden(maths.id())).isTrue();
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
+				.hasMessage(TeacherSubjectService.REMOVED_RESTORABLE);
+
+		SubjectLine again = service.restore(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "  Mathématiques  ");
+		assertThat(again.id()).isEqualTo(maths.id());
 		assertThat(again.name()).isEqualTo("Mathématiques");
-		assertThat(again.id()).isNotEqualTo(maths.id());
+		assertThat(again.active()).isTrue();
+		assertThat(again.ownedByMe()).isTrue();
+		assertThat(names(FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
 	}
 
 	@Test
@@ -234,6 +244,23 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
+	void anotherTeacherCanBringBackARemovedSubject() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.remove(TEACHER_ID, "teacher", maths.id());
+		profiles.put(OTHER_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1", "CE2"))));
+
+		SubjectLine back = service.restore(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+
+		assertThat(back.id()).isEqualTo(maths.id());
+		assertThat(back.ownedByMe()).isFalse();
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques"))
+				.hasMessage(TeacherSubjectService.NAME_TAKEN);
+	}
+
+	@Test
 	void shareInviteNeedsAcceptBeforeAccessChanges() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 
@@ -256,25 +283,69 @@ class TeacherSubjectServiceTest {
 		SubjectLine anne = lineOf(TEACHER_ID, maths.id());
 		SubjectLine camille = lineOf(OTHER_ID, maths.id());
 		assertThat(anne.id()).isEqualTo(camille.id());
-		assertThat(anne.sharedWith()).containsExactly("Camille");
-		assertThat(camille.sharedWith()).containsExactly("Anne");
+		assertThat(anne.ownedByMe()).isTrue();
+		assertThat(camille.ownedByMe()).isFalse();
+		assertThat(anne.sharedWith()).extracting(SharedHolder::displayName).containsExactly("Camille");
+		assertThat(camille.sharedWith()).extracting(SharedHolder::displayName).containsExactly("Anne");
 		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites()).isEmpty();
 	}
 
 	@Test
-	void sharedColleagueCanRenameAndDeactivateAfterAccept() {
+	void sharedColleagueCanRenameAndDeactivateOnlyForSelf() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
 		service.acceptTransfer(OTHER_ID, "teacher", inviteId);
 
 		service.rename(OTHER_ID, "teacher", maths.id(), "Maths");
-		service.deactivate(OTHER_ID, "teacher", maths.id());
+		service.deactivate(OTHER_ID, "teacher", maths.id(), List.of());
 
 		assertThat(lineOf(TEACHER_ID, maths.id()).name()).isEqualTo("Maths");
-		assertThat(lineOf(TEACHER_ID, maths.id()).active()).isFalse();
-		service.reactivate(TEACHER_ID, "teacher", maths.id());
+		assertThat(lineOf(TEACHER_ID, maths.id()).active()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).active()).isFalse();
+		assertThat(service.listDeactivateNotices(TEACHER_ID, "teacher").notices()).isEmpty();
+
+		assertThatThrownBy(() -> service.deactivate(OTHER_ID, "teacher", maths.id(), List.of(TEACHER_ID)))
+				.hasMessage(TeacherSubjectService.ALSO_NOT_ALLOWED);
+
+		service.reactivate(OTHER_ID, "teacher", maths.id());
 		assertThat(lineOf(OTHER_ID, maths.id()).active()).isTrue();
+	}
+
+	@Test
+	void ownerCanDeactivateSelfAndChosenColleagueWithNotice() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		service.deactivate(TEACHER_ID, "teacher", maths.id(), List.of(OTHER_ID));
+
+		assertThat(lineOf(TEACHER_ID, maths.id()).active()).isFalse();
+		assertThat(lineOf(OTHER_ID, maths.id()).active()).isFalse();
+		assertThat(service.listDeactivateNotices(OTHER_ID, "teacher").notices())
+				.extracting(n -> n.message())
+				.containsExactly("Anne a désactivé Mathématiques pour soi et Camille.");
+
+		service.dismissDeactivateNotice(
+				OTHER_ID, "teacher", service.listDeactivateNotices(OTHER_ID, "teacher").notices().get(0).id());
+		assertThat(service.listDeactivateNotices(OTHER_ID, "teacher").notices()).isEmpty();
+	}
+
+	@Test
+	void ownerDeactivateSelfOnlyStillNotifiesColleague() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		service.deactivate(TEACHER_ID, "teacher", maths.id(), List.of());
+
+		assertThat(lineOf(TEACHER_ID, maths.id()).active()).isFalse();
+		assertThat(lineOf(OTHER_ID, maths.id()).active()).isTrue();
+		assertThat(service.listDeactivateNotices(OTHER_ID, "teacher").notices())
+				.extracting(n -> n.message())
+				.containsExactly("Anne a désactivé Mathématiques pour soi.");
 	}
 
 	@Test
@@ -286,6 +357,7 @@ class TeacherSubjectServiceTest {
 
 		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
 		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith()).isEmpty();
+		assertThat(lineOf(TEACHER_ID, maths.id()).ownedByMe()).isTrue();
 		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites()).isEmpty();
 	}
 
@@ -497,8 +569,13 @@ class TeacherSubjectServiceTest {
 		private final List<StoredSubject> rows = new ArrayList<>();
 		private final Set<Long> hidden = new HashSet<>();
 		private final Map<Long, Set<Long>> accessBySubject = new HashMap<>();
+		private final Map<Long, Map<Long, Boolean>> accessActive = new HashMap<>();
 		private final Map<Long, String> displayNames = new HashMap<>();
+		private final List<StoredDeactivateNotice> notices = new ArrayList<>();
+		private final List<StoredTransferRequest> transfers = new ArrayList<>();
 		private long nextId = 1L;
+		private long nextTransferId = 1L;
+		private long nextNoticeId = 1L;
 
 		void nameOf(long userId, String displayName) {
 			displayNames.put(userId, displayName);
@@ -540,7 +617,7 @@ class TeacherSubjectServiceTest {
 			for (StoredSubject row : rows) {
 				if (!hidden.contains(row.id())
 						&& accessBySubject.getOrDefault(row.id(), Set.of()).contains(userId)) {
-					owned.add(row);
+					owned.add(withAccessActive(row, userId));
 				}
 			}
 			return owned;
@@ -551,6 +628,7 @@ class TeacherSubjectServiceTest {
 			StoredSubject saved = new StoredSubject(nextId++, userId, schoolId, grade, name, true);
 			rows.add(saved);
 			accessBySubject.put(saved.id(), new HashSet<>(Set.of(userId)));
+			accessActive.put(saved.id(), new HashMap<>(Map.of(userId, true)));
 			return saved;
 		}
 
@@ -560,7 +638,7 @@ class TeacherSubjectServiceTest {
 				if (row.id() == subjectId
 						&& !hidden.contains(row.id())
 						&& accessBySubject.getOrDefault(row.id(), Set.of()).contains(userId)) {
-					return Optional.of(row);
+					return Optional.of(withAccessActive(row, userId));
 				}
 			}
 			return Optional.empty();
@@ -576,20 +654,78 @@ class TeacherSubjectServiceTest {
 					StoredSubject renamed = new StoredSubject(
 							row.id(), row.userId(), row.schoolId(), row.grade(), name, row.active());
 					rows.set(index, renamed);
-					return Optional.of(renamed);
+					return Optional.of(withAccessActive(renamed, userId));
 				}
 			}
 			return Optional.empty();
 		}
 
 		@Override
-		public boolean deactivate(long userId, long subjectId) {
-			return replaceActive(userId, subjectId, false);
+		public boolean deactivateAccesses(long actorUserId, long subjectId, List<Long> userIds) {
+			if (!accessBySubject.getOrDefault(subjectId, Set.of()).contains(actorUserId)
+					|| hidden.contains(subjectId)) {
+				return false;
+			}
+			Map<Long, Boolean> actives = accessActive.computeIfAbsent(subjectId, key -> new HashMap<>());
+			for (Long target : userIds) {
+				if (target != null && accessBySubject.getOrDefault(subjectId, Set.of()).contains(target)) {
+					actives.put(target, false);
+				}
+			}
+			syncGlobalActive(subjectId);
+			return true;
 		}
 
 		@Override
 		public boolean reactivate(long userId, long subjectId) {
-			return replaceActive(userId, subjectId, true);
+			if (!accessBySubject.getOrDefault(subjectId, Set.of()).contains(userId)
+					|| hidden.contains(subjectId)) {
+				return false;
+			}
+			accessActive.computeIfAbsent(subjectId, key -> new HashMap<>()).put(userId, true);
+			syncGlobalActive(subjectId);
+			return true;
+		}
+
+		@Override
+		public Optional<StoredSubject> findRemovedByName(long schoolId, String grade, String nameKey) {
+			StoredSubject match = null;
+			for (StoredSubject row : rows) {
+				if (row.schoolId() != schoolId || !grade.equals(row.grade())) {
+					continue;
+				}
+				if (!nameKey.equals(row.name().toLowerCase(java.util.Locale.ROOT))) {
+					continue;
+				}
+				boolean noAccess = accessBySubject.getOrDefault(row.id(), Set.of()).isEmpty();
+				if (!hidden.contains(row.id()) && !noAccess) {
+					continue;
+				}
+				match = row;
+			}
+			return Optional.ofNullable(match);
+		}
+
+		@Override
+		public Optional<StoredSubject> restore(long userId, long subjectId) {
+			for (int index = 0; index < rows.size(); index++) {
+				StoredSubject row = rows.get(index);
+				if (row.id() != subjectId) {
+					continue;
+				}
+				boolean noAccess = accessBySubject.getOrDefault(row.id(), Set.of()).isEmpty();
+				if (!hidden.contains(row.id()) && !noAccess) {
+					return Optional.empty();
+				}
+				hidden.remove(row.id());
+				StoredSubject restored = new StoredSubject(
+						row.id(), row.userId(), row.schoolId(), row.grade(), row.name(), true);
+				rows.set(index, restored);
+				accessBySubject.computeIfAbsent(row.id(), key -> new HashSet<>()).add(userId);
+				accessActive.computeIfAbsent(row.id(), key -> new HashMap<>()).put(userId, true);
+				return Optional.of(withAccessActive(restored, userId));
+			}
+			return Optional.empty();
 		}
 
 		@Override
@@ -598,22 +734,41 @@ class TeacherSubjectServiceTest {
 			if (holders == null || !holders.remove(userId) || hidden.contains(subjectId)) {
 				return false;
 			}
+			Map<Long, Boolean> actives = accessActive.get(subjectId);
+			if (actives != null) {
+				actives.remove(userId);
+			}
 			if (holders.isEmpty()) {
 				hidden.add(subjectId);
+			} else {
+				syncGlobalActive(subjectId);
 			}
 			return true;
 		}
 
 		@Override
-		public List<String> otherAccessNames(long subjectId, long viewerUserId) {
-			List<String> names = new ArrayList<>();
+		public List<Long> accessUserIds(long subjectId) {
+			return List.copyOf(accessBySubject.getOrDefault(subjectId, Set.of()));
+		}
+
+		@Override
+		public List<AccessHolder> otherAccessHolders(long subjectId, long viewerUserId) {
+			List<AccessHolder> holders = new ArrayList<>();
 			for (Long holder : accessBySubject.getOrDefault(subjectId, Set.of())) {
 				if (holder != viewerUserId) {
-					names.add(displayNames.getOrDefault(holder, ""));
+					holders.add(new AccessHolder(holder, displayNames.getOrDefault(holder, "")));
 				}
 			}
-			names.sort(java.text.Collator.getInstance(java.util.Locale.FRENCH));
-			return List.copyOf(names);
+			holders.sort((left, right) -> java.text.Collator.getInstance(java.util.Locale.FRENCH)
+					.compare(left.displayName(), right.displayName()));
+			return List.copyOf(holders);
+		}
+
+		@Override
+		public List<String> otherAccessNames(long subjectId, long viewerUserId) {
+			return otherAccessHolders(subjectId, viewerUserId).stream()
+					.map(AccessHolder::displayName)
+					.toList();
 		}
 
 		@Override
@@ -629,16 +784,18 @@ class TeacherSubjectServiceTest {
 		@Override
 		public void addAccess(long subjectId, long userId) {
 			accessBySubject.computeIfAbsent(subjectId, key -> new HashSet<>()).add(userId);
+			accessActive.computeIfAbsent(subjectId, key -> new HashMap<>()).putIfAbsent(userId, true);
 		}
 
 		@Override
 		public void replaceAccessWith(long subjectId, long soleUserId) {
 			accessBySubject.put(subjectId, new HashSet<>(Set.of(soleUserId)));
+			accessActive.put(subjectId, new HashMap<>(Map.of(soleUserId, true)));
 			for (int index = 0; index < rows.size(); index++) {
 				StoredSubject row = rows.get(index);
 				if (row.id() == subjectId) {
 					rows.set(index, new StoredSubject(
-							row.id(), soleUserId, row.schoolId(), row.grade(), row.name(), row.active()));
+							row.id(), soleUserId, row.schoolId(), row.grade(), row.name(), true));
 					return;
 				}
 			}
@@ -648,24 +805,6 @@ class TeacherSubjectServiceTest {
 		public boolean hasAccess(long subjectId, long userId) {
 			return accessBySubject.getOrDefault(subjectId, Set.of()).contains(userId);
 		}
-
-		private boolean replaceActive(long userId, long subjectId, boolean active) {
-			for (int index = 0; index < rows.size(); index++) {
-				StoredSubject row = rows.get(index);
-				if (row.id() == subjectId
-						&& !hidden.contains(row.id())
-						&& accessBySubject.getOrDefault(row.id(), Set.of()).contains(userId)) {
-					rows.set(index, new StoredSubject(
-							row.id(), row.userId(), row.schoolId(), row.grade(), row.name(), active));
-					return true;
-				}
-			}
-			return false;
-		}
-
-
-		private final List<StoredTransferRequest> transfers = new ArrayList<>();
-		private long nextTransferId = 1L;
 
 		@Override
 		public Optional<StoredSubject> findVisible(long subjectId) {
@@ -748,6 +887,60 @@ class TeacherSubjectServiceTest {
 				if (row.id() == requestId) {
 					transfers.set(i, new StoredTransferRequest(
 							row.id(), row.subjectId(), row.fromUserId(), row.toUserId(), row.mode(), status));
+					return;
+				}
+			}
+		}
+
+		@Override
+		public void insertDeactivateNotices(
+				long subjectId, long fromUserId, List<Long> toUserIds, List<Long> deactivatedUserIds) {
+			for (Long toUserId : toUserIds) {
+				if (toUserId == null || toUserId == fromUserId) {
+					continue;
+				}
+				notices.add(new StoredDeactivateNotice(
+						nextNoticeId++, subjectId, fromUserId, toUserId, List.copyOf(deactivatedUserIds)));
+			}
+		}
+
+		@Override
+		public List<StoredDeactivateNotice> findOpenDeactivateNoticesTo(long toUserId) {
+			List<StoredDeactivateNotice> found = new ArrayList<>();
+			for (StoredDeactivateNotice row : notices) {
+				if (row.toUserId() == toUserId) {
+					found.add(row);
+				}
+			}
+			return found;
+		}
+
+		@Override
+		public boolean dismissDeactivateNotice(long noticeId, long toUserId) {
+			return notices.removeIf(row -> row.id() == noticeId && row.toUserId() == toUserId);
+		}
+
+		private StoredSubject withAccessActive(StoredSubject row, long userId) {
+			boolean active = accessActive
+					.getOrDefault(row.id(), Map.of())
+					.getOrDefault(userId, true);
+			return new StoredSubject(
+					row.id(), row.userId(), row.schoolId(), row.grade(), row.name(), active);
+		}
+
+		private void syncGlobalActive(long subjectId) {
+			boolean any = false;
+			for (Boolean active : accessActive.getOrDefault(subjectId, Map.of()).values()) {
+				if (Boolean.TRUE.equals(active)) {
+					any = true;
+					break;
+				}
+			}
+			for (int index = 0; index < rows.size(); index++) {
+				StoredSubject row = rows.get(index);
+				if (row.id() == subjectId) {
+					rows.set(index, new StoredSubject(
+							row.id(), row.userId(), row.schoolId(), row.grade(), row.name(), any));
 					return;
 				}
 			}

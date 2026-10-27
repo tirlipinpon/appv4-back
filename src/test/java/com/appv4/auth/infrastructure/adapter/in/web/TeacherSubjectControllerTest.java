@@ -56,6 +56,8 @@ class TeacherSubjectControllerTest {
 		when(profiles.findAccount(9L)).thenReturn(Optional.of(new TeacherAccount("prof@example.com", "Martin")));
 		when(profiles.findSchools(9L)).thenReturn(List.of());
 		when(subjects.findByUser(9L)).thenReturn(List.of());
+		when(subjects.otherAccessHolders(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
+				.thenReturn(List.of());
 		when(subjects.otherAccessNames(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
 				.thenReturn(List.of());
 	}
@@ -142,6 +144,41 @@ class TeacherSubjectControllerTest {
 	}
 
 	@Test
+	void removedNameOffersRestoreThenBringsTheSameSubjectBack() throws Exception {
+		when(profiles.findSchools(9L)).thenReturn(List.of(
+				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
+		when(subjects.findRemovedByName(1L, "CE1", "mathématiques"))
+				.thenReturn(Optional.of(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", false)));
+		when(subjects.nameTaken(1L, "CE1", "mathématiques", 5L)).thenReturn(false);
+
+		mockMvc.perform(post("/api/int/teacher/subjects")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"schoolId\":1,\"grade\":\"CE1\",\"name\":\"Mathématiques\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(TeacherSubjectService.REMOVED_RESTORABLE));
+
+		when(subjects.restore(9L, 5L))
+				.thenReturn(Optional.of(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", true)));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/restore")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"schoolId\":1,\"grade\":\"CE1\",\"name\":\"Mathématiques\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(5))
+				.andExpect(jsonPath("$.name").value("Mathématiques"))
+				.andExpect(jsonPath("$.active").value(true));
+
+		verify(subjects, never()).insert(
+				org.mockito.ArgumentMatchers.anyLong(),
+				org.mockito.ArgumentMatchers.anyLong(),
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
 	void classMissingFromTheProfileIsRefused() throws Exception {
 		mockMvc.perform(post("/api/int/teacher/subjects")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -199,13 +236,25 @@ class TeacherSubjectControllerTest {
 
 	@Test
 	void deactivateLeavesTheSubjectForTheTeacher() throws Exception {
-		when(subjects.deactivate(9L, 4L)).thenReturn(true);
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Français", true)));
+		when(subjects.accessUserIds(4L)).thenReturn(List.of(9L));
+		when(subjects.deactivateAccesses(
+						org.mockito.ArgumentMatchers.eq(9L),
+						org.mockito.ArgumentMatchers.eq(4L),
+						org.mockito.ArgumentMatchers.anyList()))
+				.thenReturn(true);
 
 		mockMvc.perform(post("/api/int/teacher/subjects/4/deactivate")
-						.header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"alsoUserIds\":[]}"))
 				.andExpect(status().isNoContent());
 
-		verify(subjects).deactivate(9L, 4L);
+		verify(subjects).deactivateAccesses(
+				org.mockito.ArgumentMatchers.eq(9L),
+				org.mockito.ArgumentMatchers.eq(4L),
+				org.mockito.ArgumentMatchers.anyList());
 		verify(subjects, never()).hide(
 				org.mockito.ArgumentMatchers.anyLong(),
 				org.mockito.ArgumentMatchers.anyLong());

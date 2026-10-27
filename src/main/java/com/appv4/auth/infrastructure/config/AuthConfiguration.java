@@ -41,6 +41,7 @@ import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
 import com.appv4.auth.application.port.in.TeacherModerationUseCase;
 import com.appv4.auth.application.port.in.TeacherProfileUseCase;
 import com.appv4.auth.application.port.in.TeacherStudentsUseCase;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
 import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
@@ -57,6 +58,7 @@ import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.service.AddMissingSpaceService;
 import com.appv4.auth.application.service.BuildAppleAuthorizeUrlService;
@@ -79,6 +81,7 @@ import com.appv4.auth.application.service.SwitchActiveRoleService;
 import com.appv4.auth.application.service.TeacherModerationService;
 import com.appv4.auth.application.service.TeacherProfileService;
 import com.appv4.auth.application.service.TeacherStudentsService;
+import com.appv4.auth.application.service.TeacherQuestionService;
 import com.appv4.auth.application.service.TeacherSubjectService;
 import com.appv4.auth.infrastructure.adapter.in.web.AuthRateLimitFilter;
 import com.appv4.auth.infrastructure.adapter.in.web.InMemoryAuthRateLimiter;
@@ -413,6 +416,17 @@ public class AuthConfiguration {
 				teacherProfilePort,
 				schoolCatalogPort,
 				activeRolePort);
+	}
+
+	/**
+	 * Choix multiple dans une matière (SCRUM-174). La liste des formes ne contient
+	 * que ce qu'on sait enregistrer. L'écran élève n'est pas ici.
+	 */
+	@Bean
+	TeacherQuestionUseCase teacherQuestionUseCase(
+			TeacherSubjectPort teacherSubjectPort,
+			TeacherQuestionPort teacherQuestionPort) {
+		return new TeacherQuestionService(teacherSubjectPort, teacherQuestionPort);
 	}
 
 	/**

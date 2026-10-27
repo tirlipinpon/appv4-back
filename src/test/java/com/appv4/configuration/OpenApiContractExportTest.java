@@ -53,6 +53,7 @@ class OpenApiContractExportTest {
 				.contains("/api/int/teacher/profile")
 				.contains("/api/int/teacher/students")
 				.contains("/api/int/teacher/subjects")
+				.contains("/api/int/teacher/question-forms")
 				.contains("/api/int/parent/children")
 				.contains("/api/int/parent/subjects")
 				.contains("/api/int/hello")

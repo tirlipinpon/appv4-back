@@ -881,6 +881,17 @@ class TeacherSubjectServiceTest {
 			}
 		}
 
+		private void replaceTransferStatus(long requestId, String status) {
+			for (int i = 0; i < transfers.size(); i++) {
+				StoredTransferRequest row = transfers.get(i);
+				if (row.id() == requestId) {
+					transfers.set(i, new StoredTransferRequest(
+							row.id(), row.subjectId(), row.fromUserId(), row.toUserId(), row.mode(), status));
+					return;
+				}
+			}
+		}
+
 		@Override
 		public void insertDeactivateNotices(
 				long subjectId, long fromUserId, List<Long> toUserIds, List<Long> deactivatedUserIds) {
@@ -907,17 +918,6 @@ class TeacherSubjectServiceTest {
 		@Override
 		public boolean dismissDeactivateNotice(long noticeId, long toUserId) {
 			return notices.removeIf(row -> row.id() == noticeId && row.toUserId() == toUserId);
-		}
-
-		private void replaceTransferStatus(long requestId, String status) {
-			for (int i = 0; i < transfers.size(); i++) {
-				StoredTransferRequest row = transfers.get(i);
-				if (row.id() == requestId) {
-					transfers.set(i, new StoredTransferRequest(
-							row.id(), row.subjectId(), row.fromUserId(), row.toUserId(), row.mode(), status));
-					return;
-				}
-			}
 		}
 
 		private StoredSubject withAccessActive(StoredSubject row, long userId) {

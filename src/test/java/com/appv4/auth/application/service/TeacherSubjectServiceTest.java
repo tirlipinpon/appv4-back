@@ -172,7 +172,7 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
-	void deactivateStaysOnTheTeacherPageAndHidingFreesTheName() {
+	void deactivateStaysListedAndRemovingOffersTheSameSubjectBack() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 
 		service.deactivate(TEACHER_ID, "teacher", maths.id(), List.of());
@@ -189,9 +189,16 @@ class TeacherSubjectServiceTest {
 		service.remove(TEACHER_ID, "teacher", maths.id());
 		assertThat(names(FRENCH_SCHOOL, "CE1")).isEmpty();
 		assertThat(subjects.stored(maths.id())).isTrue();
-		SubjectLine again = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		assertThat(subjects.hidden(maths.id())).isTrue();
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
+				.hasMessage(TeacherSubjectService.REMOVED_RESTORABLE);
+
+		SubjectLine again = service.restore(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "  Mathématiques  ");
+		assertThat(again.id()).isEqualTo(maths.id());
 		assertThat(again.name()).isEqualTo("Mathématiques");
-		assertThat(again.id()).isNotEqualTo(maths.id());
+		assertThat(again.active()).isTrue();
+		assertThat(again.ownedByMe()).isTrue();
+		assertThat(names(FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
 	}
 
 	@Test
@@ -234,6 +241,23 @@ class TeacherSubjectServiceTest {
 		assertThat(sciences.name()).isEqualTo("Sciences");
 		assertThat(otherYear.name()).isEqualTo("Mathématiques");
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+	}
+
+	@Test
+	void anotherTeacherCanBringBackARemovedSubject() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.remove(TEACHER_ID, "teacher", maths.id());
+		profiles.put(OTHER_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1", "CE2"))));
+
+		SubjectLine back = service.restore(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+
+		assertThat(back.id()).isEqualTo(maths.id());
+		assertThat(back.ownedByMe()).isFalse();
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques"))
+				.hasMessage(TeacherSubjectService.NAME_TAKEN);
 	}
 
 	@Test
@@ -661,6 +685,47 @@ class TeacherSubjectServiceTest {
 			accessActive.computeIfAbsent(subjectId, key -> new HashMap<>()).put(userId, true);
 			syncGlobalActive(subjectId);
 			return true;
+		}
+
+		@Override
+		public Optional<StoredSubject> findRemovedByName(long schoolId, String grade, String nameKey) {
+			StoredSubject match = null;
+			for (StoredSubject row : rows) {
+				if (row.schoolId() != schoolId || !grade.equals(row.grade())) {
+					continue;
+				}
+				if (!nameKey.equals(row.name().toLowerCase(java.util.Locale.ROOT))) {
+					continue;
+				}
+				boolean noAccess = accessBySubject.getOrDefault(row.id(), Set.of()).isEmpty();
+				if (!hidden.contains(row.id()) && !noAccess) {
+					continue;
+				}
+				match = row;
+			}
+			return Optional.ofNullable(match);
+		}
+
+		@Override
+		public Optional<StoredSubject> restore(long userId, long subjectId) {
+			for (int index = 0; index < rows.size(); index++) {
+				StoredSubject row = rows.get(index);
+				if (row.id() != subjectId) {
+					continue;
+				}
+				boolean noAccess = accessBySubject.getOrDefault(row.id(), Set.of()).isEmpty();
+				if (!hidden.contains(row.id()) && !noAccess) {
+					return Optional.empty();
+				}
+				hidden.remove(row.id());
+				StoredSubject restored = new StoredSubject(
+						row.id(), row.userId(), row.schoolId(), row.grade(), row.name(), true);
+				rows.set(index, restored);
+				accessBySubject.computeIfAbsent(row.id(), key -> new HashSet<>()).add(userId);
+				accessActive.computeIfAbsent(row.id(), key -> new HashMap<>()).put(userId, true);
+				return Optional.of(withAccessActive(restored, userId));
+			}
+			return Optional.empty();
 		}
 
 		@Override

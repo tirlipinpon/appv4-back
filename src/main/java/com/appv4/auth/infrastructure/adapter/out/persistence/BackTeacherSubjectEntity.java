@@ -122,4 +122,9 @@ public class BackTeacherSubjectEntity {
 	public void hide() {
 		this.hidden = true;
 	}
+
+	/** Revient sur la page. L'accès du professeur est rétabli à part. */
+	public void unhide() {
+		this.hidden = false;
+	}
 }

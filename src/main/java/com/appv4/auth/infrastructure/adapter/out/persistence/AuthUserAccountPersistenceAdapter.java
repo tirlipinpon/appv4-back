@@ -173,6 +173,12 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 
 	@Override
 	@Transactional(readOnly = true)
+	public Optional<AuthUserAccount> findById(long userId) {
+		return userRepository.findById(userId).map(this::toAccount);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public Optional<AuthUserLoginCandidate> findLoginCandidateByEmail(String email) {
 		return userRepository.findByEmail(email)
 				.filter(BackUserEntity::isActive)

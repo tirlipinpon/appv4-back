@@ -40,9 +40,10 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
  * Matières d'un professeur, classe par classe (SCRUM-161, SCRUM-172, SCRUM-189).
  *
  * <p><b>Business :</b> il crée, voit, renomme et retire un nom dans une année
- * déjà cochée. Il propose un déplacement ou un partage à un collègue de la
- * liste ; le collègue accepte ou refuse. La désactivation est par accès : le
- * non-créateur seulement pour lui ; le créateur peut cibler des co-profs et
+ * déjà cochée. S'il retape le nom d'une matière retirée, on lui propose de
+ * la réactiver (même enregistrement). Il propose un déplacement ou un partage
+ * à un collègue de la liste ; le collègue accepte ou refuse. La désactivation est par accès :
+ * le non-créateur seulement pour lui ; le créateur peut cibler des co-profs et
  * les autres détenteurs reçoivent une alerte. Pas de copie : même id.
  * <p><b>Technique :</b> le nom affiché est coupé des espaces autour, 100 caractères
  * maximum. Les demandes vivent dans {@code back_teacher_subject_transfer_requests}.
@@ -54,6 +55,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public static final String NAME_REQUIRED = "Le nom est obligatoire.";
 	public static final String NAME_TOO_LONG = "Le nom dépasse 100 caractères.";
 	public static final String NAME_TAKEN = "Une matière de ce nom existe déjà dans cette classe.";
+	public static final String REMOVED_RESTORABLE =
+			"Cette matière a été retirée. Tu peux la réactiver.";
 	public static final String CLASS_NOT_ON_PROFILE = "Cette classe n'est pas sur ton profil.";
 	public static final String SUBJECT_MISSING = "Cette matière n'existe pas.";
 	public static final String MODE_REQUIRED = "Choisis de déplacer ou de partager.";
@@ -105,11 +108,42 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		requireClass(userId, schoolId, grade);
 		String trimmed = requiredName(name);
 		String key = nameKey(trimmed);
+		if (removedAndFree(schoolId, grade, key)) {
+			throw bad(REMOVED_RESTORABLE);
+		}
 		if (teacherSubjectPort.nameTaken(schoolId, grade, key, null)) {
 			throw bad(NAME_TAKEN);
 		}
 		StoredSubject saved = teacherSubjectPort.insert(userId, schoolId, grade, trimmed, key);
 		return line(userId, saved);
+	}
+
+	@Override
+	@Transactional
+	public SubjectLine restore(long userId, String activeRole, Long schoolId, String grade, String name) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		if (schoolId == null || grade == null || grade.isBlank()) {
+			throw bad(CLASS_NOT_ON_PROFILE);
+		}
+		requireClass(userId, schoolId, grade);
+		String trimmed = requiredName(name);
+		String key = nameKey(trimmed);
+		Optional<StoredSubject> removed = teacherSubjectPort.findRemovedByName(schoolId, grade, key);
+		if (removed == null || removed.isEmpty()) {
+			if (teacherSubjectPort.nameTaken(schoolId, grade, key, null)) {
+				throw bad(NAME_TAKEN);
+			}
+			throw missing();
+		}
+		if (teacherSubjectPort.nameTaken(schoolId, grade, key, removed.get().id())) {
+			throw bad(NAME_TAKEN);
+		}
+		Optional<StoredSubject> saved = teacherSubjectPort.restore(userId, removed.get().id());
+		if (saved == null || saved.isEmpty()) {
+			throw missing();
+		}
+		return line(userId, saved.get());
 	}
 
 	@Override
@@ -537,6 +571,18 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw bad(NAME_TOO_LONG);
 		}
 		return trimmed;
+	}
+
+	/**
+	 * Vrai si une matière retirée porte déjà ce nom et qu'aucune matière encore
+	 * affichée ne le prend. Le professeur peut alors la réactiver, le même id.
+	 */
+	private boolean removedAndFree(long schoolId, String grade, String key) {
+		Optional<StoredSubject> removed = teacherSubjectPort.findRemovedByName(schoolId, grade, key);
+		if (removed == null || removed.isEmpty()) {
+			return false;
+		}
+		return !teacherSubjectPort.nameTaken(schoolId, grade, key, removed.get().id());
 	}
 
 	private static String nameKey(String trimmed) {

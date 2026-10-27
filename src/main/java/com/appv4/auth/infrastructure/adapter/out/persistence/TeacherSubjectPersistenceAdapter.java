@@ -168,13 +168,66 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		if (access.deleteBySubjectIdAndUserId(subjectId, userId) == 0) {
 			return false;
 		}
+		// Le delete vide le contexte JPA : l'entité lue avant est détachée.
+		// On relit, sinon hidden ne serait pas enregistré et le nom resterait pris.
 		if (access.countBySubjectId(subjectId) == 0) {
-			found.get().hide();
-			subjects.flush();
+			Optional<BackTeacherSubjectEntity> again = subjects.findById(subjectId);
+			if (again.isEmpty()) {
+				return false;
+			}
+			again.get().hide();
+			subjects.saveAndFlush(again.get());
 		} else {
 			syncSubjectActive(subjectId);
 		}
 		return true;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<StoredSubject> findRemovedByName(long schoolId, String grade, String nameKey) {
+		BackTeacherSubjectEntity match = null;
+		for (BackTeacherSubjectEntity row : subjects.findBySchoolIdAndGradeLabelOrderByIdAsc(schoolId, grade)) {
+			if (row.getNameKey() == null || !nameKey.equals(row.getNameKey())) {
+				continue;
+			}
+			if (!row.isHidden() && access.countBySubjectId(row.getId()) > 0) {
+				continue;
+			}
+			match = row;
+		}
+		if (match == null) {
+			return Optional.empty();
+		}
+		return Optional.of(toStored(match, false));
+	}
+
+	@Override
+	@Transactional
+	public Optional<StoredSubject> restore(long userId, long subjectId) {
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty()) {
+			return Optional.empty();
+		}
+		BackTeacherSubjectEntity entity = found.get();
+		boolean noAccess = access.countBySubjectId(subjectId) == 0;
+		if (!entity.isHidden() && !noAccess) {
+			return Optional.empty();
+		}
+		if (entity.isHidden()) {
+			entity.unhide();
+		}
+		entity.reactivate();
+		subjects.saveAndFlush(entity);
+		Optional<BackTeacherSubjectAccessEntity> link = access.findBySubjectIdAndUserId(subjectId, userId);
+		if (link.isEmpty()) {
+			access.saveAndFlush(new BackTeacherSubjectAccessEntity(subjectId, userId));
+		} else if (!link.get().isActive()) {
+			link.get().reactivate();
+			access.flush();
+		}
+		syncSubjectActive(subjectId);
+		return Optional.of(toStored(entity, true));
 	}
 
 	@Override

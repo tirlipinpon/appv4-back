@@ -319,6 +319,16 @@ class TeacherProfileServiceTest {
 		}
 
 		@Override
+		public Optional<StoredSubject> findRemovedByName(long schoolId, String grade, String nameKey) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public Optional<StoredSubject> restore(long userId, long subjectId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
 		public boolean deactivateAccesses(long actorUserId, long subjectId, List<Long> userIds) {
 			throw new UnsupportedOperationException();
 		}

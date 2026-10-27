@@ -33,7 +33,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * Matières du professeur connecté (SCRUM-161, SCRUM-172, SCRUM-189).
  *
  * <p><b>Business :</b> il crée, voit, renomme, retire, désactive et propose un
- * transfert (déplacer ou partager). La désactivation est par accès ; le créateur
+ * transfert (déplacer ou partager). Retaper le nom d'une matière retirée propose
+ * de la réactiver. La désactivation est par accès ; le créateur
  * peut cibler des co-profs et les autres détenteurs reçoivent une alerte.
  * <p><b>Technique :</b> {@code /api/int/teacher/subjects}, JWT obligatoire.
  * L'espace actif du jeton doit être {@code teacher}.
@@ -69,7 +70,7 @@ public class TeacherSubjectController {
 	@ApiResponse(responseCode = "200", description = "Matière créée")
 	@ApiResponse(
 			responseCode = "400",
-			description = "Nom vide, trop long, déjà pris dans la classe, ou classe absente du profil",
+			description = "Nom vide, trop long, déjà pris, matière retirée à réactiver, ou classe absente du profil",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	@ApiResponse(
 			responseCode = "403",
@@ -83,6 +84,35 @@ public class TeacherSubjectController {
 				? new CreateTeacherSubjectRequest(null, null, null)
 				: request;
 		SubjectLine line = teacherSubjectUseCase.create(
+				user.userId(), user.activeRole(), body.schoolId(), body.grade(), body.name());
+		return ResponseEntity.ok(item(line));
+	}
+
+	@PostMapping("/restore")
+	@Operation(
+			operationId = "restoreTeacherSubject",
+			summary = "Réactiver une matière retirée de la classe")
+	@ApiResponse(responseCode = "200", description = "Même matière, de nouveau dans la liste du professeur")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Nom invalide, classe absente, matière encore affichée, ou rien à réactiver",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Aucune matière retirée de ce nom dans cette classe",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectItem> restore(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@RequestBody CreateTeacherSubjectRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		CreateTeacherSubjectRequest body = request == null
+				? new CreateTeacherSubjectRequest(null, null, null)
+				: request;
+		SubjectLine line = teacherSubjectUseCase.restore(
 				user.userId(), user.activeRole(), body.schoolId(), body.grade(), body.name());
 		return ResponseEntity.ok(item(line));
 	}

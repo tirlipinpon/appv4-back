@@ -25,6 +25,16 @@ public interface TeacherSubjectUseCase {
 
 	SubjectLine create(long userId, String activeRole, Long schoolId, String grade, String name);
 
+	/**
+	 * Ramène la matière retirée de cette classe, le même enregistrement.
+	 *
+	 * <p><b>Business :</b> le professeur retape le nom et confirme. Une matière
+	 * encore affichée ne se réactive pas par ici.
+	 * <p><b>Technique :</b> même corps que la création (école, année, nom).
+	 * <p><b>Métier / flow :</b> après le refus {@code REMOVED_RESTORABLE} de {@link #create}.
+	 */
+	SubjectLine restore(long userId, String activeRole, Long schoolId, String grade, String name);
+
 	SubjectLine rename(long userId, String activeRole, long subjectId, String name);
 
 	/**

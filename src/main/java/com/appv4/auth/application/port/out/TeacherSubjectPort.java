@@ -56,6 +56,21 @@ public interface TeacherSubjectPort {
 	 */
 	boolean hide(long userId, long subjectId);
 
+	/**
+	 * Matière de cette école et de cette année qui porte ce nom mais n'est plus
+	 * affichée : cachée, ou plus aucun professeur n'y a accès. S'il y en a
+	 * plusieurs, la plus récente.
+	 */
+	Optional<StoredSubject> findRemovedByName(long schoolId, String grade, String nameKey);
+
+	/**
+	 * Réaffiche la matière retirée et donne un accès actif à ce professeur.
+	 * Même id : les liens déjà posés restent.
+	 *
+	 * @return vide si elle est introuvable ou encore affichée pour quelqu'un
+	 */
+	Optional<StoredSubject> restore(long userId, long subjectId);
+
 	/** Identifiants des professeurs qui ont encore un accès (ordre d'insertion). */
 	List<Long> accessUserIds(long subjectId);
 

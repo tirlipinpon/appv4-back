@@ -60,6 +60,11 @@ public interface AuthUserAccountPort {
 	Optional<SessionState> findSessionState(long userId);
 
 	/**
+	 * Compte pour le nom affiché dans l'en-tête (parent, professeur ou admin).
+	 */
+	Optional<AuthUserAccount> findById(long userId);
+
+	/**
 	 * Compte actif pour login email/mdp (SCRUM-117) — inclut le hash (peut être null si social pur).
 	 */
 	Optional<AuthUserLoginCandidate> findLoginCandidateByEmail(String email);

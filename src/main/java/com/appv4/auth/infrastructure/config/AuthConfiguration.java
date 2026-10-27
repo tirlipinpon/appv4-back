@@ -26,6 +26,7 @@ import com.appv4.auth.application.port.in.BuildAppleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.BuildFacebookAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.BuildGoogleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.CompleteRolesUseCase;
+import com.appv4.auth.application.port.in.ConnectedAccountUseCase;
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
@@ -62,6 +63,7 @@ import com.appv4.auth.application.service.BuildAppleAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildFacebookAuthorizeUrlService;
 import com.appv4.auth.application.service.BuildGoogleAuthorizeUrlService;
 import com.appv4.auth.application.service.CompleteRolesService;
+import com.appv4.auth.application.service.ConnectedAccountService;
 import com.appv4.auth.application.service.ForgotPasswordService;
 import com.appv4.auth.application.service.IssueJwtService;
 import com.appv4.auth.application.service.LoginWithAppleService;
@@ -374,6 +376,15 @@ public class AuthConfiguration {
 			AuthUserAccountPort authUserAccountPort) {
 		return new TeacherModerationService(
 				activeRolePort, teacherModerationPort, teacherApprovedMailPort, authUserAccountPort);
+	}
+
+	/**
+	 * Nom du compte connecté, lu par l'en-tête parent ou professeur.
+	 * Même nom quand la personne change d'espace : c'est le compte, pas le rôle.
+	 */
+	@Bean
+	ConnectedAccountUseCase connectedAccountUseCase(AuthUserAccountPort authUserAccountPort) {
+		return new ConnectedAccountService(authUserAccountPort);
 	}
 
 	/**

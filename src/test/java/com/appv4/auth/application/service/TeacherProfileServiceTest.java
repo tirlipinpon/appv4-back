@@ -19,10 +19,6 @@ import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
-import com.appv4.auth.application.port.out.TeacherSubjectPort;
-import com.appv4.auth.application.port.out.TeacherSubjectPort.AccessHolder;
-import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredDeactivateNotice;
-import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.result.TeacherProfileView;
 
 class TeacherProfileServiceTest {
@@ -31,18 +27,16 @@ class TeacherProfileServiceTest {
 	private static final long OTHER_ID = 10L;
 
 	private MemoryProfile profiles;
-	private MemorySubjects subjects;
 	private List<CatalogSchool> catalog;
 	private TeacherProfileService service;
 
 	@BeforeEach
 	void setUp() {
 		profiles = new MemoryProfile();
-		subjects = new MemorySubjects();
 		profiles.seed(TEACHER_ID, "prof@example.com", "Ancien nom");
 		profiles.seed(OTHER_ID, "autre@example.com", "Autre");
 		catalog = new ArrayList<>();
-		service = new TeacherProfileService(profiles, () -> catalog, subjects);
+		service = new TeacherProfileService(profiles, () -> catalog);
 	}
 
 	@Test
@@ -177,38 +171,31 @@ class TeacherProfileServiceTest {
 	}
 
 	@Test
-	void uncheckingAGradeDeletesItsSubjectsAndLeavesTheOthers() {
+	void uncheckingAYearThenCheckingItAgainOnlyChangesTheProfile() {
 		catalog.add(school(1L, "École française", SchoolCurricula.COUNTRY_FRANCE, "Primaire"));
 		catalog.add(school(2L, "École belge", SchoolCurricula.COUNTRY_BELGIUM, "Primaire"));
 		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
 				new TeacherSchoolCommand(1L, null, List.of("CE1", "CE2")),
 				new TeacherSchoolCommand(2L, null, List.of("3e primaire"))));
-		subjects.seed(new StoredSubject(1L, TEACHER_ID, 1L, "CE1", "Lecture", true));
-		subjects.seed(new StoredSubject(2L, TEACHER_ID, 1L, "CE2", "Mathématiques", true));
-		subjects.seed(new StoredSubject(3L, TEACHER_ID, 2L, "3e primaire", "Éveil", true));
-		subjects.seed(new StoredSubject(4L, OTHER_ID, 1L, "CE1", "Calcul", true));
 
 		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, null, List.of("CE1")),
-				new TeacherSchoolCommand(2L, null, List.of("3e primaire"))));
-
-		assertThat(subjects.remaining(TEACHER_ID)).extracting(StoredSubject::id).containsExactly(1L, 3L);
-		assertThat(subjects.remaining(OTHER_ID)).extracting(StoredSubject::name).containsExactly("Calcul");
+				new TeacherSchoolCommand(1L, null, List.of("CE1"))));
+		assertThat(profiles.schoolsOf(TEACHER_ID)).containsExactly(
+				new TeacherSchoolLink(1L, SchoolCurricula.FRANCE, List.of("CE1")));
 
 		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
 				new TeacherSchoolCommand(1L, null, List.of("CE1")),
 				new TeacherSchoolCommand(9L, null, List.of("CE1")))))
 				.hasMessage(TeacherProfileService.SCHOOL_UNKNOWN);
-		assertThat(subjects.remaining(TEACHER_ID)).extracting(StoredSubject::id).containsExactly(1L, 3L);
+		assertThat(profiles.schoolsOf(TEACHER_ID)).containsExactly(
+				new TeacherSchoolLink(1L, SchoolCurricula.FRANCE, List.of("CE1")));
 
 		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, null, List.of("CE1"))));
-		assertThat(subjects.remaining(TEACHER_ID)).extracting(StoredSubject::id).containsExactly(1L);
-		assertThat(subjects.remaining(OTHER_ID)).extracting(StoredSubject::name).containsExactly("Calcul");
-
-		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
-				new TeacherSchoolCommand(1L, null, List.of("CE1", "CE2"))));
-		assertThat(subjects.remaining(TEACHER_ID)).extracting(StoredSubject::name).containsExactly("Lecture");
+				new TeacherSchoolCommand(1L, null, List.of("CE1", "CE2")),
+				new TeacherSchoolCommand(2L, null, List.of("3e primaire"))));
+		assertThat(profiles.schoolsOf(TEACHER_ID)).containsExactly(
+				new TeacherSchoolLink(1L, SchoolCurricula.FRANCE, List.of("CE1", "CE2")),
+				new TeacherSchoolLink(2L, SchoolCurricula.BELGIUM_FR, List.of("3e primaire")));
 	}
 
 	private static CatalogSchool school(long id, String name, String country, String teachingTypes) {
@@ -274,179 +261,4 @@ class TeacherProfileServiceTest {
 		}
 	}
 
-	private static final class MemorySubjects implements TeacherSubjectPort {
-
-		private final List<StoredSubject> rows = new ArrayList<>();
-
-		void seed(StoredSubject subject) {
-			rows.add(subject);
-		}
-
-		List<StoredSubject> remaining(long userId) {
-			List<StoredSubject> kept = new ArrayList<>();
-			for (StoredSubject row : rows) {
-				if (row.userId() == userId) {
-					kept.add(row);
-				}
-			}
-			return kept;
-		}
-
-		@Override
-		public List<StoredSubject> findByUser(long userId) {
-			return remaining(userId);
-		}
-
-		@Override
-		public StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public Optional<StoredSubject> findOwned(long userId, long subjectId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public Optional<StoredSubject> rename(
-				long userId, long subjectId, String name, String nameKey) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public boolean hide(long userId, long subjectId) {
-			return rows.removeIf(row -> row.userId() == userId && row.id() == subjectId);
-		}
-
-		@Override
-		public Optional<StoredSubject> findRemovedByName(long schoolId, String grade, String nameKey) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public Optional<StoredSubject> findVisibleByName(long schoolId, String grade, String nameKey) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public List<StoredSubject> findVisibleInClass(long schoolId, String grade) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public Optional<StoredSubject> restore(long userId, long subjectId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public boolean deactivateAccesses(long actorUserId, long subjectId, List<Long> userIds) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public boolean reactivate(long userId, long subjectId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public List<Long> accessUserIds(long subjectId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public List<AccessHolder> otherAccessHolders(long subjectId, long viewerUserId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public List<String> otherAccessNames(long subjectId, long viewerUserId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void insertDeactivateNotices(
-				long subjectId, long fromUserId, List<Long> toUserIds, List<Long> deactivatedUserIds) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public List<StoredDeactivateNotice> findOpenDeactivateNoticesTo(long toUserId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public boolean dismissDeactivateNotice(long noticeId, long toUserId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public List<String> allAccessNames(long subjectId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void addAccess(long subjectId, long userId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void replaceAccessWith(long subjectId, long soleUserId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public boolean hasAccess(long subjectId, long userId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public boolean nameTaken(long schoolId, String grade, String nameKey, Long exceptId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public Optional<StoredSubject> findVisible(long subjectId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public StoredTransferRequest insertTransferRequest(long subjectId, long fromUserId, long toUserId, String mode) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public boolean hasPendingTransfer(long subjectId, long toUserId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public boolean hasPendingTransferBetween(long subjectId, long fromUserId, long toUserId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public List<StoredTransferRequest> findPendingTransfersTo(long toUserId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public Optional<StoredTransferRequest> findPendingTransferForTarget(long requestId, long toUserId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void markTransferAccepted(long requestId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void markTransferRejected(long requestId) {
-			throw new UnsupportedOperationException();
-		}
-
-		@Override
-		public void cancelPendingTransfers(long subjectId, Long exceptRequestId) {
-			throw new UnsupportedOperationException();
-		}
-	}
 }

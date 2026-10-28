@@ -64,6 +64,10 @@ public interface TeacherQuestionPort {
 	record StatementDraft(String label, boolean truthful) {
 	}
 
+	/** Mot de gauche et réponse de droite d'un lien, déjà non vides. */
+	record LinkDraft(String leftLabel, String rightLabel) {
+	}
+
 	record StoredChoice(long id, String label, boolean correct) {
 	}
 
@@ -74,6 +78,9 @@ public interface TeacherQuestionPort {
 	}
 
 	record StoredStatement(long id, String label, boolean truthful) {
+	}
+
+	record StoredLink(long id, String leftLabel, String rightLabel) {
 	}
 
 	/** Chaque nouvelle structure fournit son propre type, sans agrandir toutes les signatures. */
@@ -107,6 +114,12 @@ public interface TeacherQuestionPort {
 		}
 	}
 
+	record LinksDraft(List<LinkDraft> links) implements DraftContent {
+		public LinksDraft {
+			links = List.copyOf(links);
+		}
+	}
+
 	record StoredChoices(List<StoredChoice> choices) implements StoredContent {
 		public StoredChoices {
 			choices = List.copyOf(choices);
@@ -128,6 +141,12 @@ public interface TeacherQuestionPort {
 	record StoredStatements(List<StoredStatement> statements) implements StoredContent {
 		public StoredStatements {
 			statements = List.copyOf(statements);
+		}
+	}
+
+	record StoredLinks(List<StoredLink> links) implements StoredContent {
+		public StoredLinks {
+			links = List.copyOf(links);
 		}
 	}
 
@@ -162,6 +181,10 @@ public interface TeacherQuestionPort {
 
 		public List<StoredStatement> statements() {
 			return content instanceof StoredStatements value ? value.statements() : List.of();
+		}
+
+		public List<StoredLink> links() {
+			return content instanceof StoredLinks value ? value.links() : List.of();
 		}
 	}
 }

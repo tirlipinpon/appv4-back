@@ -28,6 +28,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoicesDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ItemDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ItemsDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.LinkDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.LinksDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementDraft;
@@ -43,7 +45,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("persistence-test")
 @Import({TeacherQuestionPersistenceAdapter.class, ChoiceQuestionContentStore.class,
-		PairQuestionContentStore.class, ItemQuestionContentStore.class, StatementQuestionContentStore.class})
+		PairQuestionContentStore.class, ItemQuestionContentStore.class,
+		StatementQuestionContentStore.class, LinkQuestionContentStore.class})
 @EnabledIfEnvironmentVariable(named = "APPV4_PERSISTENCE_TEST_URL", matches = ".+")
 class TeacherQuestionPersistenceTest {
 
@@ -166,6 +169,20 @@ class TeacherQuestionPersistenceTest {
 		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
 		assertThat(loaded.statements()).extracting(row -> row.label() + ":" + row.truthful())
 				.containsExactly("2 + 2 = 4:true", "3 + 3 = 6:false");
+	}
+
+	@Test
+	void linksReplacementKeepsEachCouple() {
+		adapter.ensureForm(subjectId, "liens", "Liens", 5);
+		StoredQuestion saved = adapter.insert(subjectId, "liens", "Relie.", new LinksDraft(List.of(
+				new LinkDraft("Pomme", "Fruit"),
+				new LinkDraft("Chien", "Animal"))));
+		adapter.replace(saved.id(), "Relie.", new LinksDraft(List.of(
+				new LinkDraft("Pomme", "Fruit"),
+				new LinkDraft("Voiture", "Véhicule"))));
+		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
+		assertThat(loaded.links()).extracting(row -> row.leftLabel() + "/" + row.rightLabel())
+				.containsExactly("Pomme/Fruit", "Voiture/Véhicule");
 	}
 
 	@Test

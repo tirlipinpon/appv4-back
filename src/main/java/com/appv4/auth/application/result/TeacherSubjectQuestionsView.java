@@ -7,6 +7,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
 
 /**
  * Questions déjà préparées dans une matière (SCRUM-174, SCRUM-177).
@@ -52,6 +53,13 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 							.map(row -> new StatementLine(row.id(), row.label(), row.truthful()))
 							.toList() : List.of();
 		}
+
+		public List<LinkLine> links() {
+			return content instanceof StoredLinks value
+					? value.links().stream()
+							.map(row -> new LinkLine(row.id(), row.leftLabel(), row.rightLabel()))
+							.toList() : List.of();
+		}
 	}
 
 	public record ChoiceLine(long id, String label, boolean correct) {
@@ -64,5 +72,8 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 	}
 
 	public record StatementLine(long id, String label, boolean truthful) {
+	}
+
+	public record LinkLine(long id, String leftLabel, String rightLabel) {
 	}
 }

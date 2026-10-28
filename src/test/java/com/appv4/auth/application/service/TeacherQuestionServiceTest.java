@@ -25,6 +25,8 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinkInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinksInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementsInput;
@@ -37,6 +39,7 @@ import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.service.question.QuestionFormRegistry;
 import com.appv4.auth.application.service.question.QcmQuestionForm;
 import com.appv4.auth.application.service.question.MemoryQuestionForm;
+import com.appv4.auth.application.service.question.LinkQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
 import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
@@ -95,14 +98,15 @@ class TeacherQuestionServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new TeacherQuestionService(subjects, questions, new QuestionFormRegistry(List.of(
-				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm(), new TrueFalseQuestionForm())));
+				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm(),
+				new TrueFalseQuestionForm(), new LinkQuestionForm())));
 	}
 
 	@Test
 	void offeredFormsAreMultipleChoiceThenMemoryThenOrderThenTrueFalse() {
 		assertThat(service.listForms(TEACHER_ID, "teacher").forms())
 				.satisfies(forms -> {
-					assertThat(forms).hasSize(4);
+					assertThat(forms).hasSize(5);
 					assertThat(forms.get(0).code()).isEqualTo("qcm");
 					assertThat(forms.get(0).label()).isEqualTo("Choix multiples");
 					assertThat(forms.get(0).sortOrder()).isEqualTo(1);
@@ -115,6 +119,9 @@ class TeacherQuestionServiceTest {
 					assertThat(forms.get(3).code()).isEqualTo("vrai_faux");
 					assertThat(forms.get(3).label()).isEqualTo("Vrai ou faux");
 					assertThat(forms.get(3).sortOrder()).isEqualTo(4);
+					assertThat(forms.get(4).code()).isEqualTo("liens");
+					assertThat(forms.get(4).label()).isEqualTo("Liens");
+					assertThat(forms.get(4).sortOrder()).isEqualTo(5);
 				});
 	}
 
@@ -455,6 +462,72 @@ class TeacherQuestionServiceTest {
 				.hasMessage(TeacherQuestionService.SIDE_REQUIRED);
 
 		verify(questions, never()).insert(eq(SUBJECT_ID), eq("vrai_faux"), eq(""), any());
+	}
+
+	@Test
+	void linksKeepTwoCouplesAndAllowABlankPrompt() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("liens"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						11L,
+						SUBJECT_ID,
+						"liens",
+						"",
+						new TeacherQuestionPort.StoredLinks(List.of(
+								new TeacherQuestionPort.StoredLink(1L, "Pomme", "Fruit"),
+								new TeacherQuestionPort.StoredLink(2L, "Chien", "Animal")))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"liens",
+				"   ",
+				new LinksInput(List.of(
+						new LinkInput(" Pomme ", " Fruit "),
+						new LinkInput(" ", " "),
+						new LinkInput("Chien", "Animal"))));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formLabel()).isEqualTo("Liens");
+		assertThat(line.links()).extracting(row -> row.leftLabel() + "/" + row.rightLabel())
+				.containsExactly("Pomme/Fruit", "Chien/Animal");
+		verify(questions).ensureForm(SUBJECT_ID, "liens", "Liens", 5);
+
+		ArgumentCaptor<TeacherQuestionPort.LinksDraft> captor =
+				ArgumentCaptor.forClass(TeacherQuestionPort.LinksDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("liens"), eq(""), captor.capture());
+		assertThat(captor.getValue().links()).containsExactly(
+				new TeacherQuestionPort.LinkDraft("Pomme", "Fruit"),
+				new TeacherQuestionPort.LinkDraft("Chien", "Animal"));
+	}
+
+	@Test
+	void oneLinkIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "liens", "",
+				new LinksInput(List.of(new LinkInput("Pomme", "Fruit"), new LinkInput(" ", " ")))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.LINKS_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("liens"), eq(""), any());
+	}
+
+	@Test
+	void wordWithoutAnswerIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "liens", "",
+				new LinksInput(List.of(
+						new LinkInput("Pomme", "Fruit"),
+						new LinkInput("Voiture", " ")))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.LINK_INCOMPLETE);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("liens"), eq(""), any());
 	}
 
 	private static StoredSubject owned() {

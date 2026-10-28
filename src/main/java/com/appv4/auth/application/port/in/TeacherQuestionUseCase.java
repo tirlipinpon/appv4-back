@@ -92,4 +92,11 @@ public interface TeacherQuestionUseCase {
 	 */
 	record StatementInput(String label, Boolean truthful) {
 	}
+
+	/** Couples mot / réponse d'un lien. Une ligne à moitié vide est refusée. */
+	record LinksInput(List<LinkInput> links) implements ContentInput {
+	}
+
+	record LinkInput(String leftLabel, String rightLabel) {
+	}
 }

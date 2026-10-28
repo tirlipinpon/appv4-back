@@ -30,8 +30,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
+import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
 import com.appv4.auth.application.service.SpaceHello;
 import com.appv4.auth.application.service.TeacherProfileService;
+import com.appv4.auth.application.service.TeacherStudentsService;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
 
 @SpringBootTest
@@ -138,6 +140,41 @@ class TeacherProfileControllerTest {
 				.andExpect(status().isUnauthorized());
 
 		verify(profiles, never()).updateDisplayName(anyLong(), anyString());
+	}
+
+	@Test
+	void removalPreviewTellsWhoIsConcernedAndRefusesTheWrongRole() throws Exception {
+		mockMvc.perform(get("/api/int/teacher/profile/removal-preview")
+						.param("schoolId", "1")
+						.param("grade", "CE1")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.message").value(TeacherProfileService.SCHOOL_NOT_ON_PROFILE));
+
+		when(profiles.findSchools(9L)).thenReturn(List.of(new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
+
+		mockMvc.perform(get("/api/int/teacher/profile/removal-preview")
+						.param("schoolId", "1")
+						.param("grade", "CE1")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.schoolId").value(1))
+				.andExpect(jsonPath("$.grade").value("CE1"))
+				.andExpect(jsonPath("$.studentCount").value(0))
+				.andExpect(jsonPath("$.subjectCount").value(0))
+				.andExpect(jsonPath("$.studentCountLabel").value("0 élève"))
+				.andExpect(jsonPath("$.subjectCountLabel").value("0 matière"))
+				.andExpect(jsonPath("$.emptyStudentsLabel").value(TeacherStudentsService.EMPTY_GRADE))
+				.andExpect(jsonPath("$.emptySubjectsLabel").value(TeacherProfileService.EMPTY_GRADE_SUBJECTS));
+
+		mockMvc.perform(get("/api/int/teacher/profile/removal-preview")
+						.param("schoolId", "1")
+						.header(HttpHeaders.AUTHORIZATION, bearer("parent")))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.message").value(SpaceHello.DENIED));
+
+		mockMvc.perform(get("/api/int/teacher/profile/removal-preview").param("schoolId", "1"))
+				.andExpect(status().isUnauthorized());
 	}
 
 	private String bearer(String activeRole) {

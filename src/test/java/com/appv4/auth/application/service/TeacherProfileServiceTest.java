@@ -2,6 +2,8 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,11 +17,19 @@ import org.junit.jupiter.api.Test;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherProfileUseCase.TeacherSchoolCommand;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
+import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
+import com.appv4.auth.application.port.out.EnrolledChildPort;
+import com.appv4.auth.application.port.out.EnrolledChildPort.EnrolledChild;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
+import com.appv4.auth.application.port.out.TeacherSubjectPort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.result.TeacherProfileView;
+import com.appv4.auth.application.result.TeacherRemovalPreviewView;
 
 class TeacherProfileServiceTest {
 
@@ -28,15 +38,21 @@ class TeacherProfileServiceTest {
 
 	private MemoryProfile profiles;
 	private List<CatalogSchool> catalog;
+	private TeacherSubjectPort subjects;
+	private EnrolledChildPort enrolled;
+	private ChildSubjectPort links;
 	private TeacherProfileService service;
 
 	@BeforeEach
 	void setUp() {
 		profiles = new MemoryProfile();
+		subjects = mock(TeacherSubjectPort.class);
+		enrolled = mock(EnrolledChildPort.class);
+		links = mock(ChildSubjectPort.class);
 		profiles.seed(TEACHER_ID, "prof@example.com", "Ancien nom");
 		profiles.seed(OTHER_ID, "autre@example.com", "Autre");
 		catalog = new ArrayList<>();
-		service = new TeacherProfileService(profiles, () -> catalog);
+		service = new TeacherProfileService(profiles, () -> catalog, subjects, enrolled, links);
 	}
 
 	@Test
@@ -208,6 +224,107 @@ class TeacherProfileServiceTest {
 				.isInstanceOf(AuthDomainException.class)
 				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
 				.isEqualTo(AuthErrorCode.NOT_FOUND);
+	}
+
+	@Test
+	void previewListsStudentsSubjectsAndWhoFollowsThem() {
+		catalog.add(school(1L, "École française", SchoolCurricula.COUNTRY_FRANCE, "Primaire"));
+		profiles.replaceSchools(TEACHER_ID, List.of(
+				new TeacherSchoolLink(1L, SchoolCurricula.FRANCE, List.of("CE2", "CE1"))));
+		when(enrolled.findActiveInSchools(List.of(1L))).thenReturn(List.of(
+				child(2L, "Léa", "Martin", SchoolCurricula.FRANCE, "CE1", true),
+				child(3L, "Noah", "Bernard", SchoolCurricula.FRANCE, "CE1", true),
+				child(4L, "Paul", "Durand", SchoolCurricula.FRANCE, "CE1", true),
+				child(5L, "Inès", "Bernard", SchoolCurricula.FRANCE, "CE2", true),
+				child(6L, "Masqué", "Absent", SchoolCurricula.FRANCE, "CE1", false),
+				child(7L, "Belge", "Autre", SchoolCurricula.BELGIUM_FR, "CE1", true)));
+		when(subjects.findByUser(TEACHER_ID)).thenReturn(List.of(
+				new StoredSubject(10L, TEACHER_ID, 1L, "CE1", "Mathématiques", true),
+				new StoredSubject(11L, TEACHER_ID, 1L, "CE1", "Français", true),
+				new StoredSubject(12L, TEACHER_ID, 1L, "CE2", "Calcul", true),
+				new StoredSubject(13L, TEACHER_ID, 2L, "CE1", "Autre école", true)));
+		when(links.activeInClass(1L, "CE1")).thenReturn(List.of(
+				new FollowingChild(3L, "Noah", "Bernard"),
+				new FollowingChild(4L, "Paul", "Durand"),
+				new FollowingChild(2L, "Léa", "Martin")));
+		when(links.linksOfSubject(10L)).thenReturn(List.of(
+				new SubjectChildLink(new FollowingChild(4L, "Paul", "Durand"), true),
+				new SubjectChildLink(new FollowingChild(5L, "Inès", "Bernard"), false)));
+		when(links.linksOfSubject(11L)).thenReturn(List.of(
+				new SubjectChildLink(new FollowingChild(3L, "Noah", "Bernard"), true),
+				new SubjectChildLink(new FollowingChild(4L, "Paul", "Durand"), true)));
+		when(links.activeInClass(1L, "CE2")).thenReturn(List.of(new FollowingChild(5L, "Inès", "Bernard")));
+		when(links.linksOfSubject(12L)).thenReturn(List.of());
+
+		TeacherRemovalPreviewView year = service.removalPreview(TEACHER_ID, "teacher", 1L, "CE1");
+
+		assertThat(year.schoolName()).isEqualTo("École française");
+		assertThat(year.grade()).isEqualTo("CE1");
+		assertThat(year.studentCount()).isEqualTo(3);
+		assertThat(year.studentCountLabel()).isEqualTo("3 élèves");
+		assertThat(year.students()).extracting(Student -> Student.lastName(), Student -> Student.firstName())
+				.containsExactly(
+						org.assertj.core.groups.Tuple.tuple("Bernard", "Noah"),
+						org.assertj.core.groups.Tuple.tuple("Durand", "Paul"),
+						org.assertj.core.groups.Tuple.tuple("Martin", "Léa"));
+		assertThat(year.subjectCount()).isEqualTo(2);
+		assertThat(year.subjectCountLabel()).isEqualTo("2 matières");
+		assertThat(year.subjects()).extracting(Subject -> Subject.name()).containsExactly("Français", "Mathématiques");
+		assertThat(year.subjects().get(0).followerNames()).containsExactly("Léa Martin");
+		assertThat(year.subjects().get(0).followerWarning()).isEqualTo("1 enfant suit ce cours.");
+		assertThat(year.subjects().get(1).followerNames())
+				.containsExactly("Inès Bernard", "Léa Martin", "Noah Bernard");
+		assertThat(year.students()).extracting(Student -> Student.firstName()).doesNotContain("Inès", "Masqué", "Belge");
+
+		TeacherRemovalPreviewView school = service.removalPreview(TEACHER_ID, "teacher", 1L, "  ");
+
+		assertThat(school.grade()).isNull();
+		assertThat(school.studentCount()).isEqualTo(4);
+		assertThat(school.studentCountLabel()).isEqualTo("4 élèves");
+		assertThat(school.students()).extracting(Student -> Student.grade(), Student -> Student.firstName())
+				.containsExactly(
+						org.assertj.core.groups.Tuple.tuple("CE1", "Noah"),
+						org.assertj.core.groups.Tuple.tuple("CE1", "Paul"),
+						org.assertj.core.groups.Tuple.tuple("CE1", "Léa"),
+						org.assertj.core.groups.Tuple.tuple("CE2", "Inès"));
+		assertThat(school.subjectCount()).isEqualTo(3);
+		assertThat(school.subjectCountLabel()).isEqualTo("3 matières");
+		assertThat(school.subjects()).extracting(Subject -> Subject.name())
+				.containsExactly("Français", "Mathématiques", "Calcul");
+		assertThat(school.subjects().get(2).followerNames()).containsExactly("Inès Bernard");
+		assertThat(profiles.schoolsOf(TEACHER_ID)).hasSize(1);
+	}
+
+	@Test
+	void previewIsEmptyWhenNobodyIsInTheYearAndRefusesAnUnknownClass() {
+		profiles.replaceSchools(TEACHER_ID, List.of(
+				new TeacherSchoolLink(1L, SchoolCurricula.FRANCE, List.of("CM1"))));
+		when(enrolled.findActiveInSchools(List.of(1L))).thenReturn(List.of());
+		when(subjects.findByUser(TEACHER_ID)).thenReturn(List.of());
+
+		TeacherRemovalPreviewView empty = service.removalPreview(TEACHER_ID, "teacher", 1L, "CM1");
+
+		assertThat(empty.studentCount()).isZero();
+		assertThat(empty.subjectCount()).isZero();
+		assertThat(empty.studentCountLabel()).isEqualTo("0 élève");
+		assertThat(empty.subjectCountLabel()).isEqualTo("0 matière");
+		assertThat(empty.emptyStudentsLabel()).isEqualTo(TeacherStudentsService.EMPTY_GRADE);
+		assertThat(empty.emptySubjectsLabel()).isEqualTo(TeacherProfileService.EMPTY_GRADE_SUBJECTS);
+		assertThat(empty.students()).isEmpty();
+		assertThat(empty.subjects()).isEmpty();
+
+		assertThatThrownBy(() -> service.removalPreview(TEACHER_ID, "teacher", 9L, null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherProfileService.SCHOOL_NOT_ON_PROFILE);
+		assertThatThrownBy(() -> service.removalPreview(TEACHER_ID, "teacher", 1L, "CP"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherProfileService.GRADE_NOT_ON_PROFILE);
+		assertDenied(() -> service.removalPreview(TEACHER_ID, "parent", 1L, "CM1"));
+	}
+
+	private static EnrolledChild child(
+			long id, String firstName, String lastName, String curriculum, String grade, boolean active) {
+		return new EnrolledChild(id, firstName, lastName, 8, curriculum, grade, 1L, null, false, active);
 	}
 
 	private static void assertDenied(Runnable call) {

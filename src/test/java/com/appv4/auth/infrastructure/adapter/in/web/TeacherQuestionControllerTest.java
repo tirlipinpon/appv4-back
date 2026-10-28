@@ -53,7 +53,7 @@ class TeacherQuestionControllerTest {
 	void teacherSeesMultipleChoiceMemoryOrderAndTrueFalse() throws Exception {
 		mockMvc.perform(get("/api/int/teacher/question-forms").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.forms.length()").value(5))
+				.andExpect(jsonPath("$.forms.length()").value(6))
 				.andExpect(jsonPath("$.forms[0].code").value("qcm"))
 				.andExpect(jsonPath("$.forms[0].label").value("Choix multiples"))
 				.andExpect(jsonPath("$.forms[1].code").value("memory"))
@@ -63,7 +63,9 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.forms[3].code").value("vrai_faux"))
 				.andExpect(jsonPath("$.forms[3].label").value("Vrai ou faux"))
 				.andExpect(jsonPath("$.forms[4].code").value("liens"))
-				.andExpect(jsonPath("$.forms[4].label").value("Liens"));
+				.andExpect(jsonPath("$.forms[4].label").value("Liens"))
+				.andExpect(jsonPath("$.forms[5].code").value("case_vide"))
+				.andExpect(jsonPath("$.forms[5].label").value("Case vide"));
 	}
 
 	@Test
@@ -228,6 +230,45 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.links[0].leftLabel").value("Pomme"))
 				.andExpect(jsonPath("$.links[0].rightLabel").value("Fruit"))
 				.andExpect(jsonPath("$.links[1].rightLabel").value("Animal"));
+	}
+
+	@Test
+	void createGapsReturnsTheSentenceTheAnswerAndTheDecoy() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+		when(questions.insert(eq(4L), eq("case_vide"), eq("Complète."), any()))
+				.thenReturn(new StoredQuestion(
+						12L,
+						4L,
+						"case_vide",
+						"Complète.",
+						new TeacherQuestionPort.StoredGaps(
+								"Le chat mange une ___ dans le jardin.",
+								List.of(new TeacherQuestionPort.StoredGapWord(1L, "pomme")),
+								List.of(
+										new TeacherQuestionPort.StoredGapWord(2L, "poire"),
+										new TeacherQuestionPort.StoredGapWord(3L, "voiture")))));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "formCode":"case_vide",
+								  "prompt":"Complète.",
+								  "sentence":"Le chat mange une ___ dans le jardin.",
+								  "answers":[{"label":"pomme"}],
+								  "decoys":[{"label":"poire"},{"label":"voiture"}]
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(12))
+				.andExpect(jsonPath("$.formCode").value("case_vide"))
+				.andExpect(jsonPath("$.formLabel").value("Case vide"))
+				.andExpect(jsonPath("$.prompt").value("Complète."))
+				.andExpect(jsonPath("$.sentence").value("Le chat mange une ___ dans le jardin."))
+				.andExpect(jsonPath("$.answers[0].label").value("pomme"))
+				.andExpect(jsonPath("$.decoys[1].label").value("voiture"));
 	}
 
 	@Test

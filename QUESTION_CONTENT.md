@@ -6,8 +6,8 @@ Référence fonctionnelle : `../cursor_app_functionality_list.md`.
 
 `back_subject_questions` conserve l'identité, la matière, la forme et l'énoncé.
 Chaque structure possède son contenu et ses règles : aujourd'hui `choices` pour
-QCM, `pairs` pour Memory, `items` pour Ordre, `statements` pour Vrai ou faux
-et `links` pour Liens. Les tables existantes et leurs
+QCM, `pairs` pour Memory, `items` pour Ordre, `statements` pour Vrai ou faux,
+`links` pour Liens, et `sentence`, `answers`, `decoys` pour Case vide. Les tables existantes et leurs
 identifiants sont conservés. Le nombre de tables n'est pas le facteur limitant ;
 on évite surtout de lire les tables de tous les jeux pour chaque question.
 
@@ -22,7 +22,7 @@ sans ajouter des paramètres à toutes les méthodes existantes.
 - `TeacherQuestionService` gère les droits, la matière, la forme et la transaction.
 - `TeacherQuestionPersistenceAdapter` charge les questions et délègue leurs contenus.
 
-Seuls QCM, Memory, Ordre, Vrai ou faux et Liens sont actuellement proposés par l'API.
+Seuls QCM, Memory, Ordre, Vrai ou faux, Liens et Case vide sont actuellement proposés par l'API.
 Les interfaces de création et les moteurs des autres jeux restent à développer.
 
 ## Évolution vers les dix jeux
@@ -37,7 +37,7 @@ de formats encore non implémentés.
 | Chronologie | Éléments ordonnés, éventuellement dates | `order` couvre l'ordre simple ; dates à définir |
 | Vrai/Faux | Phrases et côté vrai ou faux | Implémenté : `statements` |
 | Liens | Mot de gauche et réponse de droite | Implémenté : `links` |
-| Case vide | Texte, emplacements, réponses admises | Structure spécifique |
+| Case vide | Phrase avec `___`, mot juste de chaque trou, leurres | Implémenté : `sentence`, `answers`, `decoys` |
 | Simon | Séquence de stimuli et paramètres | Structure spécifique |
 | Image interactive | Référence de média, zones, réponses | Structure spécifique |
 | Réponse libre | Réponses admises et règles de comparaison | Structure spécifique |
@@ -62,7 +62,8 @@ Ces futures tables de jeux ne sont pas créées prématurément par cette optimi
 4. Ajouter une migration Flyway si cette structure exige un nouveau stockage.
 5. Ajouter le DTO HTTP et le formulaire adaptés à la nouvelle structure. Les
    formes déjà publiées gardent leur contrat `choices` / `pairs` / `items`.
-   Vrai ou faux ajoute `statements`.
+   Vrai ou faux ajoute `statements`, Liens ajoute `links`, Case vide ajoute
+   `sentence`, `answers` et `decoys`.
    Les surcharges prenant `ContentInput` permettent aux nouveaux adaptateurs
    d'appeler le même service avec une structure différente.
 6. Tester validation, droits, aller-retour en base et nombre de requêtes avant

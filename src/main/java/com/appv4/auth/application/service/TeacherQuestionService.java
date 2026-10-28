@@ -78,6 +78,15 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String LINK_INCOMPLETE = "Chaque mot doit avoir une réponse.";
 	public static final String LINK_TOO_LONG = "Un mot ou une réponse dépasse 200 caractères.";
 
+	public static final String CASE_VIDE = "case_vide";
+	public static final String CASE_VIDE_LABEL = "Case vide";
+	public static final int CASE_VIDE_ORDER = 6;
+
+	public static final String GAP_REQUIRED = "La phrase doit contenir au moins un trou.";
+	public static final String GAP_WORD_REQUIRED = "Chaque trou doit avoir un mot juste.";
+	public static final String GAP_WORD_TOO_LONG = "Un mot dépasse 200 caractères.";
+	public static final String GAP_SENTENCE_TOO_LONG = "La phrase dépasse 500 caractères.";
+
 	private final QuestionFormRegistry forms;
 
 	private final TeacherSubjectPort teacherSubjectPort;

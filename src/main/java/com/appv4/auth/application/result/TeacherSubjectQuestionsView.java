@@ -7,6 +7,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGaps;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
 
 /**
@@ -60,6 +61,22 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 							.map(row -> new LinkLine(row.id(), row.leftLabel(), row.rightLabel()))
 							.toList() : List.of();
 		}
+
+		public String sentence() {
+			return content instanceof StoredGaps value ? value.sentence() : "";
+		}
+
+		public List<GapWordLine> answers() {
+			return content instanceof StoredGaps value
+					? value.answers().stream().map(row -> new GapWordLine(row.id(), row.label())).toList()
+					: List.of();
+		}
+
+		public List<GapWordLine> decoys() {
+			return content instanceof StoredGaps value
+					? value.decoys().stream().map(row -> new GapWordLine(row.id(), row.label())).toList()
+					: List.of();
+		}
 	}
 
 	public record ChoiceLine(long id, String label, boolean correct) {
@@ -75,5 +92,8 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 	}
 
 	public record LinkLine(long id, String leftLabel, String rightLabel) {
+	}
+
+	public record GapWordLine(long id, String label) {
 	}
 }

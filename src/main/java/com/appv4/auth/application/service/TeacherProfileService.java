@@ -17,9 +17,6 @@ import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
-import com.appv4.auth.application.port.out.TeacherSubjectPort;
-import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
-import com.appv4.auth.application.port.out.TeacherSubjectPort.SubjectClassKey;
 import com.appv4.auth.application.result.TeacherProfileView;
 import com.appv4.auth.application.result.TeacherProfileView.AssignedSchool;
 import com.appv4.auth.application.result.TeacherProfileView.AvailableSchool;
@@ -29,8 +26,9 @@ import com.appv4.auth.application.result.TeacherProfileView.AvailableSchool;
  *
  * <p><b>Business :</b> sans rôle teacher actif, pas d'accès. Un nom vide ou trop
  * long ne remplace pas l'ancien. Une école absente du référentiel n'est pas créée.
- * Une école sans année, ou en double, n'est pas enregistrée. Une année retirée
- * emporte les matières de cette année (SCRUM-161). Les recocher plus tard ne les rend pas.
+ * Une école sans année, ou en double, n'est pas enregistrée. Retirer une école
+ * ou une année ne retire pas les matières ni les questions : la page ne les
+ * montre plus tant que l'année n'est pas recochée, puis elles reviennent.
  * <p><b>Technique :</b> une seule transaction : si une école est refusée, le nom
  * déjà saisi dans la même requête n'est pas écrit. Le jeton reste valable.
  * <p><b>Métier / flow :</b> port in → port compte + port référentiel d'écoles.
@@ -50,15 +48,12 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 
 	private final TeacherProfilePort teacherProfilePort;
 	private final SchoolCatalogPort schoolCatalogPort;
-	private final TeacherSubjectPort teacherSubjectPort;
 
 	public TeacherProfileService(
 			TeacherProfilePort teacherProfilePort,
-			SchoolCatalogPort schoolCatalogPort,
-			TeacherSubjectPort teacherSubjectPort) {
+			SchoolCatalogPort schoolCatalogPort) {
 		this.teacherProfilePort = teacherProfilePort;
 		this.schoolCatalogPort = schoolCatalogPort;
-		this.teacherSubjectPort = teacherSubjectPort;
 	}
 
 	@Override
@@ -84,7 +79,6 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 		List<TeacherSchoolLink> links = normalizeSchools(schools, available);
 		teacherProfilePort.updateDisplayName(userId, name);
 		teacherProfilePort.replaceSchools(userId, links);
-		dropSubjectsOutside(userId, links);
 		return toView(account.email(), name, links, available);
 	}
 
@@ -161,29 +155,6 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 			throw bad(GRADE_REQUIRED);
 		}
 		return new TeacherSchoolLink(command.schoolId(), curriculum, ordered);
-	}
-
-	/**
-	 * Les matières suivent les années cochées. Une année absente de {@code links}
-	 * retire l'accès de ce professeur. S'il était le dernier, la matière est cachée.
-	 * Les matières d'un collègue seules ne sont pas lues ici.
-	 */
-	private void dropSubjectsOutside(long userId, List<TeacherSchoolLink> links) {
-		Set<SubjectClassKey> kept = new HashSet<>();
-		for (TeacherSchoolLink link : links) {
-			for (String grade : link.grades()) {
-				kept.add(new SubjectClassKey(link.schoolId(), grade));
-			}
-		}
-		List<StoredSubject> owned = teacherSubjectPort.findByUser(userId);
-		if (owned == null || owned.isEmpty()) {
-			return;
-		}
-		for (StoredSubject subject : owned) {
-			if (!kept.contains(new SubjectClassKey(subject.schoolId(), subject.grade()))) {
-				teacherSubjectPort.hide(userId, subject.id());
-			}
-		}
 	}
 
 	private static TeacherProfileView toView(

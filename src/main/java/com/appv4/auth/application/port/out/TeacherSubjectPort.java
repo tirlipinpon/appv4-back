@@ -12,9 +12,10 @@ import java.util.Optional;
  * Ce n'est jamais une copie : même id, mêmes liens enfants, mêmes formes futures.
  * <p><b>Technique :</b> {@code back_teacher_subjects} + {@code back_teacher_subject_access}.
  * {@code name_key} est le nom en minuscules. {@code origin_subject_id} reste vide.
- * <p><b>Métier / flow :</b> port out de {@code /api/int/teacher/subjects}. Quand le
- * profil retire une année, le service profil appelle {@link #hide} : l'accès part,
- * la matière est cachée seulement s'il ne reste personne.
+ * <p><b>Métier / flow :</b> port out de {@code /api/int/teacher/subjects}.
+ * Retirer une école du profil ne passe pas par {@link #hide} : l'accès reste,
+ * la page ne montre la matière que si l'année est encore cochée. {@link #hide}
+ * sert au bouton qui retire une matière.
  */
 public interface TeacherSubjectPort {
 
@@ -188,11 +189,5 @@ public interface TeacherSubjectPort {
 			long fromUserId,
 			long toUserId,
 			List<Long> deactivatedUserIds) {
-	}
-
-	/**
-	 * Une classe du profil : une école et une année. Sert à savoir quelles matières garder.
-	 */
-	record SubjectClassKey(long schoolId, String grade) {
 	}
 }

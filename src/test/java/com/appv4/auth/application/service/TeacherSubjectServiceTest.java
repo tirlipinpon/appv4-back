@@ -172,6 +172,39 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
+	void subjectComesBackWhenTheYearIsCheckedAgain() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
+
+		profiles.put(TEACHER_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		TeacherSubjectsView away = service.list(TEACHER_ID, "teacher");
+		assertThat(away.schools()).hasSize(1);
+		assertThat(away.schools().get(0).grades()).extracting(grade -> grade.grade()).containsExactly("CE1");
+		assertThat(subjects.stored(maths.id())).isTrue();
+		assertThat(subjects.hidden(maths.id())).isFalse();
+
+		profiles.put(TEACHER_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1", "CE2")),
+				new TeacherSchoolLink(BELGIAN_SCHOOL, SchoolCurricula.BELGIUM_FR, List.of("3e primaire"))));
+		assertThat(names(FRENCH_SCHOOL, "CE2")).containsExactly("Mathématiques");
+	}
+
+	@Test
+	void subjectRemovedWithTheButtonStaysHiddenWhenTheYearComesBack() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
+		service.remove(TEACHER_ID, "teacher", maths.id());
+
+		profiles.put(TEACHER_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		profiles.put(TEACHER_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1", "CE2")),
+				new TeacherSchoolLink(BELGIAN_SCHOOL, SchoolCurricula.BELGIUM_FR, List.of("3e primaire"))));
+
+		assertThat(names(FRENCH_SCHOOL, "CE2")).isEmpty();
+		assertThat(subjects.hidden(maths.id())).isTrue();
+	}
+
+	@Test
 	void deactivateStaysListedAndRemovingOffersTheSameSubjectBack() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 

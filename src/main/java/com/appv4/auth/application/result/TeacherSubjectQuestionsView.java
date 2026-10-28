@@ -18,7 +18,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
  * ou les phrases d'un Vrai ou faux.
  * L'ordre enregistré est celui saisi.
  * <p><b>Technique :</b> {@code formCode} est le code choisi dans la liste des formes.
- * <p><b>Métier / flow :</b> résultat de {@code GET/POST /api/int/teacher/subjects/{id}/questions}.
+ * <p><b>Métier / flow :</b> résultat de {@code GET/POST /api/int/teacher/subjects/{id}/questions}
+ * et des copies renvoyées par {@code POST .../questions/clone}.
  */
 public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 

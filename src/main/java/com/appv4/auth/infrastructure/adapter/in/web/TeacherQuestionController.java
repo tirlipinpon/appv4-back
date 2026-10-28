@@ -52,7 +52,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * <p><b>Business :</b> il voit les formes proposables, puis il prépare un énoncé,
  * des paires, une liste déjà rangée, ou des phrases vraies ou fausses.
  * Il peut corriger une question déjà là. La forme de cette question ne change pas.
- * Une autre forme n'est pas acceptée. L'élève ne joue pas ici.
+ * Une autre forme n'est pas acceptée. Il peut aussi copier une ou plusieurs
+ * questions vers une matière à laquelle il a accès. Les originaux restent.
+ * L'élève ne joue pas ici.
  * <p><b>Technique :</b> {@code /api/int/teacher/question-forms} et
  * {@code /api/int/teacher/subjects/{id}/questions}. JWT obligatoire, espace {@code teacher}.
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link TeacherQuestionUseCase}.
@@ -167,6 +169,38 @@ public class TeacherQuestionController {
 				body.prompt(),
 				content(body));
 		return ResponseEntity.ok(item(line));
+	}
+
+	@PostMapping("/subjects/{subjectId}/questions/clone")
+	@Operation(operationId = "cloneTeacherSubjectQuestions", summary = "Copier des questions vers une matière")
+	@ApiResponse(responseCode = "200", description = "Copies créées, les questions d'origine restent")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Aucune question choisie, ou matière d'arrivée absente de la demande",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière ou question absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectQuestionsResponse> cloneQuestions(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@RequestBody CloneTeacherSubjectQuestionsRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		CloneTeacherSubjectQuestionsRequest body = request == null
+				? new CloneTeacherSubjectQuestionsRequest(null, null)
+				: request;
+		long targetSubjectId = body.targetSubjectId() == null ? 0L : body.targetSubjectId();
+		return ResponseEntity.ok(questions(teacherQuestionUseCase.cloneQuestions(
+				user.userId(),
+				user.activeRole(),
+				subjectId,
+				targetSubjectId,
+				body.questionIds())));
 	}
 
 	private static ContentInput content(CreateTeacherSubjectQuestionRequest body) {
@@ -367,6 +401,10 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionGapWordItem")
 	public record TeacherQuestionGapWordItem(long id, String label) {
+	}
+
+	@Schema(name = "CloneTeacherSubjectQuestionsRequest")
+	public record CloneTeacherSubjectQuestionsRequest(Long targetSubjectId, List<Long> questionIds) {
 	}
 
 	@Schema(name = "CreateTeacherSubjectQuestionRequest")

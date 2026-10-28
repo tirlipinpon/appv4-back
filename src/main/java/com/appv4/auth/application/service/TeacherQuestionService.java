@@ -1,6 +1,7 @@
 package com.appv4.auth.application.service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -9,7 +10,33 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoicesDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.DraftContent;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.GapWordDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.GapsDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ItemDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ItemsDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.LinkDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.LinksDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.PairsDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementsDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredContent;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGapWord;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGaps;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItem;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLink;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatement;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
@@ -28,7 +55,8 @@ import com.appv4.auth.application.service.question.QuestionFormRegistry;
  * Le vrai ou faux exige deux phrases, chacune marquée vraie ou fausse.
  * L'énoncé du Memory, de l'ordre et du vrai ou faux peut rester vide.
  * Corriger une question remplace son contenu. La forme reste.
- * Le nom de la matière ne change pas. L'élève ne joue pas ici.
+ * Copier des questions en crée de nouvelles sur la matière choisie.
+ * Les originaux restent. Le nom de la matière ne change pas. L'élève ne joue pas ici.
  * <p><b>Technique :</b> registre de validateurs indépendants par forme.
  * Les énoncés passent par {@link TeacherQuestionPort}. L'accès matière passe par
  * {@link TeacherSubjectPort#findOwned}.
@@ -86,6 +114,8 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String GAP_WORD_REQUIRED = "Chaque trou doit avoir un mot juste.";
 	public static final String GAP_WORD_TOO_LONG = "Un mot dépasse 200 caractères.";
 	public static final String GAP_SENTENCE_TOO_LONG = "La phrase dépasse 500 caractères.";
+	public static final String CLONE_TARGET = "Choisis une matière.";
+	public static final String CLONE_REQUIRED = "Choisis au moins une question.";
 
 	private final QuestionFormRegistry forms;
 
@@ -177,6 +207,40 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 				questionId, prepared.prompt(), prepared.content()));
 	}
 
+	@Override
+	@Transactional
+	public TeacherSubjectQuestionsView cloneQuestions(
+			long userId,
+			String activeRole,
+			long sourceSubjectId,
+			long targetSubjectId,
+			List<Long> questionIds) {
+		requireTeacher(activeRole);
+		if (targetSubjectId <= 0) {
+			throw bad(CLONE_TARGET);
+		}
+		List<Long> ids = selectedIds(questionIds);
+		if (ids.isEmpty()) {
+			throw bad(CLONE_REQUIRED);
+		}
+		requireOwned(userId, sourceSubjectId);
+		requireOwned(userId, targetSubjectId);
+		List<StoredQuestion> sources = new ArrayList<>();
+		for (Long id : ids) {
+			sources.add(teacherQuestionPort.findInSubject(sourceSubjectId, id)
+					.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, QUESTION_MISSING)));
+		}
+		List<QuestionLine> copies = new ArrayList<>();
+		for (StoredQuestion source : sources) {
+			FormLine form = forms.require(source.formCode()).form();
+			teacherQuestionPort.ensureForm(targetSubjectId, form.code(), form.label(), form.sortOrder());
+			StoredQuestion saved = teacherQuestionPort.insert(
+					targetSubjectId, form.code(), source.prompt(), draftOf(source));
+			copies.add(line(saved));
+		}
+		return new TeacherSubjectQuestionsView(List.copyOf(copies));
+	}
+
 	private void requireOwned(long userId, long subjectId) {
 		if (teacherSubjectPort.findOwned(userId, subjectId).isEmpty()) {
 			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, TeacherSubjectService.SUBJECT_MISSING);
@@ -207,6 +271,75 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 
 	private static AuthDomainException bad(String message) {
 		return new AuthDomainException(AuthErrorCode.BAD_REQUEST, message);
+	}
+
+	/** Un id cité deux fois, ou vide, ne donne pas une deuxième copie. */
+	private static List<Long> selectedIds(List<Long> questionIds) {
+		if (questionIds == null || questionIds.isEmpty()) {
+			return List.of();
+		}
+		LinkedHashSet<Long> ids = new LinkedHashSet<>();
+		for (Long id : questionIds) {
+			if (id != null && id > 0) {
+				ids.add(id);
+			}
+		}
+		return List.copyOf(ids);
+	}
+
+	/**
+	 * Reprend le contenu déjà enregistré, sans les id des lignes.
+	 * Une forme nouvelle doit être ajoutée ici, sinon la copie est refusée.
+	 */
+	private static DraftContent draftOf(StoredQuestion source) {
+		StoredContent content = source.content();
+		if (content instanceof StoredChoices choices) {
+			List<ChoiceDraft> drafts = new ArrayList<>();
+			for (StoredChoice choice : choices.choices()) {
+				drafts.add(new ChoiceDraft(choice.label(), choice.correct()));
+			}
+			return new ChoicesDraft(drafts);
+		}
+		if (content instanceof StoredPairs pairs) {
+			List<PairDraft> drafts = new ArrayList<>();
+			for (StoredPair pair : pairs.pairs()) {
+				drafts.add(new PairDraft(pair.questionSide(), pair.answerSide()));
+			}
+			return new PairsDraft(drafts);
+		}
+		if (content instanceof StoredItems items) {
+			List<ItemDraft> drafts = new ArrayList<>();
+			for (StoredItem item : items.items()) {
+				drafts.add(new ItemDraft(item.label()));
+			}
+			return new ItemsDraft(drafts);
+		}
+		if (content instanceof StoredStatements statements) {
+			List<StatementDraft> drafts = new ArrayList<>();
+			for (StoredStatement statement : statements.statements()) {
+				drafts.add(new StatementDraft(statement.label(), statement.truthful()));
+			}
+			return new StatementsDraft(drafts);
+		}
+		if (content instanceof StoredLinks links) {
+			List<LinkDraft> drafts = new ArrayList<>();
+			for (StoredLink link : links.links()) {
+				drafts.add(new LinkDraft(link.leftLabel(), link.rightLabel()));
+			}
+			return new LinksDraft(drafts);
+		}
+		if (content instanceof StoredGaps gaps) {
+			List<GapWordDraft> answers = new ArrayList<>();
+			for (StoredGapWord answer : gaps.answers()) {
+				answers.add(new GapWordDraft(answer.label()));
+			}
+			List<GapWordDraft> decoys = new ArrayList<>();
+			for (StoredGapWord decoy : gaps.decoys()) {
+				decoys.add(new GapWordDraft(decoy.label()));
+			}
+			return new GapsDraft(gaps.sentence(), answers, decoys);
+		}
+		throw new IllegalStateException("Copie non prévue pour la forme : " + source.formCode());
 	}
 
 }

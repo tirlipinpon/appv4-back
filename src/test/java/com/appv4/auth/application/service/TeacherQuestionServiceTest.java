@@ -2,7 +2,7 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -18,9 +18,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.appv4.auth.application.service.question.QuestionFormHandler;
+import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
@@ -28,6 +32,10 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
+import com.appv4.auth.application.service.question.QuestionFormRegistry;
+import com.appv4.auth.application.service.question.QcmQuestionForm;
+import com.appv4.auth.application.service.question.MemoryQuestionForm;
+import com.appv4.auth.application.service.question.OrderQuestionForm;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 
@@ -45,22 +53,62 @@ class TeacherQuestionServiceTest {
 
 	private TeacherQuestionService service;
 
+	@Test
+	void independentFormCarriesItsOwnStructureThroughTheCommonService() {
+		var handler = new QuestionFormHandler() {
+			@Override
+			public FormLine form() {
+				return new FormLine("image_test", "Image test", 8);
+			}
+
+			@Override
+			public Prepared prepare(String prompt, ContentInput input) {
+				return new Prepared(prompt, new ImageDraft(((ImageInput) input).imageId()));
+			}
+		};
+		TeacherQuestionService extensible = new TeacherQuestionService(
+				subjects, questions, new QuestionFormRegistry(List.of(handler)));
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(SUBJECT_ID, "image_test", "Localise", new ImageDraft("media-42")))
+				.thenReturn(new StoredQuestion(42L, SUBJECT_ID, "image_test", "Localise", new ImageContent("media-42")));
+
+		QuestionLine line = extensible.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_test", "Localise", new ImageInput("media-42"));
+
+		assertThat(line.content()).isEqualTo(new ImageContent("media-42"));
+		assertThat(line.formLabel()).isEqualTo("Image test");
+		verify(questions).ensureForm(SUBJECT_ID, "image_test", "Image test", 8);
+	}
+
+	private record ImageInput(String imageId) implements ContentInput {
+	}
+
+	private record ImageDraft(String imageId) implements TeacherQuestionPort.DraftContent {
+	}
+
+	private record ImageContent(String imageId) implements TeacherQuestionPort.StoredContent {
+	}
+
 	@BeforeEach
 	void setUp() {
-		service = new TeacherQuestionService(subjects, questions);
+		service = new TeacherQuestionService(subjects, questions, new QuestionFormRegistry(List.of(
+				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm())));
 	}
 
 	@Test
-	void offeredFormsAreMultipleChoiceThenMemory() {
+	void offeredFormsAreMultipleChoiceThenMemoryThenOrder() {
 		assertThat(service.listForms(TEACHER_ID, "teacher").forms())
 				.satisfies(forms -> {
-					assertThat(forms).hasSize(2);
+					assertThat(forms).hasSize(3);
 					assertThat(forms.get(0).code()).isEqualTo("qcm");
 					assertThat(forms.get(0).label()).isEqualTo("Choix multiples");
 					assertThat(forms.get(0).sortOrder()).isEqualTo(1);
 					assertThat(forms.get(1).code()).isEqualTo("memory");
 					assertThat(forms.get(1).label()).isEqualTo("Memory");
 					assertThat(forms.get(1).sortOrder()).isEqualTo(2);
+					assertThat(forms.get(2).code()).isEqualTo("order");
+					assertThat(forms.get(2).label()).isEqualTo("Ordre");
+					assertThat(forms.get(2).sortOrder()).isEqualTo(3);
 				});
 	}
 
@@ -76,7 +124,7 @@ class TeacherQuestionServiceTest {
 	void createKeepsTheSubjectAndDropsABlankChoice() {
 		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID))
 				.thenReturn(Optional.of(owned()));
-		when(questions.insert(eq(SUBJECT_ID), eq("qcm"), eq("Combien font 2 + 2 ?"), anyList(), anyList()))
+		when(questions.insert(eq(SUBJECT_ID), eq("qcm"), eq("Combien font 2 + 2 ?"), any()))
 				.thenReturn(saved());
 
 		QuestionLine line = service.create(
@@ -89,17 +137,17 @@ class TeacherQuestionServiceTest {
 						new ChoiceInput(" 3 ", false),
 						new ChoiceInput("   ", true),
 						new ChoiceInput("4", true)),
-				List.of());
+				List.of(), List.of());
 
 		assertThat(line.prompt()).isEqualTo("Combien font 2 + 2 ?");
 		assertThat(line.formCode()).isEqualTo("qcm");
 		assertThat(line.formLabel()).isEqualTo("Choix multiples");
 		verify(questions).ensureForm(SUBJECT_ID, "qcm", "Choix multiples", 1);
 
-		@SuppressWarnings("unchecked")
-		ArgumentCaptor<List<ChoiceDraft>> captor = ArgumentCaptor.forClass(List.class);
-		verify(questions).insert(eq(SUBJECT_ID), eq("qcm"), eq("Combien font 2 + 2 ?"), captor.capture(), anyList());
-		assertThat(captor.getValue()).containsExactly(
+		ArgumentCaptor<TeacherQuestionPort.ChoicesDraft> captor = ArgumentCaptor.forClass(TeacherQuestionPort.ChoicesDraft.class);
+		verify(questions).insert(
+				eq(SUBJECT_ID), eq("qcm"), eq("Combien font 2 + 2 ?"), captor.capture());
+		assertThat(captor.getValue().choices()).containsExactly(
 				new ChoiceDraft("3", false),
 				new ChoiceDraft("4", true));
 	}
@@ -111,11 +159,11 @@ class TeacherQuestionServiceTest {
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "qcm", "  ",
 				List.of(new ChoiceInput("3", false), new ChoiceInput("4", true)),
-				List.of()))
+				List.of(), List.of()))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.PROMPT_REQUIRED);
 
-		verify(questions, never()).insert(eq(SUBJECT_ID), eq("qcm"), eq("  "), anyList(), anyList());
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("qcm"), eq("  "), any());
 	}
 
 	@Test
@@ -125,7 +173,7 @@ class TeacherQuestionServiceTest {
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "qcm", "Combien font 2 + 2 ?",
 				List.of(new ChoiceInput("4", true), new ChoiceInput(" ", false)),
-				List.of()))
+				List.of(), List.of()))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.CHOICES_REQUIRED);
 	}
@@ -137,7 +185,7 @@ class TeacherQuestionServiceTest {
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "qcm", "Combien font 2 + 2 ?",
 				List.of(new ChoiceInput("3", false), new ChoiceInput("4", null)),
-				List.of()))
+				List.of(), List.of()))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.CORRECT_REQUIRED);
 	}
@@ -149,7 +197,7 @@ class TeacherQuestionServiceTest {
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "Paires",
 				List.of(new ChoiceInput("2", false), new ChoiceInput("4", true)),
-				List.of()))
+				List.of(), List.of()))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.FORM_UNKNOWN);
 
@@ -160,14 +208,14 @@ class TeacherQuestionServiceTest {
 	void updateRewritesTheStatementAndKeepsTheForm() {
 		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
 		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
-		when(questions.replace(eq(7L), eq("Combien font 3 + 3 ?"), anyList(), anyList()))
+		when(questions.replace(eq(7L), eq("Combien font 3 + 3 ?"), any()))
 				.thenReturn(new StoredQuestion(
 						7L,
 						SUBJECT_ID,
 						"qcm",
 						"Combien font 3 + 3 ?",
 						List.of(new StoredChoice(3L, "5", false), new StoredChoice(4L, "6", true)),
-						List.of()));
+						List.of(), List.of()));
 
 		QuestionLine line = service.update(
 				TEACHER_ID,
@@ -177,12 +225,12 @@ class TeacherQuestionServiceTest {
 				"qcm",
 				"  Combien font 3 + 3 ? ",
 				List.of(new ChoiceInput("5", false), new ChoiceInput(" ", false), new ChoiceInput("6", true)),
-				List.of());
+				List.of(), List.of());
 
 		assertThat(line.id()).isEqualTo(7L);
 		assertThat(line.prompt()).isEqualTo("Combien font 3 + 3 ?");
 		assertThat(line.formCode()).isEqualTo("qcm");
-		verify(questions, never()).insert(eq(SUBJECT_ID), eq("qcm"), eq("Combien font 3 + 3 ?"), anyList(), anyList());
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("qcm"), eq("Combien font 3 + 3 ?"), any());
 		verify(questions, never()).ensureForm(SUBJECT_ID, "qcm", "Choix multiples", 1);
 	}
 
@@ -194,27 +242,27 @@ class TeacherQuestionServiceTest {
 		assertThatThrownBy(() -> service.update(
 				TEACHER_ID, "teacher", SUBJECT_ID, 8L, "qcm", "Combien font 2 + 2 ?",
 				List.of(new ChoiceInput("3", false), new ChoiceInput("4", true)),
-				List.of()))
+				List.of(), List.of()))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.QUESTION_MISSING);
 
-		verify(questions, never()).replace(eq(8L), eq("Combien font 2 + 2 ?"), anyList(), anyList());
+		verify(questions, never()).replace(eq(8L), eq("Combien font 2 + 2 ?"), any());
 	}
 
 	@Test
 	void changingTheFormOfAnExistingQuestionIsRefused() {
 		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
 		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(new StoredQuestion(
-				7L, SUBJECT_ID, "vrai_faux", "C'est vrai ?", List.of(), List.of())));
+				7L, SUBJECT_ID, "vrai_faux", "C'est vrai ?", List.of(), List.of(), List.of())));
 
 		assertThatThrownBy(() -> service.update(
 				TEACHER_ID, "teacher", SUBJECT_ID, 7L, "qcm", "Combien font 2 + 2 ?",
 				List.of(new ChoiceInput("3", false), new ChoiceInput("4", true)),
-				List.of()))
+				List.of(), List.of()))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.FORM_LOCKED);
 
-		verify(questions, never()).replace(eq(7L), eq("Combien font 2 + 2 ?"), anyList(), anyList());
+		verify(questions, never()).replace(eq(7L), eq("Combien font 2 + 2 ?"), any());
 	}
 
 	@Test
@@ -232,7 +280,7 @@ class TeacherQuestionServiceTest {
 	@Test
 	void memoryKeepsTwoPairsAndAllowsABlankPrompt() {
 		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
-		when(questions.insert(eq(SUBJECT_ID), eq("memory"), eq(""), anyList(), anyList()))
+		when(questions.insert(eq(SUBJECT_ID), eq("memory"), eq(""), any()))
 				.thenReturn(new StoredQuestion(
 						8L,
 						SUBJECT_ID,
@@ -241,7 +289,8 @@ class TeacherQuestionServiceTest {
 						List.of(),
 						List.of(
 								new TeacherQuestionPort.StoredPair(1L, "2 + 2", "4"),
-								new TeacherQuestionPort.StoredPair(2L, "3 + 3", "6"))));
+								new TeacherQuestionPort.StoredPair(2L, "3 + 3", "6")),
+						List.of()));
 
 		QuestionLine line = service.create(
 				TEACHER_ID,
@@ -253,7 +302,8 @@ class TeacherQuestionServiceTest {
 				List.of(
 						new PairInput(" 2 + 2 ", " 4 "),
 						new PairInput("", "9"),
-						new PairInput("3 + 3", "6")));
+						new PairInput("3 + 3", "6")),
+				List.of());
 
 		assertThat(line.prompt()).isEmpty();
 		assertThat(line.formLabel()).isEqualTo("Memory");
@@ -261,10 +311,9 @@ class TeacherQuestionServiceTest {
 				.containsExactly("2 + 2/4", "3 + 3/6");
 		verify(questions).ensureForm(SUBJECT_ID, "memory", "Memory", 2);
 
-		@SuppressWarnings("unchecked")
-		ArgumentCaptor<List<PairDraft>> captor = ArgumentCaptor.forClass(List.class);
-		verify(questions).insert(eq(SUBJECT_ID), eq("memory"), eq(""), anyList(), captor.capture());
-		assertThat(captor.getValue()).containsExactly(
+		ArgumentCaptor<TeacherQuestionPort.PairsDraft> captor = ArgumentCaptor.forClass(TeacherQuestionPort.PairsDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("memory"), eq(""), captor.capture());
+		assertThat(captor.getValue().pairs()).containsExactly(
 				new PairDraft("2 + 2", "4"),
 				new PairDraft("3 + 3", "6"));
 	}
@@ -276,11 +325,64 @@ class TeacherQuestionServiceTest {
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "memory", "",
 				List.of(),
-				List.of(new PairInput("2 + 2", "4"), new PairInput("3 + 3", " "))))
+				List.of(new PairInput("2 + 2", "4"), new PairInput("3 + 3", " ")),
+				List.of()))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.PAIRS_REQUIRED);
 
-		verify(questions, never()).insert(eq(SUBJECT_ID), eq("memory"), eq(""), anyList(), anyList());
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("memory"), eq(""), any());
+	}
+
+	@Test
+	void orderKeepsTwoItemsAndAllowsABlankPrompt() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("order"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						9L,
+						SUBJECT_ID,
+						"order",
+						"",
+						List.of(),
+						List.of(),
+						List.of(
+								new TeacherQuestionPort.StoredItem(1L, "Lundi"),
+								new TeacherQuestionPort.StoredItem(2L, "Mardi"))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"order",
+				"   ",
+				List.of(),
+				List.of(),
+				List.of(new ItemInput(" Lundi "), new ItemInput(" "), new ItemInput("Mardi")));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formLabel()).isEqualTo("Ordre");
+		assertThat(line.items()).extracting(item -> item.label()).containsExactly("Lundi", "Mardi");
+		verify(questions).ensureForm(SUBJECT_ID, "order", "Ordre", 3);
+
+		ArgumentCaptor<TeacherQuestionPort.ItemsDraft> captor = ArgumentCaptor.forClass(TeacherQuestionPort.ItemsDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("order"), eq(""), captor.capture());
+		assertThat(captor.getValue().items()).containsExactly(
+				new TeacherQuestionPort.ItemDraft("Lundi"),
+				new TeacherQuestionPort.ItemDraft("Mardi"));
+	}
+
+	@Test
+	void oneItemIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "order", "",
+				List.of(),
+				List.of(),
+				List.of(new ItemInput("Lundi"), new ItemInput(" "))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ITEMS_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("order"), eq(""), any());
 	}
 
 	private static StoredSubject owned() {
@@ -294,6 +396,6 @@ class TeacherQuestionServiceTest {
 				"qcm",
 				"Combien font 2 + 2 ?",
 				List.of(new StoredChoice(1L, "3", false), new StoredChoice(2L, "4", true)),
-				List.of());
+				List.of(), List.of());
 	}
 }

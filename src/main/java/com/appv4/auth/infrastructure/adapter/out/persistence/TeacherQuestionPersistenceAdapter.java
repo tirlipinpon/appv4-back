@@ -1,168 +1,101 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Profile;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 
-/**
- * Persiste les choix multiples d'une matière (SCRUM-174).
- *
- * <p><b>Business :</b> la première question d'une forme note cette forme sur la
- * matière. Les suivantes réutilisent la même ligne. Retirer la matière retire
- * les énoncés (clé étrangère).
- * <p><b>Technique :</b> absent du profil {@code test} : les tests web ne démarrent pas JPA.
- * <p><b>Métier / flow :</b> adapter out du port {@link TeacherQuestionPort}.
- */
+/** Questions communes et contenus délégués aux stores de chaque forme. */
 @Component
 @Profile("!test")
 public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 
+	private static final int CONTENT_BATCH_SIZE = 500;
+
 	private final BackSubjectQuestionJpaRepository questions;
-	private final BackSubjectQuestionChoiceJpaRepository choices;
-	private final BackSubjectQuestionPairJpaRepository pairs;
 	private final BackSubjectQuestionFormJpaRepository forms;
+	private final Map<String, QuestionContentStore> stores;
 
 	public TeacherQuestionPersistenceAdapter(
 			BackSubjectQuestionJpaRepository questions,
-			BackSubjectQuestionChoiceJpaRepository choices,
-			BackSubjectQuestionPairJpaRepository pairs,
-			BackSubjectQuestionFormJpaRepository forms) {
+			BackSubjectQuestionFormJpaRepository forms,
+			List<QuestionContentStore> stores) {
 		this.questions = questions;
-		this.choices = choices;
-		this.pairs = pairs;
 		this.forms = forms;
+		// Un doublon est une erreur de câblage : échec au démarrage, pas de choix implicite.
+		this.stores = stores.stream().collect(Collectors.toUnmodifiableMap(
+				QuestionContentStore::formCode, Function.identity()));
 	}
 
 	@Override
 	@Transactional(readOnly = true)
 	public List<StoredQuestion> findBySubject(long subjectId) {
-		List<StoredQuestion> rows = new ArrayList<>();
-		for (BackSubjectQuestionEntity question : questions.findBySubjectIdOrderByIdAsc(subjectId)) {
-			rows.add(toStored(question));
-		}
-		return List.copyOf(rows);
+		List<BackSubjectQuestionEntity> rows = questions.findBySubjectIdOrderByIdAsc(subjectId);
+		Map<String, List<BackSubjectQuestionEntity>> byForm = rows.stream()
+				.collect(Collectors.groupingBy(BackSubjectQuestionEntity::getFormCode));
+		Map<Long, StoredContent> contents = new HashMap<>();
+		byForm.forEach((formCode, group) -> {
+			QuestionContentStore store = store(formCode);
+			List<Long> ids = group.stream().map(BackSubjectQuestionEntity::getId).toList();
+			for (int start = 0; start < ids.size(); start += CONTENT_BATCH_SIZE) {
+				contents.putAll(store.load(ids.subList(start, Math.min(start + CONTENT_BATCH_SIZE, ids.size()))));
+			}
+		});
+		return rows.stream().map(row -> stored(row, contents.get(row.getId()))).toList();
 	}
 
 	@Override
 	@Transactional
-	public StoredQuestion insert(
-			long subjectId,
-			String formCode,
-			String prompt,
-			List<ChoiceDraft> choiceDrafts,
-			List<PairDraft> pairDrafts) {
-		BackSubjectQuestionEntity saved = questions.saveAndFlush(
-				new BackSubjectQuestionEntity(subjectId, formCode, prompt));
-		return new StoredQuestion(
-				saved.getId(),
-				saved.getSubjectId(),
-				saved.getFormCode(),
-				saved.getPrompt(),
-				writeChoices(saved.getId(), choiceDrafts),
-				writePairs(saved.getId(), pairDrafts));
+	public StoredQuestion insert(long subjectId, String formCode, String prompt, DraftContent content) {
+		QuestionContentStore store = store(formCode);
+		BackSubjectQuestionEntity saved = questions.save(new BackSubjectQuestionEntity(subjectId, formCode, prompt));
+		return stored(saved, store.write(saved.getId(), content));
 	}
 
 	@Override
 	@Transactional(readOnly = true)
 	public Optional<StoredQuestion> findInSubject(long subjectId, long questionId) {
-		return questions.findById(questionId)
-				.filter(question -> question.getSubjectId() == subjectId)
-				.map(this::toStored);
+		return questions.findByIdAndSubjectId(questionId, subjectId)
+				.map(row -> stored(row, store(row.getFormCode()).load(List.of(row.getId())).get(row.getId())));
 	}
 
 	@Override
 	@Transactional
-	public StoredQuestion replace(
-			long questionId, String prompt, List<ChoiceDraft> choiceDrafts, List<PairDraft> pairDrafts) {
-		BackSubjectQuestionEntity question = questions.findById(questionId).orElseThrow();
+	public StoredQuestion replace(long questionId, String prompt, DraftContent content) {
+		// Sérialise les corrections concurrentes pour ne pas mélanger deux contenus.
+		BackSubjectQuestionEntity question = questions.findForUpdate(questionId).orElseThrow();
+		QuestionContentStore store = store(question.getFormCode());
 		question.setPrompt(prompt);
-		questions.saveAndFlush(question);
-		choices.deleteByQuestionId(questionId);
-		choices.flush();
-		pairs.deleteByQuestionId(questionId);
-		pairs.flush();
-		return new StoredQuestion(
-				question.getId(),
-				question.getSubjectId(),
-				question.getFormCode(),
-				question.getPrompt(),
-				writeChoices(questionId, choiceDrafts),
-				writePairs(questionId, pairDrafts));
+		store.delete(questionId);
+		return stored(question, store.write(questionId, content));
 	}
 
 	@Override
 	@Transactional
 	public void ensureForm(long subjectId, String formCode, String label, int sortOrder) {
-		if (forms.findBySubjectIdAndFormCode(subjectId, formCode).isPresent()) {
-			return;
-		}
-		try {
-			forms.saveAndFlush(new BackSubjectQuestionFormEntity(subjectId, formCode, label, sortOrder));
-		} catch (DataIntegrityViolationException ex) {
-			if (forms.findBySubjectIdAndFormCode(subjectId, formCode).isEmpty()) {
-				throw ex;
-			}
-		}
+		forms.insertIfAbsent(subjectId, formCode, label, sortOrder);
 	}
 
-	private List<StoredChoice> writeChoices(long questionId, List<ChoiceDraft> drafts) {
-		List<StoredChoice> storedChoices = new ArrayList<>();
-		int order = 0;
-		for (ChoiceDraft draft : drafts) {
-			BackSubjectQuestionChoiceEntity choice = choices.saveAndFlush(
-					new BackSubjectQuestionChoiceEntity(questionId, draft.label(), draft.correct(), order));
-			storedChoices.add(new StoredChoice(choice.getId(), choice.getLabel(), choice.isCorrect()));
-			order++;
+	private QuestionContentStore store(String formCode) {
+		QuestionContentStore store = stores.get(formCode);
+		if (store == null) {
+			throw new IllegalStateException("Aucun stockage pour la forme : " + formCode);
 		}
-		return List.copyOf(storedChoices);
+		return store;
 	}
 
-	private List<StoredPair> writePairs(long questionId, List<PairDraft> drafts) {
-		List<StoredPair> storedPairs = new ArrayList<>();
-		if (drafts == null) {
-			return List.of();
+	private static StoredQuestion stored(BackSubjectQuestionEntity question, StoredContent content) {
+		if (content == null) {
+			throw new IllegalStateException("Contenu non chargé pour la question : " + question.getId());
 		}
-		int order = 0;
-		for (PairDraft draft : drafts) {
-			BackSubjectQuestionPairEntity pair = pairs.saveAndFlush(new BackSubjectQuestionPairEntity(
-					questionId, draft.questionSide(), draft.answerSide(), order));
-			storedPairs.add(new StoredPair(pair.getId(), pair.getQuestionSide(), pair.getAnswerSide()));
-			order++;
-		}
-		return List.copyOf(storedPairs);
-	}
-
-	private StoredQuestion toStored(BackSubjectQuestionEntity question) {
-		List<StoredChoice> storedChoices = new ArrayList<>();
-		for (BackSubjectQuestionChoiceEntity choice : choices.findByQuestionIdOrderBySortOrderAsc(question.getId())) {
-			storedChoices.add(new StoredChoice(choice.getId(), choice.getLabel(), choice.isCorrect()));
-		}
-		return new StoredQuestion(
-				question.getId(),
-				question.getSubjectId(),
-				question.getFormCode(),
-				question.getPrompt(),
-				List.copyOf(storedChoices),
-				storedPairs(question.getId()));
-	}
-
-	private List<StoredPair> storedPairs(long questionId) {
-		List<StoredPair> storedPairs = new ArrayList<>();
-		for (BackSubjectQuestionPairEntity pair : pairs.findByQuestionIdOrderBySortOrderAsc(questionId)) {
-			storedPairs.add(new StoredPair(pair.getId(), pair.getQuestionSide(), pair.getAnswerSide()));
-		}
-		return List.copyOf(storedPairs);
+		return new StoredQuestion(question.getId(), question.getSubjectId(), question.getFormCode(), question.getPrompt(), content);
 	}
 }

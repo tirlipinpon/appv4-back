@@ -8,7 +8,9 @@ import java.util.List;
  * <p><b>Business :</b> les écoles suivent l'ordre du profil. Dans une école, les
  * années suivent la liste fermée. Les matières d'une année sont triées par nom.
  * Une année sans matière a une liste vide : l'écran affiche « Aucune matière ».
- * {@code sharedWith} liste les co-profs quand la matière est partagée.
+ * Les matières déjà créées par un collègue de la même classe sont aussi listées :
+ * {@code followedByMe} est alors faux, et {@code sharedWith} nomme ceux qui la suivent.
+ * Quand ce professeur la suit, {@code sharedWith} liste les co-profs.
  * {@code ownedByMe} est vrai si ce professeur est le créateur / propriétaire.
  * <p><b>Technique :</b> pas d'exercice, pas de forme de question, pas d'élève.
  * <p><b>Métier / flow :</b> résultat de {@code GET /api/int/teacher/subjects}.
@@ -37,16 +39,18 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 	}
 
 	/**
-	 * @param name       nom affiché, espaces autour déjà retirés
-	 * @param active     accès du professeur connecté
-	 * @param ownedByMe  vrai si {@code user_id} de la matière = connecté
-	 * @param sharedWith co-profs (id + nom), tri français ; vide si seul
+	 * @param name          nom affiché, espaces autour déjà retirés
+	 * @param active        accès du professeur connecté s'il la suit ; flag global sinon
+	 * @param ownedByMe     vrai si {@code user_id} de la matière = connecté
+	 * @param followedByMe  faux : matière déjà dans la classe, ce professeur ne la suit pas
+	 * @param sharedWith    s'il la suit : les co-profs ; sinon : tous ceux qui la suivent
 	 */
 	public record SubjectLine(
 			long id,
 			String name,
 			boolean active,
 			boolean ownedByMe,
+			boolean followedByMe,
 			List<SharedHolder> sharedWith) {
 
 		public SubjectLine {

@@ -3,6 +3,7 @@ package com.appv4.auth.application.service;
 import java.text.Collator;
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -41,7 +42,9 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
  * Matières d'un professeur, classe par classe (SCRUM-161, SCRUM-172, SCRUM-189).
  *
  * <p><b>Business :</b> il crée, voit, renomme et retire un nom dans une année
- * déjà cochée. S'il retape le nom d'une matière retirée, on lui propose de
+ * déjà cochée. Dans cette année, il voit aussi les matières déjà suivies par
+ * un collègue, et le nom de ce collègue, sans pouvoir les modifier.
+ * S'il retape le nom d'une matière retirée, on lui propose de
  * la réactiver (même enregistrement). Si le nom est déjà pris, ou s'il
  * ressemble fortement à une matière encore visible, il peut demander au
  * créateur qui la possède encore de la partager. Il propose aussi un déplacement
@@ -507,12 +510,36 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		return new TeacherSubjectsView(schools);
 	}
 
+	/**
+	 * Matières de cette année : celles du professeur, plus celles déjà visibles
+	 * dans la classe qu'un collègue suit encore. Une matière sans aucun accès
+	 * n'est pas montrée. La ligne « à moi » garde le flag d'accès personnel.
+	 */
 	private List<SubjectLine> linesFor(
 			long userId, long schoolId, String grade, List<StoredSubject> owned) {
 		List<StoredSubject> matches = new ArrayList<>();
+		Set<Long> seen = new HashSet<>();
 		for (StoredSubject subject : owned) {
 			if (subject.schoolId() == schoolId && grade.equals(subject.grade())) {
 				matches.add(subject);
+				seen.add(subject.id());
+			}
+		}
+		List<StoredSubject> inClass = teacherSubjectPort.findVisibleInClass(schoolId, grade);
+		if (inClass != null) {
+			for (StoredSubject subject : inClass) {
+				if (subject == null || seen.contains(subject.id())) {
+					continue;
+				}
+				if (teacherSubjectPort.hasAccess(subject.id(), userId)) {
+					continue;
+				}
+				List<AccessHolder> holders = teacherSubjectPort.otherAccessHolders(subject.id(), userId);
+				if (holders == null || holders.isEmpty()) {
+					continue;
+				}
+				matches.add(subject);
+				seen.add(subject.id());
 			}
 		}
 		Collator order = Collator.getInstance(Locale.FRENCH);
@@ -526,6 +553,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	}
 
 	private SubjectLine line(long userId, StoredSubject subject) {
+		boolean followedByMe = teacherSubjectPort.hasAccess(subject.id(), userId);
 		List<AccessHolder> holders = teacherSubjectPort.otherAccessHolders(subject.id(), userId);
 		if (holders == null) {
 			holders = List.of();
@@ -538,6 +566,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				subject.name(),
 				subject.active(),
 				subject.userId() == userId,
+				followedByMe,
 				shared);
 	}
 

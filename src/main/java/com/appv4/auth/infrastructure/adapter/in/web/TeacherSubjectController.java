@@ -33,7 +33,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * Matières du professeur connecté (SCRUM-161, SCRUM-172, SCRUM-189).
  *
  * <p><b>Business :</b> il crée, voit, renomme, retire, désactive et propose un
- * transfert (déplacer ou partager). Retaper le nom d'une matière retirée propose
+ * transfert (déplacer ou partager). Dans une année de son profil, il voit aussi
+ * les matières déjà suivies par un collègue, et qui les suit, sans les modifier.
+ * Retaper le nom d'une matière retirée propose
  * de la réactiver. Retaper le nom d'une matière déjà créée propose de demander
  * au créateur de la partager. La désactivation est par accès ; le créateur
  * peut cibler des co-profs et les autres détenteurs reçoivent une alerte.
@@ -54,8 +56,13 @@ public class TeacherSubjectController {
 	}
 
 	@GetMapping
-	@Operation(operationId = "listTeacherSubjects", summary = "Lister les matières du professeur connecté")
-	@ApiResponse(responseCode = "200", description = "Écoles du profil, années cochées, matières triées par nom")
+	@Operation(
+			operationId = "listTeacherSubjects",
+			summary = "Lister les matières de ses classes, y compris celles déjà suivies par un collègue")
+	@ApiResponse(
+			responseCode = "200",
+			description = "Écoles du profil, années cochées, matières triées par nom. "
+					+ "followedByMe faux : visible, mais ce professeur ne la suit pas")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace professeur",
@@ -424,7 +431,12 @@ public class TeacherSubjectController {
 				.map(holder -> new TeacherSubjectSharedHolder(holder.userId(), holder.displayName()))
 				.toList();
 		return new TeacherSubjectItem(
-				subject.id(), subject.name(), subject.active(), subject.ownedByMe(), shared);
+				subject.id(),
+				subject.name(),
+				subject.active(),
+				subject.ownedByMe(),
+				subject.followedByMe(),
+				shared);
 	}
 
 	@Schema(name = "TeacherSubjectsResponse")
@@ -445,6 +457,9 @@ public class TeacherSubjectController {
 			String name,
 			boolean active,
 			boolean ownedByMe,
+			@Schema(description = "Faux si la matière est déjà dans la classe mais que ce professeur ne la suit pas. "
+					+ "sharedWith nomme alors les professeurs qui la suivent.")
+			boolean followedByMe,
 			List<TeacherSubjectSharedHolder> sharedWith) {
 	}
 

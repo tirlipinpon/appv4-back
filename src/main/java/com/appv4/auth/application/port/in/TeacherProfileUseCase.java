@@ -3,6 +3,7 @@ package com.appv4.auth.application.port.in;
 import java.util.List;
 
 import com.appv4.auth.application.result.TeacherProfileView;
+import com.appv4.auth.application.result.TeacherRemovalPreviewView;
 
 /**
  * Lire et enregistrer le profil du professeur connecté (SCRUM-159).
@@ -18,6 +19,13 @@ public interface TeacherProfileUseCase {
 	TeacherProfileView load(long userId, String activeRole);
 
 	TeacherProfileView update(long userId, String activeRole, String displayName, List<TeacherSchoolCommand> schools);
+
+	/**
+	 * Élèves et matières concernés avant de retirer une année ou une école.
+	 *
+	 * @param grade année à retirer, ou null pour l'école entière
+	 */
+	TeacherRemovalPreviewView removalPreview(long userId, String activeRole, long schoolId, String grade);
 
 	/**
 	 * @param schoolId   null si le bloc n'a pas encore d'école choisie

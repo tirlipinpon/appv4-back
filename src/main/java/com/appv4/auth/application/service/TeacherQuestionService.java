@@ -1,13 +1,8 @@
 package com.appv4.auth.application.service;
 
-import java.text.Collator;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,8 +10,6 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
-import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
-import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoicesDraft;
@@ -262,38 +255,9 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public TeacherSubjectFollowersView followers(long userId, String activeRole, long subjectId) {
 		requireTeacher(activeRole);
 		StoredSubject subject = requireOwned(userId, subjectId);
-		Map<Long, FollowingChild> byId = new LinkedHashMap<>();
-		for (FollowingChild child : orEmpty(childSubjectPort.activeInClass(subject.schoolId(), subject.grade()))) {
-			if (child != null) {
-				byId.put(child.id(), child);
-			}
-		}
-		for (SubjectChildLink link : orEmpty(childSubjectPort.linksOfSubject(subjectId))) {
-			if (link == null || link.child() == null) {
-				continue;
-			}
-			if (link.excluded()) {
-				byId.remove(link.child().id());
-			} else {
-				byId.put(link.child().id(), link.child());
-			}
-		}
-		List<FollowingChild> children = new ArrayList<>();
-		for (FollowingChild child : byId.values()) {
-			if (!displayName(child).isEmpty()) {
-				children.add(child);
-			}
-		}
-		Collator order = Collator.getInstance(Locale.FRENCH);
-		order.setStrength(Collator.PRIMARY);
-		children.sort(Comparator
-				.comparing(TeacherQuestionService::displayName, order)
-				.thenComparingLong(FollowingChild::id));
-		List<String> names = new ArrayList<>();
-		for (FollowingChild child : children) {
-			names.add(displayName(child));
-		}
-		return new TeacherSubjectFollowersView(names.size(), followersWarning(names.size()), List.copyOf(names));
+		List<String> names = SubjectFollowers.names(
+				childSubjectPort, subject.schoolId(), subject.grade(), subjectId);
+		return new TeacherSubjectFollowersView(names.size(), followersWarning(names.size()), names);
 	}
 
 	@Override
@@ -331,18 +295,6 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	private StoredSubject requireOwned(long userId, long subjectId) {
 		return teacherSubjectPort.findOwned(userId, subjectId)
 				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, TeacherSubjectService.SUBJECT_MISSING));
-	}
-
-	private static String displayName(FollowingChild child) {
-		String first = child.firstName() == null ? "" : child.firstName().trim();
-		String last = child.lastName() == null ? "" : child.lastName().trim();
-		if (first.isEmpty()) {
-			return last;
-		}
-		if (last.isEmpty()) {
-			return first;
-		}
-		return first + " " + last;
 	}
 
 	private static <T> List<T> orEmpty(List<T> rows) {

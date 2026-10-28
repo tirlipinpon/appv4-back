@@ -404,8 +404,16 @@ public class AuthConfiguration {
 	@Bean
 	TeacherProfileUseCase teacherProfileUseCase(
 			TeacherProfilePort teacherProfilePort,
-			SchoolCatalogPort schoolCatalogPort) {
-		return new TeacherProfileService(teacherProfilePort, schoolCatalogPort);
+			SchoolCatalogPort schoolCatalogPort,
+			TeacherSubjectPort teacherSubjectPort,
+			EnrolledChildPort enrolledChildPort,
+			ChildSubjectPort childSubjectPort) {
+		return new TeacherProfileService(
+				teacherProfilePort,
+				schoolCatalogPort,
+				teacherSubjectPort,
+				enrolledChildPort,
+				childSubjectPort);
 	}
 
 	/**

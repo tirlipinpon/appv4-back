@@ -463,8 +463,11 @@ public class AuthConfiguration {
 	@Bean
 	TeacherQuestionUseCase teacherQuestionUseCase(
 			TeacherSubjectPort teacherSubjectPort,
-			TeacherQuestionPort teacherQuestionPort, List<QuestionFormHandler> handlers) {
-		return new TeacherQuestionService(teacherSubjectPort, teacherQuestionPort, new QuestionFormRegistry(handlers));
+			TeacherQuestionPort teacherQuestionPort,
+			ChildSubjectPort childSubjectPort,
+			List<QuestionFormHandler> handlers) {
+		return new TeacherQuestionService(
+				teacherSubjectPort, teacherQuestionPort, childSubjectPort, new QuestionFormRegistry(handlers));
 	}
 
 	/**

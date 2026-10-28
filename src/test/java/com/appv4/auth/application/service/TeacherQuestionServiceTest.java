@@ -6,9 +6,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,6 +35,9 @@ import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinksInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementsInput;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
+import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
@@ -47,6 +52,7 @@ import com.appv4.auth.application.service.question.LinkQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
 import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
+import com.appv4.auth.application.result.TeacherSubjectFollowersView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 
@@ -61,6 +67,9 @@ class TeacherQuestionServiceTest {
 
 	@Mock
 	private TeacherQuestionPort questions;
+
+	@Mock
+	private ChildSubjectPort children;
 
 	private TeacherQuestionService service;
 
@@ -78,7 +87,7 @@ class TeacherQuestionServiceTest {
 			}
 		};
 		TeacherQuestionService extensible = new TeacherQuestionService(
-				subjects, questions, new QuestionFormRegistry(List.of(handler)));
+				subjects, questions, children, new QuestionFormRegistry(List.of(handler)));
 		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
 		when(questions.insert(SUBJECT_ID, "image_test", "Localise", new ImageDraft("media-42")))
 				.thenReturn(new StoredQuestion(42L, SUBJECT_ID, "image_test", "Localise", new ImageContent("media-42")));
@@ -102,7 +111,7 @@ class TeacherQuestionServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new TeacherQuestionService(subjects, questions, new QuestionFormRegistry(List.of(
+		service = new TeacherQuestionService(subjects, questions, children, new QuestionFormRegistry(List.of(
 				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm(),
 				new TrueFalseQuestionForm(), new LinkQuestionForm(), new CaseVideQuestionForm())));
 	}
@@ -724,6 +733,86 @@ class TeacherQuestionServiceTest {
 				.isEqualTo(AuthErrorCode.FORBIDDEN);
 
 		verify(questions, never()).insert(anyLong(), any(), any(), any());
+	}
+
+	@Test
+	void followersListsClassmatesUnlessTheParentRemovedTheCourseAndKeepsAddedChildren() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(children.activeInClass(1L, "CE1")).thenReturn(List.of(
+				new FollowingChild(3L, "Léa", "Martin"),
+				new FollowingChild(5L, "Tom", "Bernard")));
+		when(children.linksOfSubject(SUBJECT_ID)).thenReturn(List.of(
+				new SubjectChildLink(new FollowingChild(5L, "Tom", "Bernard"), true),
+				new SubjectChildLink(new FollowingChild(8L, "Nina", "Bernard"), false)));
+
+		TeacherSubjectFollowersView view = service.followers(TEACHER_ID, "teacher", SUBJECT_ID);
+
+		assertThat(view.childCount()).isEqualTo(2);
+		assertThat(view.names()).containsExactly("Léa Martin", "Nina Bernard");
+		assertThat(view.warning()).isEqualTo("2 enfants suivent ce cours.");
+	}
+
+	@Test
+	void followersWarnsWhenNobodyFollowsTheCourse() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		TeacherSubjectFollowersView view = service.followers(TEACHER_ID, "teacher", SUBJECT_ID);
+
+		assertThat(view.childCount()).isZero();
+		assertThat(view.names()).isEmpty();
+		assertThat(view.warning()).isEqualTo(TeacherQuestionService.followersWarning(0));
+	}
+
+	@Test
+	void parentCannotSeeWhoFollowsTheCourse() {
+		assertThatThrownBy(() -> service.followers(TEACHER_ID, "parent", SUBJECT_ID))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.FORBIDDEN);
+
+		verify(children, never()).activeInClass(anyLong(), any());
+	}
+
+	@Test
+	void deleteRemovesEachChosenQuestionOnce() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
+		when(questions.findInSubject(SUBJECT_ID, 8L)).thenReturn(Optional.of(saved()));
+
+		List<Long> asked = new ArrayList<>();
+		asked.add(7L);
+		asked.add(7L);
+		asked.add(null);
+		asked.add(8L);
+
+		assertThat(service.deleteQuestions(TEACHER_ID, "teacher", SUBJECT_ID, asked))
+				.containsExactly(7L, 8L);
+
+		verify(questions).delete(7L);
+		verify(questions).delete(8L);
+		verify(questions, times(2)).delete(anyLong());
+	}
+
+	@Test
+	void deleteRefusesWhenOneQuestionIsMissingAndRemovesNothing() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
+		when(questions.findInSubject(SUBJECT_ID, 99L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.deleteQuestions(TEACHER_ID, "teacher", SUBJECT_ID, List.of(7L, 99L)))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.QUESTION_MISSING);
+
+		verify(questions, never()).delete(anyLong());
+	}
+
+	@Test
+	void deleteRefusesAnEmptyChoice() {
+		assertThatThrownBy(() -> service.deleteQuestions(TEACHER_ID, "teacher", SUBJECT_ID, List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.DELETE_REQUIRED);
+
+		verify(questions, never()).delete(anyLong());
 	}
 
 	private static StoredQuestion gapsQuestion() {

@@ -49,6 +49,12 @@ public interface TeacherQuestionPort {
 	 */
 	void ensureForm(long subjectId, String formCode, String label, int sortOrder);
 
+	/**
+	 * Retire la question et son contenu. La matière et les autres questions restent.
+	 * L'appelant a déjà vérifié que la question est dans la matière du professeur.
+	 */
+	void delete(long questionId);
+
 	record ChoiceDraft(String label, boolean correct) {
 	}
 

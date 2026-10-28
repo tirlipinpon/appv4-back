@@ -18,6 +18,8 @@ import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildPort.NewChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
+import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.result.ParentChildrenView.ChildCard;
 import com.appv4.auth.application.result.ParentChildrenView.KinshipMark;
@@ -630,6 +632,16 @@ class ParentChildrenServiceTest {
 		@Override
 		public boolean deleteLink(long childId, long subjectId) {
 			return false;
+		}
+
+		@Override
+		public java.util.List<FollowingChild> activeInClass(long schoolId, String grade) {
+			return java.util.List.of();
+		}
+
+		@Override
+		public java.util.List<SubjectChildLink> linksOfSubject(long subjectId) {
+			return java.util.List.of();
 		}
 	}
 }

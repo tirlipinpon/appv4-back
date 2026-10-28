@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
+import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 
 /**
  * Persiste les matières choisies pour un enfant (SCRUM-162, SCRUM-172).
@@ -32,16 +34,19 @@ public class ChildSubjectPersistenceAdapter implements ChildSubjectPort {
 	private final BackTeacherSubjectJpaRepository subjects;
 	private final BackTeacherSubjectAccessJpaRepository access;
 	private final BackUserJpaRepository users;
+	private final BackChildJpaRepository children;
 
 	public ChildSubjectPersistenceAdapter(
 			BackChildSubjectLinkJpaRepository links,
 			BackTeacherSubjectJpaRepository subjects,
 			BackTeacherSubjectAccessJpaRepository access,
-			BackUserJpaRepository users) {
+			BackUserJpaRepository users,
+			BackChildJpaRepository children) {
 		this.links = links;
 		this.subjects = subjects;
 		this.access = access;
 		this.users = users;
+		this.children = children;
 	}
 
 	@Override
@@ -103,6 +108,44 @@ public class ChildSubjectPersistenceAdapter implements ChildSubjectPort {
 	@Transactional
 	public boolean deleteLink(long childId, long subjectId) {
 		return links.deleteLink(childId, subjectId) > 0;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<FollowingChild> activeInClass(long schoolId, String grade) {
+		if (grade == null || grade.isBlank()) {
+			return List.of();
+		}
+		return children.findByHiddenFalseAndActiveTrueAndSchoolIdAndGradeLabel(schoolId, grade).stream()
+				.map(ChildSubjectPersistenceAdapter::follower)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<SubjectChildLink> linksOfSubject(long subjectId) {
+		List<BackChildSubjectLinkEntity> rows = links.findBySubjectId(subjectId);
+		if (rows.isEmpty()) {
+			return List.of();
+		}
+		Map<Long, BackChildEntity> byId = new HashMap<>();
+		List<Long> childIds = rows.stream().map(BackChildSubjectLinkEntity::getChildId).distinct().toList();
+		for (BackChildEntity child : children.findAllById(childIds)) {
+			byId.put(child.getId(), child);
+		}
+		List<SubjectChildLink> result = new ArrayList<>();
+		for (BackChildSubjectLinkEntity link : rows) {
+			BackChildEntity child = byId.get(link.getChildId());
+			if (child == null || child.isHidden() || !child.isActive()) {
+				continue;
+			}
+			result.add(new SubjectChildLink(follower(child), link.isExcluded()));
+		}
+		return result;
+	}
+
+	private static FollowingChild follower(BackChildEntity child) {
+		return new FollowingChild(child.getId(), child.getFirstName(), child.getLastName());
 	}
 
 	/**

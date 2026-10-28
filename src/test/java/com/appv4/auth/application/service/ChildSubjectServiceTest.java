@@ -18,7 +18,9 @@ import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildPort.NewChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
+import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
+import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.result.ChildSubjectsView;
 import com.appv4.auth.application.result.ChildSubjectsView.SubjectOffer;
@@ -291,6 +293,16 @@ class ChildSubjectServiceTest {
 		@Override
 		public boolean deleteLink(long childId, long subjectId) {
 			return links.removeIf(link -> link[0] == childId && link[1] == subjectId);
+		}
+
+		@Override
+		public List<FollowingChild> activeInClass(long schoolId, String grade) {
+			return List.of();
+		}
+
+		@Override
+		public List<SubjectChildLink> linksOfSubject(long subjectId) {
+			return List.of();
 		}
 
 		boolean linked(long childId, long subjectId) {

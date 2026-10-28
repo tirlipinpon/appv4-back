@@ -16,7 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapWordInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapsInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinkInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinksInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LegacyInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
@@ -26,7 +30,9 @@ import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ChoiceLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.GapWordLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ItemLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.LinkLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.PairLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.StatementLine;
@@ -116,7 +122,7 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -150,7 +156,7 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -167,6 +173,12 @@ public class TeacherQuestionController {
 		String code = body.formCode() == null ? "" : body.formCode().trim();
 		if (TeacherQuestionService.TRUE_FALSE.equals(code)) {
 			return new StatementsInput(statementInputs(body.statements()));
+		}
+		if (TeacherQuestionService.LINKS.equals(code)) {
+			return new LinksInput(linkInputs(body.links()));
+		}
+		if (TeacherQuestionService.CASE_VIDE.equals(code)) {
+			return new GapsInput(body.sentence(), wordInputs(body.answers()), wordInputs(body.decoys()));
 		}
 		return new LegacyInput(inputs(body.choices()), pairInputs(body.pairs()), itemInputs(body.items()));
 	}
@@ -227,6 +239,34 @@ public class TeacherQuestionController {
 		return inputs;
 	}
 
+	private static List<GapWordInput> wordInputs(List<TeacherQuestionGapWordInput> words) {
+		if (words == null) {
+			return List.of();
+		}
+		List<GapWordInput> inputs = new ArrayList<>();
+		for (TeacherQuestionGapWordInput word : words) {
+			if (word == null) {
+				continue;
+			}
+			inputs.add(new GapWordInput(word.label()));
+		}
+		return inputs;
+	}
+
+	private static List<LinkInput> linkInputs(List<TeacherQuestionLinkInput> links) {
+		if (links == null) {
+			return List.of();
+		}
+		List<LinkInput> inputs = new ArrayList<>();
+		for (TeacherQuestionLinkInput link : links) {
+			if (link == null) {
+				continue;
+			}
+			inputs.add(new LinkInput(link.leftLabel(), link.rightLabel()));
+		}
+		return inputs;
+	}
+
 	private static TeacherQuestionFormsResponse forms(TeacherQuestionFormsView view) {
 		List<TeacherQuestionFormItem> items = new ArrayList<>();
 		for (FormLine form : view.forms()) {
@@ -260,8 +300,21 @@ public class TeacherQuestionController {
 		for (StatementLine statement : line.statements()) {
 			statements.add(new TeacherQuestionStatementItem(statement.id(), statement.label(), statement.truthful()));
 		}
+		List<TeacherQuestionLinkItem> links = new ArrayList<>();
+		for (LinkLine link : line.links()) {
+			links.add(new TeacherQuestionLinkItem(link.id(), link.leftLabel(), link.rightLabel()));
+		}
+		List<TeacherQuestionGapWordItem> answers = new ArrayList<>();
+		for (GapWordLine answer : line.answers()) {
+			answers.add(new TeacherQuestionGapWordItem(answer.id(), answer.label()));
+		}
+		List<TeacherQuestionGapWordItem> decoys = new ArrayList<>();
+		for (GapWordLine decoy : line.decoys()) {
+			decoys.add(new TeacherQuestionGapWordItem(decoy.id(), decoy.label()));
+		}
 		return new TeacherSubjectQuestionItem(
-				line.id(), line.formCode(), line.formLabel(), line.prompt(), choices, pairs, items, statements);
+				line.id(), line.formCode(), line.formLabel(), line.prompt(),
+				choices, pairs, items, statements, links, line.sentence(), answers, decoys);
 	}
 
 	@Schema(name = "TeacherQuestionFormsResponse")
@@ -285,7 +338,11 @@ public class TeacherQuestionController {
 			List<TeacherQuestionChoiceItem> choices,
 			List<TeacherQuestionPairItem> pairs,
 			List<TeacherQuestionItem> items,
-			List<TeacherQuestionStatementItem> statements) {
+			List<TeacherQuestionStatementItem> statements,
+			List<TeacherQuestionLinkItem> links,
+			String sentence,
+			List<TeacherQuestionGapWordItem> answers,
+			List<TeacherQuestionGapWordItem> decoys) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
@@ -304,6 +361,14 @@ public class TeacherQuestionController {
 	public record TeacherQuestionStatementItem(long id, String label, boolean truthful) {
 	}
 
+	@Schema(name = "TeacherQuestionLinkItem")
+	public record TeacherQuestionLinkItem(long id, String leftLabel, String rightLabel) {
+	}
+
+	@Schema(name = "TeacherQuestionGapWordItem")
+	public record TeacherQuestionGapWordItem(long id, String label) {
+	}
+
 	@Schema(name = "CreateTeacherSubjectQuestionRequest")
 	public record CreateTeacherSubjectQuestionRequest(
 			String formCode,
@@ -311,7 +376,11 @@ public class TeacherQuestionController {
 			List<TeacherQuestionChoiceInput> choices,
 			List<TeacherQuestionPairInput> pairs,
 			List<TeacherQuestionItemInput> items,
-			List<TeacherQuestionStatementInput> statements) {
+			List<TeacherQuestionStatementInput> statements,
+			List<TeacherQuestionLinkInput> links,
+			String sentence,
+			List<TeacherQuestionGapWordInput> answers,
+			List<TeacherQuestionGapWordInput> decoys) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceInput")
@@ -328,5 +397,13 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionStatementInput")
 	public record TeacherQuestionStatementInput(String label, Boolean truthful) {
+	}
+
+	@Schema(name = "TeacherQuestionLinkInput")
+	public record TeacherQuestionLinkInput(String leftLabel, String rightLabel) {
+	}
+
+	@Schema(name = "TeacherQuestionGapWordInput")
+	public record TeacherQuestionGapWordInput(String label) {
 	}
 }

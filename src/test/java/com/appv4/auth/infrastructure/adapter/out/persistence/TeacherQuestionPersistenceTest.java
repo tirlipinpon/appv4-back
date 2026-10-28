@@ -26,8 +26,12 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoicesDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.GapWordDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.GapsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ItemDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ItemsDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.LinkDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.LinksDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementDraft;
@@ -43,7 +47,9 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("persistence-test")
 @Import({TeacherQuestionPersistenceAdapter.class, ChoiceQuestionContentStore.class,
-		PairQuestionContentStore.class, ItemQuestionContentStore.class, StatementQuestionContentStore.class})
+		PairQuestionContentStore.class, ItemQuestionContentStore.class,
+		StatementQuestionContentStore.class, LinkQuestionContentStore.class,
+		CaseVideQuestionContentStore.class})
 @EnabledIfEnvironmentVariable(named = "APPV4_PERSISTENCE_TEST_URL", matches = ".+")
 class TeacherQuestionPersistenceTest {
 
@@ -166,6 +172,38 @@ class TeacherQuestionPersistenceTest {
 		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
 		assertThat(loaded.statements()).extracting(row -> row.label() + ":" + row.truthful())
 				.containsExactly("2 + 2 = 4:true", "3 + 3 = 6:false");
+	}
+
+	@Test
+	void linksReplacementKeepsEachCouple() {
+		adapter.ensureForm(subjectId, "liens", "Liens", 5);
+		StoredQuestion saved = adapter.insert(subjectId, "liens", "Relie.", new LinksDraft(List.of(
+				new LinkDraft("Pomme", "Fruit"),
+				new LinkDraft("Chien", "Animal"))));
+		adapter.replace(saved.id(), "Relie.", new LinksDraft(List.of(
+				new LinkDraft("Pomme", "Fruit"),
+				new LinkDraft("Voiture", "Véhicule"))));
+		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
+		assertThat(loaded.links()).extracting(row -> row.leftLabel() + "/" + row.rightLabel())
+				.containsExactly("Pomme/Fruit", "Voiture/Véhicule");
+	}
+
+	@Test
+	void gapsReplacementKeepsTheSentenceAndEachWord() {
+		adapter.ensureForm(subjectId, "case_vide", "Case vide", 6);
+		String sentence = "Le chat mange une ___ dans le jardin.";
+		StoredQuestion saved = adapter.insert(subjectId, "case_vide", "Complète.", new GapsDraft(
+				sentence,
+				List.of(new GapWordDraft("pomme")),
+				List.of(new GapWordDraft("poire"), new GapWordDraft("voiture"))));
+		adapter.replace(saved.id(), "Complète.", new GapsDraft(
+				sentence,
+				List.of(new GapWordDraft("pomme")),
+				List.of(new GapWordDraft("banane"), new GapWordDraft("voiture"))));
+		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
+		assertThat(loaded.sentence()).isEqualTo(sentence);
+		assertThat(loaded.answers()).extracting(row -> row.label()).containsExactly("pomme");
+		assertThat(loaded.decoys()).extracting(row -> row.label()).containsExactly("banane", "voiture");
 	}
 
 	@Test

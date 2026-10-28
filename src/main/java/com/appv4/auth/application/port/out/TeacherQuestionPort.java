@@ -68,6 +68,10 @@ public interface TeacherQuestionPort {
 	record LinkDraft(String leftLabel, String rightLabel) {
 	}
 
+	/** Mot juste ou leurre d'une case vide, déjà non vide. */
+	record GapWordDraft(String label) {
+	}
+
 	record StoredChoice(long id, String label, boolean correct) {
 	}
 
@@ -81,6 +85,9 @@ public interface TeacherQuestionPort {
 	}
 
 	record StoredLink(long id, String leftLabel, String rightLabel) {
+	}
+
+	record StoredGapWord(long id, String label) {
 	}
 
 	/** Chaque nouvelle structure fournit son propre type, sans agrandir toutes les signatures. */
@@ -120,6 +127,13 @@ public interface TeacherQuestionPort {
 		}
 	}
 
+	record GapsDraft(String sentence, List<GapWordDraft> answers, List<GapWordDraft> decoys) implements DraftContent {
+		public GapsDraft {
+			answers = List.copyOf(answers);
+			decoys = List.copyOf(decoys);
+		}
+	}
+
 	record StoredChoices(List<StoredChoice> choices) implements StoredContent {
 		public StoredChoices {
 			choices = List.copyOf(choices);
@@ -147,6 +161,14 @@ public interface TeacherQuestionPort {
 	record StoredLinks(List<StoredLink> links) implements StoredContent {
 		public StoredLinks {
 			links = List.copyOf(links);
+		}
+	}
+
+	record StoredGaps(String sentence, List<StoredGapWord> answers, List<StoredGapWord> decoys)
+			implements StoredContent {
+		public StoredGaps {
+			answers = List.copyOf(answers);
+			decoys = List.copyOf(decoys);
 		}
 	}
 
@@ -185,6 +207,18 @@ public interface TeacherQuestionPort {
 
 		public List<StoredLink> links() {
 			return content instanceof StoredLinks value ? value.links() : List.of();
+		}
+
+		public String sentence() {
+			return content instanceof StoredGaps value ? value.sentence() : "";
+		}
+
+		public List<StoredGapWord> answers() {
+			return content instanceof StoredGaps value ? value.answers() : List.of();
+		}
+
+		public List<StoredGapWord> decoys() {
+			return content instanceof StoredGaps value ? value.decoys() : List.of();
 		}
 	}
 }

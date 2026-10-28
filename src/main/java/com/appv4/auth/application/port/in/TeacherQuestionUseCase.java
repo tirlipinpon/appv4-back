@@ -99,4 +99,11 @@ public interface TeacherQuestionUseCase {
 
 	record LinkInput(String leftLabel, String rightLabel) {
 	}
+
+	/** Phrase à trous, mots justes dans l'ordre des ___ et leurres de la banque. */
+	record GapsInput(String sentence, List<GapWordInput> answers, List<GapWordInput> decoys) implements ContentInput {
+	}
+
+	record GapWordInput(String label) {
+	}
 }

@@ -24,6 +24,8 @@ import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapWordInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapsInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinkInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinksInput;
@@ -39,6 +41,7 @@ import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.service.question.QuestionFormRegistry;
 import com.appv4.auth.application.service.question.QcmQuestionForm;
 import com.appv4.auth.application.service.question.MemoryQuestionForm;
+import com.appv4.auth.application.service.question.CaseVideQuestionForm;
 import com.appv4.auth.application.service.question.LinkQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
 import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
@@ -99,14 +102,14 @@ class TeacherQuestionServiceTest {
 	void setUp() {
 		service = new TeacherQuestionService(subjects, questions, new QuestionFormRegistry(List.of(
 				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm(),
-				new TrueFalseQuestionForm(), new LinkQuestionForm())));
+				new TrueFalseQuestionForm(), new LinkQuestionForm(), new CaseVideQuestionForm())));
 	}
 
 	@Test
 	void offeredFormsAreMultipleChoiceThenMemoryThenOrderThenTrueFalse() {
 		assertThat(service.listForms(TEACHER_ID, "teacher").forms())
 				.satisfies(forms -> {
-					assertThat(forms).hasSize(5);
+					assertThat(forms).hasSize(6);
 					assertThat(forms.get(0).code()).isEqualTo("qcm");
 					assertThat(forms.get(0).label()).isEqualTo("Choix multiples");
 					assertThat(forms.get(0).sortOrder()).isEqualTo(1);
@@ -122,6 +125,9 @@ class TeacherQuestionServiceTest {
 					assertThat(forms.get(4).code()).isEqualTo("liens");
 					assertThat(forms.get(4).label()).isEqualTo("Liens");
 					assertThat(forms.get(4).sortOrder()).isEqualTo(5);
+					assertThat(forms.get(5).code()).isEqualTo("case_vide");
+					assertThat(forms.get(5).label()).isEqualTo("Case vide");
+					assertThat(forms.get(5).sortOrder()).isEqualTo(6);
 				});
 	}
 
@@ -528,6 +534,75 @@ class TeacherQuestionServiceTest {
 				.hasMessage(TeacherQuestionService.LINK_INCOMPLETE);
 
 		verify(questions, never()).insert(eq(SUBJECT_ID), eq("liens"), eq(""), any());
+	}
+
+	@Test
+	void gapsKeepTheSentenceTheAnswerAndDropABlankDecoy() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("case_vide"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						12L,
+						SUBJECT_ID,
+						"case_vide",
+						"",
+						new TeacherQuestionPort.StoredGaps(
+								"Le chat mange une ___ dans le jardin.",
+								List.of(new TeacherQuestionPort.StoredGapWord(1L, "pomme")),
+								List.of(new TeacherQuestionPort.StoredGapWord(2L, "voiture")))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"case_vide",
+				"   ",
+				new GapsInput(
+						" Le chat mange une ___ dans le jardin. ",
+						List.of(new GapWordInput(" pomme ")),
+						List.of(new GapWordInput(" "), new GapWordInput("voiture"))));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formLabel()).isEqualTo("Case vide");
+		assertThat(line.sentence()).isEqualTo("Le chat mange une ___ dans le jardin.");
+		assertThat(line.answers()).extracting(row -> row.label()).containsExactly("pomme");
+		assertThat(line.decoys()).extracting(row -> row.label()).containsExactly("voiture");
+		verify(questions).ensureForm(SUBJECT_ID, "case_vide", "Case vide", 6);
+
+		ArgumentCaptor<TeacherQuestionPort.GapsDraft> captor =
+				ArgumentCaptor.forClass(TeacherQuestionPort.GapsDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("case_vide"), eq(""), captor.capture());
+		assertThat(captor.getValue().sentence()).isEqualTo("Le chat mange une ___ dans le jardin.");
+		assertThat(captor.getValue().answers()).containsExactly(new TeacherQuestionPort.GapWordDraft("pomme"));
+		assertThat(captor.getValue().decoys()).containsExactly(new TeacherQuestionPort.GapWordDraft("voiture"));
+	}
+
+	@Test
+	void phraseWithoutHoleIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "case_vide", "",
+				new GapsInput("Le chat mange une pomme.", List.of(new GapWordInput("pomme")), List.of())))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.GAP_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("case_vide"), eq(""), any());
+	}
+
+	@Test
+	void holeWithoutWordIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "case_vide", "",
+				new GapsInput(
+						"Le chat mange une ___ dans le jardin.",
+						List.of(new GapWordInput(" ")),
+						List.of(new GapWordInput("voiture")))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.GAP_WORD_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("case_vide"), eq(""), any());
 	}
 
 	private static StoredSubject owned() {

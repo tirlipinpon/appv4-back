@@ -104,6 +104,7 @@ class TeacherSubjectServiceTest {
 				.containsExactly("Mathématiques");
 		assertThat(view.schools().get(1).grades().get(0).subjects()).isEmpty();
 		assertThat(french.name()).isEqualTo("Français");
+		assertThat(french.followedByMe()).isTrue();
 		assertThat(french.sharedWith()).isEmpty();
 		assertThat(maths.id()).isNotEqualTo(mathsCe2.id());
 		assertThat(subjects.all()).hasSize(3);
@@ -235,17 +236,29 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
-	void anotherTeacherDoesNotSeeOrChangeTheseSubjects() {
+	void anotherTeacherSeesTheSubjectAndWhoFollowsItButCannotChangeIt() {
 		SubjectLine lecture = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Lecture");
 
 		TeacherSubjectsView other = service.list(OTHER_ID, "teacher");
 		assertThat(other.schools()).hasSize(1);
-		assertThat(other.schools().get(0).grades().get(0).subjects()).isEmpty();
+		SubjectLine seen = other.schools().get(0).grades().get(0).subjects().get(0);
+		assertThat(seen.id()).isEqualTo(lecture.id());
+		assertThat(seen.name()).isEqualTo("Lecture");
+		assertThat(seen.followedByMe()).isFalse();
+		assertThat(seen.ownedByMe()).isFalse();
+		assertThat(seen.sharedWith()).extracting(SharedHolder::displayName).containsExactly("Anne");
 
-		service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Calcul");
+		SubjectLine calcul = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Calcul");
 
-		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Lecture");
-		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Calcul");
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Calcul", "Lecture");
+		assertThat(lineOf(TEACHER_ID, lecture.id()).followedByMe()).isTrue();
+		assertThat(lineOf(TEACHER_ID, calcul.id()).followedByMe()).isFalse();
+		assertThat(lineOf(TEACHER_ID, calcul.id()).sharedWith())
+				.extracting(SharedHolder::displayName)
+				.containsExactly("Camille");
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Calcul", "Lecture");
+		assertThat(lineOf(OTHER_ID, calcul.id()).followedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, lecture.id()).followedByMe()).isFalse();
 		assertThatThrownBy(() -> service.rename(OTHER_ID, "teacher", lecture.id(), "Autre"))
 				.isInstanceOf(AuthDomainException.class)
 				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
@@ -254,26 +267,48 @@ class TeacherSubjectServiceTest {
 				.isInstanceOf(AuthDomainException.class)
 				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
 				.isEqualTo(AuthErrorCode.NOT_FOUND);
-		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Lecture");
+		assertThat(lineOf(TEACHER_ID, lecture.id()).name()).isEqualTo("Lecture");
+		assertThat(lineOf(TEACHER_ID, lecture.id()).followedByMe()).isTrue();
+
+		SubjectLine geography = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Géographie");
+		assertThat(lineOf(TEACHER_ID, geography.id()).followedByMe()).isTrue();
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE2")).isEmpty();
+	}
+
+	@Test
+	void aSubjectNobodyFollowsStaysOffTheColleagueList() {
+		SubjectLine orphan = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Orpheline");
+		subjects.dropAccessButKeepVisible(orphan.id());
+
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).doesNotContain("Orpheline");
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).doesNotContain("Orpheline");
 	}
 
 	@Test
 	void anotherTeacherCannotCreateTheSameNameInTheSameClass() {
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 		profiles.put(OTHER_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1", "CE2"))));
 
 		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
 				.hasMessage(TeacherSubjectService.nameCanAsk("Anne"));
-		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isFalse();
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isTrue();
 
 		SubjectLine sciences = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Sciences");
 		SubjectLine otherYear = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
 
 		assertThat(sciences.name()).isEqualTo("Sciences");
+		assertThat(sciences.followedByMe()).isTrue();
 		assertThat(otherYear.name()).isEqualTo("Mathématiques");
-		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques", "Sciences");
+		assertThat(lineOf(TEACHER_ID, sciences.id()).followedByMe()).isFalse();
+		assertThat(lineOf(TEACHER_ID, sciences.id()).sharedWith())
+				.extracting(SharedHolder::displayName)
+				.containsExactly("Camille");
+		assertThat(lineOf(TEACHER_ID, otherYear.id()).followedByMe()).isFalse();
 	}
 
 	@Test
@@ -288,7 +323,8 @@ class TeacherSubjectServiceTest {
 				.hasMessage(TeacherSubjectService.ASK_PENDING);
 		assertThatThrownBy(() -> service.requestShare(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques"))
 				.hasMessage(TeacherSubjectService.ASK_PENDING);
-		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isFalse();
 
 		InviteLine invite = service.listTransferInvites(TEACHER_ID, "teacher").invites().get(0);
 		assertThat(invite.mode()).isEqualTo(TeacherSubjectService.MODE_ASK);
@@ -296,7 +332,7 @@ class TeacherSubjectServiceTest {
 		assertThat(invite.subjectId()).isEqualTo(maths.id());
 
 		service.rejectTransfer(TEACHER_ID, "teacher", invite.id());
-		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isFalse();
 		assertThat(service.listTransferInvites(TEACHER_ID, "teacher").invites()).isEmpty();
 
 		service.requestShare(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
@@ -305,15 +341,16 @@ class TeacherSubjectServiceTest {
 
 		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
-		assertThat(service.list(OTHER_ID, "teacher").schools().get(0).grades().get(0).subjects().get(0).ownedByMe())
-				.isFalse();
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).ownedByMe()).isFalse();
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isTrue();
 		assertThat(subjects.accessCount(maths.id())).isEqualTo(2);
 	}
 
 	@Test
 	void aVeryCloseNameAsksTheCreatorWhoStillHasItAndDoesNotCreateAnother() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Éveil");
+		SubjectLine eveil = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Éveil");
 
 		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Maths"))
 				.hasMessage(TeacherSubjectService.nameSimilarCanAsk("Mathématiques", "Anne"));
@@ -324,8 +361,12 @@ class TeacherSubjectServiceTest {
 		long inviteId = service.listTransferInvites(TEACHER_ID, "teacher").invites().get(0).id();
 		service.acceptTransfer(TEACHER_ID, "teacher", inviteId);
 
-		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Éveil", "Mathématiques");
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, eveil.id()).followedByMe()).isFalse();
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Éveil", "Mathématiques");
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(TEACHER_ID, eveil.id()).followedByMe()).isTrue();
 		assertThat(subjects.accessCount(maths.id())).isEqualTo(2);
 	}
 
@@ -361,8 +402,13 @@ class TeacherSubjectServiceTest {
 
 		assertThat(back.id()).isEqualTo(maths.id());
 		assertThat(back.ownedByMe()).isFalse();
+		assertThat(back.followedByMe()).isTrue();
 		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
-		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName)
+				.containsExactly("Camille");
 		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques"))
 				.hasMessage(TeacherSubjectService.NAME_TAKEN);
 	}
@@ -377,7 +423,8 @@ class TeacherSubjectServiceTest {
 
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 
-		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isFalse();
 		InviteLine invite = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0);
 		assertThat(invite.subjectName()).isEqualTo("Mathématiques");
 		assertThat(invite.mode()).isEqualTo("share");
@@ -391,7 +438,9 @@ class TeacherSubjectServiceTest {
 		SubjectLine camille = lineOf(OTHER_ID, maths.id());
 		assertThat(anne.id()).isEqualTo(camille.id());
 		assertThat(anne.ownedByMe()).isTrue();
+		assertThat(anne.followedByMe()).isTrue();
 		assertThat(camille.ownedByMe()).isFalse();
+		assertThat(camille.followedByMe()).isTrue();
 		assertThat(anne.sharedWith()).extracting(SharedHolder::displayName).containsExactly("Camille");
 		assertThat(camille.sharedWith()).extracting(SharedHolder::displayName).containsExactly("Anne");
 		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites()).isEmpty();
@@ -462,9 +511,11 @@ class TeacherSubjectServiceTest {
 		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
 		service.rejectTransfer(OTHER_ID, "teacher", inviteId);
 
-		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isFalse();
 		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith()).isEmpty();
 		assertThat(lineOf(TEACHER_ID, maths.id()).ownedByMe()).isTrue();
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isTrue();
 		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites()).isEmpty();
 	}
 
@@ -475,7 +526,11 @@ class TeacherSubjectServiceTest {
 		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
 		service.acceptTransfer(OTHER_ID, "teacher", inviteId);
 
-		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName)
+				.containsExactly("Camille");
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isTrue();
 		assertThat(lineOf(OTHER_ID, maths.id()).sharedWith()).isEmpty();
 		assertThat(subjects.accessCount(maths.id())).isEqualTo(1);
 		assertThat(subjects.find(maths.id()).userId()).isEqualTo(OTHER_ID);
@@ -498,9 +553,16 @@ class TeacherSubjectServiceTest {
 				service.listTransferInvites(TEACHER_ID, "teacher").invites().get(0).id());
 
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isTrue();
 		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith()).isEmpty();
-		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
-		assertThat(namesOf(THIRD_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(lineOf(OTHER_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName)
+				.containsExactly("Anne");
+		assertThat(lineOf(THIRD_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(lineOf(THIRD_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName)
+				.containsExactly("Anne");
 		assertThat(subjects.accessCount(maths.id())).isEqualTo(1);
 	}
 
@@ -707,6 +769,13 @@ class TeacherSubjectServiceTest {
 
 		int accessCount(long subjectId) {
 			return accessBySubject.getOrDefault(subjectId, Set.of()).size();
+		}
+
+		/** Matière encore listée en classe, mais plus aucun professeur n'y a accès. */
+		void dropAccessButKeepVisible(long subjectId) {
+			accessBySubject.put(subjectId, new HashSet<>());
+			accessActive.put(subjectId, new HashMap<>());
+			hidden.remove(subjectId);
 		}
 
 		StoredSubject find(long id) {

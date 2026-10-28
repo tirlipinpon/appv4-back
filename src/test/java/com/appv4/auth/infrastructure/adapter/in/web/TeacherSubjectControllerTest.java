@@ -56,6 +56,10 @@ class TeacherSubjectControllerTest {
 		when(profiles.findAccount(9L)).thenReturn(Optional.of(new TeacherAccount("prof@example.com", "Martin")));
 		when(profiles.findSchools(9L)).thenReturn(List.of());
 		when(subjects.findByUser(9L)).thenReturn(List.of());
+		when(subjects.findVisibleInClass(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any()))
+				.thenReturn(List.of());
+		when(subjects.hasAccess(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
+				.thenReturn(true);
 		when(subjects.otherAccessHolders(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
 				.thenReturn(List.of());
 		when(subjects.otherAccessNames(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
@@ -83,9 +87,30 @@ class TeacherSubjectControllerTest {
 				.andExpect(jsonPath("$.schools[0].grades[0].grade").value("CE1"))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].name").value("Français"))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].active").value(true))
+				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].followedByMe").value(true))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[1].name").value("Mathématiques"))
+				.andExpect(jsonPath("$.schools[0].grades[0].subjects[1].followedByMe").value(true))
 				.andExpect(jsonPath("$.schools[0].grades[1].grade").value("CE2"))
 				.andExpect(jsonPath("$.schools[0].grades[1].subjects").isEmpty());
+	}
+
+	@Test
+	void listShowsASubjectAlreadyFollowedByAColleague() throws Exception {
+		when(profiles.findSchools(9L)).thenReturn(List.of(
+				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
+		when(subjects.findByUser(9L)).thenReturn(List.of());
+		when(subjects.findVisibleInClass(1L, "CE1")).thenReturn(List.of(
+				new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true)));
+		when(subjects.hasAccess(4L, 9L)).thenReturn(false);
+		when(subjects.otherAccessHolders(4L, 9L)).thenReturn(List.of(
+				new TeacherSubjectPort.AccessHolder(10L, "Camille")));
+
+		mockMvc.perform(get("/api/int/teacher/subjects").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].name").value("Mathématiques"))
+				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].followedByMe").value(false))
+				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].ownedByMe").value(false))
+				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].sharedWith[0].displayName").value("Camille"));
 	}
 
 	@Test

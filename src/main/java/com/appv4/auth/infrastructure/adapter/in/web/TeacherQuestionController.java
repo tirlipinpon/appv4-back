@@ -15,8 +15,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LegacyInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementsInput;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
@@ -25,6 +29,8 @@ import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ChoiceLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ItemLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.PairLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.StatementLine;
+import com.appv4.auth.application.service.TeacherQuestionService;
 import com.appv4.configuration.OpenApiConfiguration;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,10 +41,10 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Questions du professeur connecté : choix multiple, Memory, Ordre (SCRUM-174, SCRUM-175, SCRUM-176).
+ * Questions du professeur connecté (SCRUM-174, SCRUM-175, SCRUM-176, SCRUM-177).
  *
  * <p><b>Business :</b> il voit les formes proposables, puis il prépare un énoncé,
- * des paires, ou une liste déjà rangée, dans une matière à laquelle il a accès.
+ * des paires, une liste déjà rangée, ou des phrases vraies ou fausses.
  * Il peut corriger une question déjà là. La forme de cette question ne change pas.
  * Une autre forme n'est pas acceptée. L'élève ne joue pas ici.
  * <p><b>Technique :</b> {@code /api/int/teacher/question-forms} et
@@ -110,7 +116,7 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -118,9 +124,7 @@ public class TeacherQuestionController {
 				subjectId,
 				body.formCode(),
 				body.prompt(),
-				inputs(body.choices()),
-				pairInputs(body.pairs()),
-				itemInputs(body.items()));
+				content(body));
 		return ResponseEntity.ok(item(line));
 	}
 
@@ -146,7 +150,7 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -155,10 +159,16 @@ public class TeacherQuestionController {
 				questionId,
 				body.formCode(),
 				body.prompt(),
-				inputs(body.choices()),
-				pairInputs(body.pairs()),
-				itemInputs(body.items()));
+				content(body));
 		return ResponseEntity.ok(item(line));
+	}
+
+	private static ContentInput content(CreateTeacherSubjectQuestionRequest body) {
+		String code = body.formCode() == null ? "" : body.formCode().trim();
+		if (TeacherQuestionService.TRUE_FALSE.equals(code)) {
+			return new StatementsInput(statementInputs(body.statements()));
+		}
+		return new LegacyInput(inputs(body.choices()), pairInputs(body.pairs()), itemInputs(body.items()));
 	}
 
 	private static List<ChoiceInput> inputs(List<TeacherQuestionChoiceInput> choices) {
@@ -203,6 +213,20 @@ public class TeacherQuestionController {
 		return inputs;
 	}
 
+	private static List<StatementInput> statementInputs(List<TeacherQuestionStatementInput> statements) {
+		if (statements == null) {
+			return List.of();
+		}
+		List<StatementInput> inputs = new ArrayList<>();
+		for (TeacherQuestionStatementInput statement : statements) {
+			if (statement == null) {
+				continue;
+			}
+			inputs.add(new StatementInput(statement.label(), statement.truthful()));
+		}
+		return inputs;
+	}
+
 	private static TeacherQuestionFormsResponse forms(TeacherQuestionFormsView view) {
 		List<TeacherQuestionFormItem> items = new ArrayList<>();
 		for (FormLine form : view.forms()) {
@@ -232,8 +256,12 @@ public class TeacherQuestionController {
 		for (ItemLine orderItem : line.items()) {
 			items.add(new TeacherQuestionItem(orderItem.id(), orderItem.label()));
 		}
+		List<TeacherQuestionStatementItem> statements = new ArrayList<>();
+		for (StatementLine statement : line.statements()) {
+			statements.add(new TeacherQuestionStatementItem(statement.id(), statement.label(), statement.truthful()));
+		}
 		return new TeacherSubjectQuestionItem(
-				line.id(), line.formCode(), line.formLabel(), line.prompt(), choices, pairs, items);
+				line.id(), line.formCode(), line.formLabel(), line.prompt(), choices, pairs, items, statements);
 	}
 
 	@Schema(name = "TeacherQuestionFormsResponse")
@@ -256,7 +284,8 @@ public class TeacherQuestionController {
 			String prompt,
 			List<TeacherQuestionChoiceItem> choices,
 			List<TeacherQuestionPairItem> pairs,
-			List<TeacherQuestionItem> items) {
+			List<TeacherQuestionItem> items,
+			List<TeacherQuestionStatementItem> statements) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
@@ -271,13 +300,18 @@ public class TeacherQuestionController {
 	public record TeacherQuestionItem(long id, String label) {
 	}
 
+	@Schema(name = "TeacherQuestionStatementItem")
+	public record TeacherQuestionStatementItem(long id, String label, boolean truthful) {
+	}
+
 	@Schema(name = "CreateTeacherSubjectQuestionRequest")
 	public record CreateTeacherSubjectQuestionRequest(
 			String formCode,
 			String prompt,
 			List<TeacherQuestionChoiceInput> choices,
 			List<TeacherQuestionPairInput> pairs,
-			List<TeacherQuestionItemInput> items) {
+			List<TeacherQuestionItemInput> items,
+			List<TeacherQuestionStatementInput> statements) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceInput")
@@ -290,5 +324,9 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionItemInput")
 	public record TeacherQuestionItemInput(String label) {
+	}
+
+	@Schema(name = "TeacherQuestionStatementInput")
+	public record TeacherQuestionStatementInput(String label, Boolean truthful) {
 	}
 }

@@ -7,11 +7,12 @@ import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 
 /**
- * Préparer une question dans une matière (SCRUM-174, SCRUM-175, SCRUM-176).
+ * Préparer une question dans une matière (SCRUM-174, SCRUM-175, SCRUM-176, SCRUM-177).
  *
  * <p><b>Business :</b> le professeur choisit une forme dans la liste que l'API
  * propose. Le choix multiple a un énoncé et des propositions. Le Memory a des
- * paires. L'ordre a des éléments déjà rangés. L'énoncé du Memory et de l'ordre
+ * paires. L'ordre a des éléments déjà rangés. Le vrai ou faux a des phrases,
+ * chacune vraie ou fausse. L'énoncé du Memory, de l'ordre et du vrai ou faux
  * peut rester vide. L'élève ne joue pas encore ici.
  * <p><b>Technique :</b> l'identifiant vient du jeton. Une proposition vide, une
  * paire incomplète, ou un élément vide, n'est pas enregistré. Moins de deux
@@ -80,5 +81,15 @@ public interface TeacherQuestionUseCase {
 
 	/** Texte d'un élément dans une liste déjà ordonnée. */
 	record ItemInput(String label) {
+	}
+
+	/** Phrases d'un vrai ou faux. Chaque phrase non vide a un côté. */
+	record StatementsInput(List<StatementInput> statements) implements ContentInput {
+	}
+
+	/**
+	 * @param truthful {@code null} veut dire que le côté n'est pas choisi
+	 */
+	record StatementInput(String label, Boolean truthful) {
 	}
 }

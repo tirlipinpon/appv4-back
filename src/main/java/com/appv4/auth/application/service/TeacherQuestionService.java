@@ -1,14 +1,22 @@
 package com.appv4.auth.application.service;
 
+import java.text.Collator;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
+import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoicesDraft;
@@ -38,8 +46,10 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
+import com.appv4.auth.application.result.TeacherSubjectFollowersView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 import com.appv4.auth.application.service.question.QuestionFormHandler;
@@ -56,10 +66,12 @@ import com.appv4.auth.application.service.question.QuestionFormRegistry;
  * L'énoncé du Memory, de l'ordre et du vrai ou faux peut rester vide.
  * Corriger une question remplace son contenu. La forme reste.
  * Copier des questions en crée de nouvelles sur la matière choisie.
- * Les originaux restent. Le nom de la matière ne change pas. L'élève ne joue pas ici.
+ * Les originaux restent. Le professeur peut aussi en supprimer une ou plusieurs.
+ * Avant ça, il voit combien d'enfants suivent le cours et leurs noms.
+ * Le nom de la matière ne change pas. L'élève ne joue pas ici.
  * <p><b>Technique :</b> registre de validateurs indépendants par forme.
  * Les énoncés passent par {@link TeacherQuestionPort}. L'accès matière passe par
- * {@link TeacherSubjectPort#findOwned}.
+ * {@link TeacherSubjectPort#findOwned}. Les enfants passent par {@link ChildSubjectPort}.
  * <p><b>Métier / flow :</b> port in → ce service → ports out. L'écran élève
  * n'est pas dans ce service.
  */
@@ -116,18 +128,22 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String GAP_SENTENCE_TOO_LONG = "La phrase dépasse 500 caractères.";
 	public static final String CLONE_TARGET = "Choisis une matière.";
 	public static final String CLONE_REQUIRED = "Choisis au moins une question.";
+	public static final String DELETE_REQUIRED = "Choisis au moins une question à supprimer.";
 
 	private final QuestionFormRegistry forms;
 
 	private final TeacherSubjectPort teacherSubjectPort;
 	private final TeacherQuestionPort teacherQuestionPort;
+	private final ChildSubjectPort childSubjectPort;
 
 	public TeacherQuestionService(
 			TeacherSubjectPort teacherSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
+			ChildSubjectPort childSubjectPort,
 			QuestionFormRegistry forms) {
 		this.teacherSubjectPort = teacherSubjectPort;
 		this.teacherQuestionPort = teacherQuestionPort;
+		this.childSubjectPort = childSubjectPort;
 		this.forms = forms;
 	}
 
@@ -241,10 +257,96 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 		return new TeacherSubjectQuestionsView(List.copyOf(copies));
 	}
 
-	private void requireOwned(long userId, long subjectId) {
-		if (teacherSubjectPort.findOwned(userId, subjectId).isEmpty()) {
-			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, TeacherSubjectService.SUBJECT_MISSING);
+	@Override
+	@Transactional(readOnly = true)
+	public TeacherSubjectFollowersView followers(long userId, String activeRole, long subjectId) {
+		requireTeacher(activeRole);
+		StoredSubject subject = requireOwned(userId, subjectId);
+		Map<Long, FollowingChild> byId = new LinkedHashMap<>();
+		for (FollowingChild child : orEmpty(childSubjectPort.activeInClass(subject.schoolId(), subject.grade()))) {
+			if (child != null) {
+				byId.put(child.id(), child);
+			}
 		}
+		for (SubjectChildLink link : orEmpty(childSubjectPort.linksOfSubject(subjectId))) {
+			if (link == null || link.child() == null) {
+				continue;
+			}
+			if (link.excluded()) {
+				byId.remove(link.child().id());
+			} else {
+				byId.put(link.child().id(), link.child());
+			}
+		}
+		List<FollowingChild> children = new ArrayList<>();
+		for (FollowingChild child : byId.values()) {
+			if (!displayName(child).isEmpty()) {
+				children.add(child);
+			}
+		}
+		Collator order = Collator.getInstance(Locale.FRENCH);
+		order.setStrength(Collator.PRIMARY);
+		children.sort(Comparator
+				.comparing(TeacherQuestionService::displayName, order)
+				.thenComparingLong(FollowingChild::id));
+		List<String> names = new ArrayList<>();
+		for (FollowingChild child : children) {
+			names.add(displayName(child));
+		}
+		return new TeacherSubjectFollowersView(names.size(), followersWarning(names.size()), List.copyOf(names));
+	}
+
+	@Override
+	@Transactional
+	public List<Long> deleteQuestions(long userId, String activeRole, long subjectId, List<Long> questionIds) {
+		requireTeacher(activeRole);
+		List<Long> ids = selectedIds(questionIds);
+		if (ids.isEmpty()) {
+			throw bad(DELETE_REQUIRED);
+		}
+		requireOwned(userId, subjectId);
+		for (Long id : ids) {
+			teacherQuestionPort.findInSubject(subjectId, id)
+					.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, QUESTION_MISSING));
+		}
+		for (Long id : ids) {
+			teacherQuestionPort.delete(id);
+		}
+		return ids;
+	}
+
+	/**
+	 * Phrase affichée avant la suppression. Le nombre est celui des noms renvoyés.
+	 */
+	public static String followersWarning(int count) {
+		if (count <= 0) {
+			return "Aucun enfant ne suit ce cours.";
+		}
+		if (count == 1) {
+			return "1 enfant suit ce cours.";
+		}
+		return count + " enfants suivent ce cours.";
+	}
+
+	private StoredSubject requireOwned(long userId, long subjectId) {
+		return teacherSubjectPort.findOwned(userId, subjectId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, TeacherSubjectService.SUBJECT_MISSING));
+	}
+
+	private static String displayName(FollowingChild child) {
+		String first = child.firstName() == null ? "" : child.firstName().trim();
+		String last = child.lastName() == null ? "" : child.lastName().trim();
+		if (first.isEmpty()) {
+			return last;
+		}
+		if (last.isEmpty()) {
+			return first;
+		}
+		return first + " " + last;
+	}
+
+	private static <T> List<T> orEmpty(List<T> rows) {
+		return rows == null ? List.of() : rows;
 	}
 
 	private List<QuestionLine> lines(List<StoredQuestion> stored) {

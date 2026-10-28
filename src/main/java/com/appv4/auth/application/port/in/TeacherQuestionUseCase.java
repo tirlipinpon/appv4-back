@@ -3,6 +3,7 @@ package com.appv4.auth.application.port.in;
 import java.util.List;
 
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
+import com.appv4.auth.application.result.TeacherSubjectFollowersView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 
@@ -23,6 +24,8 @@ import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLin
  * déjà enregistré passe par le même port, sans changer la forme.
  * Copier des questions vers une matière du même professeur crée de nouveaux
  * énoncés : les originaux restent sur la matière d'où ils viennent.
+ * Supprimer une ou plusieurs questions les retire de cette matière. Avant ça,
+ * le professeur voit combien d'enfants suivent le cours et la liste de leurs noms.
  */
 public interface TeacherQuestionUseCase {
 
@@ -75,6 +78,21 @@ public interface TeacherQuestionUseCase {
 			long sourceSubjectId,
 			long targetSubjectId,
 			List<Long> questionIds);
+
+	/**
+	 * Enfants qui suivent encore ce cours : ceux de la classe, sauf retrait du parent,
+	 * plus ceux ajoutés depuis une autre classe. La phrase {@code warning} et les noms
+	 * viennent d'ici : l'écran les affiche tels quels.
+	 */
+	TeacherSubjectFollowersView followers(long userId, String activeRole, long subjectId);
+
+	/**
+	 * Retire les questions choisies de cette matière. Un id cité deux fois n'est retiré
+	 * qu'une fois. Si une question n'est pas dans la matière, rien n'est retiré.
+	 *
+	 * @return les id réellement retirés, dans l'ordre demandé
+	 */
+	List<Long> deleteQuestions(long userId, String activeRole, long subjectId, List<Long> questionIds);
 
 	interface ContentInput {
 	}

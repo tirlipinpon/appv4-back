@@ -29,6 +29,19 @@ public interface ChildSubjectPort {
 	 */
 	boolean deleteLink(long childId, long subjectId);
 
+	/**
+	 * Enfants encore proposés dans cette école et cette année.
+	 * Une fiche masquée ou désactivée n'est pas renvoyée : le professeur ne la voit plus.
+	 * Une année vide ne renvoie personne.
+	 */
+	List<FollowingChild> activeInClass(long schoolId, String grade);
+
+	/**
+	 * Liens de cette matière vers des enfants encore proposés.
+	 * {@code excluded} vrai : le parent a retiré le cours de la classe.
+	 */
+	List<SubjectChildLink> linksOfSubject(long subjectId);
+
 	record StoredLink(long subjectId, boolean excluded) {
 	}
 
@@ -42,5 +55,19 @@ public interface ChildSubjectPort {
 	 * Lien encore visible : la matière est active et n'est pas cachée.
 	 */
 	record CountedLink(long childId, long schoolId, String grade) {
+	}
+
+	/**
+	 * Fiche encore proposée. L'identifiant sert à ne compter l'enfant qu'une fois.
+	 */
+	record FollowingChild(long id, String firstName, String lastName) {
+	}
+
+	/**
+	 * Lien entre une matière et un enfant encore proposé.
+	 *
+	 * @param excluded vrai si le parent a retiré ce cours
+	 */
+	record SubjectChildLink(FollowingChild child, boolean excluded) {
 	}
 }

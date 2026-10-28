@@ -26,6 +26,7 @@ import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementsInput;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
+import com.appv4.auth.application.result.TeacherSubjectFollowersView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
@@ -54,6 +55,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * Il peut corriger une question déjà là. La forme de cette question ne change pas.
  * Une autre forme n'est pas acceptée. Il peut aussi copier une ou plusieurs
  * questions vers une matière à laquelle il a accès. Les originaux restent.
+ * Il peut aussi en supprimer une ou plusieurs. Avant ça, l'écran lui montre
+ * combien d'enfants suivent le cours et la liste de leurs noms.
  * L'élève ne joue pas ici.
  * <p><b>Technique :</b> {@code /api/int/teacher/question-forms} et
  * {@code /api/int/teacher/subjects/{id}/questions}. JWT obligatoire, espace {@code teacher}.
@@ -200,6 +203,56 @@ public class TeacherQuestionController {
 				user.activeRole(),
 				subjectId,
 				targetSubjectId,
+				body.questionIds())));
+	}
+
+	@GetMapping("/subjects/{subjectId}/followers")
+	@Operation(operationId = "listTeacherSubjectFollowers", summary = "Voir quels enfants suivent ce cours")
+	@ApiResponse(responseCode = "200", description = "Nombre d'enfants et leurs noms, avant une suppression")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectFollowersResponse> followers(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		TeacherSubjectFollowersView view = teacherQuestionUseCase.followers(
+				user.userId(), user.activeRole(), subjectId);
+		return ResponseEntity.ok(new TeacherSubjectFollowersResponse(view.childCount(), view.warning(), view.names()));
+	}
+
+	@PostMapping("/subjects/{subjectId}/questions/delete")
+	@Operation(operationId = "deleteTeacherSubjectQuestions", summary = "Supprimer une ou plusieurs questions")
+	@ApiResponse(responseCode = "200", description = "Questions retirées de la matière")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Aucune question choisie",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière ou question absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<DeleteTeacherSubjectQuestionsResponse> deleteQuestions(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@RequestBody DeleteTeacherSubjectQuestionsRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		DeleteTeacherSubjectQuestionsRequest body = request == null
+				? new DeleteTeacherSubjectQuestionsRequest(null)
+				: request;
+		return ResponseEntity.ok(new DeleteTeacherSubjectQuestionsResponse(teacherQuestionUseCase.deleteQuestions(
+				user.userId(),
+				user.activeRole(),
+				subjectId,
 				body.questionIds())));
 	}
 
@@ -405,6 +458,18 @@ public class TeacherQuestionController {
 
 	@Schema(name = "CloneTeacherSubjectQuestionsRequest")
 	public record CloneTeacherSubjectQuestionsRequest(Long targetSubjectId, List<Long> questionIds) {
+	}
+
+	@Schema(name = "TeacherSubjectFollowersResponse")
+	public record TeacherSubjectFollowersResponse(int childCount, String warning, List<String> names) {
+	}
+
+	@Schema(name = "DeleteTeacherSubjectQuestionsRequest")
+	public record DeleteTeacherSubjectQuestionsRequest(List<Long> questionIds) {
+	}
+
+	@Schema(name = "DeleteTeacherSubjectQuestionsResponse")
+	public record DeleteTeacherSubjectQuestionsResponse(List<Long> deletedIds) {
 	}
 
 	@Schema(name = "CreateTeacherSubjectQuestionRequest")

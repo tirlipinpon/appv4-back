@@ -23,6 +23,9 @@ public interface BackChildJpaRepository extends JpaRepository<BackChildEntity, L
 	 */
 	List<BackChildEntity> findByHiddenFalseAndActiveTrueAndSchoolIdIn(Collection<Long> schoolIds);
 
+	/** Fiches encore proposées dans cette école et cette année. */
+	List<BackChildEntity> findByHiddenFalseAndActiveTrueAndSchoolIdAndGradeLabel(long schoolId, String gradeLabel);
+
 	/** Fiche encore proposée, et qui a une école. Le PIN n'est pas lu par cette requête. */
 	Optional<BackChildEntity> findByIdAndHiddenFalseAndActiveTrueAndSchoolIdIsNotNull(long id);
 }

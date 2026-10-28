@@ -84,6 +84,15 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 		forms.insertIfAbsent(subjectId, formCode, label, sortOrder);
 	}
 
+	@Override
+	@Transactional
+	public void delete(long questionId) {
+		BackSubjectQuestionEntity question = questions.findById(questionId)
+				.orElseThrow(() -> new IllegalStateException("Question absente : " + questionId));
+		store(question.getFormCode()).delete(questionId);
+		questions.delete(question);
+	}
+
 	private QuestionContentStore store(String formCode) {
 		QuestionContentStore store = stores.get(formCode);
 		if (store == null) {

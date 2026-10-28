@@ -15,6 +15,8 @@ public interface BackChildSubjectLinkJpaRepository extends JpaRepository<BackChi
 
 	List<BackChildSubjectLinkEntity> findByChildIdOrderByIdAsc(long childId);
 
+	List<BackChildSubjectLinkEntity> findBySubjectId(long subjectId);
+
 	Optional<BackChildSubjectLinkEntity> findByChildIdAndSubjectId(long childId, long subjectId);
 
 	@Query("""

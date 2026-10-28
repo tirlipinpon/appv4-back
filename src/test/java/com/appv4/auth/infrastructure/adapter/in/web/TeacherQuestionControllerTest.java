@@ -21,6 +21,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
@@ -48,6 +50,9 @@ class TeacherQuestionControllerTest {
 
 	@Autowired
 	private TeacherQuestionPort questions;
+
+	@Autowired
+	private ChildSubjectPort children;
 
 	@Test
 	void teacherSeesMultipleChoiceMemoryOrderAndTrueFalse() throws Exception {
@@ -396,6 +401,55 @@ class TeacherQuestionControllerTest {
 								"""))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value(TeacherQuestionService.CLONE_REQUIRED));
+	}
+
+	@Test
+	void followersReturnsTheCountTheWarningAndTheNames() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+		when(children.activeInClass(1L, "CE1")).thenReturn(List.of(new FollowingChild(3L, "Léa", "Martin")));
+		when(children.linksOfSubject(4L)).thenReturn(List.of());
+
+		mockMvc.perform(get("/api/int/teacher/subjects/4/followers")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.childCount").value(1))
+				.andExpect(jsonPath("$.warning").value("1 enfant suit ce cours."))
+				.andExpect(jsonPath("$.names[0]").value("Léa Martin"));
+	}
+
+	@Test
+	void deleteReturnsTheRemovedIds() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+		when(questions.findInSubject(4L, 7L)).thenReturn(Optional.of(new StoredQuestion(
+				7L, 4L, "qcm", "2 + 2",
+				List.of(new StoredChoice(1L, "4", true)), List.of(), List.of())));
+		when(questions.findInSubject(4L, 8L)).thenReturn(Optional.of(new StoredQuestion(
+				8L, 4L, "qcm", "3 + 3",
+				List.of(new StoredChoice(2L, "6", true)), List.of(), List.of())));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions/delete")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"questionIds":[7,8]}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.deletedIds[0]").value(7))
+				.andExpect(jsonPath("$.deletedIds[1]").value(8));
+	}
+
+	@Test
+	void deleteWithoutAQuestionIsRejected() throws Exception {
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions/delete")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"questionIds":[]}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(TeacherQuestionService.DELETE_REQUIRED));
 	}
 
 	@Test

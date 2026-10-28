@@ -5,6 +5,7 @@ import com.appv4.auth.application.service.question.QuestionFormRegistry;
 import com.appv4.auth.application.service.question.QcmQuestionForm;
 import com.appv4.auth.application.service.question.MemoryQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
+import com.appv4.auth.application.service.question.LinkQuestionForm;
 import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
 import java.util.List;
 
@@ -446,6 +447,11 @@ public class AuthConfiguration {
 	@Bean
 	QuestionFormHandler trueFalseQuestionForm() {
 		return new TrueFalseQuestionForm();
+	}
+
+	@Bean
+	QuestionFormHandler linkQuestionForm() {
+		return new LinkQuestionForm();
 	}
 
 	@Bean

@@ -70,6 +70,14 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String SIDE_REQUIRED = "Chaque phrase doit être marquée vraie ou fausse.";
 	public static final String PHRASE_TOO_LONG = "Une phrase dépasse 200 caractères.";
 
+	public static final String LINKS = "liens";
+	public static final String LINKS_LABEL = "Liens";
+	public static final int LINKS_ORDER = 5;
+
+	public static final String LINKS_REQUIRED = "Il faut au moins deux liens.";
+	public static final String LINK_INCOMPLETE = "Chaque mot doit avoir une réponse.";
+	public static final String LINK_TOO_LONG = "Un mot ou une réponse dépasse 200 caractères.";
+
 	private final QuestionFormRegistry forms;
 
 	private final TeacherSubjectPort teacherSubjectPort;

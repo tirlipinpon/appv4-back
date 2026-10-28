@@ -10,6 +10,7 @@ import java.util.Optional;
  * déplacer ne la copie pas : même id de matière, mêmes questions.
  * <p><b>Technique :</b> {@code back_subject_questions}, {@code back_subject_question_choices},
  * {@code back_subject_question_pairs}, {@code back_subject_question_items},
+ * {@code back_subject_question_statements},
  * et une ligne {@code back_subject_question_forms} à la première question de cette forme.
  * <p><b>Métier / flow :</b> port out de {@code /api/int/teacher/subjects/{id}/questions}.
  */
@@ -59,6 +60,10 @@ public interface TeacherQuestionPort {
 	record ItemDraft(String label) {
 	}
 
+	/** Phrase Vrai ou faux déjà non vide. {@code truthful} dit si la phrase est vraie. */
+	record StatementDraft(String label, boolean truthful) {
+	}
+
 	record StoredChoice(long id, String label, boolean correct) {
 	}
 
@@ -66,6 +71,9 @@ public interface TeacherQuestionPort {
 	}
 
 	record StoredItem(long id, String label) {
+	}
+
+	record StoredStatement(long id, String label, boolean truthful) {
 	}
 
 	/** Chaque nouvelle structure fournit son propre type, sans agrandir toutes les signatures. */
@@ -93,6 +101,12 @@ public interface TeacherQuestionPort {
 		}
 	}
 
+	record StatementsDraft(List<StatementDraft> statements) implements DraftContent {
+		public StatementsDraft {
+			statements = List.copyOf(statements);
+		}
+	}
+
 	record StoredChoices(List<StoredChoice> choices) implements StoredContent {
 		public StoredChoices {
 			choices = List.copyOf(choices);
@@ -108,6 +122,12 @@ public interface TeacherQuestionPort {
 	record StoredItems(List<StoredItem> items) implements StoredContent {
 		public StoredItems {
 			items = List.copyOf(items);
+		}
+	}
+
+	record StoredStatements(List<StoredStatement> statements) implements StoredContent {
+		public StoredStatements {
+			statements = List.copyOf(statements);
 		}
 	}
 
@@ -138,6 +158,10 @@ public interface TeacherQuestionPort {
 
 		public List<StoredItem> items() {
 			return content instanceof StoredItems value ? value.items() : List.of();
+		}
+
+		public List<StoredStatement> statements() {
+			return content instanceof StoredStatements value ? value.statements() : List.of();
 		}
 	}
 }

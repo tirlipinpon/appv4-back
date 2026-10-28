@@ -20,12 +20,13 @@ import com.appv4.auth.application.service.question.QuestionFormHandler.Prepared;
 import com.appv4.auth.application.service.question.QuestionFormRegistry;
 
 /**
- * Choix multiple, Memory et Ordre préparés dans une matière (SCRUM-174, SCRUM-175, SCRUM-176).
+ * Choix multiple, Memory, Ordre et Vrai ou faux (SCRUM-174, SCRUM-175, SCRUM-176, SCRUM-177).
  *
  * <p><b>Business :</b> le professeur ne voit que les formes qu'on sait enregistrer.
  * Le choix multiple exige un énoncé, deux propositions et une bonne réponse.
  * Le Memory exige deux paires complètes. L'ordre exige deux éléments déjà rangés.
- * L'énoncé du Memory et de l'ordre peut rester vide.
+ * Le vrai ou faux exige deux phrases, chacune marquée vraie ou fausse.
+ * L'énoncé du Memory, de l'ordre et du vrai ou faux peut rester vide.
  * Corriger une question remplace son contenu. La forme reste.
  * Le nom de la matière ne change pas. L'élève ne joue pas ici.
  * <p><b>Technique :</b> registre de validateurs indépendants par forme.
@@ -60,6 +61,14 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String PAIR_TOO_LONG = "Un côté de paire dépasse 200 caractères.";
 	public static final String ITEMS_REQUIRED = "Il faut au moins deux éléments.";
 	public static final String ITEM_TOO_LONG = "Un élément dépasse 200 caractères.";
+
+	public static final String TRUE_FALSE = "vrai_faux";
+	public static final String TRUE_FALSE_LABEL = "Vrai ou faux";
+	public static final int TRUE_FALSE_ORDER = 4;
+
+	public static final String PHRASES_REQUIRED = "Il faut au moins deux phrases.";
+	public static final String SIDE_REQUIRED = "Chaque phrase doit être marquée vraie ou fausse.";
+	public static final String PHRASE_TOO_LONG = "Une phrase dépasse 200 caractères.";
 
 	private final QuestionFormRegistry forms;
 

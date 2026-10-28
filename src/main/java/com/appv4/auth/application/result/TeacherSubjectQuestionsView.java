@@ -6,12 +6,14 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredContent;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
 
 /**
- * Questions déjà préparées dans une matière (SCRUM-174).
+ * Questions déjà préparées dans une matière (SCRUM-174, SCRUM-177).
  *
  * <p><b>Business :</b> le professeur revoit l'énoncé, les propositions d'un
- * choix multiple, les paires d'un Memory, ou les éléments d'un Ordre.
+ * choix multiple, les paires d'un Memory, les éléments d'un Ordre,
+ * ou les phrases d'un Vrai ou faux.
  * L'ordre enregistré est celui saisi.
  * <p><b>Technique :</b> {@code formCode} est le code choisi dans la liste des formes.
  * <p><b>Métier / flow :</b> résultat de {@code GET/POST /api/int/teacher/subjects/{id}/questions}.
@@ -43,6 +45,13 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 			return content instanceof StoredItems value
 					? value.items().stream().map(row -> new ItemLine(row.id(), row.label())).toList() : List.of();
 		}
+
+		public List<StatementLine> statements() {
+			return content instanceof StoredStatements value
+					? value.statements().stream()
+							.map(row -> new StatementLine(row.id(), row.label(), row.truthful()))
+							.toList() : List.of();
+		}
 	}
 
 	public record ChoiceLine(long id, String label, boolean correct) {
@@ -52,5 +61,8 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 	}
 
 	public record ItemLine(long id, String label) {
+	}
+
+	public record StatementLine(long id, String label, boolean truthful) {
 	}
 }

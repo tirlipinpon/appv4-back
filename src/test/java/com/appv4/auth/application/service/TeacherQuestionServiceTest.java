@@ -26,6 +26,8 @@ import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementsInput;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
@@ -36,6 +38,7 @@ import com.appv4.auth.application.service.question.QuestionFormRegistry;
 import com.appv4.auth.application.service.question.QcmQuestionForm;
 import com.appv4.auth.application.service.question.MemoryQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
+import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 
@@ -92,14 +95,14 @@ class TeacherQuestionServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new TeacherQuestionService(subjects, questions, new QuestionFormRegistry(List.of(
-				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm())));
+				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm(), new TrueFalseQuestionForm())));
 	}
 
 	@Test
-	void offeredFormsAreMultipleChoiceThenMemoryThenOrder() {
+	void offeredFormsAreMultipleChoiceThenMemoryThenOrderThenTrueFalse() {
 		assertThat(service.listForms(TEACHER_ID, "teacher").forms())
 				.satisfies(forms -> {
-					assertThat(forms).hasSize(3);
+					assertThat(forms).hasSize(4);
 					assertThat(forms.get(0).code()).isEqualTo("qcm");
 					assertThat(forms.get(0).label()).isEqualTo("Choix multiples");
 					assertThat(forms.get(0).sortOrder()).isEqualTo(1);
@@ -109,6 +112,9 @@ class TeacherQuestionServiceTest {
 					assertThat(forms.get(2).code()).isEqualTo("order");
 					assertThat(forms.get(2).label()).isEqualTo("Ordre");
 					assertThat(forms.get(2).sortOrder()).isEqualTo(3);
+					assertThat(forms.get(3).code()).isEqualTo("vrai_faux");
+					assertThat(forms.get(3).label()).isEqualTo("Vrai ou faux");
+					assertThat(forms.get(3).sortOrder()).isEqualTo(4);
 				});
 	}
 
@@ -383,6 +389,72 @@ class TeacherQuestionServiceTest {
 				.hasMessage(TeacherQuestionService.ITEMS_REQUIRED);
 
 		verify(questions, never()).insert(eq(SUBJECT_ID), eq("order"), eq(""), any());
+	}
+
+	@Test
+	void trueFalseKeepsTwoPhrasesAndTheirSides() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("vrai_faux"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						10L,
+						SUBJECT_ID,
+						"vrai_faux",
+						"",
+						new TeacherQuestionPort.StoredStatements(List.of(
+								new TeacherQuestionPort.StoredStatement(1L, "2 + 2 = 4", true),
+								new TeacherQuestionPort.StoredStatement(2L, "3 + 3 = 5", false)))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"vrai_faux",
+				"   ",
+				new StatementsInput(List.of(
+						new StatementInput(" 2 + 2 = 4 ", true),
+						new StatementInput(" ", false),
+						new StatementInput("3 + 3 = 5", false))));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formLabel()).isEqualTo("Vrai ou faux");
+		assertThat(line.statements()).extracting(row -> row.label() + ":" + row.truthful())
+				.containsExactly("2 + 2 = 4:true", "3 + 3 = 5:false");
+		verify(questions).ensureForm(SUBJECT_ID, "vrai_faux", "Vrai ou faux", 4);
+
+		ArgumentCaptor<TeacherQuestionPort.StatementsDraft> captor =
+				ArgumentCaptor.forClass(TeacherQuestionPort.StatementsDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("vrai_faux"), eq(""), captor.capture());
+		assertThat(captor.getValue().statements()).containsExactly(
+				new TeacherQuestionPort.StatementDraft("2 + 2 = 4", true),
+				new TeacherQuestionPort.StatementDraft("3 + 3 = 5", false));
+	}
+
+	@Test
+	void onePhraseIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "vrai_faux", "",
+				new StatementsInput(List.of(new StatementInput("2 + 2 = 4", true), new StatementInput(" ", false)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PHRASES_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("vrai_faux"), eq(""), any());
+	}
+
+	@Test
+	void phraseWithoutSideIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "vrai_faux", "",
+				new StatementsInput(List.of(
+						new StatementInput("2 + 2 = 4", true),
+						new StatementInput("3 + 3 = 5", null)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.SIDE_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("vrai_faux"), eq(""), any());
 	}
 
 	private static StoredSubject owned() {

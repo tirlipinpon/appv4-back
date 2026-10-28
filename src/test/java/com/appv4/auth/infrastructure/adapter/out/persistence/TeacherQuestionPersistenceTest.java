@@ -30,6 +30,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.ItemDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ItemsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairsDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 
 /** Tests sur une base PostgreSQL jetable : toutes les migrations Flyway et le vrai SQL Hibernate. */
@@ -41,7 +43,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("persistence-test")
 @Import({TeacherQuestionPersistenceAdapter.class, ChoiceQuestionContentStore.class,
-		PairQuestionContentStore.class, ItemQuestionContentStore.class})
+		PairQuestionContentStore.class, ItemQuestionContentStore.class, StatementQuestionContentStore.class})
 @EnabledIfEnvironmentVariable(named = "APPV4_PERSISTENCE_TEST_URL", matches = ".+")
 class TeacherQuestionPersistenceTest {
 
@@ -150,6 +152,20 @@ class TeacherQuestionPersistenceTest {
 				insert into back_subject_question_choices (question_id, label, correct, sort_order)
 				values (?, 'X', false, 0)
 				""", question.id())).isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
+	void trueFalseReplacementKeepsEachSide() {
+		adapter.ensureForm(subjectId, "vrai_faux", "Vrai ou faux", 4);
+		StoredQuestion saved = adapter.insert(subjectId, "vrai_faux", "", new StatementsDraft(List.of(
+				new StatementDraft("2 + 2 = 4", true),
+				new StatementDraft("3 + 3 = 5", false))));
+		adapter.replace(saved.id(), "", new StatementsDraft(List.of(
+				new StatementDraft("2 + 2 = 4", true),
+				new StatementDraft("3 + 3 = 6", false))));
+		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
+		assertThat(loaded.statements()).extracting(row -> row.label() + ":" + row.truthful())
+				.containsExactly("2 + 2 = 4:true", "3 + 3 = 6:false");
 	}
 
 	@Test

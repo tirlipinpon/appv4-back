@@ -50,16 +50,18 @@ class TeacherQuestionControllerTest {
 	private TeacherQuestionPort questions;
 
 	@Test
-	void teacherSeesMultipleChoiceMemoryAndOrder() throws Exception {
+	void teacherSeesMultipleChoiceMemoryOrderAndTrueFalse() throws Exception {
 		mockMvc.perform(get("/api/int/teacher/question-forms").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.forms.length()").value(3))
+				.andExpect(jsonPath("$.forms.length()").value(4))
 				.andExpect(jsonPath("$.forms[0].code").value("qcm"))
 				.andExpect(jsonPath("$.forms[0].label").value("Choix multiples"))
 				.andExpect(jsonPath("$.forms[1].code").value("memory"))
 				.andExpect(jsonPath("$.forms[1].label").value("Memory"))
 				.andExpect(jsonPath("$.forms[2].code").value("order"))
-				.andExpect(jsonPath("$.forms[2].label").value("Ordre"));
+				.andExpect(jsonPath("$.forms[2].label").value("Ordre"))
+				.andExpect(jsonPath("$.forms[3].code").value("vrai_faux"))
+				.andExpect(jsonPath("$.forms[3].label").value("Vrai ou faux"));
 	}
 
 	@Test
@@ -159,6 +161,38 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.prompt").value(""))
 				.andExpect(jsonPath("$.items[0].label").value("Lundi"))
 				.andExpect(jsonPath("$.items[1].label").value("Mardi"));
+	}
+
+	@Test
+	void createTrueFalseReturnsEachSide() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+		when(questions.insert(eq(4L), eq("vrai_faux"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						10L,
+						4L,
+						"vrai_faux",
+						"",
+						new TeacherQuestionPort.StoredStatements(List.of(
+								new TeacherQuestionPort.StoredStatement(1L, "2 + 2 = 4", true),
+								new TeacherQuestionPort.StoredStatement(2L, "3 + 3 = 5", false)))));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"formCode":"vrai_faux","prompt":"","statements":[
+								  {"label":"2 + 2 = 4","truthful":true},
+								  {"label":"3 + 3 = 5","truthful":false}
+								]}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(10))
+				.andExpect(jsonPath("$.formCode").value("vrai_faux"))
+				.andExpect(jsonPath("$.formLabel").value("Vrai ou faux"))
+				.andExpect(jsonPath("$.statements[0].label").value("2 + 2 = 4"))
+				.andExpect(jsonPath("$.statements[0].truthful").value(true))
+				.andExpect(jsonPath("$.statements[1].truthful").value(false));
 	}
 
 	@Test

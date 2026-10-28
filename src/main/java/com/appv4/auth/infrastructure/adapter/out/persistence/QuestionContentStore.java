@@ -11,7 +11,7 @@ public interface QuestionContentStore {
 
 	String formCode();
 
-	/** Appelé avec 1 à 500 identifiants appartenant ? cette forme. Inclut les contenus vides. */
+	/** Appelé avec 1 à 500 identifiants appartenant à cette forme. Inclut les contenus vides. */
 	Map<Long, StoredContent> load(List<Long> questionIds);
 
 	StoredContent write(long questionId, DraftContent content);

@@ -1,5 +1,7 @@
 # Base de données appv4 — conventions
 
+Structure des questions, performances et ajout de nouveaux jeux : [QUESTION_CONTENT.md](QUESTION_CONTENT.md).
+
 ## Plateforme (versions alignées)
 
 | Élément | Valeur figée pour le MVP local |

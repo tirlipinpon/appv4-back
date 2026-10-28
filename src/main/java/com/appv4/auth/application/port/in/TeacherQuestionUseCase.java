@@ -21,6 +21,8 @@ import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLin
  * <p><b>Métier / flow :</b> port in de {@code /api/int/teacher/question-forms}
  * et {@code /api/int/teacher/subjects/{id}/questions}. Corriger un énoncé
  * déjà enregistré passe par le même port, sans changer la forme.
+ * Copier des questions vers une matière du même professeur crée de nouveaux
+ * énoncés : les originaux restent sur la matière d'où ils viennent.
  */
 public interface TeacherQuestionUseCase {
 
@@ -61,6 +63,18 @@ public interface TeacherQuestionUseCase {
 
 	QuestionLine update(long userId, String activeRole, long subjectId, long questionId,
 			String formCode, String prompt, ContentInput content);
+
+	/**
+	 * Copie les questions choisies sur {@code targetSubjectId}.
+	 * Chaque copie a un nouvel id. Un id cité deux fois n'est copié qu'une fois.
+	 * La matière d'arrivée peut être celle de départ : les originaux restent.
+	 */
+	TeacherSubjectQuestionsView cloneQuestions(
+			long userId,
+			String activeRole,
+			long sourceSubjectId,
+			long targetSubjectId,
+			List<Long> questionIds);
 
 	interface ContentInput {
 	}

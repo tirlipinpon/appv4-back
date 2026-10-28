@@ -349,6 +349,56 @@ class TeacherQuestionControllerTest {
 	}
 
 	@Test
+	void cloneReturnsTheCopiesAndKeepsTheSourcePath() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+		when(subjects.findOwned(9L, 8L))
+				.thenReturn(Optional.of(new StoredSubject(8L, 9L, 1L, "CE2", "Histoire", true)));
+		when(questions.findInSubject(4L, 7L)).thenReturn(Optional.of(new StoredQuestion(
+				7L,
+				4L,
+				"qcm",
+				"Combien font 2 + 2 ?",
+				List.of(new StoredChoice(1L, "3", false), new StoredChoice(2L, "4", true)),
+				List.of(),
+				List.of())));
+		when(questions.insert(eq(8L), eq("qcm"), eq("Combien font 2 + 2 ?"), any()))
+				.thenReturn(new StoredQuestion(
+						20L,
+						8L,
+						"qcm",
+						"Combien font 2 + 2 ?",
+						List.of(new StoredChoice(3L, "3", false), new StoredChoice(4L, "4", true)),
+						List.of(),
+						List.of()));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions/clone")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"targetSubjectId":8,"questionIds":[7]}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.questions.length()").value(1))
+				.andExpect(jsonPath("$.questions[0].id").value(20))
+				.andExpect(jsonPath("$.questions[0].prompt").value("Combien font 2 + 2 ?"))
+				.andExpect(jsonPath("$.questions[0].choices[1].label").value("4"))
+				.andExpect(jsonPath("$.questions[0].choices[1].correct").value(true));
+	}
+
+	@Test
+	void cloneWithoutAQuestionIsRejected() throws Exception {
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions/clone")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"targetSubjectId":8,"questionIds":[]}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(TeacherQuestionService.CLONE_REQUIRED));
+	}
+
+	@Test
 	void unknownSubjectIsNotFound() throws Exception {
 		when(subjects.findOwned(9L, 4L)).thenReturn(Optional.empty());
 

@@ -3,6 +3,7 @@ package com.appv4.auth.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -46,6 +47,7 @@ import com.appv4.auth.application.service.question.LinkQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
 import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 
 @ExtendWith(MockitoExtension.class)
@@ -603,6 +605,137 @@ class TeacherQuestionServiceTest {
 				.hasMessage(TeacherQuestionService.GAP_WORD_REQUIRED);
 
 		verify(questions, never()).insert(eq(SUBJECT_ID), eq("case_vide"), eq(""), any());
+	}
+
+	@Test
+	void cloneCopiesSeveralQuestionsOntoAnotherSubjectAndKeepsTheOriginals() {
+		long targetId = 8L;
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(subjects.findOwned(TEACHER_ID, targetId)).thenReturn(Optional.of(
+				new StoredSubject(targetId, TEACHER_ID, 1L, "CE2", "Histoire", true)));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
+		when(questions.findInSubject(SUBJECT_ID, 12L)).thenReturn(Optional.of(gapsQuestion()));
+		when(questions.insert(eq(targetId), eq("qcm"), eq("Combien font 2 + 2 ?"), any()))
+				.thenReturn(new StoredQuestion(
+						20L, targetId, "qcm", "Combien font 2 + 2 ?",
+						List.of(new StoredChoice(3L, "3", false), new StoredChoice(4L, "4", true)),
+						List.of(), List.of()));
+		when(questions.insert(eq(targetId), eq("case_vide"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						21L, targetId, "case_vide", "",
+						new TeacherQuestionPort.StoredGaps(
+								"Le chat ___",
+								List.of(new TeacherQuestionPort.StoredGapWord(5L, "mange")),
+								List.of(new TeacherQuestionPort.StoredGapWord(6L, "dort")))));
+
+		TeacherSubjectQuestionsView view = service.cloneQuestions(
+				TEACHER_ID, "teacher", SUBJECT_ID, targetId, List.of(7L, 12L, 7L));
+
+		assertThat(view.questions()).extracting(QuestionLine::id).containsExactly(20L, 21L);
+		assertThat(view.questions().get(1).sentence()).isEqualTo("Le chat ___");
+		verify(questions).ensureForm(targetId, "qcm", "Choix multiples", 1);
+		verify(questions).ensureForm(targetId, "case_vide", "Case vide", 6);
+		verify(questions, never()).replace(anyLong(), any(), any());
+
+		ArgumentCaptor<TeacherQuestionPort.ChoicesDraft> choices =
+				ArgumentCaptor.forClass(TeacherQuestionPort.ChoicesDraft.class);
+		verify(questions).insert(eq(targetId), eq("qcm"), eq("Combien font 2 + 2 ?"), choices.capture());
+		assertThat(choices.getValue().choices()).containsExactly(
+				new ChoiceDraft("3", false),
+				new ChoiceDraft("4", true));
+
+		ArgumentCaptor<TeacherQuestionPort.GapsDraft> gaps =
+				ArgumentCaptor.forClass(TeacherQuestionPort.GapsDraft.class);
+		verify(questions).insert(eq(targetId), eq("case_vide"), eq(""), gaps.capture());
+		assertThat(gaps.getValue().sentence()).isEqualTo("Le chat ___");
+		assertThat(gaps.getValue().answers()).containsExactly(new TeacherQuestionPort.GapWordDraft("mange"));
+		assertThat(gaps.getValue().decoys()).containsExactly(new TeacherQuestionPort.GapWordDraft("dort"));
+	}
+
+	@Test
+	void cloneOntoTheSameSubjectStillInsertsANewQuestion() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
+		when(questions.insert(eq(SUBJECT_ID), eq("qcm"), eq("Combien font 2 + 2 ?"), any()))
+				.thenReturn(new StoredQuestion(
+						20L, SUBJECT_ID, "qcm", "Combien font 2 + 2 ?",
+						List.of(new StoredChoice(3L, "3", false), new StoredChoice(4L, "4", true)),
+						List.of(), List.of()));
+
+		TeacherSubjectQuestionsView view = service.cloneQuestions(
+				TEACHER_ID, "teacher", SUBJECT_ID, SUBJECT_ID, List.of(7L));
+
+		assertThat(view.questions()).extracting(QuestionLine::id).containsExactly(20L);
+		verify(questions).insert(eq(SUBJECT_ID), eq("qcm"), eq("Combien font 2 + 2 ?"), any());
+	}
+
+	@Test
+	void cloneRefusesAnEmptySelectionBeforeTouchingTheSubjects() {
+		assertThatThrownBy(() -> service.cloneQuestions(TEACHER_ID, "teacher", SUBJECT_ID, 8L, List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.CLONE_REQUIRED);
+
+		verify(subjects, never()).findOwned(TEACHER_ID, SUBJECT_ID);
+		verify(questions, never()).insert(anyLong(), any(), any(), any());
+	}
+
+	@Test
+	void cloneRefusesAMissingTarget() {
+		assertThatThrownBy(() -> service.cloneQuestions(TEACHER_ID, "teacher", SUBJECT_ID, 0L, List.of(7L)))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.CLONE_TARGET);
+	}
+
+	@Test
+	void cloneRefusesAQuestionThatIsNotOnTheSourceSubject() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(subjects.findOwned(TEACHER_ID, 8L)).thenReturn(Optional.of(
+				new StoredSubject(8L, TEACHER_ID, 1L, "CE2", "Histoire", true)));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
+		when(questions.findInSubject(SUBJECT_ID, 99L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.cloneQuestions(
+				TEACHER_ID, "teacher", SUBJECT_ID, 8L, List.of(7L, 99L)))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.NOT_FOUND);
+
+		verify(questions, never()).insert(anyLong(), any(), any(), any());
+	}
+
+	@Test
+	void cloneRefusesASubjectTheTeacherDoesNotHave() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(subjects.findOwned(TEACHER_ID, 8L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.cloneQuestions(
+				TEACHER_ID, "teacher", SUBJECT_ID, 8L, List.of(7L)))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherSubjectService.SUBJECT_MISSING);
+
+		verify(questions, never()).findInSubject(SUBJECT_ID, 7L);
+	}
+
+	@Test
+	void parentCannotCloneQuestions() {
+		assertThatThrownBy(() -> service.cloneQuestions(TEACHER_ID, "parent", SUBJECT_ID, 8L, List.of(7L)))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.FORBIDDEN);
+
+		verify(questions, never()).insert(anyLong(), any(), any(), any());
+	}
+
+	private static StoredQuestion gapsQuestion() {
+		return new StoredQuestion(
+				12L,
+				SUBJECT_ID,
+				"case_vide",
+				"",
+				new TeacherQuestionPort.StoredGaps(
+						"Le chat ___",
+						List.of(new TeacherQuestionPort.StoredGapWord(1L, "mange")),
+						List.of(new TeacherQuestionPort.StoredGapWord(2L, "dort"))));
 	}
 
 	private static StoredSubject owned() {

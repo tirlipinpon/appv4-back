@@ -7,14 +7,16 @@ import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 
 /**
- * Préparer une question dans une matière (SCRUM-174, SCRUM-175).
+ * Préparer une question dans une matière (SCRUM-174, SCRUM-175, SCRUM-176).
  *
  * <p><b>Business :</b> le professeur choisit une forme dans la liste que l'API
  * propose. Le choix multiple a un énoncé et des propositions. Le Memory a des
- * paires, et l'énoncé peut rester vide. L'élève ne joue pas encore ici.
- * <p><b>Technique :</b> l'identifiant vient du jeton. Une proposition vide, ou
- * une paire incomplète, n'est pas enregistrée. Moins de deux propositions, ou
- * aucune bonne réponse, est refusé. Moins de deux paires aussi.
+ * paires. L'ordre a des éléments déjà rangés. L'énoncé du Memory et de l'ordre
+ * peut rester vide. L'élève ne joue pas encore ici.
+ * <p><b>Technique :</b> l'identifiant vient du jeton. Une proposition vide, une
+ * paire incomplète, ou un élément vide, n'est pas enregistré. Moins de deux
+ * propositions, ou aucune bonne réponse, est refusé. Moins de deux paires, ou
+ * moins de deux éléments, aussi.
  * <p><b>Métier / flow :</b> port in de {@code /api/int/teacher/question-forms}
  * et {@code /api/int/teacher/subjects/{id}/questions}. Corriger un énoncé
  * déjà enregistré passe par le même port, sans changer la forme.
@@ -25,19 +27,22 @@ public interface TeacherQuestionUseCase {
 
 	TeacherSubjectQuestionsView list(long userId, String activeRole, long subjectId);
 
-	QuestionLine create(
+	default QuestionLine create(
 			long userId,
 			String activeRole,
 			long subjectId,
 			String formCode,
 			String prompt,
 			List<ChoiceInput> choices,
-			List<PairInput> pairs);
+			List<PairInput> pairs,
+			List<ItemInput> items) {
+		return create(userId, activeRole, subjectId, formCode, prompt, new LegacyInput(choices, pairs, items));
+	}
 
 	/**
 	 * Remplace le contenu. La forme déjà enregistrée reste.
 	 */
-	QuestionLine update(
+	default QuestionLine update(
 			long userId,
 			String activeRole,
 			long subjectId,
@@ -45,7 +50,23 @@ public interface TeacherQuestionUseCase {
 			String formCode,
 			String prompt,
 			List<ChoiceInput> choices,
-			List<PairInput> pairs);
+			List<PairInput> pairs,
+			List<ItemInput> items) {
+		return update(userId, activeRole, subjectId, questionId, formCode, prompt, new LegacyInput(choices, pairs, items));
+	}
+
+	/** Entrée extensible : chaque forme peut déclarer sa structure propre. */
+	QuestionLine create(long userId, String activeRole, long subjectId, String formCode, String prompt, ContentInput content);
+
+	QuestionLine update(long userId, String activeRole, long subjectId, long questionId,
+			String formCode, String prompt, ContentInput content);
+
+	interface ContentInput {
+	}
+
+	/** Adaptation des formulaires QCM, Memory et Ordre déjà publiés. */
+	record LegacyInput(List<ChoiceInput> choices, List<PairInput> pairs, List<ItemInput> items) implements ContentInput {
+	}
 
 	/**
 	 * @param correct {@code null} compte comme faux
@@ -55,5 +76,9 @@ public interface TeacherQuestionUseCase {
 
 	/** Côté question et côté réponse d'une paire Memory. */
 	record PairInput(String questionSide, String answerSide) {
+	}
+
+	/** Texte d'un élément dans une liste déjà ordonnée. */
+	record ItemInput(String label) {
 	}
 }

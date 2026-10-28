@@ -15,12 +15,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ChoiceLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ItemLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.PairLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 import com.appv4.configuration.OpenApiConfiguration;
@@ -33,12 +35,12 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Choix multiple du professeur connecté, et Memory (SCRUM-174, SCRUM-175).
+ * Questions du professeur connecté : choix multiple, Memory, Ordre (SCRUM-174, SCRUM-175, SCRUM-176).
  *
- * <p><b>Business :</b> il voit les formes proposables, puis il prépare un énoncé
- * ou des paires dans une matière à laquelle il a accès. Il peut corriger une
- * question déjà là. La forme de cette question ne change pas. Une autre forme
- * n'est pas acceptée. L'élève ne joue pas ici.
+ * <p><b>Business :</b> il voit les formes proposables, puis il prépare un énoncé,
+ * des paires, ou une liste déjà rangée, dans une matière à laquelle il a accès.
+ * Il peut corriger une question déjà là. La forme de cette question ne change pas.
+ * Une autre forme n'est pas acceptée. L'élève ne joue pas ici.
  * <p><b>Technique :</b> {@code /api/int/teacher/question-forms} et
  * {@code /api/int/teacher/subjects/{id}/questions}. JWT obligatoire, espace {@code teacher}.
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link TeacherQuestionUseCase}.
@@ -88,11 +90,11 @@ public class TeacherQuestionController {
 	}
 
 	@PostMapping("/subjects/{subjectId}/questions")
-	@Operation(operationId = "createTeacherSubjectQuestion", summary = "Ajouter un choix multiple à une matière")
+	@Operation(operationId = "createTeacherSubjectQuestion", summary = "Ajouter une question à une matière")
 	@ApiResponse(responseCode = "200", description = "Question enregistrée")
 	@ApiResponse(
 			responseCode = "400",
-			description = "Forme inconnue, énoncé vide, moins de deux propositions, ou aucune bonne réponse",
+			description = "Forme inconnue, énoncé invalide, ou contenu insuffisant pour cette forme",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	@ApiResponse(
 			responseCode = "403",
@@ -108,7 +110,7 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -117,16 +119,17 @@ public class TeacherQuestionController {
 				body.formCode(),
 				body.prompt(),
 				inputs(body.choices()),
-				pairInputs(body.pairs()));
+				pairInputs(body.pairs()),
+				itemInputs(body.items()));
 		return ResponseEntity.ok(item(line));
 	}
 
 	@PutMapping("/subjects/{subjectId}/questions/{questionId}")
-	@Operation(operationId = "updateTeacherSubjectQuestion", summary = "Corriger un choix multiple déjà enregistré")
+	@Operation(operationId = "updateTeacherSubjectQuestion", summary = "Corriger une question déjà enregistrée")
 	@ApiResponse(responseCode = "200", description = "Question corrigée, la forme ne change pas")
 	@ApiResponse(
 			responseCode = "400",
-			description = "Forme inconnue ou différente, énoncé vide, moins de deux propositions, ou aucune bonne réponse",
+			description = "Forme inconnue ou différente, énoncé invalide, ou contenu insuffisant pour cette forme",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	@ApiResponse(
 			responseCode = "403",
@@ -143,7 +146,7 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -153,7 +156,8 @@ public class TeacherQuestionController {
 				body.formCode(),
 				body.prompt(),
 				inputs(body.choices()),
-				pairInputs(body.pairs()));
+				pairInputs(body.pairs()),
+				itemInputs(body.items()));
 		return ResponseEntity.ok(item(line));
 	}
 
@@ -185,6 +189,20 @@ public class TeacherQuestionController {
 		return inputs;
 	}
 
+	private static List<ItemInput> itemInputs(List<TeacherQuestionItemInput> items) {
+		if (items == null) {
+			return List.of();
+		}
+		List<ItemInput> inputs = new ArrayList<>();
+		for (TeacherQuestionItemInput item : items) {
+			if (item == null) {
+				continue;
+			}
+			inputs.add(new ItemInput(item.label()));
+		}
+		return inputs;
+	}
+
 	private static TeacherQuestionFormsResponse forms(TeacherQuestionFormsView view) {
 		List<TeacherQuestionFormItem> items = new ArrayList<>();
 		for (FormLine form : view.forms()) {
@@ -210,8 +228,12 @@ public class TeacherQuestionController {
 		for (PairLine pair : line.pairs()) {
 			pairs.add(new TeacherQuestionPairItem(pair.id(), pair.questionSide(), pair.answerSide()));
 		}
+		List<TeacherQuestionItem> items = new ArrayList<>();
+		for (ItemLine orderItem : line.items()) {
+			items.add(new TeacherQuestionItem(orderItem.id(), orderItem.label()));
+		}
 		return new TeacherSubjectQuestionItem(
-				line.id(), line.formCode(), line.formLabel(), line.prompt(), choices, pairs);
+				line.id(), line.formCode(), line.formLabel(), line.prompt(), choices, pairs, items);
 	}
 
 	@Schema(name = "TeacherQuestionFormsResponse")
@@ -233,7 +255,8 @@ public class TeacherQuestionController {
 			String formLabel,
 			String prompt,
 			List<TeacherQuestionChoiceItem> choices,
-			List<TeacherQuestionPairItem> pairs) {
+			List<TeacherQuestionPairItem> pairs,
+			List<TeacherQuestionItem> items) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
@@ -244,12 +267,17 @@ public class TeacherQuestionController {
 	public record TeacherQuestionPairItem(long id, String questionSide, String answerSide) {
 	}
 
+	@Schema(name = "TeacherQuestionItem")
+	public record TeacherQuestionItem(long id, String label) {
+	}
+
 	@Schema(name = "CreateTeacherSubjectQuestionRequest")
 	public record CreateTeacherSubjectQuestionRequest(
 			String formCode,
 			String prompt,
 			List<TeacherQuestionChoiceInput> choices,
-			List<TeacherQuestionPairInput> pairs) {
+			List<TeacherQuestionPairInput> pairs,
+			List<TeacherQuestionItemInput> items) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceInput")
@@ -258,5 +286,9 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionPairInput")
 	public record TeacherQuestionPairInput(String questionSide, String answerSide) {
+	}
+
+	@Schema(name = "TeacherQuestionItemInput")
+	public record TeacherQuestionItemInput(String label) {
 	}
 }

@@ -1,5 +1,10 @@
 package com.appv4.auth.infrastructure.config;
 
+import com.appv4.auth.application.service.question.QuestionFormHandler;
+import com.appv4.auth.application.service.question.QuestionFormRegistry;
+import com.appv4.auth.application.service.question.QcmQuestionForm;
+import com.appv4.auth.application.service.question.MemoryQuestionForm;
+import com.appv4.auth.application.service.question.OrderQuestionForm;
 import java.util.List;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -423,10 +428,25 @@ public class AuthConfiguration {
 	 * que ce qu'on sait enregistrer. L'écran élève n'est pas ici.
 	 */
 	@Bean
+	QuestionFormHandler qcmQuestionForm() {
+		return new QcmQuestionForm();
+	}
+
+	@Bean
+	QuestionFormHandler memoryQuestionForm() {
+		return new MemoryQuestionForm();
+	}
+
+	@Bean
+	QuestionFormHandler orderQuestionForm() {
+		return new OrderQuestionForm();
+	}
+
+	@Bean
 	TeacherQuestionUseCase teacherQuestionUseCase(
 			TeacherSubjectPort teacherSubjectPort,
-			TeacherQuestionPort teacherQuestionPort) {
-		return new TeacherQuestionService(teacherSubjectPort, teacherQuestionPort);
+			TeacherQuestionPort teacherQuestionPort, List<QuestionFormHandler> handlers) {
+		return new TeacherQuestionService(teacherSubjectPort, teacherQuestionPort, new QuestionFormRegistry(handlers));
 	}
 
 	/**

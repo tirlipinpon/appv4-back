@@ -48,6 +48,10 @@ public class BackSubjectQuestionPairEntity {
 		this.sortOrder = sortOrder;
 	}
 
+	public long getQuestionId() {
+		return questionId;
+	}
+
 	public Long getId() {
 		return id;
 	}

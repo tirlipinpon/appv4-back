@@ -2,11 +2,17 @@ package com.appv4.auth.application.result;
 
 import java.util.List;
 
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredContent;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
+
 /**
  * Questions déjà préparées dans une matière (SCRUM-174).
  *
  * <p><b>Business :</b> le professeur revoit l'énoncé, les propositions d'un
- * choix multiple, ou les paires d'un Memory. L'ordre enregistré est celui saisi.
+ * choix multiple, les paires d'un Memory, ou les éléments d'un Ordre.
+ * L'ordre enregistré est celui saisi.
  * <p><b>Technique :</b> {@code formCode} est le code choisi dans la liste des formes.
  * <p><b>Métier / flow :</b> résultat de {@code GET/POST /api/int/teacher/subjects/{id}/questions}.
  */
@@ -17,13 +23,34 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 			String formCode,
 			String formLabel,
 			String prompt,
-			List<ChoiceLine> choices,
-			List<PairLine> pairs) {
+			StoredContent content) {
+
+		public List<ChoiceLine> choices() {
+			return content instanceof StoredChoices value
+					? value.choices().stream()
+							.map(row -> new ChoiceLine(row.id(), row.label(), row.correct()))
+							.toList() : List.of();
+		}
+
+		public List<PairLine> pairs() {
+			return content instanceof StoredPairs value
+					? value.pairs().stream()
+							.map(row -> new PairLine(row.id(), row.questionSide(), row.answerSide()))
+							.toList() : List.of();
+		}
+
+		public List<ItemLine> items() {
+			return content instanceof StoredItems value
+					? value.items().stream().map(row -> new ItemLine(row.id(), row.label())).toList() : List.of();
+		}
 	}
 
 	public record ChoiceLine(long id, String label, boolean correct) {
 	}
 
 	public record PairLine(long id, String questionSide, String answerSide) {
+	}
+
+	public record ItemLine(long id, String label) {
 	}
 }

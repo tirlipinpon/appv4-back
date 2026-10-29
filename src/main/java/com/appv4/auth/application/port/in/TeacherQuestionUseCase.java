@@ -142,4 +142,20 @@ public interface TeacherQuestionUseCase {
 	/** Énoncé déjà vérifié à part, et la réponse que l'élève devra écrire dans un seul champ. */
 	record FreeTextInput(String expectedAnswer) implements ContentInput {
 	}
+
+	/**
+	 * Image à cliquer. {@code imageWebp} est le fichier déjà allégé, en base64.
+	 * {@code requireAllCorrect} dit si toutes les zones justes sont obligatoires.
+	 */
+	record ClickImageInput(String imageWebp, Boolean requireAllCorrect, List<ClickZoneInput> zones)
+			implements ContentInput {
+	}
+
+	/** Une zone : nom, juste ou non, forme, points entre 0 et 1. */
+	record ClickZoneInput(String label, Boolean correct, String shape, List<ClickPointInput> points) {
+	}
+
+	/** Coordonnée en proportion de l'image. */
+	record ClickPointInput(Double x, Double y) {
+	}
 }

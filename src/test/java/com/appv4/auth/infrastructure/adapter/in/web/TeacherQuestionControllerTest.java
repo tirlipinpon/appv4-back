@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,7 +25,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickZone;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
@@ -58,7 +62,7 @@ class TeacherQuestionControllerTest {
 	void teacherSeesMultipleChoiceMemoryOrderAndTrueFalse() throws Exception {
 		mockMvc.perform(get("/api/int/teacher/question-forms").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.forms.length()").value(7))
+				.andExpect(jsonPath("$.forms.length()").value(8))
 				.andExpect(jsonPath("$.forms[0].code").value("qcm"))
 				.andExpect(jsonPath("$.forms[0].label").value("Choix multiples"))
 				.andExpect(jsonPath("$.forms[1].code").value("memory"))
@@ -71,9 +75,12 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.forms[4].label").value("Liens"))
 				.andExpect(jsonPath("$.forms[5].code").value("case_vide"))
 				.andExpect(jsonPath("$.forms[5].label").value("Case vide"))
-				.andExpect(jsonPath("$.forms[6].code").value("texte"))
-				.andExpect(jsonPath("$.forms[6].label").value("Réponse libre"))
-				.andExpect(jsonPath("$.forms[6].sortOrder").value(11));
+				.andExpect(jsonPath("$.forms[6].code").value("image_interactive"))
+				.andExpect(jsonPath("$.forms[6].label").value("Image à cliquer"))
+				.andExpect(jsonPath("$.forms[6].sortOrder").value(8))
+				.andExpect(jsonPath("$.forms[7].code").value("texte"))
+				.andExpect(jsonPath("$.forms[7].label").value("Réponse libre"))
+				.andExpect(jsonPath("$.forms[7].sortOrder").value(11));
 	}
 
 	@Test
@@ -325,6 +332,55 @@ class TeacherQuestionControllerTest {
 								}
 								"""))
 				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void createClickImageReturnsTheZonesAndTheRule() throws Exception {
+		byte[] webp = Base64.getDecoder().decode("UklGRiQAAABXRUJQVlA4IBgAAAA=");
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+		when(questions.insert(eq(4L), eq("image_interactive"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						14L,
+						4L,
+						"image_interactive",
+						"",
+						new StoredClickImage(webp, true, List.of(new StoredClickZone(
+								1L,
+								"le soleil",
+								true,
+								"polygon",
+								List.of(
+										new ClickPoint(0.1, 0.2),
+										new ClickPoint(0.3, 0.2),
+										new ClickPoint(0.2, 0.4)))))));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "formCode":"image_interactive",
+								  "prompt":"",
+								  "imageWebp":"UklGRiQAAABXRUJQVlA4IBgAAAA=",
+								  "requireAllCorrect":true,
+								  "zones":[{
+								    "label":"le soleil",
+								    "correct":true,
+								    "shape":"polygon",
+								    "points":[{"x":0.1,"y":0.2},{"x":0.3,"y":0.2},{"x":0.2,"y":0.4}]
+								  }]
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.formCode").value("image_interactive"))
+				.andExpect(jsonPath("$.formLabel").value("Image à cliquer"))
+				.andExpect(jsonPath("$.imageWebp").value("UklGRiQAAABXRUJQVlA4IBgAAAA="))
+				.andExpect(jsonPath("$.requireAllCorrect").value(true))
+				.andExpect(jsonPath("$.zones[0].label").value("le soleil"))
+				.andExpect(jsonPath("$.zones[0].correct").value(true))
+				.andExpect(jsonPath("$.zones[0].shape").value("polygon"))
+				.andExpect(jsonPath("$.zones[0].points[0].x").value(0.1));
 	}
 
 	@Test

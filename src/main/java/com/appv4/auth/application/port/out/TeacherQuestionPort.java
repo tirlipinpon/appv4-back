@@ -11,6 +11,7 @@ import java.util.Optional;
  * <p><b>Technique :</b> {@code back_subject_questions}, {@code back_subject_question_choices},
  * {@code back_subject_question_pairs}, {@code back_subject_question_items},
  * {@code back_subject_question_statements}, {@code back_subject_question_texts},
+ * {@code back_subject_question_click_images}, {@code back_subject_question_click_zones},
  * et une ligne {@code back_subject_question_forms} à la première question de cette forme.
  * <p><b>Métier / flow :</b> port out de {@code /api/int/teacher/subjects/{id}/questions}.
  */
@@ -80,6 +81,26 @@ public interface TeacherQuestionPort {
 
 	/** Réponse attendue d'une question libre, déjà non vide. */
 	record FreeTextDraft(String expectedAnswer) implements DraftContent {
+	}
+
+	/** Point d'une zone, entre 0 et 1, en proportion de l'image. */
+	record ClickPoint(double x, double y) {
+	}
+
+	/** Zone déjà nommée, juste ou non, avec sa forme. */
+	record ClickZoneDraft(String label, boolean correct, String shape, List<ClickPoint> points) {
+		public ClickZoneDraft {
+			points = List.copyOf(points);
+		}
+	}
+
+	/** Image WebP déjà allégée, et les zones qui restent collées à ce dessin. */
+	record ClickImageDraft(byte[] imageWebp, boolean requireAllCorrect, List<ClickZoneDraft> zones)
+			implements DraftContent {
+		public ClickImageDraft {
+			imageWebp = imageWebp.clone();
+			zones = List.copyOf(zones);
+		}
 	}
 
 	record StoredChoice(long id, String label, boolean correct) {
@@ -186,6 +207,22 @@ public interface TeacherQuestionPort {
 	record StoredFreeText(String expectedAnswer) implements StoredContent {
 	}
 
+	/** Zone relue, avec l'id de la ligne. */
+	record StoredClickZone(long id, String label, boolean correct, String shape, List<ClickPoint> points) {
+		public StoredClickZone {
+			points = List.copyOf(points);
+		}
+	}
+
+	/** Image et zones telles que le professeur les a enregistrées. */
+	record StoredClickImage(byte[] imageWebp, boolean requireAllCorrect, List<StoredClickZone> zones)
+			implements StoredContent {
+		public StoredClickImage {
+			imageWebp = imageWebp.clone();
+			zones = List.copyOf(zones);
+		}
+	}
+
 	record StoredQuestion(
 			long id,
 			long subjectId,
@@ -237,6 +274,18 @@ public interface TeacherQuestionPort {
 
 		public String expectedAnswer() {
 			return content instanceof StoredFreeText value ? value.expectedAnswer() : "";
+		}
+
+		public byte[] imageWebp() {
+			return content instanceof StoredClickImage value ? value.imageWebp() : new byte[0];
+		}
+
+		public Boolean requireAllCorrect() {
+			return content instanceof StoredClickImage value ? value.requireAllCorrect() : null;
+		}
+
+		public List<StoredClickZone> clickZones() {
+			return content instanceof StoredClickImage value ? value.zones() : List.of();
 		}
 	}
 }

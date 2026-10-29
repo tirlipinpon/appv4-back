@@ -1,6 +1,7 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickImageInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickPointInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickZoneInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.FreeTextInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapWordInput;
@@ -38,6 +42,8 @@ import com.appv4.auth.application.result.TeacherSubjectQuestionsView.LinkLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.PairLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.StatementLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ZoneLine;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
 import com.appv4.auth.application.service.TeacherQuestionService;
 import com.appv4.configuration.OpenApiConfiguration;
 
@@ -129,7 +135,8 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null, null, null, null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -163,7 +170,8 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null, null, null, null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -272,6 +280,9 @@ public class TeacherQuestionController {
 		if (TeacherQuestionService.TEXTE.equals(code)) {
 			return new FreeTextInput(body.expectedAnswer());
 		}
+		if (TeacherQuestionService.IMAGE_CLICK.equals(code)) {
+			return new ClickImageInput(body.imageWebp(), body.requireAllCorrect(), zoneInputs(body.zones()));
+		}
 		return new LegacyInput(inputs(body.choices()), pairInputs(body.pairs()), itemInputs(body.items()));
 	}
 
@@ -345,6 +356,34 @@ public class TeacherQuestionController {
 		return inputs;
 	}
 
+	private static List<ClickZoneInput> zoneInputs(List<TeacherQuestionZoneInput> zones) {
+		if (zones == null) {
+			return List.of();
+		}
+		List<ClickZoneInput> inputs = new ArrayList<>();
+		for (TeacherQuestionZoneInput zone : zones) {
+			if (zone == null) {
+				continue;
+			}
+			inputs.add(new ClickZoneInput(zone.label(), zone.correct(), zone.shape(), pointInputs(zone.points())));
+		}
+		return inputs;
+	}
+
+	private static List<ClickPointInput> pointInputs(List<TeacherQuestionPointInput> points) {
+		if (points == null) {
+			return List.of();
+		}
+		List<ClickPointInput> inputs = new ArrayList<>();
+		for (TeacherQuestionPointInput point : points) {
+			if (point == null) {
+				continue;
+			}
+			inputs.add(new ClickPointInput(point.x(), point.y()));
+		}
+		return inputs;
+	}
+
 	private static List<LinkInput> linkInputs(List<TeacherQuestionLinkInput> links) {
 		if (links == null) {
 			return List.of();
@@ -404,10 +443,30 @@ public class TeacherQuestionController {
 		for (GapWordLine decoy : line.decoys()) {
 			decoys.add(new TeacherQuestionGapWordItem(decoy.id(), decoy.label()));
 		}
+		List<TeacherQuestionZoneItem> zones = new ArrayList<>();
+		for (ZoneLine zone : line.zones()) {
+			zones.add(new TeacherQuestionZoneItem(
+					zone.id(), zone.label(), zone.correct(), zone.shape(), pointItems(zone.points())));
+		}
 		return new TeacherSubjectQuestionItem(
 				line.id(), line.formCode(), line.formLabel(), line.prompt(),
 				choices, pairs, items, statements, links, line.sentence(), answers, decoys,
-				line.expectedAnswer());
+				line.expectedAnswer(), base64(line.imageWebp()), line.requireAllCorrect(), zones);
+	}
+
+	private static List<TeacherQuestionPointItem> pointItems(List<ClickPoint> points) {
+		List<TeacherQuestionPointItem> items = new ArrayList<>();
+		for (ClickPoint point : points) {
+			items.add(new TeacherQuestionPointItem(point.x(), point.y()));
+		}
+		return items;
+	}
+
+	private static String base64(byte[] bytes) {
+		if (bytes == null || bytes.length == 0) {
+			return "";
+		}
+		return Base64.getEncoder().encodeToString(bytes);
 	}
 
 	@Schema(name = "TeacherQuestionFormsResponse")
@@ -436,7 +495,10 @@ public class TeacherQuestionController {
 			String sentence,
 			List<TeacherQuestionGapWordItem> answers,
 			List<TeacherQuestionGapWordItem> decoys,
-			String expectedAnswer) {
+			String expectedAnswer,
+			String imageWebp,
+			Boolean requireAllCorrect,
+			List<TeacherQuestionZoneItem> zones) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
@@ -491,7 +553,28 @@ public class TeacherQuestionController {
 			String sentence,
 			List<TeacherQuestionGapWordInput> answers,
 			List<TeacherQuestionGapWordInput> decoys,
-			String expectedAnswer) {
+			String expectedAnswer,
+			String imageWebp,
+			Boolean requireAllCorrect,
+			List<TeacherQuestionZoneInput> zones) {
+	}
+
+	@Schema(name = "TeacherQuestionZoneInput")
+	public record TeacherQuestionZoneInput(
+			String label, Boolean correct, String shape, List<TeacherQuestionPointInput> points) {
+	}
+
+	@Schema(name = "TeacherQuestionPointInput")
+	public record TeacherQuestionPointInput(Double x, Double y) {
+	}
+
+	@Schema(name = "TeacherQuestionZoneItem")
+	public record TeacherQuestionZoneItem(
+			long id, String label, boolean correct, String shape, List<TeacherQuestionPointItem> points) {
+	}
+
+	@Schema(name = "TeacherQuestionPointItem")
+	public record TeacherQuestionPointItem(double x, double y) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceInput")

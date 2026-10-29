@@ -2,6 +2,8 @@ package com.appv4.auth.application.result;
 
 import java.util.List;
 
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredContent;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
@@ -83,6 +85,23 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 		public String expectedAnswer() {
 			return content instanceof StoredFreeText value ? value.expectedAnswer() : "";
 		}
+
+		public byte[] imageWebp() {
+			return content instanceof StoredClickImage value ? value.imageWebp() : new byte[0];
+		}
+
+		public Boolean requireAllCorrect() {
+			return content instanceof StoredClickImage value ? value.requireAllCorrect() : null;
+		}
+
+		public List<ZoneLine> zones() {
+			return content instanceof StoredClickImage value
+					? value.zones().stream()
+							.map(row -> new ZoneLine(
+									row.id(), row.label(), row.correct(), row.shape(), row.points()))
+							.toList()
+					: List.of();
+		}
 	}
 
 	public record ChoiceLine(long id, String label, boolean correct) {
@@ -101,5 +120,9 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 	}
 
 	public record GapWordLine(long id, String label) {
+	}
+
+	/** Zone d'une image à cliquer. Les points sont en proportion de l'image. */
+	public record ZoneLine(long id, String label, boolean correct, String shape, List<ClickPoint> points) {
 	}
 }

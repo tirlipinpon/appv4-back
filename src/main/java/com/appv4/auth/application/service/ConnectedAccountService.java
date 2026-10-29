@@ -5,7 +5,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ConnectedAccountUseCase;
+import com.appv4.auth.application.port.in.ConnectedAccountUseCase.ConnectedBanner;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 
 /**
  * Donne le nom du compte connecté pour l'en-tête.
@@ -28,8 +30,19 @@ public class ConnectedAccountService implements ConnectedAccountUseCase {
 	@Override
 	@Transactional(readOnly = true)
 	public String displayName(long userId) {
+		return account(userId).displayName();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ConnectedBanner banner(long userId) {
+		String name = account(userId).displayName();
+		String avatar = authUserAccountPort.findAvatarCode(userId).orElse(null);
+		return new ConnectedBanner(name, avatar);
+	}
+
+	private AuthUserAccount account(long userId) {
 		return authUserAccountPort.findById(userId)
-				.map(account -> account.displayName())
 				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, ACCOUNT_MISSING));
 	}
 }

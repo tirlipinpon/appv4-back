@@ -65,6 +65,13 @@ public interface AuthUserAccountPort {
 	Optional<AuthUserAccount> findById(long userId);
 
 	/**
+	 * Avatar du bandeau. Vide si la personne n'en a pas choisi.
+	 */
+	default Optional<String> findAvatarCode(long userId) {
+		return Optional.empty();
+	}
+
+	/**
 	 * Compte actif pour login email/mdp (SCRUM-117) — inclut le hash (peut être null si social pur).
 	 */
 	Optional<AuthUserLoginCandidate> findLoginCandidateByEmail(String email);

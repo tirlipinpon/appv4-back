@@ -21,6 +21,21 @@ public interface TeacherProfileUseCase {
 	TeacherProfileView update(long userId, String activeRole, String displayName, List<TeacherSchoolCommand> schools);
 
 	/**
+	 * Même enregistrement, plus le mail de contact, le téléphone et l'avatar.
+	 * Une valeur {@code null} laisse la colonne telle quelle. Une chaîne vide l'efface.
+	 */
+	default TeacherProfileView update(
+			long userId,
+			String activeRole,
+			String displayName,
+			List<TeacherSchoolCommand> schools,
+			String contactEmail,
+			String phone,
+			String avatarCode) {
+		return update(userId, activeRole, displayName, schools);
+	}
+
+	/**
 	 * Élèves et matières concernés avant de retirer une année ou une école.
 	 *
 	 * @param grade année à retirer, ou null pour l'école entière

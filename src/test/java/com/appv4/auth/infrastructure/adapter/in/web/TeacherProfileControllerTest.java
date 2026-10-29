@@ -84,7 +84,7 @@ class TeacherProfileControllerTest {
 				.andExpect(jsonPath("$.email").value("prof@example.com"))
 				.andExpect(jsonPath("$.schools").isEmpty());
 
-		verify(profiles).updateDisplayName(9L, "Professeur Martin");
+		verify(profiles).updateContact(9L, "Professeur Martin", null, null, null);
 		verify(profiles).replaceSchools(eq(9L), eq(List.of()));
 	}
 

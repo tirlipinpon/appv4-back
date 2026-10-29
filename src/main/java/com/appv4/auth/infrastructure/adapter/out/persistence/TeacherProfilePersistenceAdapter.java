@@ -46,7 +46,29 @@ public class TeacherProfilePersistenceAdapter implements TeacherProfilePort {
 	@Transactional(readOnly = true)
 	public Optional<TeacherAccount> findAccount(long userId) {
 		return userRepository.findById(userId)
-				.map(user -> new TeacherAccount(user.getEmail(), user.getDisplayName()));
+				.map(user -> new TeacherAccount(
+						user.getEmail(),
+						user.getDisplayName(),
+						user.getContactEmail(),
+						user.getPhone(),
+						user.getAvatarCode()));
+	}
+
+	@Override
+	@Transactional
+	public void updateContact(
+			long userId,
+			String displayName,
+			String contactEmail,
+			String phone,
+			String avatarCode) {
+		BackUserEntity user = userRepository.findById(userId)
+				.orElseThrow(() -> new AuthDomainException(
+						AuthErrorCode.NOT_FOUND, TeacherProfileService.ACCOUNT_MISSING));
+		user.setDisplayName(displayName);
+		user.setContactEmail(contactEmail);
+		user.setPhone(phone);
+		user.setAvatarCode(avatarCode);
 	}
 
 	@Override

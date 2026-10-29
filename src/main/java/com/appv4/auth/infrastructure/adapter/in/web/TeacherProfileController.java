@@ -50,7 +50,7 @@ public class TeacherProfileController {
 
 	@GetMapping
 	@Operation(operationId = "getTeacherProfile", summary = "Lire le profil du professeur connecté")
-	@ApiResponse(responseCode = "200", description = "Email, nom, écoles déjà choisies et écoles proposables")
+	@ApiResponse(responseCode = "200", description = "Email, nom, contact, avatar, écoles déjà choisies et écoles proposables")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace professeur",
@@ -62,7 +62,7 @@ public class TeacherProfileController {
 	}
 
 	@PutMapping
-	@Operation(operationId = "updateTeacherProfile", summary = "Enregistrer le nom et les écoles du professeur")
+	@Operation(operationId = "updateTeacherProfile", summary = "Enregistrer le nom, le contact et les écoles du professeur")
 	@ApiResponse(responseCode = "200", description = "Profil enregistré")
 	@ApiResponse(
 			responseCode = "400",
@@ -83,7 +83,10 @@ public class TeacherProfileController {
 				user.userId(),
 				user.activeRole(),
 				body.displayName(),
-				toCommands(body.schools()));
+				toCommands(body.schools()),
+				body.contactEmail(),
+				body.phone(),
+				body.avatarCode());
 		return ResponseEntity.ok(toResponse(view));
 	}
 
@@ -135,7 +138,19 @@ public class TeacherProfileController {
 		List<TeacherCurriculumOption> curricula = view.curricula().stream()
 				.map(choice -> new TeacherCurriculumOption(choice.code(), choice.label(), choice.grades()))
 				.toList();
-		return new TeacherProfileResponse(view.email(), view.displayName(), schools, available, curricula);
+		List<AvatarChoiceResponse> choices = view.avatarChoices().stream()
+				.map(choice -> new AvatarChoiceResponse(choice.code(), choice.label()))
+				.toList();
+		return new TeacherProfileResponse(
+				view.email(),
+				view.displayName(),
+				view.contactEmail(),
+				view.phone(),
+				view.avatarCode(),
+				choices,
+				schools,
+				available,
+				curricula);
 	}
 
 	private static TeacherRemovalPreviewResponse toPreview(TeacherRemovalPreviewView view) {
@@ -170,6 +185,10 @@ public class TeacherProfileController {
 	public record TeacherProfileResponse(
 			String email,
 			String displayName,
+			@Schema(nullable = true) String contactEmail,
+			@Schema(nullable = true) String phone,
+			@Schema(nullable = true) String avatarCode,
+			List<AvatarChoiceResponse> avatarChoices,
 			List<TeacherAssignedSchool> schools,
 			List<TeacherAvailableSchool> availableSchools,
 			List<TeacherCurriculumOption> curricula) {
@@ -193,7 +212,16 @@ public class TeacherProfileController {
 	}
 
 	@Schema(name = "UpdateTeacherProfileRequest")
-	public record UpdateTeacherProfileRequest(String displayName, List<TeacherSchoolInput> schools) {
+	public record UpdateTeacherProfileRequest(
+			String displayName,
+			List<TeacherSchoolInput> schools,
+			@Schema(nullable = true) String contactEmail,
+			@Schema(nullable = true) String phone,
+			@Schema(nullable = true) String avatarCode) {
+
+		public UpdateTeacherProfileRequest(String displayName, List<TeacherSchoolInput> schools) {
+			this(displayName, schools, null, null, null);
+		}
 	}
 
 	@Schema(name = "TeacherSchoolInput")

@@ -11,5 +11,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(name = "ConnectedAccountResponse")
 public record ConnectedAccountResponse(
 		@Schema(description = "Nom du compte connecté (parent, professeur ou admin)")
-		String displayName) {
+		String displayName,
+		@Schema(nullable = true, description = "Code d'avatar, absent s'il n'y en a pas")
+		String avatarCode) {
 }

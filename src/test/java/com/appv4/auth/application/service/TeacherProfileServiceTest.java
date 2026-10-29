@@ -56,6 +56,33 @@ class TeacherProfileServiceTest {
 	}
 
 	@Test
+	void contactStaysWhenTheSchoolPageOmitsItAndClearsWhenEmpty() {
+		service.update(
+				TEACHER_ID,
+				"teacher",
+				"Camille Martin",
+				List.of(),
+				"camille.contact@example.com",
+				"0470000001",
+				"fox");
+
+		TeacherProfileView kept = service.update(TEACHER_ID, "teacher", "Camille Martin", List.of());
+
+		assertThat(kept.contactEmail()).isEqualTo("camille.contact@example.com");
+		assertThat(kept.phone()).isEqualTo("0470000001");
+		assertThat(kept.avatarCode()).isEqualTo("fox");
+		assertThat(kept.schools()).isEmpty();
+		assertThat(profiles.schoolsOf(TEACHER_ID)).isEmpty();
+
+		TeacherProfileView cleared = service.update(
+				TEACHER_ID, "teacher", "Camille Martin", List.of(), "", "", "");
+		assertThat(cleared.contactEmail()).isNull();
+		assertThat(cleared.phone()).isNull();
+		assertThat(cleared.avatarCode()).isNull();
+		assertThat(profiles.account(TEACHER_ID).displayName()).isEqualTo("Camille Martin");
+	}
+
+	@Test
 	void teacherRenamesAndKeepsEmailWhenNoSchoolIsOffered() {
 		TeacherProfileView view = service.update(TEACHER_ID, "teacher", "  Professeur Martin  ", List.of());
 
@@ -359,7 +386,24 @@ class TeacherProfileServiceTest {
 		@Override
 		public void updateDisplayName(long userId, String displayName) {
 			TeacherAccount current = accounts.get(userId);
-			accounts.put(userId, new TeacherAccount(current.email(), displayName));
+			accounts.put(userId, new TeacherAccount(
+					current.email(),
+					displayName,
+					current.contactEmail(),
+					current.phone(),
+					current.avatarCode()));
+		}
+
+		@Override
+		public void updateContact(
+				long userId,
+				String displayName,
+				String contactEmail,
+				String phone,
+				String avatarCode) {
+			TeacherAccount current = accounts.get(userId);
+			accounts.put(userId, new TeacherAccount(
+					current.email(), displayName, contactEmail, phone, avatarCode));
 		}
 
 		@Override

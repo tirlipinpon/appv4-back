@@ -13,11 +13,16 @@ import java.util.List;
 public record TeacherProfileView(
 		String email,
 		String displayName,
+		String contactEmail,
+		String phone,
+		String avatarCode,
+		List<AvatarChoice> avatarChoices,
 		List<AssignedSchool> schools,
 		List<AvailableSchool> availableSchools,
 		List<CurriculumChoice> curricula) {
 
 	public TeacherProfileView {
+		avatarChoices = avatarChoices == null ? List.of() : List.copyOf(avatarChoices);
 		schools = schools == null ? List.of() : List.copyOf(schools);
 		availableSchools = availableSchools == null ? List.of() : List.copyOf(availableSchools);
 		curricula = curricula == null ? List.of() : List.copyOf(curricula);

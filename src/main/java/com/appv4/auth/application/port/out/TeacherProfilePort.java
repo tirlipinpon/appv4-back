@@ -22,6 +22,19 @@ public interface TeacherProfilePort {
 	 */
 	void updateDisplayName(long userId, String displayName);
 
+	/**
+	 * Enregistre le nom et les coordonnées de contact. Ne change ni le mail de connexion,
+	 * ni le mot de passe, ni les écoles.
+	 */
+	default void updateContact(
+			long userId,
+			String displayName,
+			String contactEmail,
+			String phone,
+			String avatarCode) {
+		throw new UnsupportedOperationException("contact");
+	}
+
 	List<TeacherSchoolLink> findSchools(long userId);
 
 	/**
@@ -36,10 +49,19 @@ public interface TeacherProfilePort {
 	List<Long> findUserIdsWithClass(long schoolId, String grade);
 
 	/**
-	 * @param email       email du compte, jamais modifié par ce port
-	 * @param displayName nom affiché actuel
+	 * Ligne du compte lue pour la fiche. Le mail est celui de connexion.
+	 * Les trois derniers champs sont vides tant que la personne ne les a pas remplis.
 	 */
-	record TeacherAccount(String email, String displayName) {
+	record TeacherAccount(
+			String email,
+			String displayName,
+			String contactEmail,
+			String phone,
+			String avatarCode) {
+
+		public TeacherAccount(String email, String displayName) {
+			this(email, displayName, null, null, null);
+		}
 	}
 
 	/**

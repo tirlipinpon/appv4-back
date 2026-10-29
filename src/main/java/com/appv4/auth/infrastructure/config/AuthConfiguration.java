@@ -48,6 +48,7 @@ import com.appv4.auth.application.port.in.ResetPasswordUseCase;
 import com.appv4.auth.application.port.in.SignupWithEmailUseCase;
 import com.appv4.auth.application.port.in.SwitchActiveRoleUseCase;
 import com.appv4.auth.application.port.in.TeacherModerationUseCase;
+import com.appv4.auth.application.port.in.ParentProfileUseCase;
 import com.appv4.auth.application.port.in.TeacherProfileUseCase;
 import com.appv4.auth.application.port.in.TeacherStudentsUseCase;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
@@ -88,6 +89,7 @@ import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
 import com.appv4.auth.application.service.TeacherModerationService;
+import com.appv4.auth.application.service.ParentProfileService;
 import com.appv4.auth.application.service.TeacherProfileService;
 import com.appv4.auth.application.service.TeacherStudentsService;
 import com.appv4.auth.application.service.TeacherQuestionService;
@@ -415,6 +417,14 @@ public class AuthConfiguration {
 				teacherSubjectPort,
 				enrolledChildPort,
 				childSubjectPort);
+	}
+
+	/**
+	 * Fiche parent (SCRUM-200) — même compte que le professeur, sans toucher aux écoles.
+	 */
+	@Bean
+	ParentProfileUseCase parentProfileUseCase(TeacherProfilePort teacherProfilePort) {
+		return new ParentProfileService(teacherProfilePort);
 	}
 
 	/**

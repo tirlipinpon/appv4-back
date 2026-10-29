@@ -447,16 +447,20 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
-	void sharedColleagueCanRenameAndDeactivateOnlyForSelf() {
+	void sharedColleagueCannotRenameAndDeactivatesOnlyForSelf() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
 		service.acceptTransfer(OTHER_ID, "teacher", inviteId);
 
-		service.rename(OTHER_ID, "teacher", maths.id(), "Maths");
-		service.deactivate(OTHER_ID, "teacher", maths.id(), List.of());
-
+		service.rename(TEACHER_ID, "teacher", maths.id(), "Maths");
+		assertThat(lineOf(OTHER_ID, maths.id()).name()).isEqualTo("Maths");
+		assertThatThrownBy(() -> service.rename(OTHER_ID, "teacher", maths.id(), "Calcul"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherSubjectService.RENAME_ONLY_CREATOR);
 		assertThat(lineOf(TEACHER_ID, maths.id()).name()).isEqualTo("Maths");
+
+		service.deactivate(OTHER_ID, "teacher", maths.id(), List.of());
 		assertThat(lineOf(TEACHER_ID, maths.id()).active()).isTrue();
 		assertThat(lineOf(OTHER_ID, maths.id()).active()).isFalse();
 		assertThat(service.listDeactivateNotices(TEACHER_ID, "teacher").notices()).isEmpty();
@@ -466,6 +470,45 @@ class TeacherSubjectServiceTest {
 
 		service.reactivate(OTHER_ID, "teacher", maths.id());
 		assertThat(lineOf(OTHER_ID, maths.id()).active()).isTrue();
+	}
+
+	@Test
+	void recipientCanRenameAfterAMoveWhenAlone() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		SubjectLine renamed = service.rename(OTHER_ID, "teacher", maths.id(), "Maths");
+
+		assertThat(renamed.name()).isEqualTo("Maths");
+		assertThat(renamed.ownedByMe()).isTrue();
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThatThrownBy(() -> service.rename(TEACHER_ID, "teacher", maths.id(), "Autre"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherSubjectService.SUBJECT_MISSING);
+	}
+
+	@Test
+	void afterMoveAndShareOnlyTheNewOwnerCanRename() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(OTHER_ID, "teacher", maths.id(), TEACHER_ID, "share");
+		service.acceptTransfer(
+				TEACHER_ID, "teacher", service.listTransferInvites(TEACHER_ID, "teacher").invites().get(0).id());
+
+		assertThat(lineOf(OTHER_ID, maths.id()).ownedByMe()).isTrue();
+		assertThat(lineOf(TEACHER_ID, maths.id()).ownedByMe()).isFalse();
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isTrue();
+
+		service.rename(OTHER_ID, "teacher", maths.id(), "Maths");
+		assertThat(lineOf(TEACHER_ID, maths.id()).name()).isEqualTo("Maths");
+		assertThatThrownBy(() -> service.rename(TEACHER_ID, "teacher", maths.id(), "Calcul"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherSubjectService.RENAME_ONLY_CREATOR);
+		assertThat(lineOf(OTHER_ID, maths.id()).name()).isEqualTo("Maths");
 	}
 
 	@Test

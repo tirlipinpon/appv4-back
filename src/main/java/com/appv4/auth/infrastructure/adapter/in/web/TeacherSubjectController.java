@@ -152,11 +152,11 @@ public class TeacherSubjectController {
 	}
 
 	@PutMapping("/{id}")
-	@Operation(operationId = "renameTeacherSubject", summary = "Renommer une matière du professeur connecté")
+	@Operation(operationId = "renameTeacherSubject", summary = "Renommer une matière créée par le professeur connecté")
 	@ApiResponse(responseCode = "200", description = "Nom enregistré, la classe ne change pas")
 	@ApiResponse(
 			responseCode = "400",
-			description = "Nom vide, trop long, ou déjà pris dans la même classe",
+			description = "Nom vide, trop long, déjà pris dans la même classe, ou ce professeur n'est pas le créateur",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	@ApiResponse(
 			responseCode = "403",

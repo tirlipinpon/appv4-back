@@ -41,9 +41,11 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
 /**
  * Matières d'un professeur, classe par classe (SCRUM-161, SCRUM-172, SCRUM-189).
  *
- * <p><b>Business :</b> il crée, voit, renomme et retire un nom dans une année
- * déjà cochée. Dans cette année, il voit aussi les matières déjà suivies par
- * un collègue, et le nom de ce collègue, sans pouvoir les modifier.
+ * <p><b>Business :</b> il crée, voit et retire un nom dans une année déjà cochée.
+ * Seul le créateur renomme, même si la matière est partagée. Après un déplacement
+ * accepté, le collègue devient le créateur et peut renommer. Dans cette année,
+ * il voit aussi les matières déjà suivies par un collègue, et le nom de ce
+ * collègue, sans pouvoir les modifier tant qu'il ne les suit pas.
  * S'il retape le nom d'une matière retirée, on lui propose de
  * la réactiver (même enregistrement). Si le nom est déjà pris, ou s'il
  * ressemble fortement à une matière encore visible, il peut demander au
@@ -84,6 +86,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public static final String INVITE_STALE = "Cette demande n'est plus valable.";
 	public static final String ALSO_NOT_ALLOWED =
 			"Seul le créateur peut désactiver pour d'autres professeurs.";
+	public static final String RENAME_ONLY_CREATOR =
+			"Seul le professeur qui a créé cette matière peut la renommer.";
 	public static final String ALSO_NOT_HOLDER = "Ce professeur n'a pas cette matière.";
 	public static final String NOTICE_MISSING = "Cette alerte n'existe pas.";
 	public static final String MODE_MOVE = "move";
@@ -222,6 +226,9 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		requireTeacher(activeRole);
 		requireAccount(userId);
 		StoredSubject current = requireOwned(userId, subjectId);
+		if (current.userId() != userId) {
+			throw bad(RENAME_ONLY_CREATOR);
+		}
 		requireClass(userId, current.schoolId(), current.grade());
 		String trimmed = requiredName(name);
 		String key = nameKey(trimmed);

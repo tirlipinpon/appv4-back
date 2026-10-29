@@ -49,6 +49,17 @@ public interface TeacherSubjectUseCase {
 	 */
 	void requestShare(long userId, String activeRole, Long schoolId, String grade, String name);
 
+	/**
+	 * Change le nom pour tous ceux qui suivent la matière.
+	 *
+	 * <p><b>Business :</b> seul le créateur renomme. Un collègue qui ne fait que
+	 * la suivre ne peut pas. Après un déplacement accepté, le collègue devient
+	 * le créateur et ce droit passe avec lui.
+	 * <p><b>Technique :</b> {@code user_id} de la matière doit être le connecté.
+	 * Le nom est coupé des espaces, 100 caractères maximum, unique dans la classe.
+	 * <p><b>Métier / flow :</b> mise à jour du nom après la liste, seulement si
+	 * {@code ownedByMe} est vrai.
+	 */
 	SubjectLine rename(long userId, String activeRole, long subjectId, String name);
 
 	/**

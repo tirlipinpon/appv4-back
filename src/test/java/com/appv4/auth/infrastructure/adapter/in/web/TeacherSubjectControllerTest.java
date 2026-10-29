@@ -270,6 +270,25 @@ class TeacherSubjectControllerTest {
 	}
 
 	@Test
+	void sharedColleagueCannotRename() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 3L, 1L, "CE1", "Français", true)));
+
+		mockMvc.perform(put("/api/int/teacher/subjects/4")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"name\":\"Lecture\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(TeacherSubjectService.RENAME_ONLY_CREATOR));
+
+		verify(subjects, never()).rename(
+				org.mockito.ArgumentMatchers.anyLong(),
+				org.mockito.ArgumentMatchers.anyLong(),
+				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any());
+	}
+
+	@Test
 	void unknownSubjectIsNotFound() throws Exception {
 		when(subjects.findOwned(9L, 4L)).thenReturn(Optional.empty());
 		when(subjects.hide(9L, 4L)).thenReturn(false);

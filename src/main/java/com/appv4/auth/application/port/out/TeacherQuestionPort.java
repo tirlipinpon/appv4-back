@@ -10,7 +10,7 @@ import java.util.Optional;
  * déplacer ne la copie pas : même id de matière, mêmes questions.
  * <p><b>Technique :</b> {@code back_subject_questions}, {@code back_subject_question_choices},
  * {@code back_subject_question_pairs}, {@code back_subject_question_items},
- * {@code back_subject_question_statements},
+ * {@code back_subject_question_statements}, {@code back_subject_question_texts},
  * et une ligne {@code back_subject_question_forms} à la première question de cette forme.
  * <p><b>Métier / flow :</b> port out de {@code /api/int/teacher/subjects/{id}/questions}.
  */
@@ -76,6 +76,10 @@ public interface TeacherQuestionPort {
 
 	/** Mot juste ou leurre d'une case vide, déjà non vide. */
 	record GapWordDraft(String label) {
+	}
+
+	/** Réponse attendue d'une question libre, déjà non vide. */
+	record FreeTextDraft(String expectedAnswer) implements DraftContent {
 	}
 
 	record StoredChoice(long id, String label, boolean correct) {
@@ -178,6 +182,10 @@ public interface TeacherQuestionPort {
 		}
 	}
 
+	/** Réponse attendue telle que le professeur l'a enregistrée. */
+	record StoredFreeText(String expectedAnswer) implements StoredContent {
+	}
+
 	record StoredQuestion(
 			long id,
 			long subjectId,
@@ -225,6 +233,10 @@ public interface TeacherQuestionPort {
 
 		public List<StoredGapWord> decoys() {
 			return content instanceof StoredGaps value ? value.decoys() : List.of();
+		}
+
+		public String expectedAnswer() {
+			return content instanceof StoredFreeText value ? value.expectedAnswer() : "";
 		}
 	}
 }

@@ -138,4 +138,8 @@ public interface TeacherQuestionUseCase {
 
 	record GapWordInput(String label) {
 	}
+
+	/** Énoncé déjà vérifié à part, et la réponse que l'élève devra écrire dans un seul champ. */
+	record FreeTextInput(String expectedAnswer) implements ContentInput {
+	}
 }

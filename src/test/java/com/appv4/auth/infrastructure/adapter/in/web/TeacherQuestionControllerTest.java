@@ -58,7 +58,7 @@ class TeacherQuestionControllerTest {
 	void teacherSeesMultipleChoiceMemoryOrderAndTrueFalse() throws Exception {
 		mockMvc.perform(get("/api/int/teacher/question-forms").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.forms.length()").value(6))
+				.andExpect(jsonPath("$.forms.length()").value(7))
 				.andExpect(jsonPath("$.forms[0].code").value("qcm"))
 				.andExpect(jsonPath("$.forms[0].label").value("Choix multiples"))
 				.andExpect(jsonPath("$.forms[1].code").value("memory"))
@@ -70,7 +70,10 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.forms[4].code").value("liens"))
 				.andExpect(jsonPath("$.forms[4].label").value("Liens"))
 				.andExpect(jsonPath("$.forms[5].code").value("case_vide"))
-				.andExpect(jsonPath("$.forms[5].label").value("Case vide"));
+				.andExpect(jsonPath("$.forms[5].label").value("Case vide"))
+				.andExpect(jsonPath("$.forms[6].code").value("texte"))
+				.andExpect(jsonPath("$.forms[6].label").value("Réponse libre"))
+				.andExpect(jsonPath("$.forms[6].sortOrder").value(11));
 	}
 
 	@Test
@@ -274,6 +277,54 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.sentence").value("Le chat mange une ___ dans le jardin."))
 				.andExpect(jsonPath("$.answers[0].label").value("pomme"))
 				.andExpect(jsonPath("$.decoys[1].label").value("voiture"));
+	}
+
+	@Test
+	void createFreeTextReturnsThePromptAndTheExpectedAnswer() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+		when(questions.insert(eq(4L), eq("texte"), eq("Capitale de la France"), any()))
+				.thenReturn(new StoredQuestion(
+						13L,
+						4L,
+						"texte",
+						"Capitale de la France",
+						new TeacherQuestionPort.StoredFreeText("Paris")));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "formCode":"texte",
+								  "prompt":"Capitale de la France",
+								  "expectedAnswer":"Paris"
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(13))
+				.andExpect(jsonPath("$.formCode").value("texte"))
+				.andExpect(jsonPath("$.formLabel").value("Réponse libre"))
+				.andExpect(jsonPath("$.prompt").value("Capitale de la France"))
+				.andExpect(jsonPath("$.expectedAnswer").value("Paris"));
+	}
+
+	@Test
+	void createFreeTextRefusesAnEmptyAnswer() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "formCode":"texte",
+								  "prompt":"Capitale de la France",
+								  "expectedAnswer":"  "
+								}
+								"""))
+				.andExpect(status().isBadRequest());
 	}
 
 	@Test

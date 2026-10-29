@@ -26,6 +26,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoicesDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.FreeTextDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.GapWordDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.GapsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ItemDraft;
@@ -49,7 +50,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 @Import({TeacherQuestionPersistenceAdapter.class, ChoiceQuestionContentStore.class,
 		PairQuestionContentStore.class, ItemQuestionContentStore.class,
 		StatementQuestionContentStore.class, LinkQuestionContentStore.class,
-		CaseVideQuestionContentStore.class})
+		CaseVideQuestionContentStore.class, TexteQuestionContentStore.class})
 @EnabledIfEnvironmentVariable(named = "APPV4_PERSISTENCE_TEST_URL", matches = ".+")
 class TeacherQuestionPersistenceTest {
 
@@ -204,6 +205,21 @@ class TeacherQuestionPersistenceTest {
 		assertThat(loaded.sentence()).isEqualTo(sentence);
 		assertThat(loaded.answers()).extracting(row -> row.label()).containsExactly("pomme");
 		assertThat(loaded.decoys()).extracting(row -> row.label()).containsExactly("banane", "voiture");
+	}
+
+	@Test
+	void freeTextReplacementKeepsTheExpectedAnswer() {
+		adapter.ensureForm(subjectId, "texte", "Réponse libre", 11);
+		StoredQuestion saved = adapter.insert(
+				subjectId, "texte", "Capitale de la France", new FreeTextDraft("Paris"));
+		adapter.replace(saved.id(), "Capitale de la France", new FreeTextDraft("Paris"));
+		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
+		assertThat(loaded.formCode()).isEqualTo("texte");
+		assertThat(loaded.expectedAnswer()).isEqualTo("Paris");
+		assertThat(jdbc.queryForObject("""
+				select form_code from back_subject_question_forms
+				where subject_id = ? and form_code = 'texte'
+				""", String.class, subjectId)).isEqualTo("texte");
 	}
 
 	@Test

@@ -14,6 +14,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoicesDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.DraftContent;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.FreeTextDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.GapWordDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.GapsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ItemDraft;
@@ -27,6 +28,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredContent;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGapWord;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGaps;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItem;
@@ -62,6 +64,8 @@ import com.appv4.auth.application.service.question.QuestionFormRegistry;
  * Les originaux restent. Le professeur peut aussi en supprimer une ou plusieurs.
  * Avant ça, il voit combien d'enfants suivent le cours et leurs noms.
  * Le nom de la matière ne change pas. L'élève ne joue pas ici.
+ * La réponse libre (SCRUM-198) exige un énoncé et une réponse attendue.
+ * La comparaison, quand l'élève validera, ignore majuscules, accents et espaces au bord.
  * <p><b>Technique :</b> registre de validateurs indépendants par forme.
  * Les énoncés passent par {@link TeacherQuestionPort}. L'accès matière passe par
  * {@link TeacherSubjectPort#findOwned}. Les enfants passent par {@link ChildSubjectPort}.
@@ -119,6 +123,13 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String GAP_WORD_REQUIRED = "Chaque trou doit avoir un mot juste.";
 	public static final String GAP_WORD_TOO_LONG = "Un mot dépasse 200 caractères.";
 	public static final String GAP_SENTENCE_TOO_LONG = "La phrase dépasse 500 caractères.";
+
+	public static final String TEXTE = "texte";
+	public static final String TEXTE_LABEL = "Réponse libre";
+	public static final int TEXTE_ORDER = 11;
+	public static final String ANSWER_REQUIRED = "La réponse attendue est obligatoire.";
+	public static final String ANSWER_TOO_LONG = "La réponse attendue dépasse 500 caractères.";
+
 	public static final String CLONE_TARGET = "Choisis une matière.";
 	public static final String CLONE_REQUIRED = "Choisis au moins une question.";
 	public static final String DELETE_REQUIRED = "Choisis au moins une question à supprimer.";
@@ -392,6 +403,9 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 				decoys.add(new GapWordDraft(decoy.label()));
 			}
 			return new GapsDraft(gaps.sentence(), answers, decoys);
+		}
+		if (content instanceof StoredFreeText text) {
+			return new FreeTextDraft(text.expectedAnswer());
 		}
 		throw new IllegalStateException("Copie non prévue pour la forme : " + source.formCode());
 	}

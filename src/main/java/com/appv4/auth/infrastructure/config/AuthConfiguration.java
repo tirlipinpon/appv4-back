@@ -7,6 +7,7 @@ import com.appv4.auth.application.service.question.MemoryQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
 import com.appv4.auth.application.service.question.CaseVideQuestionForm;
 import com.appv4.auth.application.service.question.LinkQuestionForm;
+import com.appv4.auth.application.service.question.TexteQuestionForm;
 import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
 import java.util.List;
 
@@ -465,6 +466,15 @@ public class AuthConfiguration {
 	@Bean
 	QuestionFormHandler caseVideQuestionForm() {
 		return new CaseVideQuestionForm();
+	}
+
+	/**
+	 * Réponse libre dans une matière (SCRUM-198). L'élève écrira dans un seul champ.
+	 * Cet écran n'a pas encore d'adresse : la forme et la comparaison sont déjà là.
+	 */
+	@Bean
+	QuestionFormHandler texteQuestionForm() {
+		return new TexteQuestionForm();
 	}
 
 	@Bean

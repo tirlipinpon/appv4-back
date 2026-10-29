@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +28,9 @@ import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickImageInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickPointInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickZoneInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapWordInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapsInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
@@ -40,8 +44,12 @@ import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickImageDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickZone;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.service.question.QuestionFormRegistry;
@@ -49,6 +57,7 @@ import com.appv4.auth.application.service.question.QcmQuestionForm;
 import com.appv4.auth.application.service.question.MemoryQuestionForm;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.FreeTextInput;
 import com.appv4.auth.application.service.question.CaseVideQuestionForm;
+import com.appv4.auth.application.service.question.ClickImageQuestionForm;
 import com.appv4.auth.application.service.question.TexteQuestionForm;
 import com.appv4.auth.application.service.question.LinkQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
@@ -116,14 +125,14 @@ class TeacherQuestionServiceTest {
 		service = new TeacherQuestionService(subjects, questions, children, new QuestionFormRegistry(List.of(
 				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm(),
 				new TrueFalseQuestionForm(), new LinkQuestionForm(), new CaseVideQuestionForm(),
-				new TexteQuestionForm())));
+				new ClickImageQuestionForm(), new TexteQuestionForm())));
 	}
 
 	@Test
 	void offeredFormsAreMultipleChoiceThenMemoryThenOrderThenTrueFalse() {
 		assertThat(service.listForms(TEACHER_ID, "teacher").forms())
 				.satisfies(forms -> {
-					assertThat(forms).hasSize(7);
+					assertThat(forms).hasSize(8);
 					assertThat(forms.get(0).code()).isEqualTo("qcm");
 					assertThat(forms.get(0).label()).isEqualTo("Choix multiples");
 					assertThat(forms.get(0).sortOrder()).isEqualTo(1);
@@ -142,9 +151,12 @@ class TeacherQuestionServiceTest {
 					assertThat(forms.get(5).code()).isEqualTo("case_vide");
 					assertThat(forms.get(5).label()).isEqualTo("Case vide");
 					assertThat(forms.get(5).sortOrder()).isEqualTo(6);
-					assertThat(forms.get(6).code()).isEqualTo("texte");
-					assertThat(forms.get(6).label()).isEqualTo("Réponse libre");
-					assertThat(forms.get(6).sortOrder()).isEqualTo(11);
+					assertThat(forms.get(6).code()).isEqualTo("image_interactive");
+					assertThat(forms.get(6).label()).isEqualTo("Image à cliquer");
+					assertThat(forms.get(6).sortOrder()).isEqualTo(8);
+					assertThat(forms.get(7).code()).isEqualTo("texte");
+					assertThat(forms.get(7).label()).isEqualTo("Réponse libre");
+					assertThat(forms.get(7).sortOrder()).isEqualTo(11);
 				});
 	}
 
@@ -914,6 +926,124 @@ class TeacherQuestionServiceTest {
 				.hasMessage(TeacherQuestionService.FORM_LOCKED);
 
 		verify(questions, never()).replace(anyLong(), any(), any());
+	}
+
+	@Test
+	void clickImageKeepsTheWebpTheZonesAndTheRule() {
+		byte[] webp = tinyWebp();
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("image_interactive"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						14L,
+						SUBJECT_ID,
+						"image_interactive",
+						"",
+						new StoredClickImage(webp, true, List.of(new StoredClickZone(
+								1L,
+								"le soleil",
+								true,
+								"polygon",
+								List.of(
+										new ClickPoint(0.1, 0.2),
+										new ClickPoint(0.3, 0.2),
+										new ClickPoint(0.2, 0.4)))))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "  ",
+				new ClickImageInput(Base64.getEncoder().encodeToString(webp), true, List.of(
+						new ClickZoneInput(" le soleil ", true, "polygon", List.of(
+								new ClickPointInput(0.1, 0.2),
+								new ClickPointInput(0.3, 0.2),
+								new ClickPointInput(0.2, 0.4))),
+						new ClickZoneInput("le nuage", false, "rect", List.of(
+								new ClickPointInput(0.6, 0.7),
+								new ClickPointInput(0.5, 0.55))))));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formCode()).isEqualTo("image_interactive");
+		assertThat(line.formLabel()).isEqualTo("Image à cliquer");
+		assertThat(line.requireAllCorrect()).isTrue();
+		assertThat(line.imageWebp()).containsExactly(webp);
+		assertThat(line.zones()).hasSize(1);
+		assertThat(line.zones().get(0).label()).isEqualTo("le soleil");
+		assertThat(line.zones().get(0).correct()).isTrue();
+
+		ArgumentCaptor<ClickImageDraft> captor = ArgumentCaptor.forClass(ClickImageDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("image_interactive"), eq(""), captor.capture());
+		assertThat(captor.getValue().imageWebp()).containsExactly(webp);
+		assertThat(captor.getValue().requireAllCorrect()).isTrue();
+		assertThat(captor.getValue().zones()).hasSize(2);
+		assertThat(captor.getValue().zones().get(0).label()).isEqualTo("le soleil");
+		assertThat(captor.getValue().zones().get(1).shape()).isEqualTo("rect");
+		assertThat(captor.getValue().zones().get(1).correct()).isFalse();
+		assertThat(captor.getValue().zones().get(1).points().get(0).x()).isEqualTo(0.5);
+		assertThat(captor.getValue().zones().get(1).points().get(0).y()).isEqualTo(0.55);
+		verify(questions).ensureForm(SUBJECT_ID, "image_interactive", "Image à cliquer", 8);
+	}
+
+	@Test
+	void clickImageRefusesAnIncompleteDrawing() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		byte[] webp = tinyWebp();
+		String encoded = Base64.getEncoder().encodeToString(webp);
+		ClickZoneInput sun = new ClickZoneInput("le soleil", true, "polygon", List.of(
+				new ClickPointInput(0.1, 0.2), new ClickPointInput(0.3, 0.2), new ClickPointInput(0.2, 0.4)));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput("  ", true, List.of(sun))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.IMAGE_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of())))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONES_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, null, List.of(sun))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_RULE_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("  ", true, "polygon", sun.points())))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_NAME_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", null, "polygon", sun.points())))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_SIDE_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", true, "polygon", List.of(
+								new ClickPointInput(1.2, 0.2),
+								new ClickPointInput(0.3, 0.2),
+								new ClickPointInput(0.2, 0.4)))))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_POINTS);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(Base64.getEncoder().encodeToString(new byte[] {
+						(byte) 0x89, 'P', 'N', 'G', 0, 0, 0, 0, 0, 0, 0, 0
+				}), true, List.of(sun))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.IMAGE_NOT_WEBP);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("image_interactive"), any(), any());
+	}
+
+	private static byte[] tinyWebp() {
+		return Base64.getDecoder().decode("UklGRiQAAABXRUJQVlA4IBgAAAA=");
 	}
 
 	private static StoredQuestion gapsQuestion() {

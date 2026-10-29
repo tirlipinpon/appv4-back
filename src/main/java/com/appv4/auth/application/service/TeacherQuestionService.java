@@ -13,6 +13,8 @@ import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoicesDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickImageDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickZoneDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.DraftContent;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.FreeTextDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.GapWordDraft;
@@ -27,6 +29,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickZone;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredContent;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGapWord;
@@ -129,6 +133,23 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final int TEXTE_ORDER = 11;
 	public static final String ANSWER_REQUIRED = "La réponse attendue est obligatoire.";
 	public static final String ANSWER_TOO_LONG = "La réponse attendue dépasse 500 caractères.";
+
+	public static final String IMAGE_CLICK = "image_interactive";
+	public static final String IMAGE_CLICK_LABEL = "Image à cliquer";
+	public static final int IMAGE_CLICK_ORDER = 8;
+	public static final String SHAPE_POLYGON = "polygon";
+	public static final String SHAPE_RECT = "rect";
+	public static final String SHAPE_ELLIPSE = "ellipse";
+	public static final String IMAGE_REQUIRED = "L'image est obligatoire.";
+	public static final String IMAGE_NOT_WEBP = "L'image doit être au format WebP.";
+	public static final String IMAGE_TOO_LARGE = "L'image dépasse 5 Mo.";
+	public static final String ZONES_REQUIRED = "Il faut au moins une zone.";
+	public static final String ZONE_NAME_REQUIRED = "Chaque zone doit avoir un nom.";
+	public static final String ZONE_NAME_TOO_LONG = "Un nom de zone dépasse 200 caractères.";
+	public static final String ZONE_SIDE_REQUIRED = "Chaque zone doit être marquée correcte ou incorrecte.";
+	public static final String ZONE_RULE_REQUIRED = "Indique s'il faut cliquer toutes les zones correctes.";
+	public static final String ZONE_SHAPE = "La forme de la zone n'est pas reconnue.";
+	public static final String ZONE_POINTS = "Les points de la zone ne restent pas sur l'image.";
 
 	public static final String CLONE_TARGET = "Choisis une matière.";
 	public static final String CLONE_REQUIRED = "Choisis au moins une question.";
@@ -406,6 +427,13 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 		}
 		if (content instanceof StoredFreeText text) {
 			return new FreeTextDraft(text.expectedAnswer());
+		}
+		if (content instanceof StoredClickImage image) {
+			List<ClickZoneDraft> zones = new ArrayList<>();
+			for (StoredClickZone zone : image.zones()) {
+				zones.add(new ClickZoneDraft(zone.label(), zone.correct(), zone.shape(), zone.points()));
+			}
+			return new ClickImageDraft(image.imageWebp(), image.requireAllCorrect(), zones);
 		}
 		throw new IllegalStateException("Copie non prévue pour la forme : " + source.formCode());
 	}

@@ -14,8 +14,8 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView;
  *
 	 * <p><b>Business :</b> le professeur ne pose une matière que sur une année déjà
 	 * cochée. Si le nom existe déjà, il peut demander au créateur de la partager.
-	 * Il propose aussi un déplacement ou un partage à un collègue de la liste ;
-	 * le collègue accepte ou refuse avant que l'accès change. La désactivation est
+	 * Il propose aussi un déplacement ou un partage à un collègue qui n'a pas
+	 * encore la matière ; le collègue accepte ou refuse avant que l'accès change. La désactivation est
 	 * personnelle ; le créateur peut aussi cibler des co-profs.
  * <p><b>Technique :</b> l'identifiant vient du jeton, jamais du corps de la requête.
  * <p><b>Métier / flow :</b> port in de {@code /api/int/teacher/subjects}.

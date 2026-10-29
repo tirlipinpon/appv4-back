@@ -348,6 +348,18 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 
 	@Override
 	@Transactional(readOnly = true)
+	public List<StoredTransferRequest> findPendingAsksFrom(long subjectId, long fromUserId) {
+		List<StoredTransferRequest> rows = new ArrayList<>();
+		for (BackTeacherSubjectTransferRequestEntity row : transfers
+				.findBySubjectIdAndFromUserIdAndModeAndStatusOrderByIdAsc(
+						subjectId, fromUserId, "ask", "pending")) {
+			rows.add(toTransfer(row));
+		}
+		return List.copyOf(rows);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public List<StoredTransferRequest> findPendingTransfersTo(long toUserId) {
 		List<StoredTransferRequest> rows = new ArrayList<>();
 		for (BackTeacherSubjectTransferRequestEntity row

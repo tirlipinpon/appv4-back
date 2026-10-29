@@ -123,6 +123,17 @@ public interface TeacherSubjectPort {
 
 	List<StoredTransferRequest> findPendingTransfersTo(long toUserId);
 
+	/**
+	 * Demandes de partage ({@code ask}) encore en attente, envoyées par ce professeur.
+	 *
+	 * <p><b>Business :</b> l'écran ne repropose pas « Demander le partage » et nomme
+	 * les destinataires.
+	 * <p><b>Technique :</b> lignes {@code pending} de mode {@code ask}, de
+	 * {@code fromUserId} vers cette matière, ordre d'insertion.
+	 * <p><b>Métier / flow :</b> lu au moment de {@code GET /api/int/teacher/subjects}.
+	 */
+	List<StoredTransferRequest> findPendingAsksFrom(long subjectId, long fromUserId);
+
 	Optional<StoredTransferRequest> findPendingTransferForTarget(long requestId, long toUserId);
 
 	void markTransferAccepted(long requestId);

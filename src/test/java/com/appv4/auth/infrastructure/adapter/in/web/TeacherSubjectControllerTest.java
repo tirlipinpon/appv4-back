@@ -88,6 +88,8 @@ class TeacherSubjectControllerTest {
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].name").value("Français"))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].active").value(true))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].followedByMe").value(true))
+				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].owner.displayName").value("Martin"))
+				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].owner.userId").value(9))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[1].name").value("Mathématiques"))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[1].followedByMe").value(true))
 				.andExpect(jsonPath("$.schools[0].grades[1].grade").value("CE2"))
@@ -111,6 +113,26 @@ class TeacherSubjectControllerTest {
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].followedByMe").value(false))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].ownedByMe").value(false))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].sharedWith[0].displayName").value("Camille"));
+	}
+
+	@Test
+	void listNamesThePeopleAlreadyAskedToShare() throws Exception {
+		when(profiles.findSchools(9L)).thenReturn(List.of(
+				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
+		when(subjects.findByUser(9L)).thenReturn(List.of());
+		when(subjects.findVisibleInClass(1L, "CE1")).thenReturn(List.of(
+				new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true)));
+		when(subjects.hasAccess(4L, 9L)).thenReturn(false);
+		when(subjects.otherAccessHolders(4L, 9L)).thenReturn(List.of(
+				new TeacherSubjectPort.AccessHolder(10L, "Camille")));
+		when(subjects.findPendingAsksFrom(4L, 9L)).thenReturn(List.of(
+				new TeacherSubjectPort.StoredTransferRequest(8L, 4L, 9L, 10L, "ask", "pending")));
+		when(profiles.findAccount(10L)).thenReturn(Optional.of(new TeacherAccount("camille@example.com", "Camille")));
+
+		mockMvc.perform(get("/api/int/teacher/subjects").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].shareAskedTo[0].displayName").value("Camille"))
+				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].shareAskedTo[0].userId").value(10));
 	}
 
 	@Test

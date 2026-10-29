@@ -223,6 +223,36 @@ public interface TeacherQuestionPort {
 		}
 	}
 
+	/** Pièce déjà nommée, sans côté juste ou faux. */
+	record PuzzlePieceDraft(String label, String shape, List<ClickPoint> points) {
+		public PuzzlePieceDraft {
+			points = List.copyOf(points);
+		}
+	}
+
+	/** Image WebP déjà allégée, et les pièces qui restent collées à ce dessin. */
+	record PuzzleDraft(byte[] imageWebp, List<PuzzlePieceDraft> pieces) implements DraftContent {
+		public PuzzleDraft {
+			imageWebp = imageWebp.clone();
+			pieces = List.copyOf(pieces);
+		}
+	}
+
+	/** Pièce relue, avec l'id de la ligne. */
+	record StoredPuzzlePiece(long id, String label, String shape, List<ClickPoint> points) {
+		public StoredPuzzlePiece {
+			points = List.copyOf(points);
+		}
+	}
+
+	/** Image et pièces telles que le professeur les a enregistrées. */
+	record StoredPuzzle(byte[] imageWebp, List<StoredPuzzlePiece> pieces) implements StoredContent {
+		public StoredPuzzle {
+			imageWebp = imageWebp.clone();
+			pieces = List.copyOf(pieces);
+		}
+	}
+
 	record StoredQuestion(
 			long id,
 			long subjectId,
@@ -277,7 +307,13 @@ public interface TeacherQuestionPort {
 		}
 
 		public byte[] imageWebp() {
-			return content instanceof StoredClickImage value ? value.imageWebp() : new byte[0];
+			if (content instanceof StoredClickImage click) {
+				return click.imageWebp();
+			}
+			if (content instanceof StoredPuzzle puzzle) {
+				return puzzle.imageWebp();
+			}
+			return new byte[0];
 		}
 
 		public Boolean requireAllCorrect() {

@@ -30,6 +30,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickZone;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzle;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzlePiece;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
@@ -62,7 +64,7 @@ class TeacherQuestionControllerTest {
 	void teacherSeesMultipleChoiceMemoryOrderAndTrueFalse() throws Exception {
 		mockMvc.perform(get("/api/int/teacher/question-forms").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.forms.length()").value(8))
+				.andExpect(jsonPath("$.forms.length()").value(9))
 				.andExpect(jsonPath("$.forms[0].code").value("qcm"))
 				.andExpect(jsonPath("$.forms[0].label").value("Choix multiples"))
 				.andExpect(jsonPath("$.forms[1].code").value("memory"))
@@ -78,9 +80,12 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.forms[6].code").value("image_interactive"))
 				.andExpect(jsonPath("$.forms[6].label").value("Image à cliquer"))
 				.andExpect(jsonPath("$.forms[6].sortOrder").value(8))
-				.andExpect(jsonPath("$.forms[7].code").value("texte"))
-				.andExpect(jsonPath("$.forms[7].label").value("Réponse libre"))
-				.andExpect(jsonPath("$.forms[7].sortOrder").value(11));
+				.andExpect(jsonPath("$.forms[7].code").value("puzzle"))
+				.andExpect(jsonPath("$.forms[7].label").value("Puzzle"))
+				.andExpect(jsonPath("$.forms[7].sortOrder").value(10))
+				.andExpect(jsonPath("$.forms[8].code").value("texte"))
+				.andExpect(jsonPath("$.forms[8].label").value("Réponse libre"))
+				.andExpect(jsonPath("$.forms[8].sortOrder").value(11));
 	}
 
 	@Test
@@ -381,6 +386,57 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.zones[0].correct").value(true))
 				.andExpect(jsonPath("$.zones[0].shape").value("polygon"))
 				.andExpect(jsonPath("$.zones[0].points[0].x").value(0.1));
+	}
+
+	@Test
+	void createPuzzleReturnsThePiecesWithoutACorrectSide() throws Exception {
+		byte[] webp = Base64.getDecoder().decode("UklGRiQAAABXRUJQVlA4IBgAAAA=");
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+		when(questions.insert(eq(4L), eq("puzzle"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						15L,
+						4L,
+						"puzzle",
+						"",
+						new StoredPuzzle(webp, List.of(
+								new StoredPuzzlePiece(1L, "le ciel", "rect", List.of(
+										new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5))),
+								new StoredPuzzlePiece(2L, "le sol", "rect", List.of(
+										new ClickPoint(0.0, 0.5), new ClickPoint(1.0, 1.0)))))));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "formCode":"puzzle",
+								  "prompt":"",
+								  "imageWebp":"UklGRiQAAABXRUJQVlA4IBgAAAA=",
+								  "pieces":[
+								    {
+								      "label":"le ciel",
+								      "shape":"rect",
+								      "points":[{"x":0.0,"y":0.0},{"x":1.0,"y":0.5}]
+								    },
+								    {
+								      "label":"le sol",
+								      "shape":"rect",
+								      "points":[{"x":0.0,"y":0.5},{"x":1.0,"y":1.0}]
+								    }
+								  ]
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.formCode").value("puzzle"))
+				.andExpect(jsonPath("$.formLabel").value("Puzzle"))
+				.andExpect(jsonPath("$.imageWebp").value("UklGRiQAAABXRUJQVlA4IBgAAAA="))
+				.andExpect(jsonPath("$.requireAllCorrect").value(org.hamcrest.Matchers.nullValue()))
+				.andExpect(jsonPath("$.zones").isEmpty())
+				.andExpect(jsonPath("$.pieces[0].label").value("le ciel"))
+				.andExpect(jsonPath("$.pieces[0].shape").value("rect"))
+				.andExpect(jsonPath("$.pieces[0].correct").doesNotExist())
+				.andExpect(jsonPath("$.pieces[1].label").value("le sol"));
 	}
 
 	@Test

@@ -20,6 +20,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.appv4.auth.TestPassword;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserSignupState;
@@ -51,7 +52,7 @@ class SignupControllerTest {
 
 		mockMvc.perform(post("/api/int/auth/signup")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("{\"email\":\"new@example.com\",\"password\":\"Secret1!\","
+						.content("{\"email\":\"new@example.com\",\"password\":\"" + TestPassword.VALID + "\","
 								+ "\"displayName\":\"New\"}"))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.token").isNotEmpty())
@@ -66,7 +67,7 @@ class SignupControllerTest {
 
 		mockMvc.perform(post("/api/int/auth/signup")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("{\"email\":\"social@example.com\",\"password\":\"Secret1!\","
+						.content("{\"email\":\"social@example.com\",\"password\":\"" + TestPassword.VALID + "\","
 								+ "\"displayName\":\"S\"}"))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.message")
@@ -78,8 +79,8 @@ class SignupControllerTest {
 		mockMvc.perform(post("/api/int/auth/signup")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"email":"","password":"Secret1!"}
-								"""))
+								{"email":"","password":"%s"}
+								""".formatted(TestPassword.VALID)))
 				.andExpect(status().isBadRequest());
 	}
 }

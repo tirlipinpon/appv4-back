@@ -17,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.appv4.auth.TestPassword;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
@@ -47,11 +48,11 @@ class LoginWithEmailServiceTest {
 		when(authUserAccountPort.findLoginCandidateByEmail("marie@example.com"))
 				.thenReturn(Optional.of(new AuthUserLoginCandidate(
 						10L, "marie@example.com", "bcrypt-hash", true)));
-		when(passwordEncoder.matches("Secret1!", "bcrypt-hash")).thenReturn(true);
+		when(passwordEncoder.matches(TestPassword.VALID, "bcrypt-hash")).thenReturn(true);
 		when(issueJwtUseCase.issue(10L, "marie@example.com"))
 				.thenReturn(new JwtTokenResult("jwt-token", 123L));
 
-		JwtTokenResult result = service.login("Marie@Example.com", "Secret1!");
+		JwtTokenResult result = service.login("Marie@Example.com", TestPassword.VALID);
 
 		assertThat(result.token()).isEqualTo("jwt-token");
 		verify(issueJwtUseCase).issue(10L, "marie@example.com");
@@ -61,15 +62,15 @@ class LoginWithEmailServiceTest {
 	void unknownEmailReturnsSameUnauthorizedMessage() {
 		when(authUserAccountPort.findLoginCandidateByEmail("ghost@example.com"))
 				.thenReturn(Optional.empty());
-		when(passwordEncoder.matches("Secret1!", LoginWithEmailService.DUMMY_BCRYPT_HASH))
+		when(passwordEncoder.matches(TestPassword.VALID, LoginWithEmailService.DUMMY_BCRYPT_HASH))
 				.thenReturn(false);
 
-		assertThatThrownBy(() -> service.login("ghost@example.com", "Secret1!"))
+		assertThatThrownBy(() -> service.login("ghost@example.com", TestPassword.VALID))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(LoginWithEmailService.INVALID_CREDENTIALS_MESSAGE)
 				.extracting("errorCode")
 				.isEqualTo(com.appv4.auth.application.exception.AuthErrorCode.UNAUTHORIZED);
-		verify(passwordEncoder).matches("Secret1!", LoginWithEmailService.DUMMY_BCRYPT_HASH);
+		verify(passwordEncoder).matches(TestPassword.VALID, LoginWithEmailService.DUMMY_BCRYPT_HASH);
 		verify(issueJwtUseCase, never()).issue(anyLong(), anyString());
 	}
 
@@ -93,15 +94,15 @@ class LoginWithEmailServiceTest {
 		when(authUserAccountPort.findLoginCandidateByEmail("social@example.com"))
 				.thenReturn(Optional.of(new AuthUserLoginCandidate(
 						7L, "social@example.com", null, true)));
-		when(passwordEncoder.matches("Secret1!", LoginWithEmailService.DUMMY_BCRYPT_HASH))
+		when(passwordEncoder.matches(TestPassword.VALID, LoginWithEmailService.DUMMY_BCRYPT_HASH))
 				.thenReturn(false);
 
-		assertThatThrownBy(() -> service.login("social@example.com", "Secret1!"))
+		assertThatThrownBy(() -> service.login("social@example.com", TestPassword.VALID))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(LoginWithEmailService.INVALID_CREDENTIALS_MESSAGE)
 				.extracting("errorCode")
 				.isEqualTo(com.appv4.auth.application.exception.AuthErrorCode.UNAUTHORIZED);
-		verify(passwordEncoder).matches("Secret1!", LoginWithEmailService.DUMMY_BCRYPT_HASH);
+		verify(passwordEncoder).matches(TestPassword.VALID, LoginWithEmailService.DUMMY_BCRYPT_HASH);
 	}
 
 	@Test

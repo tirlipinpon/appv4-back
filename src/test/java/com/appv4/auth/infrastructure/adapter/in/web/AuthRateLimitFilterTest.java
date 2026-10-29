@@ -17,6 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.appv4.auth.TestPassword;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 
 @SpringBootTest
@@ -38,7 +39,7 @@ class AuthRateLimitFilterTest {
 	@Test
 	void thirdLoginFromSameClientReturns429() throws Exception {
 		when(authUserAccountPort.findLoginCandidateByEmail(anyString())).thenReturn(Optional.empty());
-		String body = "{\"email\":\"a@b.com\",\"password\":\"Secret1!\"}";
+		String body = "{\"email\":\"a@b.com\",\"password\":\"" + TestPassword.VALID + "\"}";
 
 		mockMvc.perform(post("/api/int/auth/login")
 						.contentType(MediaType.APPLICATION_JSON)

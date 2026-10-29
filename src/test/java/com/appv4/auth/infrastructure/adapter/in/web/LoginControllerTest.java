@@ -20,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.appv4.auth.TestPassword;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserLoginCandidate;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.SessionState;
@@ -44,7 +45,7 @@ class LoginControllerTest {
 
 	@Test
 	void loginReturnsOkAndJwt() throws Exception {
-		String hash = new BCryptPasswordEncoder().encode("Secret1!");
+		String hash = new BCryptPasswordEncoder().encode(TestPassword.VALID);
 		when(authUserAccountPort.findLoginCandidateByEmail(eq("marie@example.com")))
 				.thenReturn(Optional.of(new AuthUserLoginCandidate(
 						42L, "marie@example.com", hash, true)));
@@ -52,8 +53,8 @@ class LoginControllerTest {
 		mockMvc.perform(post("/api/int/auth/login")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"email":"marie@example.com","password":"Secret1!"}
-								"""))
+								{"email":"marie@example.com","password":"%s"}
+								""".formatted(TestPassword.VALID)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.token").isNotEmpty())
 				.andExpect(jsonPath("$.expiresAtEpochSeconds").isNumber());
@@ -67,15 +68,15 @@ class LoginControllerTest {
 		mockMvc.perform(post("/api/int/auth/login")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"email":"ghost@example.com","password":"Secret1!"}
-								"""))
+								{"email":"ghost@example.com","password":"%s"}
+								""".formatted(TestPassword.VALID)))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.message").value(LoginWithEmailService.INVALID_CREDENTIALS_MESSAGE));
 	}
 
 	@Test
 	void loginWrongPasswordReturnsUnauthorizedWithSameMessage() throws Exception {
-		String hash = new BCryptPasswordEncoder().encode("Secret1!");
+		String hash = new BCryptPasswordEncoder().encode(TestPassword.VALID);
 		when(authUserAccountPort.findLoginCandidateByEmail(eq("marie@example.com")))
 				.thenReturn(Optional.of(new AuthUserLoginCandidate(
 						42L, "marie@example.com", hash, true)));
@@ -94,8 +95,8 @@ class LoginControllerTest {
 		mockMvc.perform(post("/api/int/auth/login")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"email":"","password":"Secret1!"}
-								"""))
+								{"email":"","password":"%s"}
+								""".formatted(TestPassword.VALID)))
 				.andExpect(status().isBadRequest());
 	}
 }

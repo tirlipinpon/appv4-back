@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.appv4.auth.TestPassword;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
@@ -48,14 +49,14 @@ class SignupWithEmailServiceTest {
 	@Test
 	void createsAccountAndReturnsJwt() {
 		when(authUserAccountPort.findSignupStateByEmail("marie@example.com")).thenReturn(Optional.empty());
-		when(passwordEncoder.encode("Secret1!")).thenReturn("bcrypt-hash");
+		when(passwordEncoder.encode(TestPassword.VALID)).thenReturn("bcrypt-hash");
 		when(authUserAccountPort.createWithPassword(
 				eq("marie@example.com"), eq("Marie"), eq("bcrypt-hash")))
 				.thenReturn(new AuthUserAccount(10L, "marie@example.com", "Marie", true));
 		when(issueJwtUseCase.issue(10L, "marie@example.com"))
 				.thenReturn(new JwtTokenResult("jwt-token", 123L));
 
-		JwtTokenResult result = service.signup("Marie@Example.com", "Secret1!", "Marie");
+		JwtTokenResult result = service.signup("Marie@Example.com", TestPassword.VALID, "Marie");
 
 		assertThat(result.token()).isEqualTo("jwt-token");
 		verify(authUserAccountPort).createWithPassword("marie@example.com", "Marie", "bcrypt-hash");
@@ -64,13 +65,13 @@ class SignupWithEmailServiceTest {
 	@Test
 	void derivesDisplayNameFromEmailWhenBlank() {
 		when(authUserAccountPort.findSignupStateByEmail("marie@example.com")).thenReturn(Optional.empty());
-		when(passwordEncoder.encode("Secret1!")).thenReturn("hash");
+		when(passwordEncoder.encode(TestPassword.VALID)).thenReturn("hash");
 		when(authUserAccountPort.createWithPassword(anyString(), anyString(), anyString()))
 				.thenReturn(new AuthUserAccount(1L, "marie@example.com", "marie", true));
 		when(issueJwtUseCase.issue(1L, "marie@example.com"))
 				.thenReturn(new JwtTokenResult("jwt", 1L));
 
-		service.signup("marie@example.com", "Secret1!", "  ");
+		service.signup("marie@example.com", TestPassword.VALID, "  ");
 
 		ArgumentCaptor<String> name = ArgumentCaptor.forClass(String.class);
 		verify(authUserAccountPort).createWithPassword(eq("marie@example.com"), name.capture(), eq("hash"));
@@ -98,7 +99,7 @@ class SignupWithEmailServiceTest {
 				.thenReturn(Optional.of(new AuthUserSignupState(
 						5L, "marie@example.com", true, List.of())));
 
-		assertThatThrownBy(() -> service.signup("marie@example.com", "Secret1!", "Marie"))
+		assertThatThrownBy(() -> service.signup("marie@example.com", TestPassword.VALID, "Marie"))
 				.isInstanceOf(AuthDomainException.class)
 				.extracting("errorCode")
 				.isEqualTo(com.appv4.auth.application.exception.AuthErrorCode.CONFLICT);
@@ -111,7 +112,7 @@ class SignupWithEmailServiceTest {
 				.thenReturn(Optional.of(new AuthUserSignupState(
 						5L, "marie@example.com", false, List.of("google", "facebook"))));
 
-		assertThatThrownBy(() -> service.signup("marie@example.com", "Secret1!", "Marie"))
+		assertThatThrownBy(() -> service.signup("marie@example.com", TestPassword.VALID, "Marie"))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(SignupWithEmailService.ACCOUNT_CONFLICT_MESSAGE);
 	}

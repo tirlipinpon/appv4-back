@@ -17,6 +17,9 @@ public interface BackTeacherSubjectTransferRequestJpaRepository
 	List<BackTeacherSubjectTransferRequestEntity> findBySubjectIdAndStatusOrderByIdAsc(
 			long subjectId, String status);
 
+	List<BackTeacherSubjectTransferRequestEntity> findBySubjectIdAndFromUserIdAndModeAndStatusOrderByIdAsc(
+			long subjectId, long fromUserId, String mode, String status);
+
 	Optional<BackTeacherSubjectTransferRequestEntity> findByIdAndToUserIdAndStatus(
 			long id, long toUserId, String status);
 

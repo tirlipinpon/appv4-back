@@ -38,6 +38,16 @@ public class BackUserEntity {
 	@Column(name = "display_name", nullable = false, length = 255)
 	private String displayName;
 
+	/** Mail pour être joint. Pas le mail de connexion. */
+	@Column(name = "contact_email", length = 320)
+	private String contactEmail;
+
+	@Column(length = 32)
+	private String phone;
+
+	@Column(name = "avatar_code", length = 32)
+	private String avatarCode;
+
 	@Column(name = "is_active", nullable = false)
 	private boolean active = true;
 
@@ -107,6 +117,30 @@ public class BackUserEntity {
 
 	public void setDisplayName(String displayName) {
 		this.displayName = displayName;
+	}
+
+	public String getContactEmail() {
+		return contactEmail;
+	}
+
+	public void setContactEmail(String contactEmail) {
+		this.contactEmail = contactEmail;
+	}
+
+	public String getPhone() {
+		return phone;
+	}
+
+	public void setPhone(String phone) {
+		this.phone = phone;
+	}
+
+	public String getAvatarCode() {
+		return avatarCode;
+	}
+
+	public void setAvatarCode(String avatarCode) {
+		this.avatarCode = avatarCode;
 	}
 
 	public boolean isActive() {

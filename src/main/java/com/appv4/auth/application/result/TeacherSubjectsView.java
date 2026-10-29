@@ -11,7 +11,10 @@ import java.util.List;
  * Les matières déjà créées par un collègue de la même classe sont aussi listées :
  * {@code followedByMe} est alors faux, et {@code sharedWith} nomme ceux qui la suivent.
  * Quand ce professeur la suit, {@code sharedWith} liste les co-profs.
+ * {@code shareAskedTo} nomme les destinataires d'une demande de partage encore
+ * en attente envoyée par ce professeur. Vide s'il n'y en a pas.
  * {@code ownedByMe} est vrai si ce professeur est le créateur / propriétaire.
+ * {@code owner} nomme ce propriétaire, celui qui peut renommer.
  * <p><b>Technique :</b> pas d'exercice, pas de forme de question, pas d'élève.
  * <p><b>Métier / flow :</b> résultat de {@code GET /api/int/teacher/subjects}.
  */
@@ -44,6 +47,8 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 	 * @param ownedByMe     vrai si {@code user_id} de la matière = connecté
 	 * @param followedByMe  faux : matière déjà dans la classe, ce professeur ne la suit pas
 	 * @param sharedWith    s'il la suit : les co-profs ; sinon : tous ceux qui la suivent
+	 * @param shareAskedTo  destinataires d'un {@code ask} pending envoyé par le connecté
+	 * @param owner         propriétaire : le professeur qui peut renommer
 	 */
 	public record SubjectLine(
 			long id,
@@ -51,10 +56,16 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 			boolean active,
 			boolean ownedByMe,
 			boolean followedByMe,
-			List<SharedHolder> sharedWith) {
+			List<SharedHolder> sharedWith,
+			List<SharedHolder> shareAskedTo,
+			SharedHolder owner) {
 
 		public SubjectLine {
 			sharedWith = sharedWith == null ? List.of() : List.copyOf(sharedWith);
+			shareAskedTo = shareAskedTo == null ? List.of() : List.copyOf(shareAskedTo);
+			if (owner == null) {
+				owner = new SharedHolder(0L, "");
+			}
 		}
 	}
 

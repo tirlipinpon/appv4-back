@@ -152,11 +152,11 @@ public class TeacherSubjectController {
 	}
 
 	@PutMapping("/{id}")
-	@Operation(operationId = "renameTeacherSubject", summary = "Renommer une matière du professeur connecté")
+	@Operation(operationId = "renameTeacherSubject", summary = "Renommer une matière créée par le professeur connecté")
 	@ApiResponse(responseCode = "200", description = "Nom enregistré, la classe ne change pas")
 	@ApiResponse(
 			responseCode = "400",
-			description = "Nom vide, trop long, ou déjà pris dans la même classe",
+			description = "Nom vide, trop long, déjà pris dans la même classe, ou ce professeur n'est pas le créateur",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	@ApiResponse(
 			responseCode = "403",
@@ -249,7 +249,9 @@ public class TeacherSubjectController {
 	@Operation(
 			operationId = "listTeacherSubjectColleagues",
 			summary = "Lister les collègues à qui proposer un transfert")
-	@ApiResponse(responseCode = "200", description = "Professeurs acceptés avec la même classe, triés par nom")
+	@ApiResponse(
+			responseCode = "200",
+			description = "Professeurs acceptés de la même classe qui n'ont pas encore cette matière, triés par nom")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace professeur",
@@ -430,13 +432,20 @@ public class TeacherSubjectController {
 		List<TeacherSubjectSharedHolder> shared = subject.sharedWith().stream()
 				.map(holder -> new TeacherSubjectSharedHolder(holder.userId(), holder.displayName()))
 				.toList();
+		List<TeacherSubjectSharedHolder> asked = subject.shareAskedTo().stream()
+				.map(holder -> new TeacherSubjectSharedHolder(holder.userId(), holder.displayName()))
+				.toList();
+		TeacherSubjectSharedHolder owner = new TeacherSubjectSharedHolder(
+				subject.owner().userId(), subject.owner().displayName());
 		return new TeacherSubjectItem(
 				subject.id(),
 				subject.name(),
 				subject.active(),
 				subject.ownedByMe(),
 				subject.followedByMe(),
-				shared);
+				shared,
+				asked,
+				owner);
 	}
 
 	@Schema(name = "TeacherSubjectsResponse")
@@ -460,7 +469,12 @@ public class TeacherSubjectController {
 			@Schema(description = "Faux si la matière est déjà dans la classe mais que ce professeur ne la suit pas. "
 					+ "sharedWith nomme alors les professeurs qui la suivent.")
 			boolean followedByMe,
-			List<TeacherSubjectSharedHolder> sharedWith) {
+			List<TeacherSubjectSharedHolder> sharedWith,
+			@Schema(description = "Destinataires d'une demande de partage encore en attente, "
+					+ "envoyée par ce professeur. Vide s'il n'y en a pas.")
+			List<TeacherSubjectSharedHolder> shareAskedTo,
+			@Schema(description = "Propriétaire de la matière : le professeur qui peut la renommer.")
+			TeacherSubjectSharedHolder owner) {
 	}
 
 	@Schema(name = "TeacherSubjectSharedHolder")

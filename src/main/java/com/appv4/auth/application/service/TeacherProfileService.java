@@ -90,7 +90,7 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 		requireTeacher(activeRole);
 		TeacherAccount account = requireAccount(userId);
 		List<CatalogSchool> available = schoolCatalogPort.list();
-		return toView(account.email(), account.displayName(), teacherProfilePort.findSchools(userId), available);
+		return toView(account, teacherProfilePort.findSchools(userId), available);
 	}
 
 	@Override
@@ -100,14 +100,38 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 			String activeRole,
 			String displayName,
 			List<TeacherSchoolCommand> schools) {
+		return update(userId, activeRole, displayName, schools, null, null, null);
+	}
+
+	/**
+	 * Enregistre le nom, les écoles, et les coordonnées si elles sont dans le JSON.
+	 *
+	 * <p><b>Business :</b> une clé absente ne vide pas le mail, le téléphone ou l'avatar
+	 * déjà enregistrés. La page des écoles n'envoie pas ces clés.
+	 * <p><b>Technique :</b> {@code null} = garder, chaîne vide = effacer.
+	 * <p><b>Métier / flow :</b> contrôles, puis le port contact, puis le remplacement des écoles.
+	 */
+	@Override
+	@Transactional
+	public TeacherProfileView update(
+			long userId,
+			String activeRole,
+			String displayName,
+			List<TeacherSchoolCommand> schools,
+			String contactEmail,
+			String phone,
+			String avatarCode) {
 		requireTeacher(activeRole);
 		TeacherAccount account = requireAccount(userId);
-		String name = normalizeName(displayName);
+		String name = AccountContact.name(displayName);
+		String email = AccountContact.merge(contactEmail, account.contactEmail(), AccountContact::email);
+		String nextPhone = AccountContact.merge(phone, account.phone(), AccountContact::phone);
+		String avatar = AccountContact.merge(avatarCode, account.avatarCode(), AccountContact::avatar);
 		List<CatalogSchool> available = schoolCatalogPort.list();
 		List<TeacherSchoolLink> links = normalizeSchools(schools, available);
-		teacherProfilePort.updateDisplayName(userId, name);
+		teacherProfilePort.updateContact(userId, name, email, nextPhone, avatar);
 		teacherProfilePort.replaceSchools(userId, links);
-		return toView(account.email(), name, links, available);
+		return toView(new TeacherAccount(account.email(), name, email, nextPhone, avatar), links, available);
 	}
 
 	/**
@@ -162,17 +186,6 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 		if (!ActiveRoles.TEACHER.equals(activeRole)) {
 			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, SpaceHello.DENIED);
 		}
-	}
-
-	private static String normalizeName(String displayName) {
-		if (displayName == null || displayName.isBlank()) {
-			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, NAME_REQUIRED);
-		}
-		String trimmed = displayName.trim();
-		if (trimmed.length() > DisplayNames.MAX_LENGTH) {
-			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, NAME_TOO_LONG);
-		}
-		return trimmed;
 	}
 
 	private static List<TeacherSchoolLink> normalizeSchools(
@@ -352,8 +365,7 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 	}
 
 	private static TeacherProfileView toView(
-			String email,
-			String displayName,
+			TeacherAccount account,
 			List<TeacherSchoolLink> links,
 			List<CatalogSchool> available) {
 		Map<Long, CatalogSchool> byId = new LinkedHashMap<>();
@@ -377,7 +389,16 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 						school.country(),
 						SchoolCurricula.offeredBy(school.country(), school.teachingTypes())))
 				.toList();
-		return new TeacherProfileView(email, displayName, assigned, offered, SchoolCurricula.options());
+		return new TeacherProfileView(
+				account.email(),
+				account.displayName(),
+				account.contactEmail(),
+				account.phone(),
+				account.avatarCode(),
+				AccountContact.CHOICES,
+				assigned,
+				offered,
+				SchoolCurricula.options());
 	}
 
 	private static AuthDomainException bad(String message) {

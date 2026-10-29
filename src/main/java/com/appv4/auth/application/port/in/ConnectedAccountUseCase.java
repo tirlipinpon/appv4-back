@@ -14,4 +14,15 @@ public interface ConnectedAccountUseCase {
 
 	/** Nom enregistré du compte. Le même pour l'espace parent et l'espace professeur. */
 	String displayName(long userId);
+
+	/**
+	 * Nom et avatar pour le bandeau. {@code avatarCode} est null s'il n'y en a pas.
+	 */
+	ConnectedBanner banner(long userId);
+
+	/**
+	 * @param avatarCode code du catalogue, ou null
+	 */
+	record ConnectedBanner(String displayName, String avatarCode) {
+	}
 }

@@ -45,10 +45,12 @@ class ConnectedAccountControllerTest {
 	void returnsTheNameForAParentOrATeacher() throws Exception {
 		when(authUserAccountPort.findById(4L))
 				.thenReturn(Optional.of(new AuthUserAccount(4L, "anne@example.com", "Anne", true)));
+		when(authUserAccountPort.findAvatarCode(4L)).thenReturn(Optional.of("owl"));
 
 		mockMvc.perform(get("/api/int/auth/me").with(authentication(signedIn())))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.displayName").value("Anne"));
+				.andExpect(jsonPath("$.displayName").value("Anne"))
+				.andExpect(jsonPath("$.avatarCode").value("owl"));
 	}
 
 	private static UsernamePasswordAuthenticationToken signedIn() {

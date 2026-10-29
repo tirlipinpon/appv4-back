@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ConnectedAccountUseCase;
+import com.appv4.auth.application.port.in.ConnectedAccountUseCase.ConnectedBanner;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.configuration.OpenApiConfiguration;
 
@@ -47,6 +48,7 @@ public class ConnectedAccountController {
 	public ResponseEntity<ConnectedAccountResponse> view(
 			@AuthenticationPrincipal AuthenticatedUser principal) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
-		return ResponseEntity.ok(new ConnectedAccountResponse(connectedAccountUseCase.displayName(user.userId())));
+		ConnectedBanner banner = connectedAccountUseCase.banner(user.userId());
+		return ResponseEntity.ok(new ConnectedAccountResponse(banner.displayName(), banner.avatarCode()));
 	}
 }

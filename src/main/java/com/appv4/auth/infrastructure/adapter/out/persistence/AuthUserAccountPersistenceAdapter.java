@@ -179,6 +179,12 @@ public class AuthUserAccountPersistenceAdapter implements AuthUserAccountPort {
 
 	@Override
 	@Transactional(readOnly = true)
+	public Optional<String> findAvatarCode(long userId) {
+		return userRepository.findById(userId).map(BackUserEntity::getAvatarCode);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public Optional<AuthUserLoginCandidate> findLoginCandidateByEmail(String email) {
 		return userRepository.findByEmail(email)
 				.filter(BackUserEntity::isActive)

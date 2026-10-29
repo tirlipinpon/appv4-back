@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.FreeTextInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapWordInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapsInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
@@ -57,7 +58,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * questions vers une matière à laquelle il a accès. Les originaux restent.
  * Il peut aussi en supprimer une ou plusieurs. Avant ça, l'écran lui montre
  * combien d'enfants suivent le cours et la liste de leurs noms.
- * L'élève ne joue pas ici.
+ * L'élève ne joue pas ici. La réponse libre (SCRUM-198) ajoute l'énoncé
+ * et la réponse attendue, sous le libellé Réponse libre.
  * <p><b>Technique :</b> {@code /api/int/teacher/question-forms} et
  * {@code /api/int/teacher/subjects/{id}/questions}. JWT obligatoire, espace {@code teacher}.
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link TeacherQuestionUseCase}.
@@ -127,7 +129,7 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null, null, null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -161,7 +163,7 @@ public class TeacherQuestionController {
 			@RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
-				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null, null, null, null, null)
+				? new CreateTeacherSubjectQuestionRequest(null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -266,6 +268,9 @@ public class TeacherQuestionController {
 		}
 		if (TeacherQuestionService.CASE_VIDE.equals(code)) {
 			return new GapsInput(body.sentence(), wordInputs(body.answers()), wordInputs(body.decoys()));
+		}
+		if (TeacherQuestionService.TEXTE.equals(code)) {
+			return new FreeTextInput(body.expectedAnswer());
 		}
 		return new LegacyInput(inputs(body.choices()), pairInputs(body.pairs()), itemInputs(body.items()));
 	}
@@ -401,7 +406,8 @@ public class TeacherQuestionController {
 		}
 		return new TeacherSubjectQuestionItem(
 				line.id(), line.formCode(), line.formLabel(), line.prompt(),
-				choices, pairs, items, statements, links, line.sentence(), answers, decoys);
+				choices, pairs, items, statements, links, line.sentence(), answers, decoys,
+				line.expectedAnswer());
 	}
 
 	@Schema(name = "TeacherQuestionFormsResponse")
@@ -429,7 +435,8 @@ public class TeacherQuestionController {
 			List<TeacherQuestionLinkItem> links,
 			String sentence,
 			List<TeacherQuestionGapWordItem> answers,
-			List<TeacherQuestionGapWordItem> decoys) {
+			List<TeacherQuestionGapWordItem> decoys,
+			String expectedAnswer) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
@@ -483,7 +490,8 @@ public class TeacherQuestionController {
 			List<TeacherQuestionLinkInput> links,
 			String sentence,
 			List<TeacherQuestionGapWordInput> answers,
-			List<TeacherQuestionGapWordInput> decoys) {
+			List<TeacherQuestionGapWordInput> decoys,
+			String expectedAnswer) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceInput")

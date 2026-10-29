@@ -7,6 +7,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGaps;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
 
@@ -77,6 +78,10 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 			return content instanceof StoredGaps value
 					? value.decoys().stream().map(row -> new GapWordLine(row.id(), row.label())).toList()
 					: List.of();
+		}
+
+		public String expectedAnswer() {
+			return content instanceof StoredFreeText value ? value.expectedAnswer() : "";
 		}
 	}
 

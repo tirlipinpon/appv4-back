@@ -47,7 +47,9 @@ import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.service.question.QuestionFormRegistry;
 import com.appv4.auth.application.service.question.QcmQuestionForm;
 import com.appv4.auth.application.service.question.MemoryQuestionForm;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.FreeTextInput;
 import com.appv4.auth.application.service.question.CaseVideQuestionForm;
+import com.appv4.auth.application.service.question.TexteQuestionForm;
 import com.appv4.auth.application.service.question.LinkQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
 import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
@@ -113,14 +115,15 @@ class TeacherQuestionServiceTest {
 	void setUp() {
 		service = new TeacherQuestionService(subjects, questions, children, new QuestionFormRegistry(List.of(
 				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm(),
-				new TrueFalseQuestionForm(), new LinkQuestionForm(), new CaseVideQuestionForm())));
+				new TrueFalseQuestionForm(), new LinkQuestionForm(), new CaseVideQuestionForm(),
+				new TexteQuestionForm())));
 	}
 
 	@Test
 	void offeredFormsAreMultipleChoiceThenMemoryThenOrderThenTrueFalse() {
 		assertThat(service.listForms(TEACHER_ID, "teacher").forms())
 				.satisfies(forms -> {
-					assertThat(forms).hasSize(6);
+					assertThat(forms).hasSize(7);
 					assertThat(forms.get(0).code()).isEqualTo("qcm");
 					assertThat(forms.get(0).label()).isEqualTo("Choix multiples");
 					assertThat(forms.get(0).sortOrder()).isEqualTo(1);
@@ -139,6 +142,9 @@ class TeacherQuestionServiceTest {
 					assertThat(forms.get(5).code()).isEqualTo("case_vide");
 					assertThat(forms.get(5).label()).isEqualTo("Case vide");
 					assertThat(forms.get(5).sortOrder()).isEqualTo(6);
+					assertThat(forms.get(6).code()).isEqualTo("texte");
+					assertThat(forms.get(6).label()).isEqualTo("Réponse libre");
+					assertThat(forms.get(6).sortOrder()).isEqualTo(11);
 				});
 	}
 
@@ -813,6 +819,101 @@ class TeacherQuestionServiceTest {
 				.hasMessage(TeacherQuestionService.DELETE_REQUIRED);
 
 		verify(questions, never()).delete(anyLong());
+	}
+
+	@Test
+	void freeTextKeepsThePromptAndTheExpectedAnswer() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("texte"), eq("Capitale de la France"), any()))
+				.thenReturn(new StoredQuestion(
+						13L,
+						SUBJECT_ID,
+						"texte",
+						"Capitale de la France",
+						new TeacherQuestionPort.StoredFreeText("Paris")));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"texte",
+				"  Capitale de la France  ",
+				new FreeTextInput("  Paris  "));
+
+		assertThat(line.prompt()).isEqualTo("Capitale de la France");
+		assertThat(line.formCode()).isEqualTo("texte");
+		assertThat(line.formLabel()).isEqualTo("Réponse libre");
+		assertThat(line.expectedAnswer()).isEqualTo("Paris");
+		verify(questions).ensureForm(SUBJECT_ID, "texte", "Réponse libre", 11);
+
+		ArgumentCaptor<TeacherQuestionPort.FreeTextDraft> captor =
+				ArgumentCaptor.forClass(TeacherQuestionPort.FreeTextDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("texte"), eq("Capitale de la France"), captor.capture());
+		assertThat(captor.getValue().expectedAnswer()).isEqualTo("Paris");
+	}
+
+	@Test
+	void freeTextRefusesAnEmptyAnswer() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "texte", "Capitale de la France",
+				new FreeTextInput("  ")))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ANSWER_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("texte"), any(), any());
+	}
+
+	@Test
+	void freeTextRefusesAnEmptyPrompt() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "texte", "  ",
+				new FreeTextInput("Paris")))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PROMPT_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("texte"), any(), any());
+	}
+
+	@Test
+	void freeTextUpdateReplacesTheAnswerAndKeepsTheForm() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 13L)).thenReturn(Optional.of(new StoredQuestion(
+				13L, SUBJECT_ID, "texte", "Capitale de la France",
+				new TeacherQuestionPort.StoredFreeText("Paris"))));
+		when(questions.replace(eq(13L), eq("Capitale de l'Italie"), any()))
+				.thenReturn(new StoredQuestion(
+						13L, SUBJECT_ID, "texte", "Capitale de l'Italie",
+						new TeacherQuestionPort.StoredFreeText("Rome")));
+
+		QuestionLine line = service.update(
+				TEACHER_ID, "teacher", SUBJECT_ID, 13L, "texte",
+				"Capitale de l'Italie", new FreeTextInput("Rome"));
+
+		assertThat(line.formCode()).isEqualTo("texte");
+		assertThat(line.expectedAnswer()).isEqualTo("Rome");
+		verify(questions).replace(eq(13L), eq("Capitale de l'Italie"), any());
+	}
+
+	@Test
+	void freeTextCannotChangeForm() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 13L)).thenReturn(Optional.of(new StoredQuestion(
+				13L, SUBJECT_ID, "texte", "Capitale de la France",
+				new TeacherQuestionPort.StoredFreeText("Paris"))));
+
+		assertThatThrownBy(() -> service.update(
+				TEACHER_ID, "teacher", SUBJECT_ID, 13L, "qcm",
+				"Capitale de la France",
+				List.of(new ChoiceInput("Paris", true), new ChoiceInput("Lyon", false)),
+				List.of(), List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.FORM_LOCKED);
+
+		verify(questions, never()).replace(anyLong(), any(), any());
 	}
 
 	private static StoredQuestion gapsQuestion() {

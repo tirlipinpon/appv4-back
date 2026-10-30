@@ -28,6 +28,8 @@ import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinkInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinksInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LegacyInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzleInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzlePieceInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementsInput;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
@@ -40,6 +42,7 @@ import com.appv4.auth.application.result.TeacherSubjectQuestionsView.GapWordLine
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ItemLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.LinkLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.PairLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.PieceLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.StatementLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ZoneLine;
@@ -136,7 +139,8 @@ public class TeacherQuestionController {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
-						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null,
+						null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -171,7 +175,8 @@ public class TeacherQuestionController {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
-						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null,
+						null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -283,6 +288,9 @@ public class TeacherQuestionController {
 		if (TeacherQuestionService.IMAGE_CLICK.equals(code)) {
 			return new ClickImageInput(body.imageWebp(), body.requireAllCorrect(), zoneInputs(body.zones()));
 		}
+		if (TeacherQuestionService.PUZZLE.equals(code)) {
+			return new PuzzleInput(body.imageWebp(), body.snapDistance(), pieceInputs(body.pieces()));
+		}
 		return new LegacyInput(inputs(body.choices()), pairInputs(body.pairs()), itemInputs(body.items()));
 	}
 
@@ -370,6 +378,20 @@ public class TeacherQuestionController {
 		return inputs;
 	}
 
+	private static List<PuzzlePieceInput> pieceInputs(List<TeacherQuestionPieceInput> pieces) {
+		if (pieces == null) {
+			return List.of();
+		}
+		List<PuzzlePieceInput> inputs = new ArrayList<>();
+		for (TeacherQuestionPieceInput piece : pieces) {
+			if (piece == null) {
+				continue;
+			}
+			inputs.add(new PuzzlePieceInput(piece.label(), piece.shape(), pointInputs(piece.points())));
+		}
+		return inputs;
+	}
+
 	private static List<ClickPointInput> pointInputs(List<TeacherQuestionPointInput> points) {
 		if (points == null) {
 			return List.of();
@@ -448,10 +470,16 @@ public class TeacherQuestionController {
 			zones.add(new TeacherQuestionZoneItem(
 					zone.id(), zone.label(), zone.correct(), zone.shape(), pointItems(zone.points())));
 		}
+		List<TeacherQuestionPieceItem> pieces = new ArrayList<>();
+		for (PieceLine piece : line.pieces()) {
+			pieces.add(new TeacherQuestionPieceItem(
+					piece.id(), piece.label(), piece.shape(), pointItems(piece.points())));
+		}
 		return new TeacherSubjectQuestionItem(
 				line.id(), line.formCode(), line.formLabel(), line.prompt(),
 				choices, pairs, items, statements, links, line.sentence(), answers, decoys,
-				line.expectedAnswer(), base64(line.imageWebp()), line.requireAllCorrect(), zones);
+				line.expectedAnswer(), base64(line.imageWebp()), line.requireAllCorrect(), zones, pieces,
+				line.snapDistance());
 	}
 
 	private static List<TeacherQuestionPointItem> pointItems(List<ClickPoint> points) {
@@ -498,7 +526,9 @@ public class TeacherQuestionController {
 			String expectedAnswer,
 			String imageWebp,
 			Boolean requireAllCorrect,
-			List<TeacherQuestionZoneItem> zones) {
+			List<TeacherQuestionZoneItem> zones,
+			List<TeacherQuestionPieceItem> pieces,
+			Double snapDistance) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
@@ -556,7 +586,14 @@ public class TeacherQuestionController {
 			String expectedAnswer,
 			String imageWebp,
 			Boolean requireAllCorrect,
-			List<TeacherQuestionZoneInput> zones) {
+			List<TeacherQuestionZoneInput> zones,
+			List<TeacherQuestionPieceInput> pieces,
+			Double snapDistance) {
+	}
+
+	@Schema(name = "TeacherQuestionPieceInput")
+	public record TeacherQuestionPieceInput(
+			String label, String shape, List<TeacherQuestionPointInput> points) {
 	}
 
 	@Schema(name = "TeacherQuestionZoneInput")
@@ -571,6 +608,11 @@ public class TeacherQuestionController {
 	@Schema(name = "TeacherQuestionZoneItem")
 	public record TeacherQuestionZoneItem(
 			long id, String label, boolean correct, String shape, List<TeacherQuestionPointItem> points) {
+	}
+
+	@Schema(name = "TeacherQuestionPieceItem")
+	public record TeacherQuestionPieceItem(
+			long id, String label, String shape, List<TeacherQuestionPointItem> points) {
 	}
 
 	@Schema(name = "TeacherQuestionPointItem")

@@ -5,6 +5,7 @@ import java.util.List;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredContent;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzle;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
@@ -87,7 +88,13 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 		}
 
 		public byte[] imageWebp() {
-			return content instanceof StoredClickImage value ? value.imageWebp() : new byte[0];
+			if (content instanceof StoredClickImage click) {
+				return click.imageWebp();
+			}
+			if (content instanceof StoredPuzzle puzzle) {
+				return puzzle.imageWebp();
+			}
+			return new byte[0];
 		}
 
 		public Boolean requireAllCorrect() {
@@ -101,6 +108,19 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 									row.id(), row.label(), row.correct(), row.shape(), row.points()))
 							.toList()
 					: List.of();
+		}
+
+		public List<PieceLine> pieces() {
+			return content instanceof StoredPuzzle value
+					? value.pieces().stream()
+							.map(row -> new PieceLine(row.id(), row.label(), row.shape(), row.points()))
+							.toList()
+					: List.of();
+		}
+
+		/** Magnétisme du puzzle, en fraction de la largeur. Vide pour les autres formes. */
+		public Double snapDistance() {
+			return content instanceof StoredPuzzle value ? value.snapDistance() : null;
 		}
 	}
 
@@ -124,5 +144,9 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 
 	/** Zone d'une image à cliquer. Les points sont en proportion de l'image. */
 	public record ZoneLine(long id, String label, boolean correct, String shape, List<ClickPoint> points) {
+	}
+
+	/** Pièce d'un puzzle. Les points sont en proportion de l'image. Pas de côté juste ou faux. */
+	public record PieceLine(long id, String label, String shape, List<ClickPoint> points) {
 	}
 }

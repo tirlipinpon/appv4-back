@@ -25,6 +25,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.LinkDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.LinksDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairsDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.PuzzleDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.PuzzlePieceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
@@ -41,6 +43,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzle;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzlePiece;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
@@ -150,6 +154,21 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String ZONE_RULE_REQUIRED = "Indique s'il faut cliquer toutes les zones correctes.";
 	public static final String ZONE_SHAPE = "La forme de la zone n'est pas reconnue.";
 	public static final String ZONE_POINTS = "Les points de la zone ne restent pas sur l'image.";
+
+	public static final String PUZZLE = "puzzle";
+	public static final String PUZZLE_LABEL = "Puzzle";
+	public static final int PUZZLE_ORDER = 10;
+	public static final String PIECES_REQUIRED = "Il faut au moins deux pièces.";
+	public static final String PIECE_NAME_REQUIRED = "Chaque pièce doit avoir un nom.";
+	public static final String PIECE_NAME_TOO_LONG = "Un nom de pièce dépasse 200 caractères.";
+	public static final String PIECE_SHAPE = "La forme de la pièce n'est pas reconnue.";
+	public static final String PIECE_POINTS = "Les points de la pièce ne restent pas sur l'image.";
+	/** Magnétisme par défaut : 8 % de la largeur de l'image. */
+	public static final double SNAP_DEFAULT = 0.08;
+	/** Magnétisme maximum : 25 % de la largeur de l'image. */
+	public static final double SNAP_MAX = 0.25;
+	public static final String SNAP_RANGE =
+			"Le magnétisme doit rester entre 0 et 25 % de la largeur de l'image.";
 
 	public static final String CLONE_TARGET = "Choisis une matière.";
 	public static final String CLONE_REQUIRED = "Choisis au moins une question.";
@@ -434,6 +453,13 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 				zones.add(new ClickZoneDraft(zone.label(), zone.correct(), zone.shape(), zone.points()));
 			}
 			return new ClickImageDraft(image.imageWebp(), image.requireAllCorrect(), zones);
+		}
+		if (content instanceof StoredPuzzle puzzle) {
+			List<PuzzlePieceDraft> pieces = new ArrayList<>();
+			for (StoredPuzzlePiece piece : puzzle.pieces()) {
+				pieces.add(new PuzzlePieceDraft(piece.label(), piece.shape(), piece.points()));
+			}
+			return new PuzzleDraft(puzzle.imageWebp(), puzzle.snapDistance(), pieces);
 		}
 		throw new IllegalStateException("Copie non prévue pour la forme : " + source.formCode());
 	}

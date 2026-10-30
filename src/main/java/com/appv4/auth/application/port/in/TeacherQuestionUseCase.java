@@ -158,4 +158,16 @@ public interface TeacherQuestionUseCase {
 	/** Coordonnée en proportion de l'image. */
 	record ClickPointInput(Double x, Double y) {
 	}
+
+	/**
+	 * Puzzle. {@code imageWebp} est le fichier déjà allégé, en base64.
+	 * {@code snapDistance} est le magnétisme, en fraction de la largeur de l'image.
+	 * Les pièces n'ont pas de côté juste ou faux.
+	 */
+	record PuzzleInput(String imageWebp, Double snapDistance, List<PuzzlePieceInput> pieces) implements ContentInput {
+	}
+
+	/** Une pièce : nom, forme, points entre 0 et 1. */
+	record PuzzlePieceInput(String label, String shape, List<ClickPointInput> points) {
+	}
 }

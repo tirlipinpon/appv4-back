@@ -7,6 +7,7 @@ import com.appv4.auth.application.service.question.MemoryQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
 import com.appv4.auth.application.service.question.CaseVideQuestionForm;
 import com.appv4.auth.application.service.question.ClickImageQuestionForm;
+import com.appv4.auth.application.service.question.PuzzleQuestionForm;
 import com.appv4.auth.application.service.question.LinkQuestionForm;
 import com.appv4.auth.application.service.question.TexteQuestionForm;
 import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
@@ -495,6 +496,15 @@ public class AuthConfiguration {
 	@Bean
 	QuestionFormHandler clickImageQuestionForm() {
 		return new ClickImageQuestionForm();
+	}
+
+	/**
+	 * Puzzle dans une matière (SCRUM-183). Le professeur réutilise les formes du clic
+	 * pour découper l'image. L'élève n'a pas encore d'écran.
+	 */
+	@Bean
+	QuestionFormHandler puzzleQuestionForm() {
+		return new PuzzleQuestionForm();
 	}
 
 	@Bean

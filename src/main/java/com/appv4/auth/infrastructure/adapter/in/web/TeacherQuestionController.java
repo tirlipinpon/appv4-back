@@ -33,6 +33,7 @@ import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzlePieceInpu
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementsInput;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
+import com.appv4.auth.application.result.LetterAttemptView;
 import com.appv4.auth.application.result.TeacherSubjectFollowersView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
@@ -67,8 +68,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * questions vers une matière à laquelle il a accès. Les originaux restent.
  * Il peut aussi en supprimer une ou plusieurs. Avant ça, l'écran lui montre
  * combien d'enfants suivent le cours et la liste de leurs noms.
- * L'élève ne joue pas ici. La réponse libre (SCRUM-198) ajoute l'énoncé
- * et la réponse attendue, sous le libellé Réponse libre.
+ * L'élève ne joue pas les autres formes ici. La réponse libre (SCRUM-198)
+ * ajoute l'énoncé et la réponse attendue. La saisie lettre par lettre
+ * (SCRUM-182) ajoute le mot, puis Valider compare les cases.
  * <p><b>Technique :</b> {@code /api/int/teacher/question-forms} et
  * {@code /api/int/teacher/subjects/{id}/questions}. JWT obligatoire, espace {@code teacher}.
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link TeacherQuestionUseCase}.
@@ -189,6 +191,33 @@ public class TeacherQuestionController {
 		return ResponseEntity.ok(item(line));
 	}
 
+	@PostMapping("/subjects/{subjectId}/questions/{questionId}/attempt")
+	@Operation(operationId = "tryTeacherLetterAnswer", summary = "Valider un mot composé lettre par lettre")
+	@ApiResponse(responseCode = "200", description = "Le mot est accepté ou refusé")
+	@ApiResponse(
+			responseCode = "400",
+			description = "La question n'est pas une saisie lettre par lettre",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière ou question absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<LetterAttemptResponse> tryLetter(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@PathVariable long questionId,
+			@RequestBody LetterAttemptRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		LetterAttemptRequest body = request == null ? new LetterAttemptRequest(null) : request;
+		LetterAttemptView view = teacherQuestionUseCase.tryLetterAnswer(
+				user.userId(), user.activeRole(), subjectId, questionId, body.attempt());
+		return ResponseEntity.ok(new LetterAttemptResponse(view.accepted(), view.message()));
+	}
+
 	@PostMapping("/subjects/{subjectId}/questions/clone")
 	@Operation(operationId = "cloneTeacherSubjectQuestions", summary = "Copier des questions vers une matière")
 	@ApiResponse(responseCode = "200", description = "Copies créées, les questions d'origine restent")
@@ -282,7 +311,7 @@ public class TeacherQuestionController {
 		if (TeacherQuestionService.CASE_VIDE.equals(code)) {
 			return new GapsInput(body.sentence(), wordInputs(body.answers()), wordInputs(body.decoys()));
 		}
-		if (TeacherQuestionService.TEXTE.equals(code)) {
+		if (TeacherQuestionService.TEXTE.equals(code) || TeacherQuestionService.REPONSE_LIBRE.equals(code)) {
 			return new FreeTextInput(body.expectedAnswer());
 		}
 		if (TeacherQuestionService.IMAGE_CLICK.equals(code)) {
@@ -569,6 +598,14 @@ public class TeacherQuestionController {
 
 	@Schema(name = "DeleteTeacherSubjectQuestionsResponse")
 	public record DeleteTeacherSubjectQuestionsResponse(List<Long> deletedIds) {
+	}
+
+	@Schema(name = "LetterAttemptRequest")
+	public record LetterAttemptRequest(String attempt) {
+	}
+
+	@Schema(name = "LetterAttemptResponse")
+	public record LetterAttemptResponse(boolean accepted, String message) {
 	}
 
 	@Schema(name = "CreateTeacherSubjectQuestionRequest")

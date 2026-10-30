@@ -64,7 +64,7 @@ class TeacherQuestionControllerTest {
 	void teacherSeesMultipleChoiceMemoryOrderAndTrueFalse() throws Exception {
 		mockMvc.perform(get("/api/int/teacher/question-forms").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.forms.length()").value(9))
+				.andExpect(jsonPath("$.forms.length()").value(10))
 				.andExpect(jsonPath("$.forms[0].code").value("qcm"))
 				.andExpect(jsonPath("$.forms[0].label").value("Choix multiples"))
 				.andExpect(jsonPath("$.forms[1].code").value("memory"))
@@ -80,12 +80,15 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.forms[6].code").value("image_interactive"))
 				.andExpect(jsonPath("$.forms[6].label").value("Image à cliquer"))
 				.andExpect(jsonPath("$.forms[6].sortOrder").value(8))
-				.andExpect(jsonPath("$.forms[7].code").value("puzzle"))
-				.andExpect(jsonPath("$.forms[7].label").value("Puzzle"))
-				.andExpect(jsonPath("$.forms[7].sortOrder").value(10))
-				.andExpect(jsonPath("$.forms[8].code").value("texte"))
-				.andExpect(jsonPath("$.forms[8].label").value("Réponse libre"))
-				.andExpect(jsonPath("$.forms[8].sortOrder").value(11));
+				.andExpect(jsonPath("$.forms[7].code").value("reponse_libre"))
+				.andExpect(jsonPath("$.forms[7].label").value("Lettre par lettre"))
+				.andExpect(jsonPath("$.forms[7].sortOrder").value(9))
+				.andExpect(jsonPath("$.forms[8].code").value("puzzle"))
+				.andExpect(jsonPath("$.forms[8].label").value("Puzzle"))
+				.andExpect(jsonPath("$.forms[8].sortOrder").value(10))
+				.andExpect(jsonPath("$.forms[9].code").value("texte"))
+				.andExpect(jsonPath("$.forms[9].label").value("Réponse libre"))
+				.andExpect(jsonPath("$.forms[9].sortOrder").value(11));
 	}
 
 	@Test
@@ -337,6 +340,65 @@ class TeacherQuestionControllerTest {
 								}
 								"""))
 				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void createLetterByLetterReturnsThePromptAndTheExpectedWord() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+		when(questions.insert(eq(4L), eq("reponse_libre"), eq("Capitale de la France"), any()))
+				.thenReturn(new StoredQuestion(
+						15L,
+						4L,
+						"reponse_libre",
+						"Capitale de la France",
+						new TeacherQuestionPort.StoredFreeText("Paris")));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "formCode":"reponse_libre",
+								  "prompt":"Capitale de la France",
+								  "expectedAnswer":"Paris"
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(15))
+				.andExpect(jsonPath("$.formCode").value("reponse_libre"))
+				.andExpect(jsonPath("$.formLabel").value("Lettre par lettre"))
+				.andExpect(jsonPath("$.prompt").value("Capitale de la France"))
+				.andExpect(jsonPath("$.expectedAnswer").value("Paris"));
+	}
+
+	@Test
+	void letterAttemptAcceptsUpperCaseAndRefusesAnAccent() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+		when(questions.findInSubject(4L, 15L)).thenReturn(Optional.of(new StoredQuestion(
+				15L, 4L, "reponse_libre", "Capitale de la France",
+				new TeacherQuestionPort.StoredFreeText("Paris"))));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions/15/attempt")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{ "attempt":"PARIS" }
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.accepted").value(true))
+				.andExpect(jsonPath("$.message").value("La réponse est acceptée."));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions/15/attempt")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{ "attempt":"Parïs" }
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.accepted").value(false))
+				.andExpect(jsonPath("$.message").value("La réponse n'est pas acceptée."));
 	}
 
 	@Test

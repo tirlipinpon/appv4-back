@@ -2,6 +2,7 @@ package com.appv4.auth.application.port.in;
 
 import java.util.List;
 
+import com.appv4.auth.application.result.LetterAttemptView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherSubjectFollowersView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
@@ -14,7 +15,8 @@ import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLin
  * propose. Le choix multiple a un énoncé et des propositions. Le Memory a des
  * paires. L'ordre a des éléments déjà rangés. Le vrai ou faux a des phrases,
  * chacune vraie ou fausse. L'énoncé du Memory, de l'ordre et du vrai ou faux
- * peut rester vide. L'élève ne joue pas encore ici.
+ * peut rester vide. La saisie lettre par lettre a un mot attendu : Valider
+ * compare ce que l'élève a composé, sans retirer les accents.
  * <p><b>Technique :</b> l'identifiant vient du jeton. Une proposition vide, une
  * paire incomplète, ou un élément vide, n'est pas enregistré. Moins de deux
  * propositions, ou aucune bonne réponse, est refusé. Moins de deux paires, ou
@@ -32,6 +34,12 @@ public interface TeacherQuestionUseCase {
 	TeacherQuestionFormsView listForms(long userId, String activeRole);
 
 	TeacherSubjectQuestionsView list(long userId, String activeRole, long subjectId);
+
+	/**
+	 * Verdict de Valider pour une question {@code reponse_libre}.
+	 * Le mot composé arrive déjà assemblé, une lettre par case.
+	 */
+	LetterAttemptView tryLetterAnswer(long userId, String activeRole, long subjectId, long questionId, String attempt);
 
 	default QuestionLine create(
 			long userId,

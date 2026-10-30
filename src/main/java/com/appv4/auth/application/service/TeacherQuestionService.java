@@ -163,6 +163,12 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String PIECE_NAME_TOO_LONG = "Un nom de pièce dépasse 200 caractères.";
 	public static final String PIECE_SHAPE = "La forme de la pièce n'est pas reconnue.";
 	public static final String PIECE_POINTS = "Les points de la pièce ne restent pas sur l'image.";
+	/** Magnétisme par défaut : 8 % de la largeur de l'image. */
+	public static final double SNAP_DEFAULT = 0.08;
+	/** Magnétisme maximum : 25 % de la largeur de l'image. */
+	public static final double SNAP_MAX = 0.25;
+	public static final String SNAP_RANGE =
+			"Le magnétisme doit rester entre 0 et 25 % de la largeur de l'image.";
 
 	public static final String CLONE_TARGET = "Choisis une matière.";
 	public static final String CLONE_REQUIRED = "Choisis au moins une question.";
@@ -453,7 +459,7 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 			for (StoredPuzzlePiece piece : puzzle.pieces()) {
 				pieces.add(new PuzzlePieceDraft(piece.label(), piece.shape(), piece.points()));
 			}
-			return new PuzzleDraft(puzzle.imageWebp(), pieces);
+			return new PuzzleDraft(puzzle.imageWebp(), puzzle.snapDistance(), pieces);
 		}
 		throw new IllegalStateException("Copie non prévue pour la forme : " + source.formCode());
 	}

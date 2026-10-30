@@ -399,7 +399,7 @@ class TeacherQuestionControllerTest {
 						4L,
 						"puzzle",
 						"",
-						new StoredPuzzle(webp, List.of(
+						new StoredPuzzle(webp, 0.12, List.of(
 								new StoredPuzzlePiece(1L, "le ciel", "rect", List.of(
 										new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5))),
 								new StoredPuzzlePiece(2L, "le sol", "rect", List.of(
@@ -413,6 +413,7 @@ class TeacherQuestionControllerTest {
 								  "formCode":"puzzle",
 								  "prompt":"",
 								  "imageWebp":"UklGRiQAAABXRUJQVlA4IBgAAAA=",
+								  "snapDistance":0.12,
 								  "pieces":[
 								    {
 								      "label":"le ciel",
@@ -436,7 +437,8 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.pieces[0].label").value("le ciel"))
 				.andExpect(jsonPath("$.pieces[0].shape").value("rect"))
 				.andExpect(jsonPath("$.pieces[0].correct").doesNotExist())
-				.andExpect(jsonPath("$.pieces[1].label").value("le sol"));
+				.andExpect(jsonPath("$.pieces[1].label").value("le sol"))
+				.andExpect(jsonPath("$.snapDistance").value(0.12));
 	}
 
 	@Test

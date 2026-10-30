@@ -1061,7 +1061,7 @@ class TeacherQuestionServiceTest {
 						SUBJECT_ID,
 						"puzzle",
 						"",
-						new StoredPuzzle(webp, List.of(
+						new StoredPuzzle(webp, 0.12, List.of(
 								new StoredPuzzlePiece(1L, "le ciel", "rect", List.of(
 										new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5))),
 								new StoredPuzzlePiece(2L, "le sol", "rect", List.of(
@@ -1069,7 +1069,7 @@ class TeacherQuestionServiceTest {
 
 		QuestionLine line = service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "  ",
-				new PuzzleInput(Base64.getEncoder().encodeToString(webp), List.of(
+				new PuzzleInput(Base64.getEncoder().encodeToString(webp), 0.12, List.of(
 						new PuzzlePieceInput(" le ciel ", "rect", List.of(
 								new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5))),
 						new PuzzlePieceInput("le sol", "ellipse", List.of(
@@ -1083,6 +1083,7 @@ class TeacherQuestionServiceTest {
 		assertThat(line.imageWebp()).containsExactly(webp);
 		assertThat(line.pieces()).hasSize(2);
 		assertThat(line.pieces().get(0).label()).isEqualTo("le ciel");
+		assertThat(line.snapDistance()).isEqualTo(0.12);
 
 		ArgumentCaptor<PuzzleDraft> captor = ArgumentCaptor.forClass(PuzzleDraft.class);
 		verify(questions).insert(eq(SUBJECT_ID), eq("puzzle"), eq(""), captor.capture());
@@ -1090,6 +1091,7 @@ class TeacherQuestionServiceTest {
 		assertThat(captor.getValue().pieces()).hasSize(2);
 		assertThat(captor.getValue().pieces().get(0).label()).isEqualTo("le ciel");
 		assertThat(captor.getValue().pieces().get(1).shape()).isEqualTo("ellipse");
+		assertThat(captor.getValue().snapDistance()).isEqualTo(0.12);
 		verify(questions).ensureForm(SUBJECT_ID, "puzzle", "Puzzle", 10);
 	}
 
@@ -1105,27 +1107,33 @@ class TeacherQuestionServiceTest {
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
-				new PuzzleInput("  ", List.of(sky, ground))))
+				new PuzzleInput("  ", null, List.of(sky, ground))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.IMAGE_REQUIRED);
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
-				new PuzzleInput(encoded, List.of(sky))))
+				new PuzzleInput(encoded, null, List.of(sky))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.PIECES_REQUIRED);
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
-				new PuzzleInput(encoded, List.of(sky, new PuzzlePieceInput("  ", "rect", ground.points())))))
+				new PuzzleInput(encoded, null, List.of(sky, new PuzzlePieceInput("  ", "rect", ground.points())))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.PIECE_NAME_REQUIRED);
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
-				new PuzzleInput(encoded, List.of(sky, new PuzzlePieceInput("le sol", "star", ground.points())))))
+				new PuzzleInput(encoded, null, List.of(sky, new PuzzlePieceInput("le sol", "star", ground.points())))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.PIECE_SHAPE);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, 0.5, List.of(sky, ground))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.SNAP_RANGE);
 
 		verify(questions, never()).insert(eq(SUBJECT_ID), eq("puzzle"), any(), any());
 	}

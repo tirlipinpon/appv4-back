@@ -117,6 +117,11 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
 							.toList()
 					: List.of();
 		}
+
+		/** Magnétisme du puzzle, en fraction de la largeur. Vide pour les autres formes. */
+		public Double snapDistance() {
+			return content instanceof StoredPuzzle value ? value.snapDistance() : null;
+		}
 	}
 
 	public record ChoiceLine(long id, String label, boolean correct) {

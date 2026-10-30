@@ -139,7 +139,8 @@ public class TeacherQuestionController {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
-						null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null,
+						null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -174,7 +175,8 @@ public class TeacherQuestionController {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
-						null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null,
+						null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -287,7 +289,7 @@ public class TeacherQuestionController {
 			return new ClickImageInput(body.imageWebp(), body.requireAllCorrect(), zoneInputs(body.zones()));
 		}
 		if (TeacherQuestionService.PUZZLE.equals(code)) {
-			return new PuzzleInput(body.imageWebp(), pieceInputs(body.pieces()));
+			return new PuzzleInput(body.imageWebp(), body.snapDistance(), pieceInputs(body.pieces()));
 		}
 		return new LegacyInput(inputs(body.choices()), pairInputs(body.pairs()), itemInputs(body.items()));
 	}
@@ -476,7 +478,8 @@ public class TeacherQuestionController {
 		return new TeacherSubjectQuestionItem(
 				line.id(), line.formCode(), line.formLabel(), line.prompt(),
 				choices, pairs, items, statements, links, line.sentence(), answers, decoys,
-				line.expectedAnswer(), base64(line.imageWebp()), line.requireAllCorrect(), zones, pieces);
+				line.expectedAnswer(), base64(line.imageWebp()), line.requireAllCorrect(), zones, pieces,
+				line.snapDistance());
 	}
 
 	private static List<TeacherQuestionPointItem> pointItems(List<ClickPoint> points) {
@@ -524,7 +527,8 @@ public class TeacherQuestionController {
 			String imageWebp,
 			Boolean requireAllCorrect,
 			List<TeacherQuestionZoneItem> zones,
-			List<TeacherQuestionPieceItem> pieces) {
+			List<TeacherQuestionPieceItem> pieces,
+			Double snapDistance) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
@@ -583,7 +587,8 @@ public class TeacherQuestionController {
 			String imageWebp,
 			Boolean requireAllCorrect,
 			List<TeacherQuestionZoneInput> zones,
-			List<TeacherQuestionPieceInput> pieces) {
+			List<TeacherQuestionPieceInput> pieces,
+			Double snapDistance) {
 	}
 
 	@Schema(name = "TeacherQuestionPieceInput")

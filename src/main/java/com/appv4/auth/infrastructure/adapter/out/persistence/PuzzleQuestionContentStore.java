@@ -65,7 +65,8 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 		for (long id : questionIds) {
 			BackSubjectQuestionPuzzleImageEntity image = imagesById.get(id);
 			byte[] bytes = image == null ? new byte[0] : image.getImageWebp();
-			contents.put(id, new StoredPuzzle(bytes, piecesById.get(id)));
+			double snap = image == null ? TeacherQuestionService.SNAP_DEFAULT : image.getSnapDistance();
+			contents.put(id, new StoredPuzzle(bytes, snap, piecesById.get(id)));
 		}
 		return contents;
 	}
@@ -76,7 +77,7 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 			throw new IllegalArgumentException("Contenu incompatible avec le puzzle");
 		}
 		BackSubjectQuestionPuzzleImageEntity image = images.saveAndFlush(
-				new BackSubjectQuestionPuzzleImageEntity(questionId, draft.imageWebp()));
+				new BackSubjectQuestionPuzzleImageEntity(questionId, draft.imageWebp(), draft.snapDistance()));
 		List<BackSubjectQuestionPuzzlePieceEntity> rows = new ArrayList<>();
 		for (PuzzlePieceDraft piece : draft.pieces()) {
 			rows.add(new BackSubjectQuestionPuzzlePieceEntity(
@@ -87,7 +88,7 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 					rows.size()));
 		}
 		List<StoredPuzzlePiece> stored = storedPieces(pieces.saveAllAndFlush(rows));
-		return new StoredPuzzle(image.getImageWebp(), stored);
+		return new StoredPuzzle(image.getImageWebp(), image.getSnapDistance(), stored);
 	}
 
 	@Override

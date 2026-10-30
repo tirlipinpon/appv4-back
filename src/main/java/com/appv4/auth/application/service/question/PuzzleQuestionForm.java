@@ -8,6 +8,9 @@ import static com.appv4.auth.application.service.TeacherQuestionService.PIECES_R
 import static com.appv4.auth.application.service.TeacherQuestionService.PUZZLE;
 import static com.appv4.auth.application.service.TeacherQuestionService.PUZZLE_LABEL;
 import static com.appv4.auth.application.service.TeacherQuestionService.PUZZLE_ORDER;
+import static com.appv4.auth.application.service.TeacherQuestionService.SNAP_DEFAULT;
+import static com.appv4.auth.application.service.TeacherQuestionService.SNAP_MAX;
+import static com.appv4.auth.application.service.TeacherQuestionService.SNAP_RANGE;
 import static com.appv4.auth.application.service.question.QuestionValidation.bad;
 
 import java.util.ArrayList;
@@ -25,6 +28,7 @@ import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
  *
  * <p><b>Business :</b> le professeur découpe une image en pièces nommées. Il n'y a
  * pas de vert ni de rouge. L'énoncé peut rester vide. Il faut au moins deux pièces.
+ * Le magnétisme dit à quelle distance une pièce se colle sur sa découpe.
  * <p><b>Technique :</b> code {@code puzzle}, ordre 10. L'image et les points passent
  * par {@link DrawnImageRules}, déjà utilisés pour l'image à cliquer.
  * <p><b>Métier / flow :</b> le registre appelle {@link #prepare} avant l'enregistrement.
@@ -46,7 +50,21 @@ public final class PuzzleQuestionForm implements QuestionFormHandler {
 		}
 		return new Prepared(
 				QuestionValidation.optionalPrompt(prompt),
-				new PuzzleDraft(DrawnImageRules.requireWebp(puzzle.imageWebp()), requirePieces(puzzle.pieces())));
+				new PuzzleDraft(
+						DrawnImageRules.requireWebp(puzzle.imageWebp()),
+						requireSnap(puzzle.snapDistance()),
+						requirePieces(puzzle.pieces())));
+	}
+
+	/** Absent : 8 %. Hors de 0 à 25 % : refus. */
+	private static double requireSnap(Double raw) {
+		if (raw == null) {
+			return SNAP_DEFAULT;
+		}
+		if (raw.isNaN() || raw < 0 || raw > SNAP_MAX) {
+			throw bad(SNAP_RANGE);
+		}
+		return raw;
 	}
 
 	private static List<PuzzlePieceDraft> requirePieces(List<PuzzlePieceInput> pieces) {

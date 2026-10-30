@@ -11,7 +11,8 @@ import jakarta.persistence.Table;
  * <p><b>Business :</b> le professeur dépose un dessin. On garde la version légère,
  * pas le fichier d'origine. Les pièces seront découpées dans cette image.
  * <p><b>Technique :</b> table {@code back_subject_question_puzzle_images}. Une ligne par question.
- * {@code imageWebp} est le fichier déjà réduit.
+ * {@code imageWebp} est le fichier déjà réduit. {@code snapDistance} est le magnétisme,
+ * en fraction de la largeur de l'image.
  * <p><b>Métier / flow :</b> écrite avec la question dont la forme est {@code puzzle}.
  * Les pièces sont dans {@link BackSubjectQuestionPuzzlePieceEntity}.
  */
@@ -26,12 +27,16 @@ public class BackSubjectQuestionPuzzleImageEntity {
 	@Column(name = "image_webp", nullable = false)
 	private byte[] imageWebp;
 
+	@Column(name = "snap_distance", nullable = false)
+	private double snapDistance;
+
 	protected BackSubjectQuestionPuzzleImageEntity() {
 	}
 
-	public BackSubjectQuestionPuzzleImageEntity(long questionId, byte[] imageWebp) {
+	public BackSubjectQuestionPuzzleImageEntity(long questionId, byte[] imageWebp, double snapDistance) {
 		this.questionId = questionId;
 		this.imageWebp = imageWebp.clone();
+		this.snapDistance = snapDistance;
 	}
 
 	public Long getQuestionId() {
@@ -40,5 +45,9 @@ public class BackSubjectQuestionPuzzleImageEntity {
 
 	public byte[] getImageWebp() {
 		return imageWebp.clone();
+	}
+
+	public double getSnapDistance() {
+		return snapDistance;
 	}
 }

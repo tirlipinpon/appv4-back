@@ -162,7 +162,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		String trimmed = requiredName(name);
 		String key = nameKey(trimmed);
 		if (removedAndFree(schoolId, grade, key)) {
-			throw bad(REMOVED_RESTORABLE);
+			throw new AuthDomainException(AuthErrorCode.SUBJECT_RESTORABLE, REMOVED_RESTORABLE);
 		}
 		if (teacherSubjectPort.nameTaken(schoolId, grade, key, null)) {
 			throw bad(takenMessage(userId, schoolId, grade, key));
@@ -747,7 +747,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		String creator = teacherProfilePort.findAccount(subject.userId())
 				.map(TeacherAccount::displayName)
 				.orElse("");
-		return nameCanAsk(creator);
+		throw new AuthDomainException(AuthErrorCode.SUBJECT_SHARE_AVAILABLE, nameCanAsk(creator));
 	}
 
 	/**
@@ -805,7 +805,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		String creator = teacherProfilePort.findAccount(subject.userId())
 				.map(TeacherAccount::displayName)
 				.orElse("");
-		return nameSimilarCanAsk(subject.name(), creator);
+		throw new AuthDomainException(AuthErrorCode.SUBJECT_SHARE_AVAILABLE, nameSimilarCanAsk(subject.name(), creator));
 	}
 
 	/** La matière visible la plus proche, hors nom exactement identique. */

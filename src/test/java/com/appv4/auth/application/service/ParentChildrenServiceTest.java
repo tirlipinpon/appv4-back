@@ -82,6 +82,8 @@ class ParentChildrenServiceTest {
 				command("Noah", "Martin", "8", "Belgique", "3e primaire", 4L, "owl", "9090", "9090"));
 		assertThat(saved.schoolName()).isEqualTo("Ecole Nouvelle");
 		assertThat(saved.grade()).isEqualTo("3e primaire");
+		catalog.add(new CatalogSchool(5L, "Other school", "Belgique", "Primaire"));
+		assertThat(service.list(1L, "parent").schools()).extracting(item -> item.id()).containsExactly(4L);
 
 		assertThatThrownBy(() -> service.add(1L, "parent",
 				command("Noah", "Martin", "8", "Belgique", "1re secondaire", 4L, "owl", "9090", "9090")))

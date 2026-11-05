@@ -15,6 +15,21 @@ public interface SchoolCatalogPort {
 
 	List<CatalogSchool> list();
 
+	/** Resolves only requested schools for personal profile views. */
+	default List<CatalogSchool> findByIds(List<Long> ids) {
+		return list().stream().filter(school -> ids.contains(school.id())).toList();
+	}
+
+	/** Bounded search ordered by id, for user-facing school selection. */
+	default List<CatalogSchool> search(String country, String query, long afterId, int limit) {
+		return list().stream().filter(school -> school.id() > afterId)
+				.filter(school -> country == null || country.isBlank() || country.equalsIgnoreCase(school.country()))
+				.filter(school -> java.text.Normalizer.normalize(school.name().toLowerCase(java.util.Locale.ROOT),
+						java.text.Normalizer.Form.NFD).replaceAll("\\p{M}+", "").contains(query))
+				.sorted(java.util.Comparator.comparingLong(CatalogSchool::id)).limit(limit).toList();
+	}
+
+
 	/**
 	 * @param id            identifiant stable, le même que {@code back_schools.id}
 	 * @param name          nom affiché, tel que le référentiel le donne

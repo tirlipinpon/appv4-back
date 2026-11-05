@@ -625,6 +625,34 @@ class TeacherSubjectServiceTest {
 		assertThat(lineOf(TEACHER_ID, maths.id()).ownedByMe()).isTrue();
 		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isTrue();
 		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites()).isEmpty();
+		assertThat(service.listDeactivateNotices(TEACHER_ID, "teacher").notices())
+				.extracting(n -> n.kind(), n -> n.message())
+				.containsExactly(org.assertj.core.groups.Tuple.tuple(
+						TeacherSubjectService.NOTICE_KIND_INVITE_REJECTED,
+						"Camille a refusé de partager Mathématiques."));
+	}
+
+	@Test
+	void leavingHolderReassignsOwnershipWhenOwnerHadNoAccess() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		service.acceptTransfer(
+				THIRD_ID, "teacher", service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+		subjects.dropAccess(maths.id(), TEACHER_ID);
+
+		service.remove(OTHER_ID, "teacher", maths.id());
+
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(lineOf(THIRD_ID, maths.id()).ownedByMe()).isTrue();
+		assertThat(lineOf(THIRD_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(TEACHER_ID, maths.id()).ownedByMe()).isFalse();
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(subjects.find(maths.id()).userId()).isEqualTo(THIRD_ID);
 	}
 
 	@Test
@@ -878,6 +906,18 @@ class TeacherSubjectServiceTest {
 			hidden.remove(subjectId);
 		}
 
+		/** Retire l'accès d'un professeur sans toucher au propriétaire enregistré. */
+		void dropAccess(long subjectId, long userId) {
+			Set<Long> holders = accessBySubject.get(subjectId);
+			if (holders != null) {
+				holders.remove(userId);
+			}
+			Map<Long, Boolean> actives = accessActive.get(subjectId);
+			if (actives != null) {
+				actives.remove(userId);
+			}
+		}
+
 		StoredSubject find(long id) {
 			for (StoredSubject row : rows) {
 				if (row.id() == id) {
@@ -1060,6 +1100,22 @@ class TeacherSubjectServiceTest {
 			if (holders.isEmpty()) {
 				hidden.add(subjectId);
 			} else {
+				for (int index = 0; index < rows.size(); index++) {
+					StoredSubject row = rows.get(index);
+					if (row.id() == subjectId && !holders.contains(row.userId())) {
+						long nextOwner = holders.iterator().next();
+						rows.set(
+								index,
+								new StoredSubject(
+										row.id(),
+										nextOwner,
+										row.schoolId(),
+										row.grade(),
+										row.name(),
+										row.active()));
+						break;
+					}
+				}
 				syncGlobalActive(subjectId);
 			}
 			return true;

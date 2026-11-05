@@ -311,9 +311,10 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		}
 		access.deleteBySubjectId(subjectId);
 		access.saveAndFlush(new BackTeacherSubjectAccessEntity(subjectId, soleUserId));
-		found.get().assignTo(soleUserId);
-		if (!found.get().isActive()) {
-			found.get().reactivate();
+		BackTeacherSubjectEntity subject = subjects.findById(subjectId).orElseThrow();
+		subject.assignTo(soleUserId);
+		if (!subject.isActive()) {
+			subject.reactivate();
 		}
 		subjects.flush();
 	}

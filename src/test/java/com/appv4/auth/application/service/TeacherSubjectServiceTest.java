@@ -421,7 +421,7 @@ class TeacherSubjectServiceTest {
 		SubjectLine back = service.restore(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 
 		assertThat(back.id()).isEqualTo(maths.id());
-		assertThat(back.ownedByMe()).isFalse();
+		assertThat(back.ownedByMe()).isTrue();
 		assertThat(back.followedByMe()).isTrue();
 		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
@@ -430,7 +430,49 @@ class TeacherSubjectServiceTest {
 				.extracting(SharedHolder::displayName)
 				.containsExactly("Camille");
 		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques"))
-				.hasMessage(TeacherSubjectService.NAME_TAKEN);
+				.hasMessage(TeacherSubjectService.nameCanAsk("Camille"));
+	}
+
+	@Test
+	void ownerCannotRemoveWhileOthersFollowWithoutHandover() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		assertThatThrownBy(() -> service.remove(TEACHER_ID, "teacher", maths.id()))
+				.hasMessage(TeacherSubjectService.HANDOVER_REQUIRED);
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
+		service.acceptTransfer(OTHER_ID, "teacher", inviteId);
+
+		assertThat(lineOf(OTHER_ID, maths.id()).ownedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(service.listDeactivateNotices(TEACHER_ID, "teacher").notices())
+				.extracting(n -> n.kind(), n -> n.message().contains("Camille"))
+				.containsExactly(org.assertj.core.groups.Tuple.tuple(
+						TeacherSubjectService.NOTICE_KIND_HANDOVER_ACCEPTED, true));
+	}
+
+	@Test
+	void handoverRejectedThenAllGoneRemovesSubject() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
+		service.rejectTransfer(OTHER_ID, "teacher", inviteId);
+
+		assertThat(service.listDeactivateNotices(TEACHER_ID, "teacher").notices())
+				.extracting(n -> n.kind())
+				.containsExactly(TeacherSubjectService.NOTICE_KIND_HANDOVER_REJECTED);
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(subjects.hidden(maths.id())).isTrue();
 	}
 
 	@Test
@@ -996,7 +1038,7 @@ class TeacherSubjectServiceTest {
 				}
 				hidden.remove(row.id());
 				StoredSubject restored = new StoredSubject(
-						row.id(), row.userId(), row.schoolId(), row.grade(), row.name(), true);
+						row.id(), userId, row.schoolId(), row.grade(), row.name(), true);
 				rows.set(index, restored);
 				accessBySubject.computeIfAbsent(row.id(), key -> new HashSet<>()).add(userId);
 				accessActive.computeIfAbsent(row.id(), key -> new HashMap<>()).put(userId, true);
@@ -1076,6 +1118,25 @@ class TeacherSubjectServiceTest {
 					return;
 				}
 			}
+		}
+
+		@Override
+		public void assignOwnership(long subjectId, long newOwnerUserId) {
+			for (int index = 0; index < rows.size(); index++) {
+				StoredSubject row = rows.get(index);
+				if (row.id() == subjectId) {
+					rows.set(index, new StoredSubject(
+							row.id(), newOwnerUserId, row.schoolId(), row.grade(), row.name(), row.active()));
+					return;
+				}
+			}
+		}
+
+		@Override
+		public void hideCompletely(long subjectId) {
+			accessBySubject.put(subjectId, new HashSet<>());
+			accessActive.put(subjectId, new HashMap<>());
+			hidden.add(subjectId);
 		}
 
 		@Override
@@ -1204,8 +1265,35 @@ class TeacherSubjectServiceTest {
 					continue;
 				}
 				notices.add(new StoredDeactivateNotice(
-						nextNoticeId++, subjectId, fromUserId, toUserId, List.copyOf(deactivatedUserIds)));
+						nextNoticeId++,
+						subjectId,
+						fromUserId,
+						toUserId,
+						TeacherSubjectService.NOTICE_KIND_DEACTIVATE,
+						"",
+						List.copyOf(deactivatedUserIds)));
 			}
+		}
+
+		@Override
+		public void insertSubjectNotice(
+				long subjectId, long fromUserId, long toUserId, String kind, String message) {
+			notices.add(new StoredDeactivateNotice(
+					nextNoticeId++, subjectId, fromUserId, toUserId, kind, message, List.of()));
+		}
+
+		@Override
+		public List<Long> rejectedHandoverToUserIds(long subjectId, long fromUserId) {
+			List<Long> ids = new ArrayList<>();
+			for (StoredTransferRequest row : transfers) {
+				if (row.subjectId() == subjectId
+						&& row.fromUserId() == fromUserId
+						&& TeacherSubjectService.MODE_HANDOVER.equals(row.mode())
+						&& "rejected".equals(row.status())) {
+					ids.add(row.toUserId());
+				}
+			}
+			return ids;
 		}
 
 		@Override

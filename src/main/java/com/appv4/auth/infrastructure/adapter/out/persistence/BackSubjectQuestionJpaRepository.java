@@ -1,5 +1,6 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +18,18 @@ public interface BackSubjectQuestionJpaRepository extends JpaRepository<BackSubj
 	List<BackSubjectQuestionEntity> findBySubjectIdAndIdGreaterThanOrderByIdAsc(long subjectId, long afterId, Pageable page);
 
 	Optional<BackSubjectQuestionEntity> findByIdAndSubjectId(long id, long subjectId);
+
+	/**
+	 * Totaux par matière. Chaque ligne est {@code [subjectId, count]}.
+	 * Les matières sans question n'apparaissent pas.
+	 */
+	@Query("""
+			select question.subjectId, count(question)
+			from BackSubjectQuestionEntity question
+			where question.subjectId in :subjectIds
+			group by question.subjectId
+			""")
+	List<Object[]> countGroupedBySubjectId(@Param("subjectIds") Collection<Long> subjectIds);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select question from BackSubjectQuestionEntity question where question.id = :id")

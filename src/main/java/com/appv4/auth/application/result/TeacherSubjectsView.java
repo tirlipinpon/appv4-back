@@ -49,6 +49,7 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 	 * @param sharedWith    s'il la suit : les co-profs ; sinon : tous ceux qui la suivent
 	 * @param shareAskedTo  destinataires d'un {@code ask} pending envoyé par le connecté
 	 * @param owner         propriétaire : le professeur qui peut renommer
+	 * @param questionCount total des questions enregistrées sur la matière (0 si aucune)
 	 */
 	public record SubjectLine(
 			long id,
@@ -58,7 +59,8 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 			boolean followedByMe,
 			List<SharedHolder> sharedWith,
 			List<SharedHolder> shareAskedTo,
-			SharedHolder owner) {
+			SharedHolder owner,
+			long questionCount) {
 
 		public SubjectLine {
 			sharedWith = sharedWith == null ? List.of() : List.copyOf(sharedWith);

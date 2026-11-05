@@ -2,9 +2,13 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +26,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.result.ChildSubjectsView;
 import com.appv4.auth.application.result.ChildSubjectsView.SubjectOffer;
 import com.appv4.auth.application.result.ParentSubjectsView;
@@ -43,8 +48,10 @@ class ChildSubjectServiceTest {
 		subjects.visible.add(new CatalogSubject(11L, "Mathématiques", "Prof A", 1L, "CE1"));
 		subjects.visible.add(new CatalogSubject(12L, "Mathématiques", "Prof A", 1L, "CE2"));
 		subjects.visible.add(new CatalogSubject(13L, "Sciences", "Prof B", 1L, "CE1"));
+		TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
+		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
 		service = new ChildSubjectService(children, subjects, () -> List.of(
-				new CatalogSchool(1L, "École française", "France", "Primaire")));
+				new CatalogSchool(1L, "École française", "France", "Primaire")), questions);
 	}
 
 	@Test

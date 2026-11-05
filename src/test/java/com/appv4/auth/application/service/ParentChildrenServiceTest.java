@@ -2,10 +2,14 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +25,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.result.ParentChildrenView.ChildCard;
 import com.appv4.auth.application.result.ParentChildrenView.KinshipMark;
 
@@ -46,8 +51,11 @@ class ParentChildrenServiceTest {
 			}
 		};
 		NoChildSubjects links = new NoChildSubjects();
+		TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
+		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
 		service = new ParentChildrenService(
-				children, () -> catalog, encoder, links, new ChildSubjectService(children, links, () -> catalog));
+				children, () -> catalog, encoder, links,
+				new ChildSubjectService(children, links, () -> catalog, questions));
 	}
 
 	@Test

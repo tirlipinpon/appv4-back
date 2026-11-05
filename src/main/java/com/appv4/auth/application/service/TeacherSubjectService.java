@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -20,6 +21,7 @@ import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.AccessHolder;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredDeactivateNotice;
@@ -151,16 +153,19 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	private final TeacherProfilePort teacherProfilePort;
 	private final SchoolCatalogPort schoolCatalogPort;
 	private final ActiveRolePort activeRolePort;
+	private final TeacherQuestionPort teacherQuestionPort;
 
 	public TeacherSubjectService(
 			TeacherSubjectPort teacherSubjectPort,
 			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort,
-			ActiveRolePort activeRolePort) {
+			ActiveRolePort activeRolePort,
+			TeacherQuestionPort teacherQuestionPort) {
 		this.teacherSubjectPort = teacherSubjectPort;
 		this.teacherProfilePort = teacherProfilePort;
 		this.schoolCatalogPort = schoolCatalogPort;
 		this.activeRolePort = activeRolePort;
+		this.teacherQuestionPort = teacherQuestionPort;
 	}
 
 	@Override
@@ -564,6 +569,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		List<TeacherSubjectPort.SubjectListing> listing = teacherSubjectPort.findListing(userId,
 				links.stream().map(TeacherSchoolLink::schoolId).distinct().toList(),
 				links.stream().flatMap(link -> link.grades().stream()).distinct().toList());
+		Map<Long, Long> questionCounts = teacherQuestionPort.countBySubjectIds(
+				listing.stream().map(row -> row.subject().id()).distinct().toList());
 		List<CatalogSchool> catalog = schoolCatalogPort.list();
 		List<SchoolGroup> schools = new ArrayList<>();
 		for (TeacherSchoolLink link : links) {
@@ -573,7 +580,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			}
 			List<GradeGroup> groups = new ArrayList<>();
 			for (String grade : grades) {
-				groups.add(new GradeGroup(grade, listingLines(userId, link.schoolId(), grade, listing)));
+				groups.add(new GradeGroup(grade, listingLines(userId, link.schoolId(), grade, listing, questionCounts)));
 			}
 			schools.add(new SchoolGroup(link.schoolId(), schoolName(link.schoolId(), catalog), groups));
 		}
@@ -581,7 +588,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	}
 
 	private List<SubjectLine> listingLines(long userId, long schoolId, String grade,
-			List<TeacherSubjectPort.SubjectListing> listing) {
+			List<TeacherSubjectPort.SubjectListing> listing, Map<Long, Long> questionCounts) {
 		Collator order = Collator.getInstance(Locale.FRENCH);
 		order.setStrength(Collator.PRIMARY);
 		return listing.stream().filter(row -> row.subject().schoolId() == schoolId && grade.equals(row.subject().grade()))
@@ -592,7 +599,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 								.map(TeacherSubjectService::sharedHolder).toList(),
 						row.asked().stream()
 								.map(TeacherSubjectService::sharedHolder).toList(),
-						new SharedHolder(row.subject().userId(), row.ownerName())))
+						new SharedHolder(row.subject().userId(), row.ownerName()),
+						questionCounts.getOrDefault(row.subject().id(), 0L)))
 				.toList();
 	}
 
@@ -609,6 +617,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		List<SharedHolder> shared = holders.stream()
 				.map(holder -> new SharedHolder(holder.userId(), holder.displayName()))
 				.toList();
+		long questionCount = teacherQuestionPort.countBySubjectIds(List.of(subject.id()))
+				.getOrDefault(subject.id(), 0L);
 		return new SubjectLine(
 				subject.id(),
 				subject.name(),
@@ -617,7 +627,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				followedByMe,
 				shared,
 				shareAskedTo(userId, subject.id()),
-				ownerOf(subject));
+				ownerOf(subject),
+				questionCount);
 	}
 
 	/** Propriétaire enregistré : le professeur qui peut renommer. */

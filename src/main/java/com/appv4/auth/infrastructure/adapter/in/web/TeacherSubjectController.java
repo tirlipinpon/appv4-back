@@ -446,7 +446,8 @@ public class TeacherSubjectController {
 				subject.followedByMe(),
 				shared,
 				asked,
-				owner);
+				owner,
+				subject.questionCount());
 	}
 
 	@Schema(name = "TeacherSubjectsResponse")
@@ -475,7 +476,9 @@ public class TeacherSubjectController {
 					+ "envoyée par ce professeur. Vide s'il n'y en a pas.")
 			List<TeacherSubjectSharedHolder> shareAskedTo,
 			@Schema(description = "Propriétaire de la matière : le professeur qui peut la renommer.")
-			TeacherSubjectSharedHolder owner) {
+			TeacherSubjectSharedHolder owner,
+			@Schema(description = "Nombre total de questions enregistrées sur cette matière.")
+			long questionCount) {
 	}
 
 	@Schema(name = "TeacherSubjectSharedHolder")

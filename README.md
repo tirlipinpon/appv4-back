@@ -175,3 +175,14 @@ Avec Postgres + `.\mvnw.cmd spring-boot:run` :
 Voir **[BRANCHING.md](./BRANCHING.md)** : `feature/*` → **PR** → `develop` (CI) → **PR** → `release` (CD Azure).  
 Important : le passage `develop` → `release` passe **toujours** par une Pull Request.
 
+
+### Purge des jetons de réinitialisation
+
+Chaque instance exécute à 03:00 UTC une purge de 500 jetons au maximum dont
+l’expiration remonte à plus de 30 jours. Les lots concurrents utilisent des
+verrous PostgreSQL `SKIP LOCKED`. La rétention, la taille du lot (1 à 1000) et
+la fréquence se configurent avec `APPV4_AUTH_PASSWORD_RESET_CLEANUP_RETENTION_DAYS`,
+`APPV4_AUTH_PASSWORD_RESET_CLEANUP_BATCH_SIZE` et `APPV4_AUTH_PASSWORD_RESET_CLEANUP_CRON`.
+La valeur cron `-` désactive la tâche. Les compteurs Micrometer `appv4.password_reset.cleanup.deleted`
+et `appv4.password_reset.cleanup.errors` ainsi que la durée sont exposés aux registres configurés.
+Avant déploiement, vérifier les éventuelles tâches de purge opérées hors de ce dépôt.

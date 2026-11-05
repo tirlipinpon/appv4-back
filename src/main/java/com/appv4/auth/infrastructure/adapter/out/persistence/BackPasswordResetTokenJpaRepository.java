@@ -13,6 +13,15 @@ import org.springframework.data.repository.query.Param;
  */
 public interface BackPasswordResetTokenJpaRepository extends JpaRepository<BackPasswordResetTokenEntity, Long> {
 
+	/** Deletes at most one batch of expired tokens; concurrent workers skip locked rows. */
+	@Modifying(flushAutomatically = true)
+	@Query(value = """
+			delete from back_password_reset_tokens where id in (
+			  select id from back_password_reset_tokens where expires_at < :cutoff
+			  order by expires_at, id limit :batchSize for update skip locked)
+			""", nativeQuery = true)
+	int deleteExpiredBatch(@Param("cutoff") Instant cutoff, @Param("batchSize") int batchSize);
+
 	@Query("""
 			select t from BackPasswordResetTokenEntity t
 			where t.tokenHash = :tokenHash

@@ -22,6 +22,13 @@ public interface TeacherSubjectPort {
 	/** Matières encore affichées auxquelles ce professeur a accès. {@code active} = accès du viewer. */
 	List<StoredSubject> findByUser(long userId);
 
+	/** Batch data for listing subjects in the viewer's schools. */
+	List<SubjectListing> findListing(long userId, List<Long> schoolIds, List<String> grades);
+
+	record SubjectListing(StoredSubject subject, boolean followed, List<AccessHolder> others,
+			List<AccessHolder> asked, String ownerName) {
+	}
+
 	StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey);
 
 	/**

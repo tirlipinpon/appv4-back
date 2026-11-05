@@ -3,7 +3,6 @@ package com.appv4.auth.application.service;
 import java.text.Collator;
 import java.text.Normalizer;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -492,66 +491,44 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	}
 
 	private TeacherSubjectsView grouped(long userId) {
-		List<StoredSubject> owned = teacherSubjectPort.findByUser(userId);
-		if (owned == null) {
-			owned = List.of();
-		}
+		List<TeacherSchoolLink> links = teacherProfilePort.findSchools(userId);
+		List<TeacherSubjectPort.SubjectListing> listing = teacherSubjectPort.findListing(userId,
+				links.stream().map(TeacherSchoolLink::schoolId).distinct().toList(),
+				links.stream().flatMap(link -> link.grades().stream()).distinct().toList());
 		List<CatalogSchool> catalog = schoolCatalogPort.list();
 		List<SchoolGroup> schools = new ArrayList<>();
-		for (TeacherSchoolLink link : teacherProfilePort.findSchools(userId)) {
+		for (TeacherSchoolLink link : links) {
 			List<String> grades = SchoolCurricula.ordered(link.curriculum(), link.grades());
 			if (grades.isEmpty()) {
 				grades = link.grades();
 			}
 			List<GradeGroup> groups = new ArrayList<>();
 			for (String grade : grades) {
-				groups.add(new GradeGroup(grade, linesFor(userId, link.schoolId(), grade, owned)));
+				groups.add(new GradeGroup(grade, listingLines(userId, link.schoolId(), grade, listing)));
 			}
 			schools.add(new SchoolGroup(link.schoolId(), schoolName(link.schoolId(), catalog), groups));
 		}
 		return new TeacherSubjectsView(schools);
 	}
 
-	/**
-	 * Matières de cette année : celles du professeur, plus celles déjà visibles
-	 * dans la classe qu'un collègue suit encore. Une matière sans aucun accès
-	 * n'est pas montrée. La ligne « à moi » garde le flag d'accès personnel.
-	 */
-	private List<SubjectLine> linesFor(
-			long userId, long schoolId, String grade, List<StoredSubject> owned) {
-		List<StoredSubject> matches = new ArrayList<>();
-		Set<Long> seen = new HashSet<>();
-		for (StoredSubject subject : owned) {
-			if (subject.schoolId() == schoolId && grade.equals(subject.grade())) {
-				matches.add(subject);
-				seen.add(subject.id());
-			}
-		}
-		List<StoredSubject> inClass = teacherSubjectPort.findVisibleInClass(schoolId, grade);
-		if (inClass != null) {
-			for (StoredSubject subject : inClass) {
-				if (subject == null || seen.contains(subject.id())) {
-					continue;
-				}
-				if (teacherSubjectPort.hasAccess(subject.id(), userId)) {
-					continue;
-				}
-				List<AccessHolder> holders = teacherSubjectPort.otherAccessHolders(subject.id(), userId);
-				if (holders == null || holders.isEmpty()) {
-					continue;
-				}
-				matches.add(subject);
-				seen.add(subject.id());
-			}
-		}
+	private List<SubjectLine> listingLines(long userId, long schoolId, String grade,
+			List<TeacherSubjectPort.SubjectListing> listing) {
 		Collator order = Collator.getInstance(Locale.FRENCH);
 		order.setStrength(Collator.PRIMARY);
-		matches.sort((left, right) -> order.compare(left.name(), right.name()));
-		List<SubjectLine> lines = new ArrayList<>();
-		for (StoredSubject subject : matches) {
-			lines.add(line(userId, subject));
-		}
-		return List.copyOf(lines);
+		return listing.stream().filter(row -> row.subject().schoolId() == schoolId && grade.equals(row.subject().grade()))
+				.sorted((a, b) -> order.compare(a.subject().name(), b.subject().name()))
+				.map(row -> new SubjectLine(row.subject().id(), row.subject().name(), row.subject().active(),
+						row.subject().userId() == userId, row.followed(),
+						row.others().stream()
+								.map(TeacherSubjectService::sharedHolder).toList(),
+						row.asked().stream()
+								.map(TeacherSubjectService::sharedHolder).toList(),
+						new SharedHolder(row.subject().userId(), row.ownerName())))
+				.toList();
+	}
+
+	private static SharedHolder sharedHolder(AccessHolder holder) {
+		return new SharedHolder(holder.userId(), holder.displayName());
 	}
 
 	private SubjectLine line(long userId, StoredSubject subject) {

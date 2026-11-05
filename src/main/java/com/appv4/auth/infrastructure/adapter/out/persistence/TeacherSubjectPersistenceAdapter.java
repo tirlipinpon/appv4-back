@@ -297,6 +297,10 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 			link.get().reactivate();
 			access.flush();
 		}
+		if (entity.getUserId() != userId) {
+			entity.assignTo(userId);
+			subjects.flush();
+		}
 		syncSubjectActive(subjectId);
 		return Optional.of(toStored(entity, true));
 	}
@@ -363,6 +367,31 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 			subject.reactivate();
 		}
 		subjects.flush();
+	}
+
+	@Override
+	@Transactional
+	public void assignOwnership(long subjectId, long newOwnerUserId) {
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty() || found.get().isHidden()) {
+			return;
+		}
+		found.get().assignTo(newOwnerUserId);
+		subjects.flush();
+	}
+
+	@Override
+	@Transactional
+	public void hideCompletely(long subjectId) {
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty() || found.get().isHidden()) {
+			return;
+		}
+		access.deleteBySubjectId(subjectId);
+		access.flush();
+		BackTeacherSubjectEntity entity = subjects.findById(subjectId).orElseThrow();
+		entity.hide();
+		subjects.saveAndFlush(entity);
 	}
 
 	@Override
@@ -460,9 +489,35 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 				continue;
 			}
 			notices.save(new BackTeacherSubjectDeactivateNoticeEntity(
-					subjectId, fromUserId, toUserId, encoded));
+					subjectId,
+					fromUserId,
+					toUserId,
+					encoded,
+					BackTeacherSubjectDeactivateNoticeEntity.KIND_DEACTIVATE,
+					null));
 		}
 		notices.flush();
+	}
+
+	@Override
+	@Transactional
+	public void insertSubjectNotice(
+			long subjectId, long fromUserId, long toUserId, String kind, String message) {
+		notices.save(new BackTeacherSubjectDeactivateNoticeEntity(
+				subjectId, fromUserId, toUserId, "", kind, message));
+		notices.flush();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Long> rejectedHandoverToUserIds(long subjectId, long fromUserId) {
+		List<Long> ids = new ArrayList<>();
+		for (BackTeacherSubjectTransferRequestEntity row : transfers
+				.findBySubjectIdAndFromUserIdAndModeAndStatusOrderByIdAsc(
+						subjectId, fromUserId, "handover", "rejected")) {
+			ids.add(row.getToUserId());
+		}
+		return List.copyOf(ids);
 	}
 
 	@Override
@@ -568,11 +623,18 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	}
 
 	private static StoredDeactivateNotice toNotice(BackTeacherSubjectDeactivateNoticeEntity entity) {
+		String kind = entity.getKind();
+		if (kind == null || kind.isBlank()) {
+			kind = BackTeacherSubjectDeactivateNoticeEntity.KIND_DEACTIVATE;
+		}
+		String message = entity.getMessage();
 		return new StoredDeactivateNotice(
 				entity.getId(),
 				entity.getSubjectId(),
 				entity.getFromUserId(),
 				entity.getToUserId(),
+				kind,
+				message == null ? "" : message,
 				decodeIds(entity.getDeactivatedUserIds()));
 	}
 

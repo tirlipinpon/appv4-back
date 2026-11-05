@@ -14,8 +14,9 @@ import jakarta.persistence.Table;
  *
  * <p><b>Business :</b> le collègue doit accepter avant que l'accès change.
  * {@code ask} : un professeur demande au créateur de partager une matière déjà créée.
+ * {@code handover} : le créateur demande à un co-détenteur de reprendre la propriété.
  * <p><b>Technique :</b> {@code back_teacher_subject_transfer_requests}. Mode
- * {@code move}, {@code share} ou {@code ask}.
+ * {@code move}, {@code share}, {@code ask} ou {@code handover}.
  * <p><b>Métier / flow :</b> créée par POST transfer ou POST share-requests →
  * acceptée ou refusée par le destinataire.
  */
@@ -36,7 +37,7 @@ public class BackTeacherSubjectTransferRequestEntity {
 	@Column(name = "to_user_id", nullable = false)
 	private long toUserId;
 
-	@Column(nullable = false, length = 10)
+	@Column(nullable = false, length = 20)
 	private String mode;
 
 	@Column(nullable = false, length = 20)

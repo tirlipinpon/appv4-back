@@ -280,6 +280,13 @@ class ChildSubjectServiceTest {
 		}
 
 		@Override
+		public void ensureDefault(long childId, long subjectId) {
+			if (linksOf(childId).stream().noneMatch(link -> link.subjectId() == subjectId)) {
+				save(childId, subjectId, false);
+			}
+		}
+
+		@Override
 		public void save(long childId, long subjectId, boolean excluded) {
 			for (long[] link : links) {
 				if (link[0] == childId && link[1] == subjectId) {

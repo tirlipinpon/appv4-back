@@ -22,6 +22,9 @@ public interface ChildSubjectPort {
 	/** Crée le lien, ou met à jour {@code excluded} s'il existe déjà. */
 	void save(long childId, long subjectId, boolean excluded);
 
+	/** Insert a default link only when absent, preserving any exclusion. */
+	void ensureDefault(long childId, long subjectId);
+
 	/**
 	 * Efface le lien. Sert aux cours extra-scolaires.
 	 *

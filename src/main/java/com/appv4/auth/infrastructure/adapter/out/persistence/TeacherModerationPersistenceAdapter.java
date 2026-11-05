@@ -1,7 +1,6 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -54,17 +53,14 @@ public class TeacherModerationPersistenceAdapter implements TeacherModerationPor
 	}
 
 	@Override
-	public TeacherRequestPage findModerationQueue(int limit) {
+	public TeacherRequestPage findModerationQueue(int limit, int page) {
 		var pageable = PageRequest.of(
-				0,
-				limit + 1,
+				page,
+				limit,
 				Sort.by(Sort.Order.asc("createdAt"), Sort.Order.asc("id")));
-		List<BackTeacherRoleRequestEntity> fetched = requestRepository
-				.findByStatusIn(List.of(PENDING, APPROVED, REVOKED), pageable);
-		boolean truncated = fetched.size() > limit;
-		List<BackTeacherRoleRequestEntity> requests = truncated
-				? new ArrayList<>(fetched.subList(0, limit))
-				: fetched;
+		var fetched = requestRepository.findByStatusIn(List.of(PENDING, APPROVED, REVOKED), pageable);
+		boolean truncated = fetched.hasNext();
+		List<BackTeacherRoleRequestEntity> requests = fetched.getContent();
 		if (requests.isEmpty()) {
 			return new TeacherRequestPage(List.of(), false);
 		}

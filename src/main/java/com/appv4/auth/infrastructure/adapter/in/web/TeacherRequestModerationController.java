@@ -57,12 +57,13 @@ public class TeacherRequestModerationController {
 	public ResponseEntity<TeacherRequestListResponse> list(
 			@AuthenticationPrincipal AuthenticatedUser principal,
 			@RequestParam(name = "limit", defaultValue = "" + TeacherModerationService.LIST_DEFAULT_LIMIT)
-			int limit) {
-		TeacherRequestPage page = teacherModerationUseCase.list(CurrentAuth.require(principal).userId(), limit);
-		List<TeacherRequestItem> requests = page.items().stream()
+			int limit,
+			@RequestParam(name = "page", defaultValue = "0") int page) {
+		TeacherRequestPage result = teacherModerationUseCase.list(CurrentAuth.require(principal).userId(), limit, page);
+		List<TeacherRequestItem> requests = result.items().stream()
 				.map(TeacherRequestModerationController::toItem)
 				.toList();
-		return ResponseEntity.ok(new TeacherRequestListResponse(requests, page.truncated()));
+		return ResponseEntity.ok(new TeacherRequestListResponse(requests, result.truncated()));
 	}
 
 	@PostMapping("/{id}/approve")

@@ -227,10 +227,17 @@ class TeacherQuestionPersistenceTest {
 		adapter.ensureForm(subjectId, "texte", "Réponse libre", 11);
 		StoredQuestion saved = adapter.insert(
 				subjectId, "texte", "Capitale de la France", new FreeTextDraft("Paris"));
-		adapter.replace(saved.id(), "Capitale de la France", new FreeTextDraft("Paris"));
+		adapter.replace(saved.id(), "Capitale du Portugal", new FreeTextDraft("Lisbonne"));
+		entityManager.flush();
+		entityManager.clear();
 		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
 		assertThat(loaded.formCode()).isEqualTo("texte");
-		assertThat(loaded.expectedAnswer()).isEqualTo("Paris");
+		assertThat(loaded.prompt()).isEqualTo("Capitale du Portugal");
+		assertThat(loaded.expectedAnswer()).isEqualTo("Lisbonne");
+		adapter.replace(saved.id(), "Capitale du Portugal", new FreeTextDraft("Lisbonne"));
+		entityManager.flush();
+		entityManager.clear();
+		assertThat(adapter.findInSubject(subjectId, saved.id()).orElseThrow().expectedAnswer()).isEqualTo("Lisbonne");
 		assertThat(jdbc.queryForObject("""
 				select form_code from back_subject_question_forms
 				where subject_id = ? and form_code = 'texte'

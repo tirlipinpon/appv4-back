@@ -107,10 +107,13 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 	/**
 	 * Enregistre le nom, les écoles, et les coordonnées si elles sont dans le JSON.
 	 *
-	 * <p><b>Business :</b> une clé absente ne vide pas le mail, le téléphone ou l'avatar
-	 * déjà enregistrés. La page des écoles n'envoie pas ces clés.
-	 * <p><b>Technique :</b> {@code null} = garder, chaîne vide = effacer.
-	 * <p><b>Métier / flow :</b> contrôles, puis le port contact, puis le remplacement des écoles.
+	 * <p><b>Business :</b> Profil et Écoles ne doivent pas s'écraser. Une clé absente
+	 * garde la valeur déjà en base (nom, écoles, mail, téléphone, avatar).
+	 * <p><b>Technique :</b> {@code displayName}/{@code contact*} {@code null} = garder ;
+	 * chaîne vide contact = effacer. {@code schools == null} = ne pas remplacer ;
+	 * liste vide = retirer toutes les écoles.
+	 * <p><b>Métier / flow :</b> contrôles → port contact → {@code replaceSchools} seulement
+	 * si la liste est présente.
 	 */
 	@Override
 	@Transactional
@@ -124,16 +127,30 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 			String avatarCode) {
 		requireTeacher(activeRole);
 		TeacherAccount account = requireAccount(userId);
-		String name = AccountContact.name(displayName);
+		String name = displayName == null
+				? account.displayName()
+				: AccountContact.name(displayName);
 		String email = AccountContact.merge(contactEmail, account.contactEmail(), AccountContact::email);
 		String nextPhone = AccountContact.merge(phone, account.phone(), AccountContact::phone);
 		String avatar = AccountContact.merge(avatarCode, account.avatarCode(), AccountContact::avatar);
-		List<Long> ids = schools == null ? List.of() : schools.stream().filter(java.util.Objects::nonNull)
-				.map(TeacherSchoolCommand::schoolId).filter(java.util.Objects::nonNull).distinct().toList();
-		List<CatalogSchool> available = schoolCatalogPort.findByIds(ids);
-		List<TeacherSchoolLink> links = normalizeSchools(schools, available);
+		List<TeacherSchoolLink> links;
+		List<CatalogSchool> available;
+		if (schools == null) {
+			links = teacherProfilePort.findSchools(userId);
+			available = schoolCatalogPort.findByIds(
+					links.stream().map(TeacherSchoolLink::schoolId).toList());
+		} else {
+			List<Long> ids = schools.stream()
+					.filter(java.util.Objects::nonNull)
+					.map(TeacherSchoolCommand::schoolId)
+					.filter(java.util.Objects::nonNull)
+					.distinct()
+					.toList();
+			available = schoolCatalogPort.findByIds(ids);
+			links = normalizeSchools(schools, available);
+			teacherProfilePort.replaceSchools(userId, links);
+		}
 		teacherProfilePort.updateContact(userId, name, email, nextPhone, avatar);
-		teacherProfilePort.replaceSchools(userId, links);
 		return toView(new TeacherAccount(account.email(), name, email, nextPhone, avatar), links, available);
 	}
 

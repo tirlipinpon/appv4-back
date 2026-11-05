@@ -135,7 +135,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		Attached attached = attachedFor(parentUserId, saved.id());
 		return card(
 				saved,
-				catalogById(),
+				catalogById(saved.schoolId()),
 				attached.phrases(),
 				countsFor(parentUserId, saved),
 				attached.marks());
@@ -199,7 +199,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		Attached attached = attachedFor(parentUserId, saved.id());
 		return card(
 				saved,
-				catalogById(),
+				catalogById(saved.schoolId()),
 				attached.phrases(),
 				countsFor(parentUserId, saved),
 				attached.marks());
@@ -313,11 +313,16 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 
 	private ParentChildrenView view(long parentUserId) {
 		childSubjectService.ensureDefaults(parentUserId);
-		Map<Long, CatalogSchool> schools = catalogById();
+		List<ChildSaved> family = childPort.findByParent(parentUserId);
+		List<Long> schoolIds = family.stream().map(ChildSaved::schoolId).filter(java.util.Objects::nonNull).distinct().toList();
+		Map<Long, CatalogSchool> schools = new LinkedHashMap<>();
+		for (CatalogSchool school : schoolCatalogPort.findByIds(schoolIds)) {
+			schools.putIfAbsent(school.id(), school);
+		}
 		Map<Long, Attached> attached = attachedByChild(parentUserId);
 		Map<Long, int[]> counts = subjectCounts(parentUserId);
 		List<ChildCard> cards = new ArrayList<>();
-		for (ChildSaved child : childPort.findByParent(parentUserId)) {
+		for (ChildSaved child : family) {
 			Attached links = attached.getOrDefault(child.id(), Attached.NONE);
 			int[] pair = counts.getOrDefault(child.id(), new int[] {0, 0});
 			cards.add(card(child, schools, links.phrases(), pair, links.marks()));
@@ -336,9 +341,9 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		return new ParentChildrenView(cards, choices, curricula);
 	}
 
-	private Map<Long, CatalogSchool> catalogById() {
+	private Map<Long, CatalogSchool> catalogById(Long schoolId) {
 		Map<Long, CatalogSchool> schools = new LinkedHashMap<>();
-		for (CatalogSchool school : schoolCatalogPort.list()) {
+		for (CatalogSchool school : schoolCatalogPort.findByIds(schoolId == null ? List.of() : List.of(schoolId))) {
 			schools.putIfAbsent(school.id(), school);
 		}
 		return schools;
@@ -459,7 +464,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		if (schoolId == null) {
 			return null;
 		}
-		CatalogSchool school = catalogById().get(schoolId);
+		CatalogSchool school = catalogById(schoolId).get(schoolId);
 		if (school == null || !curriculum.equals(SchoolCurricula.forCountry(school.country()))) {
 			throw bad(SCHOOL_UNKNOWN);
 		}

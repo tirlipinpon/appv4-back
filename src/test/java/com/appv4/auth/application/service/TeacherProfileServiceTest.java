@@ -155,6 +155,18 @@ class TeacherProfileServiceTest {
 	}
 
 	@Test
+	void profileOnlyReturnsSelectedSchoolMetadata() {
+		for (long id = 1; id <= 100; id++) {
+			catalog.add(school(id, "School " + id, SchoolCurricula.COUNTRY_FRANCE, "Primaire"));
+		}
+		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(100L, null, List.of("CE1"))));
+		TeacherProfileView view = service.load(TEACHER_ID, "teacher");
+		assertThat(view.schools()).extracting(item -> item.schoolId()).containsExactly(100L);
+		assertThat(view.availableSchools()).extracting(item -> item.id()).containsExactly(100L);
+	}
+
+	@Test
 	void wrongGradeDuplicateOrMissingYearDoesNotEraseThePreviousSchools() {
 		catalog.add(school(1L, "École française", SchoolCurricula.COUNTRY_FRANCE, "Primaire"));
 		catalog.add(school(2L, "École belge", SchoolCurricula.COUNTRY_BELGIUM, "Primaire"));

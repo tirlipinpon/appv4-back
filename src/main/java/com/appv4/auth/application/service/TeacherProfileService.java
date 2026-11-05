@@ -89,8 +89,9 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 	public TeacherProfileView load(long userId, String activeRole) {
 		requireTeacher(activeRole);
 		TeacherAccount account = requireAccount(userId);
-		List<CatalogSchool> available = schoolCatalogPort.list();
-		return toView(account, teacherProfilePort.findSchools(userId), available);
+		List<TeacherSchoolLink> links = teacherProfilePort.findSchools(userId);
+		List<CatalogSchool> available = schoolCatalogPort.findByIds(links.stream().map(TeacherSchoolLink::schoolId).toList());
+		return toView(account, links, available);
 	}
 
 	@Override
@@ -127,7 +128,9 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 		String email = AccountContact.merge(contactEmail, account.contactEmail(), AccountContact::email);
 		String nextPhone = AccountContact.merge(phone, account.phone(), AccountContact::phone);
 		String avatar = AccountContact.merge(avatarCode, account.avatarCode(), AccountContact::avatar);
-		List<CatalogSchool> available = schoolCatalogPort.list();
+		List<Long> ids = schools == null ? List.of() : schools.stream().filter(java.util.Objects::nonNull)
+				.map(TeacherSchoolCommand::schoolId).filter(java.util.Objects::nonNull).distinct().toList();
+		List<CatalogSchool> available = schoolCatalogPort.findByIds(ids);
 		List<TeacherSchoolLink> links = normalizeSchools(schools, available);
 		teacherProfilePort.updateContact(userId, name, email, nextPhone, avatar);
 		teacherProfilePort.replaceSchools(userId, links);
@@ -321,7 +324,7 @@ public class TeacherProfileService implements TeacherProfileUseCase {
 	}
 
 	private String schoolName(long schoolId) {
-		List<CatalogSchool> catalog = schoolCatalogPort.list();
+		List<CatalogSchool> catalog = schoolCatalogPort.findByIds(List.of(schoolId));
 		if (catalog == null) {
 			return "";
 		}

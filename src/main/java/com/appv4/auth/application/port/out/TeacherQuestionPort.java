@@ -17,7 +17,7 @@ import java.util.Optional;
  */
 public interface TeacherQuestionPort {
 
-	List<StoredQuestion> findBySubject(long subjectId);
+	List<StoredQuestion> findBySubject(long subjectId, long afterId, int limit);
 
 	/**
 	 * Enregistre l'énoncé et les propositions déjà nettoyées (non vides, au moins deux,

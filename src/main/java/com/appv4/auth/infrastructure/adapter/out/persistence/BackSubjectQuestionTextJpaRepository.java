@@ -13,7 +13,7 @@ public interface BackSubjectQuestionTextJpaRepository extends JpaRepository<Back
 	List<BackSubjectQuestionTextEntity> findByQuestionIdIn(List<Long> questionIds);
 
 	/** L'ancienne réponse part avant d'écrire la correction. */
-	@Modifying(flushAutomatically = true)
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("delete from BackSubjectQuestionTextEntity row where row.questionId = :questionId")
 	void deleteByQuestionId(@Param("questionId") long questionId);
 }

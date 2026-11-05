@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -18,7 +19,7 @@ public interface BackTeacherRoleRequestJpaRepository extends JpaRepository<BackT
 	@Query("select e.status from BackTeacherRoleRequestEntity e where e.userId = :userId")
 	List<String> findStatusesByUserId(@Param("userId") long userId);
 
-	List<BackTeacherRoleRequestEntity> findByStatusIn(Collection<String> statuses, Pageable pageable);
+	Slice<BackTeacherRoleRequestEntity> findByStatusIn(Collection<String> statuses, Pageable pageable);
 
 	/**
 	 * Transition concurrente-safe : pending/revoked → approved.

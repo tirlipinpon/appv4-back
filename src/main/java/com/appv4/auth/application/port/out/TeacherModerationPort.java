@@ -16,7 +16,7 @@ public interface TeacherModerationPort {
 	/**
 	 * File pending/approved/revoked, ordre créé puis id, au plus {@code limit} lignes.
 	 */
-	TeacherRequestPage findModerationQueue(int limit);
+	TeacherRequestPage findModerationQueue(int limit, int page);
 
 	Optional<TeacherRequestView> findById(long requestId);
 

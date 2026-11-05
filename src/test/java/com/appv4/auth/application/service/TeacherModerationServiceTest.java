@@ -55,20 +55,20 @@ class TeacherModerationServiceTest {
 	void parentCannotList() {
 		when(activeRolePort.hasAdminRole(2L)).thenReturn(false);
 
-		assertThatThrownBy(() -> service.list(2L, 50))
+		assertThatThrownBy(() -> service.list(2L, 50, 0))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherModerationService.FORBIDDEN);
-		verify(teacherModerationPort, never()).findModerationQueue(anyInt());
+		verify(teacherModerationPort, never()).findModerationQueue(anyInt(), anyInt());
 	}
 
 	@Test
 	void adminListsPendingAndApproved() {
 		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
 		TeacherRequestView pending = view(4L, "pending", null);
-		when(teacherModerationPort.findModerationQueue(50))
+		when(teacherModerationPort.findModerationQueue(50, 0))
 				.thenReturn(new TeacherRequestPage(List.of(pending), false));
 
-		TeacherRequestPage page = service.list(1L, 50);
+		TeacherRequestPage page = service.list(1L, 50, 0);
 		assertThat(page.items()).containsExactly(pending);
 		assertThat(page.truncated()).isFalse();
 	}
@@ -76,11 +76,22 @@ class TeacherModerationServiceTest {
 	@Test
 	void listCapsLimitToMax() {
 		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
-		when(teacherModerationPort.findModerationQueue(TeacherModerationService.LIST_MAX_LIMIT))
+		when(teacherModerationPort.findModerationQueue(TeacherModerationService.LIST_MAX_LIMIT, 0))
 				.thenReturn(new TeacherRequestPage(List.of(), false));
 
-		service.list(1L, 10_000);
-		verify(teacherModerationPort).findModerationQueue(TeacherModerationService.LIST_MAX_LIMIT);
+		service.list(1L, 10_000, 0);
+		verify(teacherModerationPort).findModerationQueue(TeacherModerationService.LIST_MAX_LIMIT, 0);
+	}
+
+	@Test
+	void listPassesPageAndBoundsInvalidOffsets() {
+		when(activeRolePort.hasAdminRole(1L)).thenReturn(true);
+		service.list(1L, 50, 2);
+		service.list(1L, 50, -1);
+		service.list(1L, 50, Integer.MAX_VALUE);
+		verify(teacherModerationPort).findModerationQueue(50, 2);
+		verify(teacherModerationPort).findModerationQueue(50, 0);
+		verify(teacherModerationPort).findModerationQueue(50, Integer.MAX_VALUE / 50);
 	}
 
 	@Test

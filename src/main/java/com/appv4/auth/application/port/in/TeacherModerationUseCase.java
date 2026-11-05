@@ -13,7 +13,7 @@ import com.appv4.auth.application.port.out.TeacherRequestView;
 public interface TeacherModerationUseCase {
 
 	/** @param limit taille max demandée (bornée côté service) */
-	TeacherRequestPage list(long callerId, int limit);
+	TeacherRequestPage list(long callerId, int limit, int page);
 
 	TeacherRequestView approve(long callerId, long requestId);
 

@@ -127,6 +127,53 @@ class ChildSubjectServiceTest {
 	}
 
 	@Test
+	void boundedSearchAndMutationsKeepOnlyTheAffectedAssociation() {
+		ChildSubjectsView summary = one(service.loadSummary(1L, "parent"), 3L);
+		assertThat(summary.chosen()).hasSize(3);
+		assertThat(summary.proposed()).isEmpty();
+		var page = service.searchOffers(1L, "parent", 3L, "math", 0, "", 0, 1);
+		assertThat(page.offers()).extracting(SubjectOffer::subjectId).containsExactly(12L);
+		assertThat(page.nextCursor()).isNull();
+		assertThat(service.addOne(1L, "parent", 3L, 12L).subjectId()).isEqualTo(12L);
+		assertThat(service.searchOffers(1L, "parent", 3L, "math", 0, "", 0, 1).offers()).isEmpty();
+		assertThat(service.removeOne(1L, "parent", 3L, 11L).subjectId()).isEqualTo(11L);
+		assertThat(service.searchOffers(1L, "parent", 3L, "math", 0, "", 0, 1).offers())
+				.extracting(SubjectOffer::subjectId).containsExactly(11L);
+		assertThat(one(service.loadSummary(1L, "parent"), 3L).chosen())
+				.extracting(SubjectOffer::subjectId).doesNotContain(11L);
+		assertThatThrownBy(() -> service.searchOffers(2L, "parent", 3L, "", 0, "", 0, 10))
+				.hasMessage(ChildSubjectService.CHILD_UNKNOWN);
+	}
+
+	@Test
+	void directSearchAndMutationRespectDefaultsBeforeFamilyWasLoaded() {
+		assertThat(service.searchOffers(1L, "parent", 3L, "sciences", 0, "", 0, 40).offers()).isEmpty();
+		assertThatThrownBy(() -> service.addOne(1L, "parent", 3L, 13L))
+				.hasMessage(ChildSubjectService.ALREADY_LINKED);
+		assertThat(service.removeOne(1L, "parent", 3L, 13L).subjectId()).isEqualTo(13L);
+		assertThat(service.searchOffers(1L, "parent", 3L, "sciences", 0, "", 0, 40).offers())
+				.extracting(SubjectOffer::subjectId).containsExactly(13L);
+	}
+
+	@Test
+	void thousandSubjectCatalogueProducesBoundedSearchAndMutationJson() throws Exception {
+		for (long id = 100; id < 1100; id++) {
+			subjects.visible.add(new CatalogSubject(id, "Course " + id, "Teacher", 1L, "CE2"));
+		}
+		var page = service.searchOffers(1L, "parent", 4L, "course", 0, "", 0, 1000);
+		assertThat(page.offers()).hasSize(40);
+		assertThat(page.nextCursor()).isEqualTo(139L);
+		var legacy = service.add(1L, "parent", 4L, 100L);
+		service.remove(1L, "parent", 4L, 100L);
+		var affected = service.addOne(1L, "parent", 4L, 100L);
+		var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		int oldBytes = mapper.writeValueAsBytes(legacy).length;
+		int newBytes = mapper.writeValueAsBytes(affected).length;
+		System.out.printf("Synthetic mutation JSON: old=%d bytes, new=%d bytes%n", oldBytes, newBytes);
+		assertThat(newBytes).isLessThan(oldBytes / 20);
+	}
+
+	@Test
 	void anotherParentAndATeacherCannotOpenTheList() {
 		assertThatThrownBy(() -> service.loadAll(1L, "teacher"))
 				.hasMessage(SpaceHello.DENIED);

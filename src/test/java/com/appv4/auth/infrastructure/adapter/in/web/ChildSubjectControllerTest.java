@@ -59,6 +59,16 @@ class ChildSubjectControllerTest {
 				new CatalogSubject(10L, "Français", "Prof A", 1L, "CE1"),
 				new CatalogSubject(12L, "Mathématiques", "Prof A", 1L, "CE2")));
 		when(subjects.linksOf(3L)).thenReturn(List.of(new StoredLink(10L, false)));
+		when(subjects.findLink(3L, 10L)).thenReturn(Optional.of(new StoredLink(10L, false)));
+		when(subjects.visibleInClass(1L, "CE1")).thenReturn(List.of(
+				new CatalogSubject(10L, "Français", "Prof A", 1L, "CE1")));
+		when(subjects.visibleByIds(org.mockito.ArgumentMatchers.anyList())).thenAnswer(call -> {
+			List<Long> ids = call.getArgument(0);
+			return subjects.visibleSubjects().stream().filter(item -> ids.contains(item.id())).toList();
+		});
+		when(subjects.searchOffers(3L, "", 0L, "", 1L, "CE1", 0L, 41)).thenReturn(List.of(
+				new CatalogSubject(12L, "Mathématiques", "Prof A", 1L, "CE2")));
+
 	}
 
 	@Test
@@ -68,8 +78,11 @@ class ChildSubjectControllerTest {
 				.andExpect(jsonPath("$.children[0].firstName").value("Léa"))
 				.andExpect(jsonPath("$.children[0].chosen[0].name").value("Français"))
 				.andExpect(jsonPath("$.children[0].chosen[0].scolaire").value(true))
-				.andExpect(jsonPath("$.children[0].proposed[0].name").value("Mathématiques"))
-				.andExpect(jsonPath("$.children[0].proposed[0].scolaire").value(false));
+				.andExpect(jsonPath("$.children[0].proposed").isEmpty());
+		mockMvc.perform(get("/api/int/parent/subjects/3/offers").header(HttpHeaders.AUTHORIZATION, bearer("parent")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.offers[0].name").value("Mathématiques"))
+				.andExpect(jsonPath("$.offers[0].scolaire").value(false));
 	}
 
 	@Test
@@ -78,12 +91,14 @@ class ChildSubjectControllerTest {
 						.header(HttpHeaders.AUTHORIZATION, bearer("parent"))
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"childId\":3,\"subjectId\":12}"))
-				.andExpect(status().isOk());
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.subjectId").value(12));
 		verify(subjects).save(3L, 12L, false);
 
 		mockMvc.perform(delete("/api/int/parent/subjects/3/10")
 						.header(HttpHeaders.AUTHORIZATION, bearer("parent")))
-				.andExpect(status().isOk());
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.subjectId").value(10));
 		verify(subjects).save(3L, 10L, true);
 	}
 

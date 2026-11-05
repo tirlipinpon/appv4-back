@@ -89,6 +89,39 @@ class TeacherProfileControllerTest {
 	}
 
 	@Test
+	void profileWithoutSchoolsKeepsExistingSchoolsAndSchoolsPageKeepsName() throws Exception {
+		when(profiles.findSchools(9L)).thenReturn(List.of(
+				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
+
+		mockMvc.perform(put("/api/int/teacher/profile")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"displayName\":\"Profil seul\",\"contactEmail\":\"p@example.com\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.displayName").value("Profil seul"));
+
+		verify(profiles).updateContact(9L, "Profil seul", "p@example.com", null, null);
+		verify(profiles, never()).replaceSchools(anyLong(), anyList());
+
+		reset(profiles);
+		when(profiles.findAccount(9L)).thenReturn(Optional.of(
+				new TeacherAccount("prof@example.com", "Profil seul", "p@example.com", null, null)));
+		when(profiles.findSchools(9L)).thenReturn(List.of(
+				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
+
+		mockMvc.perform(put("/api/int/teacher/profile")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"schools\":[]}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.displayName").value("Profil seul"))
+				.andExpect(jsonPath("$.schools").isEmpty());
+
+		verify(profiles).updateContact(9L, "Profil seul", "p@example.com", null, null);
+		verify(profiles).replaceSchools(eq(9L), eq(List.of()));
+	}
+
+	@Test
 	void blankOrTooLongNameIsRejectedAndNotStored() throws Exception {
 		mockMvc.perform(put("/api/int/teacher/profile")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))

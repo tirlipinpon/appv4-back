@@ -15,6 +15,9 @@ public interface BackTeacherSubjectJpaRepository extends JpaRepository<BackTeach
 
 	List<BackTeacherSubjectEntity> findByUserIdOrderByIdAsc(long userId);
 
+	List<BackTeacherSubjectEntity> findBySchoolIdInAndGradeLabelInAndHiddenFalseOrderByIdAsc(
+			List<Long> schoolIds, List<String> grades);
+
 	List<BackTeacherSubjectEntity> findBySchoolIdAndGradeLabelOrderByIdAsc(long schoolId, String gradeLabel);
 
 	Optional<BackTeacherSubjectEntity> findFirstBySchoolIdAndGradeLabelAndNameKeyAndHiddenFalseOrderByIdAsc(

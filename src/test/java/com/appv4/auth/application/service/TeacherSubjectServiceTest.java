@@ -858,6 +858,25 @@ class TeacherSubjectServiceTest {
 		}
 
 		@Override
+		public List<TeacherSubjectPort.SubjectListing> findListing(long userId, List<Long> schoolIds, List<String> grades) {
+			List<TeacherSubjectPort.SubjectListing> result = new ArrayList<>();
+			for (StoredSubject row : rows) {
+				if (!schoolIds.contains(row.schoolId()) || !grades.contains(row.grade())
+						|| hidden.contains(row.id()) || accessCount(row.id()) == 0) {
+					continue;
+				}
+				boolean followed = hasAccess(row.id(), userId);
+				List<TeacherSubjectPort.AccessHolder> asked = findPendingAsksFrom(row.id(), userId).stream()
+						.map(ask -> new TeacherSubjectPort.AccessHolder(ask.toUserId(),
+								displayNames.getOrDefault(ask.toUserId(), ""))).toList();
+				result.add(new TeacherSubjectPort.SubjectListing(followed ? withAccessActive(row, userId) : row,
+						followed, otherAccessHolders(row.id(), userId), asked,
+						displayNames.getOrDefault(row.userId(), "")));
+			}
+			return result;
+		}
+
+		@Override
 		public StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey) {
 			StoredSubject saved = new StoredSubject(nextId++, userId, schoolId, grade, name, true);
 			rows.add(saved);

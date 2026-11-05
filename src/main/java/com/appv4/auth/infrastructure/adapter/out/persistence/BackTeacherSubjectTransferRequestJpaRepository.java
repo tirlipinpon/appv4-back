@@ -11,6 +11,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface BackTeacherSubjectTransferRequestJpaRepository
 		extends JpaRepository<BackTeacherSubjectTransferRequestEntity, Long> {
 
+	List<BackTeacherSubjectTransferRequestEntity> findBySubjectIdInAndFromUserIdAndModeAndStatusOrderByIdAsc(
+			List<Long> subjectIds, long fromUserId, String mode, String status);
+
 	List<BackTeacherSubjectTransferRequestEntity> findByToUserIdAndStatusOrderByIdAsc(
 			long toUserId, String status);
 

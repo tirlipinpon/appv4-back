@@ -81,6 +81,15 @@ class TeacherSubjectControllerTest {
 				new StoredSubject(2L, 9L, 1L, "CE1", "Mathématiques", true),
 				new StoredSubject(1L, 9L, 1L, "CE1", "Français", true)));
 
+		when(subjects.findListing(org.mockito.ArgumentMatchers.eq(9L), org.mockito.ArgumentMatchers.anyList(),
+				org.mockito.ArgumentMatchers.anyList())).thenReturn(List.of(
+				new TeacherSubjectPort.SubjectListing(
+						new StoredSubject(2L, 9L, 1L, "CE1", "Mathématiques", true),
+						true, List.of(), List.of(), "Martin"),
+				new TeacherSubjectPort.SubjectListing(
+						new StoredSubject(1L, 9L, 1L, "CE1", "Français", true),
+						true, List.of(), List.of(), "Martin")));
+
 		mockMvc.perform(get("/api/int/teacher/subjects").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.schools[0].schoolId").value(1))
@@ -107,6 +116,12 @@ class TeacherSubjectControllerTest {
 		when(subjects.otherAccessHolders(4L, 9L)).thenReturn(List.of(
 				new TeacherSubjectPort.AccessHolder(10L, "Camille")));
 
+		when(subjects.findListing(org.mockito.ArgumentMatchers.eq(9L), org.mockito.ArgumentMatchers.anyList(),
+				org.mockito.ArgumentMatchers.anyList())).thenReturn(List.of(
+				new TeacherSubjectPort.SubjectListing(
+						new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true), false,
+						List.of(new TeacherSubjectPort.AccessHolder(10L, "Camille")), List.of(), "Camille")));
+
 		mockMvc.perform(get("/api/int/teacher/subjects").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[0].name").value("Mathématiques"))
@@ -128,6 +143,13 @@ class TeacherSubjectControllerTest {
 		when(subjects.findPendingAsksFrom(4L, 9L)).thenReturn(List.of(
 				new TeacherSubjectPort.StoredTransferRequest(8L, 4L, 9L, 10L, "ask", "pending")));
 		when(profiles.findAccount(10L)).thenReturn(Optional.of(new TeacherAccount("camille@example.com", "Camille")));
+
+		when(subjects.findListing(org.mockito.ArgumentMatchers.eq(9L), org.mockito.ArgumentMatchers.anyList(),
+				org.mockito.ArgumentMatchers.anyList())).thenReturn(List.of(
+				new TeacherSubjectPort.SubjectListing(
+						new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true), false,
+						List.of(new TeacherSubjectPort.AccessHolder(10L, "Camille")),
+						List.of(new TeacherSubjectPort.AccessHolder(10L, "Camille")), "Camille")));
 
 		mockMvc.perform(get("/api/int/teacher/subjects").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())

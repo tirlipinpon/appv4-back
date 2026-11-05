@@ -16,6 +16,8 @@ public interface BackTeacherSubjectAccessJpaRepository
 
 	List<BackTeacherSubjectAccessEntity> findByUserIdOrderByIdAsc(long userId);
 
+	List<BackTeacherSubjectAccessEntity> findBySubjectIdInOrderByIdAsc(List<Long> subjectIds);
+
 	List<BackTeacherSubjectAccessEntity> findBySubjectIdOrderByIdAsc(long subjectId);
 
 	Optional<BackTeacherSubjectAccessEntity> findBySubjectIdAndUserId(long subjectId, long userId);

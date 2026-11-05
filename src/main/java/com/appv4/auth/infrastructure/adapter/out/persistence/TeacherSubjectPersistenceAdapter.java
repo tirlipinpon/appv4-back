@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -186,32 +187,15 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	@Override
 	@Transactional(readOnly = true)
 	public Optional<StoredSubject> findRemovedByName(long schoolId, String grade, String nameKey) {
-		BackTeacherSubjectEntity match = null;
-		for (BackTeacherSubjectEntity row : subjects.findBySchoolIdAndGradeLabelOrderByIdAsc(schoolId, grade)) {
-			if (row.getNameKey() == null || !nameKey.equals(row.getNameKey())) {
-				continue;
-			}
-			if (!row.isHidden() && access.countBySubjectId(row.getId()) > 0) {
-				continue;
-			}
-			match = row;
-		}
-		if (match == null) {
-			return Optional.empty();
-		}
-		return Optional.of(toStored(match, false));
+		return subjects.findRemovedByName(schoolId, grade, nameKey, PageRequest.of(0, 1)).stream()
+				.findFirst().map(row -> toStored(row, false));
 	}
 
 	@Override
 	@Transactional(readOnly = true)
 	public Optional<StoredSubject> findVisibleByName(long schoolId, String grade, String nameKey) {
-		for (BackTeacherSubjectEntity row : subjects.findBySchoolIdAndGradeLabelOrderByIdAsc(schoolId, grade)) {
-			if (row.isHidden() || row.getNameKey() == null || !nameKey.equals(row.getNameKey())) {
-				continue;
-			}
-			return Optional.of(toStored(row, row.isActive()));
-		}
-		return Optional.empty();
+		return subjects.findFirstBySchoolIdAndGradeLabelAndNameKeyAndHiddenFalseOrderByIdAsc(schoolId, grade, nameKey)
+				.map(row -> toStored(row, row.isActive()));
 	}
 
 	@Override

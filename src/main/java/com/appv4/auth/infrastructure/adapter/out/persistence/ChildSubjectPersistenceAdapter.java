@@ -94,6 +94,12 @@ public class ChildSubjectPersistenceAdapter implements ChildSubjectPort {
 
 	@Override
 	@Transactional
+	public void ensureDefault(long childId, long subjectId) {
+		links.insertDefaultIfAbsent(childId, subjectId);
+	}
+
+	@Override
+	@Transactional
 	public void save(long childId, long subjectId, boolean excluded) {
 		Optional<BackChildSubjectLinkEntity> found = links.findByChildIdAndSubjectId(childId, subjectId);
 		if (found.isPresent()) {

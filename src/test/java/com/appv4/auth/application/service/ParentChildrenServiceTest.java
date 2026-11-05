@@ -626,6 +626,10 @@ class ParentChildrenServiceTest {
 		}
 
 		@Override
+		public void ensureDefault(long childId, long subjectId) {
+		}
+
+		@Override
 		public void save(long childId, long subjectId, boolean excluded) {
 		}
 

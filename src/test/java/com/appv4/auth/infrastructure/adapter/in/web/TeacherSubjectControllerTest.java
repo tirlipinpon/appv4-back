@@ -203,7 +203,8 @@ class TeacherSubjectControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"schoolId\":1,\"grade\":\"CE1\",\"name\":\"Mathématiques\"}"))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.message").value(TeacherSubjectService.REMOVED_RESTORABLE));
+				.andExpect(jsonPath("$.message").value(TeacherSubjectService.REMOVED_RESTORABLE))
+				.andExpect(jsonPath("$.code").value("SUBJECT_RESTORABLE"));
 
 		when(subjects.restore(9L, 5L))
 				.thenReturn(Optional.of(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", true)));
@@ -241,7 +242,8 @@ class TeacherSubjectControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"schoolId\":1,\"grade\":\"CE1\",\"name\":\"Mathématiques\"}"))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.message").value(TeacherSubjectService.nameCanAsk("Anne")));
+				.andExpect(jsonPath("$.message").value(TeacherSubjectService.nameCanAsk("Anne")))
+				.andExpect(jsonPath("$.code").value("SUBJECT_SHARE_AVAILABLE"));
 
 		mockMvc.perform(post("/api/int/teacher/subjects/share-requests")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))

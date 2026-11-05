@@ -19,12 +19,12 @@ public class AuthExceptionHandler {
 
 	@ExceptionHandler(AuthDomainException.class)
 	public ResponseEntity<ErrorBody> handleAuthDomain(AuthDomainException ex) {
-		return ResponseEntity.status(toHttp(ex.getErrorCode())).body(new ErrorBody(ex.getMessage()));
+		return ResponseEntity.status(toHttp(ex.getErrorCode())).body(new ErrorBody(ex.getMessage(), ex.getErrorCode().name()));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ResponseEntity<ErrorBody> handleValidation(MethodArgumentNotValidException ex) {
-		return ResponseEntity.badRequest().body(new ErrorBody("Requête invalide"));
+		return ResponseEntity.badRequest().body(new ErrorBody("Requête invalide", AuthErrorCode.BAD_REQUEST.name()));
 	}
 
 	static HttpStatus toHttp(AuthErrorCode code) {
@@ -35,11 +35,11 @@ public class AuthExceptionHandler {
 			case CONFLICT -> HttpStatus.CONFLICT;
 			case SERVICE_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
 			case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
-			case BAD_REQUEST -> HttpStatus.BAD_REQUEST;
+			case BAD_REQUEST, SUBJECT_RESTORABLE, SUBJECT_SHARE_AVAILABLE -> HttpStatus.BAD_REQUEST;
 		};
 	}
 
 	@Schema(name = "AuthErrorBody")
-	public record ErrorBody(String message) {
+	public record ErrorBody(String message, String code) {
 	}
 }

@@ -12,6 +12,10 @@ public enum AuthErrorCode {
 	FORBIDDEN,
 	/** Entrée métier invalide. */
 	BAD_REQUEST,
+	/** A removed subject can be restored. */
+	SUBJECT_RESTORABLE,
+	/** Another teacher can share a matching subject. */
+	SUBJECT_SHARE_AVAILABLE,
 	/** Ressource inconnue. */
 	NOT_FOUND,
 	/** Conflit d'unicité / état concurrent. */

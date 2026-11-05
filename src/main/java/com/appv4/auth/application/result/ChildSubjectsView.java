@@ -26,7 +26,8 @@ public record ChildSubjectsView(
 	}
 
 	/**
-	 * @param scolaire vrai seulement si l'école et l'année sont celles de l'enfant maintenant
+	 * @param scolaire      vrai seulement si l'école et l'année sont celles de l'enfant maintenant
+	 * @param questionCount total des questions enregistrées sur la matière (0 si aucune)
 	 */
 	public record SubjectOffer(
 			long subjectId,
@@ -35,6 +36,7 @@ public record ChildSubjectsView(
 			long schoolId,
 			String schoolName,
 			String grade,
-			boolean scolaire) {
+			boolean scolaire,
+			long questionCount) {
 	}
 }

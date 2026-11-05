@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.result.ParentSubjectsView;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.result.ChildSubjectsView;
 import com.appv4.auth.application.result.ChildSubjectsView.SubjectOffer;
 
@@ -45,14 +47,17 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 	private final ChildPort childPort;
 	private final ChildSubjectPort childSubjectPort;
 	private final SchoolCatalogPort schoolCatalogPort;
+	private final TeacherQuestionPort teacherQuestionPort;
 
 	public ChildSubjectService(
 			ChildPort childPort,
 			ChildSubjectPort childSubjectPort,
-			SchoolCatalogPort schoolCatalogPort) {
+			SchoolCatalogPort schoolCatalogPort,
+			TeacherQuestionPort teacherQuestionPort) {
 		this.childPort = childPort;
 		this.childSubjectPort = childSubjectPort;
 		this.schoolCatalogPort = schoolCatalogPort;
+		this.teacherQuestionPort = teacherQuestionPort;
 	}
 
 	@Override
@@ -70,9 +75,11 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 				schoolIds.add(child.schoolId());
 			}
 			List<CatalogSchool> schools = schoolCatalogPort.findByIds(schoolIds);
+			Map<Long, Long> questionCounts = teacherQuestionPort.countBySubjectIds(
+					subjects.stream().map(CatalogSubject::id).toList());
 			List<SubjectOffer> chosen = new ArrayList<>();
 			for (CatalogSubject subject : subjects) {
-				chosen.add(offer(child, subject, schools));
+				chosen.add(offer(child, subject, schools, questionCounts));
 			}
 			sort(chosen);
 			result.add(new ChildSubjectsView(child.id(), child.firstName(), child.lastName(), child.schoolId(),
@@ -100,7 +107,11 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 		boolean more = rows.size() > size;
 		List<CatalogSubject> page = more ? rows.subList(0, size) : rows;
 		List<CatalogSchool> schools = schoolCatalogPort.findByIds(page.stream().map(CatalogSubject::schoolId).distinct().toList());
-		List<SubjectOffer> offers = page.stream().map(subject -> offer(child, subject, schools)).toList();
+		Map<Long, Long> questionCounts = teacherQuestionPort.countBySubjectIds(
+				page.stream().map(CatalogSubject::id).toList());
+		List<SubjectOffer> offers = page.stream()
+				.map(subject -> offer(child, subject, schools, questionCounts))
+				.toList();
 		return new SubjectPage(offers, more ? page.get(page.size() - 1).id() : null);
 	}
 
@@ -120,7 +131,8 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 			throw bad(ALREADY_LINKED);
 		}
 		childSubjectPort.save(childId, subject.id(), false);
-		return offer(child, subject, schoolCatalogPort.findByIds(List.of(subject.schoolId())));
+		return offer(child, subject, schoolCatalogPort.findByIds(List.of(subject.schoolId())),
+				teacherQuestionPort.countBySubjectIds(List.of(subject.id())));
 	}
 
 	@Override
@@ -143,7 +155,8 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 		} else if (!childSubjectPort.deleteLink(childId, subjectId)) {
 			throw missing(LINK_MISSING);
 		}
-		return offer(child, subject, schoolCatalogPort.findByIds(List.of(subject.schoolId())));
+		return offer(child, subject, schoolCatalogPort.findByIds(List.of(subject.schoolId())),
+				teacherQuestionPort.countBySubjectIds(List.of(subject.id())));
 	}
 
 	private List<CatalogSubject> classCatalog(ChildSaved child) {
@@ -211,10 +224,12 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 	private ParentSubjectsView family(long parentUserId) {
 		List<CatalogSubject> catalog = catalog();
 		List<CatalogSchool> schools = schoolCatalogPort.list();
+		Map<Long, Long> questionCounts = teacherQuestionPort.countBySubjectIds(
+				catalog.stream().map(CatalogSubject::id).toList());
 		List<ChildSubjectsView> children = new ArrayList<>();
 		for (ChildSaved child : childPort.findByParent(parentUserId)) {
 			ensure(child, catalog);
-			children.add(view(child, catalog, schools));
+			children.add(view(child, catalog, schools, questionCounts));
 		}
 		return new ParentSubjectsView(children);
 	}
@@ -235,7 +250,11 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 		}
 	}
 
-	private ChildSubjectsView view(ChildSaved child, List<CatalogSubject> catalog, List<CatalogSchool> schools) {
+	private ChildSubjectsView view(
+			ChildSaved child,
+			List<CatalogSubject> catalog,
+			List<CatalogSchool> schools,
+			Map<Long, Long> questionCounts) {
 		Set<Long> chosenIds = new HashSet<>();
 		for (StoredLink link : linksOf(child.id())) {
 			if (!link.excluded()) {
@@ -245,7 +264,7 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 		List<SubjectOffer> chosen = new ArrayList<>();
 		List<SubjectOffer> proposed = new ArrayList<>();
 		for (CatalogSubject subject : catalog) {
-			SubjectOffer offer = offer(child, subject, schools);
+			SubjectOffer offer = offer(child, subject, schools, questionCounts);
 			if (chosenIds.contains(subject.id())) {
 				chosen.add(offer);
 			} else {
@@ -265,7 +284,11 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 				proposed);
 	}
 
-	private SubjectOffer offer(ChildSaved child, CatalogSubject subject, List<CatalogSchool> schools) {
+	private SubjectOffer offer(
+			ChildSaved child,
+			CatalogSubject subject,
+			List<CatalogSchool> schools,
+			Map<Long, Long> questionCounts) {
 		boolean scolaire = sameClass(child, subject.schoolId(), subject.grade());
 		return new SubjectOffer(
 				subject.id(),
@@ -274,7 +297,8 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 				subject.schoolId(),
 				schoolName(subject.schoolId(), schools),
 				subject.grade(),
-				scolaire);
+				scolaire,
+				questionCounts.getOrDefault(subject.id(), 0L));
 	}
 
 	static boolean sameClass(ChildSaved child, long schoolId, String grade) {

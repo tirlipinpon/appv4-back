@@ -2,6 +2,9 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,6 +24,7 @@ import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.AccessHolder;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredDeactivateNotice;
@@ -70,7 +74,9 @@ class TeacherSubjectServiceTest {
 		List<CatalogSchool> catalog = List.of(
 				new CatalogSchool(FRENCH_SCHOOL, "École française", "France", "Primaire"),
 				new CatalogSchool(BELGIAN_SCHOOL, "École belge", "Belgique", "Primaire"));
-		service = new TeacherSubjectService(subjects, profiles, () -> catalog, roles);
+		TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
+		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
+		service = new TeacherSubjectService(subjects, profiles, () -> catalog, roles, questions);
 	}
 
 	@Test

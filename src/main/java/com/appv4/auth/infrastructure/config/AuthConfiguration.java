@@ -443,12 +443,14 @@ public class AuthConfiguration {
 			TeacherSubjectPort teacherSubjectPort,
 			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort,
-			ActiveRolePort activeRolePort) {
+			ActiveRolePort activeRolePort,
+			TeacherQuestionPort teacherQuestionPort) {
 		return new TeacherSubjectService(
 				teacherSubjectPort,
 				teacherProfilePort,
 				schoolCatalogPort,
-				activeRolePort);
+				activeRolePort,
+				teacherQuestionPort);
 	}
 
 	/**
@@ -555,8 +557,9 @@ public class AuthConfiguration {
 	ChildSubjectService childSubjectService(
 			ChildPort childPort,
 			ChildSubjectPort childSubjectPort,
-			SchoolCatalogPort schoolCatalogPort) {
-		return new ChildSubjectService(childPort, childSubjectPort, schoolCatalogPort);
+			SchoolCatalogPort schoolCatalogPort,
+			TeacherQuestionPort teacherQuestionPort) {
+		return new ChildSubjectService(childPort, childSubjectPort, schoolCatalogPort, teacherQuestionPort);
 	}
 
 	/**

@@ -55,6 +55,22 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public Map<Long, Long> countBySubjectIds(List<Long> subjectIds) {
+		if (subjectIds == null || subjectIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, Long> totals = new HashMap<>();
+		for (int start = 0; start < subjectIds.size(); start += CONTENT_BATCH_SIZE) {
+			List<Long> batch = subjectIds.subList(start, Math.min(start + CONTENT_BATCH_SIZE, subjectIds.size()));
+			for (Object[] row : questions.countGroupedBySubjectId(batch)) {
+				totals.put((Long) row[0], (Long) row[1]);
+			}
+		}
+		return totals;
+	}
+
+	@Override
 	@Transactional
 	public StoredQuestion insert(long subjectId, String formCode, String prompt, DraftContent content) {
 		QuestionContentStore store = store(formCode);

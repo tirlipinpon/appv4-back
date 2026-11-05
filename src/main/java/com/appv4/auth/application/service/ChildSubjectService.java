@@ -130,7 +130,7 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 			if (!sameClass(child, subject.schoolId(), subject.grade()) || known.contains(subject.id())) {
 				continue;
 			}
-			childSubjectPort.save(child.id(), subject.id(), false);
+			childSubjectPort.ensureDefault(child.id(), subject.id());
 		}
 	}
 

@@ -27,6 +27,11 @@ public interface BackChildSubjectLinkJpaRepository extends JpaRepository<BackChi
 			""")
 	List<BackChildSubjectLinkEntity> findForParent(@Param("parentUserId") long parentUserId);
 
+	@Modifying(flushAutomatically = true)
+	@Query(value = "insert into back_child_subject_links (child_id, subject_id, excluded) "
+			+ "values (:childId, :subjectId, false) on conflict (child_id, subject_id) do nothing", nativeQuery = true)
+	int insertDefaultIfAbsent(@Param("childId") long childId, @Param("subjectId") long subjectId);
+
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("""
 			delete from BackChildSubjectLinkEntity link

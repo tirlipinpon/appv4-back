@@ -57,6 +57,108 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 
 	@Override
 	@Transactional
+	public ParentSubjectsView loadSummary(long parentUserId, String activeRole) {
+		requireParent(activeRole);
+		List<ChildSubjectsView> result = new ArrayList<>();
+		for (ChildSaved child : childPort.findByParent(parentUserId)) {
+			ensure(child, classCatalog(child));
+			List<Long> ids = linksOf(child.id()).stream().filter(link -> !link.excluded())
+					.map(StoredLink::subjectId).toList();
+			List<CatalogSubject> subjects = childSubjectPort.visibleByIds(ids);
+			List<Long> schoolIds = new ArrayList<>(subjects.stream().map(CatalogSubject::schoolId).distinct().toList());
+			if (child.schoolId() != null && !schoolIds.contains(child.schoolId())) {
+				schoolIds.add(child.schoolId());
+			}
+			List<CatalogSchool> schools = schoolCatalogPort.findByIds(schoolIds);
+			List<SubjectOffer> chosen = new ArrayList<>();
+			for (CatalogSubject subject : subjects) {
+				chosen.add(offer(child, subject, schools));
+			}
+			sort(chosen);
+			result.add(new ChildSubjectsView(child.id(), child.firstName(), child.lastName(), child.schoolId(),
+					schoolName(child.schoolId() == null ? -1L : child.schoolId(), schools),
+					child.grade(), chosen, List.of()));
+		}
+		return new ParentSubjectsView(result);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public SubjectPage searchOffers(long parentUserId, String activeRole, long childId, String query,
+			long schoolId, String grade, long afterId, int limit) {
+		requireParent(activeRole);
+		ChildSaved child = requireChild(parentUserId, childId);
+		String text = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+		String year = grade == null ? "" : grade.trim();
+		if (text.length() > 100 || year.length() > 80) {
+			throw bad("Recherche trop longue.");
+		}
+		int size = Math.max(1, Math.min(40, limit));
+		List<CatalogSubject> rows = childSubjectPort.searchOffers(childId, text, Math.max(0, schoolId), year,
+				child.schoolId() == null ? 0 : child.schoolId(), child.grade() == null ? "" : child.grade(),
+				Math.max(0, afterId), size + 1);
+		boolean more = rows.size() > size;
+		List<CatalogSubject> page = more ? rows.subList(0, size) : rows;
+		List<CatalogSchool> schools = schoolCatalogPort.findByIds(page.stream().map(CatalogSubject::schoolId).distinct().toList());
+		List<SubjectOffer> offers = page.stream().map(subject -> offer(child, subject, schools)).toList();
+		return new SubjectPage(offers, more ? page.get(page.size() - 1).id() : null);
+	}
+
+	@Override
+	@Transactional
+	public SubjectOffer addOne(long parentUserId, String activeRole, long childId, Long subjectId) {
+		requireParent(activeRole);
+		ChildSaved child = requireChild(parentUserId, childId);
+		CatalogSubject subject = subjectId == null ? null : directSubject(subjectId);
+		if (subject == null) {
+			throw bad(SUBJECT_UNAVAILABLE);
+		}
+		if (sameClass(child, subject.schoolId(), subject.grade())) {
+			childSubjectPort.ensureDefault(childId, subject.id());
+		}
+		if (activeLink(childId, subject.id())) {
+			throw bad(ALREADY_LINKED);
+		}
+		childSubjectPort.save(childId, subject.id(), false);
+		return offer(child, subject, schoolCatalogPort.findByIds(List.of(subject.schoolId())));
+	}
+
+	@Override
+	@Transactional
+	public SubjectOffer removeOne(long parentUserId, String activeRole, long childId, long subjectId) {
+		requireParent(activeRole);
+		ChildSaved child = requireChild(parentUserId, childId);
+		CatalogSubject subject = directSubject(subjectId);
+		if (subject == null) {
+			throw missing(LINK_MISSING);
+		}
+		if (sameClass(child, subject.schoolId(), subject.grade())) {
+			childSubjectPort.ensureDefault(childId, subjectId);
+		}
+		if (!activeLink(childId, subjectId)) {
+			throw missing(LINK_MISSING);
+		}
+		if (sameClass(child, subject.schoolId(), subject.grade())) {
+			childSubjectPort.save(childId, subjectId, true);
+		} else if (!childSubjectPort.deleteLink(childId, subjectId)) {
+			throw missing(LINK_MISSING);
+		}
+		return offer(child, subject, schoolCatalogPort.findByIds(List.of(subject.schoolId())));
+	}
+
+	private List<CatalogSubject> classCatalog(ChildSaved child) {
+		if (child.schoolId() == null || child.grade() == null || child.grade().isBlank()) {
+			return List.of();
+		}
+		return childSubjectPort.visibleInClass(child.schoolId(), child.grade());
+	}
+
+	private CatalogSubject directSubject(long subjectId) {
+		return childSubjectPort.visibleByIds(List.of(subjectId)).stream().findFirst().orElse(null);
+	}
+
+	@Override
+	@Transactional
 	public ParentSubjectsView loadAll(long parentUserId, String activeRole) {
 		requireParent(activeRole);
 		return family(parentUserId);
@@ -101,9 +203,8 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 	 * Rattache les matières visibles de l'école et de l'année, si le parent ne les a pas retirées.
 	 */
 	public void ensureDefaults(long parentUserId) {
-		List<CatalogSubject> catalog = catalog();
 		for (ChildSaved child : childPort.findByParent(parentUserId)) {
-			ensure(child, catalog);
+			ensure(child, classCatalog(child));
 		}
 	}
 
@@ -207,12 +308,7 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 	}
 
 	private StoredLink linkOf(long childId, long subjectId) {
-		for (StoredLink link : linksOf(childId)) {
-			if (link.subjectId() == subjectId) {
-				return link;
-			}
-		}
-		return null;
+		return childSubjectPort.findLink(childId, subjectId).orElse(null);
 	}
 
 	private boolean activeLink(long childId, long subjectId) {

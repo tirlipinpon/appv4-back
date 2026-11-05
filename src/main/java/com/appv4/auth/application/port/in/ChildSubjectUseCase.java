@@ -1,6 +1,9 @@
 package com.appv4.auth.application.port.in;
 
+import java.util.List;
+
 import com.appv4.auth.application.result.ParentSubjectsView;
+import com.appv4.auth.application.result.ChildSubjectsView.SubjectOffer;
 
 /**
  * Choisir les matières d'un enfant, et les retirer de sa liste (SCRUM-162).
@@ -11,6 +14,18 @@ import com.appv4.auth.application.result.ParentSubjectsView;
  * <p><b>Métier / flow :</b> port in de {@code /api/int/parent/subjects}.
  */
 public interface ChildSubjectUseCase {
+
+	ParentSubjectsView loadSummary(long parentUserId, String activeRole);
+
+	SubjectPage searchOffers(long parentUserId, String activeRole, long childId, String query,
+			long schoolId, String grade, long afterId, int limit);
+
+	SubjectOffer addOne(long parentUserId, String activeRole, long childId, Long subjectId);
+
+	SubjectOffer removeOne(long parentUserId, String activeRole, long childId, long subjectId);
+
+	record SubjectPage(List<SubjectOffer> offers, Long nextCursor) {
+	}
 
 	ParentSubjectsView loadAll(long parentUserId, String activeRole);
 

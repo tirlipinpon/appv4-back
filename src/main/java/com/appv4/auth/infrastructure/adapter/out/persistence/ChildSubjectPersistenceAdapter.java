@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,16 +53,42 @@ public class ChildSubjectPersistenceAdapter implements ChildSubjectPort {
 	@Override
 	@Transactional(readOnly = true)
 	public List<CatalogSubject> visibleSubjects() {
-		List<BackTeacherSubjectEntity> rows = subjects.findByHiddenFalseAndActiveTrueOrderByIdAsc();
+		return catalog(subjects.findByHiddenFalseAndActiveTrueOrderByIdAsc());
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<CatalogSubject> visibleInClass(long schoolId, String grade) {
+		return catalog(subjects.findBySchoolIdAndGradeLabelAndHiddenFalseAndActiveTrueOrderByIdAsc(schoolId, grade));
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<CatalogSubject> visibleByIds(List<Long> ids) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		List<BackTeacherSubjectEntity> rows = new ArrayList<>();
+		for (int start = 0; start < ids.size(); start += 500) {
+			rows.addAll(subjects.findAllById(ids.subList(start, Math.min(start + 500, ids.size()))));
+		}
+		return catalog(rows.stream().filter(row -> !row.isHidden() && row.isActive()).toList());
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<CatalogSubject> searchOffers(long childId, String query, long schoolId, String grade,
+			long childSchoolId, String childGrade, long afterId, int limit) {
+		return catalog(subjects.searchOffers(childId, query, schoolId, grade, childSchoolId, childGrade,
+				afterId, PageRequest.of(0, limit)));
+	}
+
+	private List<CatalogSubject> catalog(List<BackTeacherSubjectEntity> rows) {
 		Map<Long, String> teacherNames = teacherNamesBySubject(rows);
 		List<CatalogSubject> catalog = new ArrayList<>();
 		for (BackTeacherSubjectEntity row : rows) {
-			catalog.add(new CatalogSubject(
-					row.getId(),
-					row.getName(),
-					teacherNames.getOrDefault(row.getId(), ""),
-					row.getSchoolId(),
-					row.getGradeLabel()));
+			catalog.add(new CatalogSubject(row.getId(), row.getName(), teacherNames.getOrDefault(row.getId(), ""),
+					row.getSchoolId(), row.getGradeLabel()));
 		}
 		return List.copyOf(catalog);
 	}
@@ -74,6 +101,13 @@ public class ChildSubjectPersistenceAdapter implements ChildSubjectPort {
 			rows.add(new StoredLink(link.getSubjectId(), link.isExcluded()));
 		}
 		return List.copyOf(rows);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<StoredLink> findLink(long childId, long subjectId) {
+		return links.findByChildIdAndSubjectId(childId, subjectId)
+				.map(link -> new StoredLink(link.getSubjectId(), link.isExcluded()));
 	}
 
 	@Override
@@ -162,29 +196,30 @@ public class ChildSubjectPersistenceAdapter implements ChildSubjectPort {
 		if (rows.isEmpty()) {
 			return bySubject;
 		}
+		List<Long> ids = rows.stream().map(BackTeacherSubjectEntity::getId).toList();
+		List<BackTeacherSubjectAccessEntity> all = new ArrayList<>();
+		for (int start = 0; start < ids.size(); start += 500) {
+			all.addAll(access.findBySubjectIdInOrderByIdAsc(ids.subList(start, Math.min(start + 500, ids.size()))));
+		}
+		List<Long> userIds = all.stream().map(BackTeacherSubjectAccessEntity::getUserId).distinct().toList();
+		Map<Long, String> names = new HashMap<>();
+		for (int start = 0; start < userIds.size(); start += 500) {
+			users.findAllById(userIds.subList(start, Math.min(start + 500, userIds.size())))
+					.forEach(user -> names.put(user.getId(),
+							user.getDisplayName() == null ? "" : user.getDisplayName()));
+		}
+		Map<Long, List<String>> grouped = new HashMap<>();
+		for (BackTeacherSubjectAccessEntity link : all) {
+			grouped.computeIfAbsent(link.getSubjectId(), ignored -> new ArrayList<>())
+					.add(names.getOrDefault(link.getUserId(), ""));
+		}
 		Collator order = Collator.getInstance(Locale.FRENCH);
 		order.setStrength(Collator.PRIMARY);
-		Map<Long, String> userNames = new HashMap<>();
-		for (BackTeacherSubjectEntity row : rows) {
-			List<String> names = new ArrayList<>();
-			for (BackTeacherSubjectAccessEntity link : access.findBySubjectIdOrderByIdAsc(row.getId())) {
-				names.add(displayName(link.getUserId(), userNames));
-			}
-			names.sort(order);
-			bySubject.put(row.getId(), String.join(", ", names));
-		}
+		grouped.forEach((id, values) -> {
+			values.sort(order);
+			bySubject.put(id, String.join(", ", values));
+		});
 		return bySubject;
-	}
-
-	private String displayName(long userId, Map<Long, String> cache) {
-		if (cache.containsKey(userId)) {
-			return cache.get(userId);
-		}
-		String name = users.findById(userId)
-				.map(user -> user.getDisplayName() == null ? "" : user.getDisplayName())
-				.orElse("");
-		cache.put(userId, name);
-		return name;
 	}
 
 	private Map<Long, BackTeacherSubjectEntity> subjectsById(List<BackChildSubjectLinkEntity> rows) {

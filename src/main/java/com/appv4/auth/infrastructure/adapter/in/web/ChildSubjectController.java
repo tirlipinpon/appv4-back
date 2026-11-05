@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -48,7 +49,7 @@ public class ChildSubjectController {
 
 	@GetMapping
 	@Operation(operationId = "listParentSubjects", summary = "Lister les enfants et leurs matières")
-	@ApiResponse(responseCode = "200", description = "Chaque enfant, avec les matières déjà choisies et celles proposées")
+	@ApiResponse(responseCode = "200", description = "Chaque enfant et les matières déjà choisies")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace parent",
@@ -56,12 +57,12 @@ public class ChildSubjectController {
 	public ResponseEntity<ParentSubjectsResponse> list(
 			@AuthenticationPrincipal AuthenticatedUser principal) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
-		return ResponseEntity.ok(toResponse(childSubjectUseCase.loadAll(user.userId(), user.activeRole())));
+		return ResponseEntity.ok(toResponse(childSubjectUseCase.loadSummary(user.userId(), user.activeRole())));
 	}
 
 	@PostMapping
 	@Operation(operationId = "addParentChildSubject", summary = "Ajouter une matière à un enfant")
-	@ApiResponse(responseCode = "200", description = "Listes après l'ajout")
+	@ApiResponse(responseCode = "200", description = "Matière ajoutée")
 	@ApiResponse(
 			responseCode = "400",
 			description = "Matière introuvable, plus visible, ou déjà dans la liste",
@@ -70,30 +71,46 @@ public class ChildSubjectController {
 			responseCode = "404",
 			description = "Enfant introuvable pour ce parent",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
-	public ResponseEntity<ParentSubjectsResponse> add(
+	public ResponseEntity<ChildSubjectOffer> add(
 			@AuthenticationPrincipal AuthenticatedUser principal,
 			@RequestBody AddChildSubjectRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		AddChildSubjectRequest body = request == null ? new AddChildSubjectRequest(null, null) : request;
-		ParentSubjectsView view = childSubjectUseCase.add(
-				user.userId(), user.activeRole(), body.childId() == null ? -1L : body.childId(), body.subjectId());
-		return ResponseEntity.ok(toResponse(view));
+		return ResponseEntity.ok(offer(childSubjectUseCase.addOne(
+				user.userId(), user.activeRole(), body.childId() == null ? -1L : body.childId(), body.subjectId())));
 	}
 
 	@DeleteMapping("/{childId}/{subjectId}")
 	@Operation(operationId = "removeParentChildSubject", summary = "Retirer une matière de la liste d'un enfant")
-	@ApiResponse(responseCode = "200", description = "Listes après le retrait. La matière du professeur reste")
+	@ApiResponse(responseCode = "200", description = "Matière retirée de la liste de l'enfant")
 	@ApiResponse(
 			responseCode = "404",
 			description = "Enfant introuvable, ou matière absente de sa liste",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
-	public ResponseEntity<ParentSubjectsResponse> remove(
+	public ResponseEntity<ChildSubjectOffer> remove(
 			@AuthenticationPrincipal AuthenticatedUser principal,
 			@PathVariable long childId,
 			@PathVariable long subjectId) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
-		return ResponseEntity.ok(toResponse(
-				childSubjectUseCase.remove(user.userId(), user.activeRole(), childId, subjectId)));
+		return ResponseEntity.ok(offer(childSubjectUseCase.removeOne(user.userId(), user.activeRole(), childId, subjectId)));
+	}
+
+	@GetMapping("/{childId}/offers")
+	@Operation(operationId = "searchParentChildSubjects", summary = "Search available subjects for a child")
+	public ResponseEntity<ChildSubjectOfferPage> search(
+			@AuthenticationPrincipal AuthenticatedUser principal, @PathVariable long childId,
+			@RequestParam(defaultValue = "") String query, @RequestParam(defaultValue = "0") long schoolId,
+			@RequestParam(defaultValue = "") String grade, @RequestParam(defaultValue = "0") long afterId,
+			@RequestParam(defaultValue = "40") int limit) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		var page = childSubjectUseCase.searchOffers(user.userId(), user.activeRole(), childId,
+				query, schoolId, grade, afterId, limit);
+		return ResponseEntity.ok(new ChildSubjectOfferPage(page.offers().stream().map(ChildSubjectController::offer).toList(),
+				page.nextCursor()));
+	}
+
+	@Schema(name = "ChildSubjectOfferPage")
+	public record ChildSubjectOfferPage(List<ChildSubjectOffer> offers, Long nextCursor) {
 	}
 
 	private static ParentSubjectsResponse toResponse(ParentSubjectsView view) {

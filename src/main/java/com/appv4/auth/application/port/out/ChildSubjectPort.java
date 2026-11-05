@@ -15,7 +15,37 @@ public interface ChildSubjectPort {
 
 	List<CatalogSubject> visibleSubjects();
 
+	/** Visible subjects in one class, used for default enrollment. */
+	default List<CatalogSubject> visibleInClass(long schoolId, String grade) {
+		return visibleSubjects().stream()
+				.filter(subject -> subject.schoolId() == schoolId && grade.equals(subject.grade())).toList();
+	}
+
+	/** Visible subjects corresponding to the requested identifiers. */
+	default List<CatalogSubject> visibleByIds(List<Long> ids) {
+		return visibleSubjects().stream().filter(subject -> ids.contains(subject.id())).toList();
+	}
+
+	/** Bounded search of offers not currently selected for this child. */
+	default List<CatalogSubject> searchOffers(long childId, String query, long schoolId, String grade,
+			long childSchoolId, String childGrade, long afterId, int limit) {
+		List<StoredLink> links = linksOf(childId);
+		List<Long> chosen = links.stream().filter(link -> !link.excluded()).map(StoredLink::subjectId).toList();
+		List<Long> excluded = links.stream().filter(StoredLink::excluded).map(StoredLink::subjectId).toList();
+		return visibleSubjects().stream().filter(subject -> subject.id() > afterId && !chosen.contains(subject.id()))
+				.filter(subject -> subject.schoolId() != childSchoolId || !childGrade.equals(subject.grade())
+						|| excluded.contains(subject.id()))
+				.filter(subject -> schoolId == 0 || subject.schoolId() == schoolId)
+				.filter(subject -> grade.isEmpty() || grade.equals(subject.grade()))
+				.filter(subject -> subject.name().toLowerCase(java.util.Locale.ROOT).contains(query))
+				.sorted(java.util.Comparator.comparingLong(CatalogSubject::id)).limit(limit).toList();
+	}
+
 	List<StoredLink> linksOf(long childId);
+
+	default java.util.Optional<StoredLink> findLink(long childId, long subjectId) {
+		return linksOf(childId).stream().filter(link -> link.subjectId() == subjectId).findFirst();
+	}
 
 	List<CountedLink> visibleLinksForParent(long parentUserId);
 

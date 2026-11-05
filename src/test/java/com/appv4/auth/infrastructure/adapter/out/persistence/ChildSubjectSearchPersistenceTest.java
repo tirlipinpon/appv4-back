@@ -58,6 +58,11 @@ class ChildSubjectSearchPersistenceTest {
 				child, ids.get(0));
 		jdbc.update("insert into back_child_subject_links (child_id, subject_id, excluded) values (?, ?, true)",
 				child, ids.get(1));
+		assertThat(adapter.visibleLinksForParent(user)).hasSize(1);
+		adapter.save(child, ids.get(1), false);
+		assertThat(adapter.visibleLinksForParent(user)).hasSize(2);
+		adapter.save(child, ids.get(1), true);
+		assertThat(adapter.visibleLinksForParent(user)).hasSize(1);
 		long classDefault = jdbc.queryForObject("""
 				insert into back_teacher_subjects (user_id, school_id, grade_label, name, name_key)
 				values (?, 1, 'CE1', 'Class default', ?) returning id

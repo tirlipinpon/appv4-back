@@ -538,7 +538,7 @@ public class TeacherSubjectController {
 			long id,
 			long subjectId,
 			String subjectName,
-			@Schema(description = "deactivate, handover_accepted, handover_rejected, …") String kind,
+			@Schema(description = "deactivate, handover_accepted, handover_rejected, invite_rejected, …") String kind,
 			String message) {
 	}
 }

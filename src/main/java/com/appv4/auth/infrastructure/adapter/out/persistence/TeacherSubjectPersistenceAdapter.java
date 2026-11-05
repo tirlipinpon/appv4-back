@@ -241,6 +241,19 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 			again.get().hide();
 			subjects.saveAndFlush(again.get());
 		} else {
+			// Invariant : le propriétaire a toujours un accès. Sinon → orphelin (QA #163).
+			Optional<BackTeacherSubjectEntity> again = subjects.findById(subjectId);
+			if (again.isPresent()) {
+				BackTeacherSubjectEntity subject = again.get();
+				if (!access.existsBySubjectIdAndUserId(subjectId, subject.getUserId())) {
+					List<BackTeacherSubjectAccessEntity> remaining =
+							access.findBySubjectIdOrderByIdAsc(subjectId);
+					if (!remaining.isEmpty()) {
+						subject.assignTo(remaining.get(0).getUserId());
+						subjects.flush();
+					}
+				}
+			}
 			syncSubjectActive(subjectId);
 		}
 		return true;

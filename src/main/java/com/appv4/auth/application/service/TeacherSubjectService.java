@@ -113,6 +113,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public static final String NOTICE_KIND_DEACTIVATE = "deactivate";
 	public static final String NOTICE_KIND_HANDOVER_ACCEPTED = "handover_accepted";
 	public static final String NOTICE_KIND_HANDOVER_REJECTED = "handover_rejected";
+	/** Refus d'une invite move / share / ask (pas handover). */
+	public static final String NOTICE_KIND_INVITE_REJECTED = "invite_rejected";
 
 	/**
 	 * Message affiché quand le nom est déjà pris et que le professeur peut
@@ -477,7 +479,9 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		teacherSubjectPort.markTransferRejected(request.id());
 		if (MODE_HANDOVER.equals(request.mode())) {
 			afterHandoverRejected(request);
+			return;
 		}
+		notifyInviteRejected(request);
 	}
 
 	@Override
@@ -799,6 +803,32 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				request.fromUserId(),
 				NOTICE_KIND_HANDOVER_ACCEPTED,
 				who + " a accepté de reprendre " + subject.name() + ". Tu n'y as plus accès.");
+	}
+
+	/**
+	 * Refus move / share / ask : l'émetteur reçoit une notice dismissible.
+	 */
+	private void notifyInviteRejected(StoredTransferRequest request) {
+		Optional<StoredSubject> found = teacherSubjectPort.findVisible(request.subjectId());
+		String subjectName = found.map(StoredSubject::name).orElse("cette matière");
+		String rejector = teacherProfilePort.findAccount(request.toUserId())
+				.map(TeacherAccount::displayName)
+				.orElse("Un collègue");
+		String who = rejector == null || rejector.isBlank() ? "Un collègue" : rejector.trim();
+		String message;
+		if (MODE_MOVE.equals(request.mode())) {
+			message = who + " a refusé le déplacement de " + subjectName + ".";
+		} else if (MODE_ASK.equals(request.mode())) {
+			message = who + " a refusé de partager " + subjectName + " avec toi.";
+		} else {
+			message = who + " a refusé de partager " + subjectName + ".";
+		}
+		teacherSubjectPort.insertSubjectNotice(
+				request.subjectId(),
+				request.toUserId(),
+				request.fromUserId(),
+				NOTICE_KIND_INVITE_REJECTED,
+				message);
 	}
 
 	/**

@@ -31,7 +31,7 @@ public interface TeacherQuestionUseCase {
 
 	TeacherQuestionFormsView listForms(long userId, String activeRole);
 
-	TeacherSubjectQuestionsView list(long userId, String activeRole, long subjectId);
+	TeacherSubjectQuestionsView list(long userId, String activeRole, long subjectId, long afterId, int limit);
 
 	default QuestionLine create(
 			long userId,

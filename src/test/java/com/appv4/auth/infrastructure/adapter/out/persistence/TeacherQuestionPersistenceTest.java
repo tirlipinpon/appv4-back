@@ -92,7 +92,7 @@ class TeacherQuestionPersistenceTest {
 			insert(index % 3);
 		}
 		Statistics statistics = resetStatistics();
-		List<StoredQuestion> rows = adapter.findBySubject(subjectId);
+		List<StoredQuestion> rows = adapter.findBySubject(subjectId, 0, 1000);
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(4);
 		assertThat(rows).hasSize(100);
 		assertThat(rows).extracting(StoredQuestion::id).isSorted();
@@ -103,12 +103,27 @@ class TeacherQuestionPersistenceTest {
 	}
 
 	@Test
+	void cursorLoadsStableBoundedPages() {
+		for (int index = 0; index < 7; index++) {
+			insert(0);
+		}
+		var first = adapter.findBySubject(subjectId, 0, 3);
+		var second = adapter.findBySubject(subjectId, first.get(2).id(), 3);
+		var third = adapter.findBySubject(subjectId, second.get(2).id(), 3);
+		assertThat(first).hasSize(3);
+		assertThat(second).hasSize(3);
+		assertThat(third).hasSize(1);
+		assertThat(java.util.stream.Stream.of(first, second, third).flatMap(List::stream)
+				.map(StoredQuestion::id).toList()).doesNotHaveDuplicates().isSorted();
+	}
+
+	@Test
 	void hundredQcmQuestionsTakeOnlyTwoSelects() {
 		for (int index = 0; index < 100; index++) {
 			insert(0);
 		}
 		Statistics statistics = resetStatistics();
-		assertThat(adapter.findBySubject(subjectId)).hasSize(100);
+		assertThat(adapter.findBySubject(subjectId, 0, 1000)).hasSize(100);
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
 	}
 
@@ -116,7 +131,7 @@ class TeacherQuestionPersistenceTest {
 	void emptySubjectAndQuestionFromAnotherSubjectDoNotLoadContent() {
 		StoredQuestion question = insert(0);
 		Statistics statistics = resetStatistics();
-		assertThat(adapter.findBySubject(-1)).isEmpty();
+		assertThat(adapter.findBySubject(-1, 0, 1000)).isEmpty();
 		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
 		statistics.clear();
 		assertThat(adapter.findInSubject(-1, question.id())).isEmpty();
@@ -133,7 +148,7 @@ class TeacherQuestionPersistenceTest {
 		adapter.replace(memory.id(), "Paires", new PairsDraft(List.of(new PairDraft("Trois", "3"))));
 		adapter.replace(order.id(), "Ordre", new ItemsDraft(List.of(new ItemDraft("Milieu"))));
 		resetStatistics();
-		List<StoredQuestion> rows = adapter.findBySubject(subjectId);
+		List<StoredQuestion> rows = adapter.findBySubject(subjectId, 0, 1000);
 		assertThat(rows.get(0).prompt()).isEqualTo("Corrigé");
 		assertThat(rows.get(0).choices()).extracting(choice -> choice.label()).containsExactly("C", "D");
 		assertThat(rows.get(0).choices()).extracting(choice -> choice.id())

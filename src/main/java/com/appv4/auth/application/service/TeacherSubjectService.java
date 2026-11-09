@@ -575,6 +575,10 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		Map<Long, Long> questionCounts = teacherQuestionPort.countBySubjectIds(
 				listing.stream().map(row -> row.subject().id()).distinct().toList());
 		List<CatalogSchool> catalog = schoolCatalogPort.list();
+		List<TeacherSubjectPort.ReusableSubject> reusable = teacherSubjectPort.findReusable();
+		if (reusable == null) {
+			reusable = List.of();
+		}
 		List<SchoolGroup> schools = new ArrayList<>();
 		for (TeacherSchoolLink link : links) {
 			List<String> grades = SchoolCurricula.ordered(link.curriculum(), link.grades());
@@ -586,7 +590,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				groups.add(new GradeGroup(
 						grade,
 						listingLines(userId, link.schoolId(), grade, listing, questionCounts),
-						addableCourses(link.schoolId(), grade, links, listing, catalog)));
+						addableCourses(link.schoolId(), grade, listing, reusable, catalog)));
 			}
 			schools.add(new SchoolGroup(link.schoolId(), schoolName(link.schoolId(), catalog), groups));
 		}
@@ -710,22 +714,23 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	}
 
 	/**
-	 * Matières déjà créées dans une autre année, absentes de l'année affichée.
+	 * Cours déjà créés, que le professeur peut reprendre sans retaper le nom.
 	 *
-	 * <p><b>Business :</b> le professeur reconnaît une matière par le code postal,
-	 * les années où elle existe et le nom de l'école. Un nom déjà présent dans
-	 * l'année en cours n'est pas reproposé.
-	 * <p><b>Technique :</b> regroupement par école et nom en minuscules. Les années
-	 * suivent l'ordre du profil. Le texte affiché est {@code label}.
-	 * <p><b>Métier / flow :</b> champ de {@code GET /api/int/teacher/subjects},
-	 * calculé après le regroupement des classes. Choisir une ligne côté écran
-	 * remplit le nom ; la création reste {@code POST}.
+	 * <p><b>Business :</b> seules les matières de cette année sont proposées.
+	 * Une matière de 4e primaire n'apparaît pas en 3e primaire. Le libellé dit
+	 * qu'elle existe déjà, ou qu'elle a été retirée de ce cours. Un nom encore
+	 * affiché dans l'année n'est pas reproposé.
+	 * <p><b>Technique :</b> regroupement par école et nom en minuscules.
+	 * {@code removedHere} vrai : la ligne de cette école et de cette année est cachée,
+	 * le choix la réactive. Sinon le choix crée le même nom dans ce cours.
+	 * <p><b>Métier / flow :</b> champ de {@code GET /api/int/teacher/subjects}.
+	 * Choisir une ligne remplit le nom ; la création reste {@code POST}.
 	 */
 	private List<AddableCourse> addableCourses(
 			long targetSchoolId,
 			String targetGrade,
-			List<TeacherSchoolLink> links,
 			List<TeacherSubjectPort.SubjectListing> listing,
+			List<TeacherSubjectPort.ReusableSubject> reusable,
 			List<CatalogSchool> catalog) {
 		Set<String> present = new HashSet<>();
 		for (TeacherSubjectPort.SubjectListing row : listing) {
@@ -735,31 +740,32 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			}
 		}
 		Map<String, CourseDraft> drafts = new LinkedHashMap<>();
-		for (TeacherSchoolLink link : links) {
-			List<String> grades = SchoolCurricula.ordered(link.curriculum(), link.grades());
-			if (grades.isEmpty()) {
-				grades = link.grades();
+		for (TeacherSubjectPort.ReusableSubject subject : reusable) {
+			if (subject.name() == null || subject.name().isBlank() || subject.grade() == null) {
+				continue;
 			}
-			String sourceSchool = schoolName(link.schoolId(), catalog);
-			String postal = postalCode(link.schoolId(), catalog);
-			for (String grade : grades) {
-				for (TeacherSubjectPort.SubjectListing row : listing) {
-					StoredSubject subject = row.subject();
-					if (subject.schoolId() != link.schoolId() || !grade.equals(subject.grade())) {
-						continue;
-					}
-					String key = nameKey(subject.name());
-					if (present.contains(key)) {
-						continue;
-					}
-					String groupKey = link.schoolId() + "\n" + key;
-					CourseDraft draft = drafts.get(groupKey);
-					if (draft == null) {
-						draft = new CourseDraft(subject.name(), link.schoolId(), sourceSchool, postal);
-						drafts.put(groupKey, draft);
-					}
-					draft.addGrade(grade);
-				}
+			if (!targetGrade.equals(subject.grade())) {
+				continue;
+			}
+			String key = nameKey(subject.name());
+			if (present.contains(key)) {
+				continue;
+			}
+			String groupKey = subject.schoolId() + "\n" + key;
+			CourseDraft draft = drafts.get(groupKey);
+			if (draft == null) {
+				draft = new CourseDraft(
+						subject.name().trim(),
+						subject.schoolId(),
+						schoolName(subject.schoolId(), catalog),
+						postalCode(subject.schoolId(), catalog));
+				drafts.put(groupKey, draft);
+			}
+			draft.addGrade(subject.grade());
+			if (subject.hidden()
+					&& subject.schoolId() == targetSchoolId
+					&& targetGrade.equals(subject.grade())) {
+				draft.markRemovedHere();
 			}
 		}
 		List<AddableCourse> courses = new ArrayList<>();
@@ -1236,6 +1242,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		private final String schoolName;
 		private final String postalCode;
 		private final List<String> grades = new ArrayList<>();
+		private boolean removedHere;
 
 		private CourseDraft(String name, long schoolId, String schoolName, String postalCode) {
 			this.name = name;
@@ -1250,15 +1257,21 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			}
 		}
 
+		private void markRemovedHere() {
+			this.removedHere = true;
+		}
+
 		private AddableCourse toCourse() {
 			List<String> years = List.copyOf(grades);
+			String prefix = removedHere ? "A été retirée : " : "Existe déjà : ";
 			return new AddableCourse(
 					name,
 					schoolId,
 					schoolName,
 					postalCode,
 					years,
-					courseLabel(name, postalCode, years, schoolName));
+					prefix + courseLabel(name, postalCode, years, schoolName),
+					removedHere);
 		}
 	}
 }

@@ -89,6 +89,9 @@ class TeacherSubjectControllerTest {
 				new TeacherSubjectPort.SubjectListing(
 						new StoredSubject(1L, 9L, 1L, "CE1", "Français", true),
 						true, List.of(), List.of(), "Martin")));
+		when(subjects.findReusable()).thenReturn(List.of(
+				new TeacherSubjectPort.ReusableSubject(1L, "CE1", "Français", false),
+				new TeacherSubjectPort.ReusableSubject(1L, "CE1", "Mathématiques", false)));
 
 		mockMvc.perform(get("/api/int/teacher/subjects").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
@@ -104,12 +107,7 @@ class TeacherSubjectControllerTest {
 				.andExpect(jsonPath("$.schools[0].grades[1].grade").value("CE2"))
 				.andExpect(jsonPath("$.schools[0].grades[1].subjects").isEmpty())
 				.andExpect(jsonPath("$.schools[0].grades[0].addableCourses").isEmpty())
-				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[0].name").value("Français"))
-				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[0].grades[0]").value("CE1"))
-				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[0].label").value("Français — CE1"))
-				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[1].name").value("Mathématiques"))
-				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[1].postalCode").value(""))
-				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[1].schoolName").value(""));
+				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses").isEmpty());
 	}
 
 	@Test

@@ -64,8 +64,8 @@ public class TeacherSubjectController {
 			responseCode = "200",
 			description = "Écoles du profil, années cochées, matières triées par nom. "
 					+ "followedByMe faux : visible, mais ce professeur ne la suit pas. "
-					+ "addableCourses : matières déjà créées dans une autre année, "
-					+ "absentes de l'année affichée. label assemble le nom, le code postal, "
+					+ "addableCourses : cours déjà créés, absents de l'année affichée. "
+					+ "label commence par « Existe déjà » et donne le nom, le code postal, "
 					+ "les années de création et le nom de l'école.")
 	@ApiResponse(
 			responseCode = "403",
@@ -464,7 +464,8 @@ public class TeacherSubjectController {
 				course.schoolName(),
 				course.postalCode(),
 				course.grades(),
-				course.label());
+				course.label(),
+				course.removedHere());
 	}
 
 	@Schema(name = "TeacherSubjectsResponse")
@@ -479,15 +480,15 @@ public class TeacherSubjectController {
 	public record TeacherSubjectGrade(
 			String grade,
 			List<TeacherSubjectItem> subjects,
-			@Schema(description = "Matières déjà créées dans une autre année, absentes de celle-ci")
+			@Schema(description = "Cours déjà créés, absents de cette année. Le professeur reprend le nom au lieu de l'écrire.")
 			List<TeacherSubjectAddableCourse> addableCourses) {
 	}
 
 	/**
-	 * Matière déjà créée ailleurs, proposée pour remplir le nom d'une autre année.
+	 * Cours déjà créé, proposé pour remplir le nom au lieu de l'écrire.
 	 *
-	 * <p><b>Business :</b> le professeur voit où elle existe déjà : code postal,
-	 * années et école. Il ne la voit pas si ce nom est déjà dans l'année affichée.
+	 * <p><b>Business :</b> le libellé dit que le cours existe déjà : nom, code postal,
+	 * années et école. Il n'est pas proposé si ce nom est déjà dans l'année affichée.
 	 * <p><b>Technique :</b> {@code label} est le texte du menu. Les autres champs
 	 * portent les mêmes informations, séparées.
 	 * <p><b>Métier / flow :</b> lu dans {@code GET /api/int/teacher/subjects}.
@@ -500,8 +501,11 @@ public class TeacherSubjectController {
 			String schoolName,
 			String postalCode,
 			List<String> grades,
-			@Schema(description = "Nom, code postal, années de création et école, prêts à afficher")
-			String label) {
+			@Schema(description = "« Existe déjà » ou « A été retirée », puis le nom, le code postal, les années et l'école")
+			String label,
+			@Schema(description = "Vrai si cette matière a été retirée de ce cours et que la ligne "
+					+ "est encore en base. Le choix la réactive.")
+			boolean removedHere) {
 	}
 
 	@Schema(name = "TeacherSubjectItem")

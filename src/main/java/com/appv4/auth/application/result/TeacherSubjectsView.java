@@ -15,9 +15,9 @@ import java.util.List;
  * en attente envoyée par ce professeur. Vide s'il n'y en a pas.
  * {@code ownedByMe} est vrai si ce professeur est le créateur / propriétaire.
  * {@code owner} nomme ce propriétaire, celui qui peut renommer.
- * Chaque année propose aussi les matières déjà créées dans une autre année du
- * professeur, tant que ce nom n'est pas déjà dans l'année affichée. Le libellé
- * donne le code postal, les années de création et le nom de l'école.
+ * Chaque année propose les cours déjà créés (toutes écoles) dont le nom n'est
+ * pas dans l'année affichée. Le libellé dit que le cours existe déjà, avec le
+ * code postal, les années de création et le nom de l'école.
  * <p><b>Technique :</b> pas d'exercice, pas de forme de question, pas d'élève.
  * <p><b>Métier / flow :</b> résultat de {@code GET /api/int/teacher/subjects}.
  */
@@ -63,7 +63,8 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 	 * @param schoolName nom du référentiel, vide si l'école n'y est plus
 	 * @param postalCode code postal de cette école, vide s'il manque
 	 * @param grades     années où ce nom existe déjà, dans l'ordre du profil
-	 * @param label      texte prêt à afficher : nom, code postal, années, école
+	 * @param label       texte prêt à afficher
+	 * @param removedHere vrai si la ligne de ce cours a été retirée et reste en base
 	 */
 	public record AddableCourse(
 			String name,
@@ -71,7 +72,8 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 			String schoolName,
 			String postalCode,
 			List<String> grades,
-			String label) {
+			String label,
+			boolean removedHere) {
 
 		public AddableCourse {
 			grades = grades == null ? List.of() : List.copyOf(grades);

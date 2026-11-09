@@ -122,7 +122,7 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
-	void listsCoursesMissingFromTheYearWithPostalCodeYearsAndSchool() {
+	void doesNotOfferASubjectFromAnotherYear() {
 		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Français");
 		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
@@ -133,30 +133,25 @@ class TeacherSubjectServiceTest {
 		GradeGroup ce2 = view.schools().get(0).grades().get(1);
 		GradeGroup belgian = view.schools().get(1).grades().get(0);
 
-		assertThat(ce1.addableCourses()).extracting(AddableCourse::name).containsExactly("Éveil");
-		AddableCourse eveil = ce1.addableCourses().get(0);
-		assertThat(eveil.postalCode()).isEqualTo("1000");
-		assertThat(eveil.grades()).containsExactly("3e primaire");
-		assertThat(eveil.schoolName()).isEqualTo("École belge");
-		assertThat(eveil.schoolId()).isEqualTo(BELGIAN_SCHOOL);
-		assertThat(eveil.label()).isEqualTo("Éveil — 1000 — 3e primaire — École belge");
+		assertThat(ce1.addableCourses()).isEmpty();
+		assertThat(ce2.addableCourses()).isEmpty();
+		assertThat(belgian.addableCourses()).isEmpty();
+	}
 
-		assertThat(ce2.addableCourses()).extracting(AddableCourse::name).containsExactly("Éveil", "Français");
-		AddableCourse francais = ce2.addableCourses().get(1);
-		assertThat(francais.postalCode()).isEqualTo("75011");
-		assertThat(francais.grades()).containsExactly("CE1");
-		assertThat(francais.schoolName()).isEqualTo("École française");
-		assertThat(francais.label()).isEqualTo("Français — 75011 — CE1 — École française");
-		assertThat(ce2.addableCourses()).extracting(AddableCourse::name).doesNotContain("Mathématiques");
+	@Test
+	void removedSubjectCanBeAddedBackBecauseTheRowIsStillInTheDatabase() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.remove(TEACHER_ID, "teacher", maths.id());
 
-		assertThat(belgian.addableCourses()).extracting(AddableCourse::name)
-				.containsExactly("Français", "Mathématiques");
-		AddableCourse maths = belgian.addableCourses().get(1);
-		assertThat(maths.grades()).containsExactly("CE1", "CE2");
-		assertThat(maths.postalCode()).isEqualTo("75011");
-		assertThat(maths.schoolName()).isEqualTo("École française");
-		assertThat(maths.label()).isEqualTo("Mathématiques — 75011 — CE1, CE2 — École française");
-		assertThat(belgian.addableCourses()).extracting(AddableCourse::name).doesNotContain("Éveil");
+		TeacherSubjectsView view = service.list(TEACHER_ID, "teacher");
+		AddableCourse onCe1 = view.schools().get(0).grades().get(0).addableCourses().get(0);
+
+		assertThat(view.schools().get(0).grades().get(0).subjects()).isEmpty();
+		assertThat(onCe1.name()).isEqualTo("Mathématiques");
+		assertThat(onCe1.grades()).containsExactly("CE1");
+		assertThat(onCe1.removedHere()).isTrue();
+		assertThat(onCe1.label()).startsWith("A été retirée : Mathématiques");
+		assertThat(view.schools().get(0).grades().get(1).addableCourses()).isEmpty();
 	}
 
 	@Test
@@ -971,6 +966,16 @@ class TeacherSubjectServiceTest {
 				}
 			}
 			throw new AssertionError(id);
+		}
+
+		@Override
+		public List<TeacherSubjectPort.ReusableSubject> findReusable() {
+			List<TeacherSubjectPort.ReusableSubject> all = new ArrayList<>();
+			for (StoredSubject row : rows) {
+				all.add(new TeacherSubjectPort.ReusableSubject(
+						row.schoolId(), row.grade(), row.name(), hidden.contains(row.id())));
+			}
+			return all;
 		}
 
 		@Override

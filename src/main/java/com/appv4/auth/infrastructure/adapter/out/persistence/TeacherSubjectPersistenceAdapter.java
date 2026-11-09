@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.ReusableSubject;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.service.TeacherSubjectService;
 
 /**
@@ -127,6 +129,20 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 					others, asked, names.getOrDefault(row.getUserId(), "")));
 		}
 		return List.copyOf(result);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<ReusableSubject> findReusable() {
+		List<ReusableSubject> rows = new ArrayList<>();
+		for (BackTeacherSubjectEntity row : subjects.findAllByOrderByIdAsc()) {
+			rows.add(new ReusableSubject(
+					row.getSchoolId(),
+					row.getGradeLabel(),
+					row.getName(),
+					row.isHidden()));
+		}
+		return List.copyOf(rows);
 	}
 
 	@Override

@@ -7,8 +7,9 @@ import java.util.List;
  *
  * <p><b>Business :</b> le professeur choisit une école dans une liste fermée.
  * Tant que la liste est vide, il ne peut pas en inventer une.
- * <p><b>Technique :</b> lecture de {@code back_schools} : id, nom, pays et types d'enseignement.
- * Le pays choisit les noms de classes. Les types disent quels niveaux l'école a.
+ * <p><b>Technique :</b> lecture de {@code back_schools} : id, nom, pays, types d'enseignement
+ * et code postal. Le pays choisit les noms de classes. Les types disent quels niveaux l'école a.
+ * Le code postal distingue deux écoles qui portent le même nom.
  * <p><b>Métier / flow :</b> port out du profil professeur. Le front n'écrit pas d'école.
  */
 public interface SchoolCatalogPort {
@@ -35,7 +36,17 @@ public interface SchoolCatalogPort {
 	 * @param name          nom affiché, tel que le référentiel le donne
 	 * @param country       pays, par exemple Belgique
 	 * @param teachingTypes types d'enseignement recopiés du fichier, une seule chaîne
+	 * @param postalCode    code postal de l'annuaire, vide si le référentiel n'en a pas
 	 */
-	record CatalogSchool(long id, String name, String country, String teachingTypes) {
+	record CatalogSchool(long id, String name, String country, String teachingTypes, String postalCode) {
+
+		public CatalogSchool {
+			postalCode = postalCode == null ? "" : postalCode;
+		}
+
+		/** Code postal absent : l'appelant ne le fournit pas. */
+		public CatalogSchool(long id, String name, String country, String teachingTypes) {
+			this(id, name, country, teachingTypes, "");
+		}
 	}
 }

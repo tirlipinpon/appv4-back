@@ -56,5 +56,9 @@ public interface BackTeacherSubjectJpaRepository extends JpaRepository<BackTeach
 
 	List<BackTeacherSubjectEntity> findByHiddenFalseAndActiveTrueOrderByIdAsc();
 
+	List<BackTeacherSubjectEntity> findByHiddenFalseOrderByIdAsc();
+
+	List<BackTeacherSubjectEntity> findAllByOrderByIdAsc();
+
 	Optional<BackTeacherSubjectEntity> findByIdAndUserId(long id, long userId);
 }

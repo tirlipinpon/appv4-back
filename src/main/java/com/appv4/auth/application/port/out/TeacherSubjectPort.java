@@ -25,6 +25,24 @@ public interface TeacherSubjectPort {
 	/** Batch data for listing subjects in the viewer's schools. */
 	List<SubjectListing> findListing(long userId, List<Long> schoolIds, List<String> grades);
 
+	/**
+	 * Toutes les matières encore en base, visibles ou retirées.
+	 *
+	 * <p><b>Business :</b> le professeur peut en ajouter une à son cours
+	 * si elle n'y est plus affichée. La ligne n'a pas été effacée.
+	 * <p><b>Technique :</b> toute {@code back_teacher_subjects}, ordre de création.
+	 * {@code hidden} vrai : retirée de l'écran, ligne conservée.
+	 * <p><b>Métier / flow :</b> alimente {@code addableCourses} de
+	 * {@code GET /api/int/teacher/subjects}.
+	 */
+	List<ReusableSubject> findReusable();
+
+	/**
+	 * @param hidden vrai si la matière a été retirée de l'écran
+	 */
+	record ReusableSubject(long schoolId, String grade, String name, boolean hidden) {
+	}
+
 	record SubjectListing(StoredSubject subject, boolean followed, List<AccessHolder> others,
 			List<AccessHolder> asked, String ownerName) {
 	}

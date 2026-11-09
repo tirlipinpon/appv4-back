@@ -18,6 +18,7 @@ import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.auth.application.result.TeacherDeactivateNoticesView;
 import com.appv4.auth.application.result.TeacherSubjectColleaguesView;
 import com.appv4.auth.application.result.TeacherSubjectsView;
+import com.appv4.auth.application.result.TeacherSubjectsView.AddableCourse;
 import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
 import com.appv4.auth.application.result.TeacherTransferInvitesView;
 import com.appv4.configuration.OpenApiConfiguration;
@@ -62,7 +63,10 @@ public class TeacherSubjectController {
 	@ApiResponse(
 			responseCode = "200",
 			description = "Écoles du profil, années cochées, matières triées par nom. "
-					+ "followedByMe faux : visible, mais ce professeur ne la suit pas")
+					+ "followedByMe faux : visible, mais ce professeur ne la suit pas. "
+					+ "addableCourses : cours déjà créés, absents de l'année affichée. "
+					+ "label commence par « Existe déjà » et donne le nom, le code postal, "
+					+ "les années de création et le nom de l'école.")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace professeur",
@@ -423,6 +427,9 @@ public class TeacherSubjectController {
 										grade.grade(),
 										grade.subjects().stream()
 												.map(TeacherSubjectController::item)
+												.toList(),
+										grade.addableCourses().stream()
+												.map(TeacherSubjectController::addable)
 												.toList()))
 								.toList()))
 				.toList();
@@ -450,6 +457,17 @@ public class TeacherSubjectController {
 				subject.questionCount());
 	}
 
+	private static TeacherSubjectAddableCourse addable(AddableCourse course) {
+		return new TeacherSubjectAddableCourse(
+				course.name(),
+				course.schoolId(),
+				course.schoolName(),
+				course.postalCode(),
+				course.grades(),
+				course.label(),
+				course.removedHere());
+	}
+
 	@Schema(name = "TeacherSubjectsResponse")
 	public record TeacherSubjectsResponse(List<TeacherSubjectSchool> schools) {
 	}
@@ -459,7 +477,35 @@ public class TeacherSubjectController {
 	}
 
 	@Schema(name = "TeacherSubjectGrade")
-	public record TeacherSubjectGrade(String grade, List<TeacherSubjectItem> subjects) {
+	public record TeacherSubjectGrade(
+			String grade,
+			List<TeacherSubjectItem> subjects,
+			@Schema(description = "Cours déjà créés, absents de cette année. Le professeur reprend le nom au lieu de l'écrire.")
+			List<TeacherSubjectAddableCourse> addableCourses) {
+	}
+
+	/**
+	 * Cours déjà créé, proposé pour remplir le nom au lieu de l'écrire.
+	 *
+	 * <p><b>Business :</b> le libellé dit que le cours existe déjà : nom, code postal,
+	 * années et école. Il n'est pas proposé si ce nom est déjà dans l'année affichée.
+	 * <p><b>Technique :</b> {@code label} est le texte du menu. Les autres champs
+	 * portent les mêmes informations, séparées.
+	 * <p><b>Métier / flow :</b> lu dans {@code GET /api/int/teacher/subjects}.
+	 * Le choix remplit le nom envoyé à {@code POST /api/int/teacher/subjects}.
+	 */
+	@Schema(name = "TeacherSubjectAddableCourse")
+	public record TeacherSubjectAddableCourse(
+			String name,
+			long schoolId,
+			String schoolName,
+			String postalCode,
+			List<String> grades,
+			@Schema(description = "« Existe déjà » ou « A été retirée », puis le nom, le code postal, les années et l'école")
+			String label,
+			@Schema(description = "Vrai si cette matière a été retirée de ce cours et que la ligne "
+					+ "est encore en base. Le choix la réactive.")
+			boolean removedHere) {
 	}
 
 	@Schema(name = "TeacherSubjectItem")

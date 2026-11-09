@@ -72,4 +72,9 @@ public class BackSchoolEntity {
 	public String getTeachingTypes() {
 		return teachingTypes;
 	}
+
+	/** Code postal de l'annuaire. Sert à reconnaître l'école dans une liste de matières. */
+	public String getPostalCode() {
+		return postalCode;
+	}
 }

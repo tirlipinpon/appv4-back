@@ -31,11 +31,7 @@ public class SchoolCatalogPersistenceAdapter implements SchoolCatalogPort {
 	@Override
 	public List<CatalogSchool> list() {
 		return schoolRepository.findAllByOrderByIdAsc().stream()
-				.map(school -> new CatalogSchool(
-						school.getId(),
-						school.getName(),
-						school.getCountry(),
-						school.getTeachingTypes()))
+				.map(SchoolCatalogPersistenceAdapter::toCatalog)
 				.toList();
 	}
 	@Override
@@ -45,16 +41,24 @@ public class SchoolCatalogPersistenceAdapter implements SchoolCatalogPort {
 		}
 		return schoolRepository.findAllById(ids).stream()
 				.sorted(java.util.Comparator.comparing(BackSchoolEntity::getId))
-				.map(school -> new CatalogSchool(school.getId(), school.getName(), school.getCountry(),
-						school.getTeachingTypes())).toList();
+				.map(SchoolCatalogPersistenceAdapter::toCatalog).toList();
 	}
 
 	@Override
 	public List<CatalogSchool> search(String country, String query, long afterId, int limit) {
 		String escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
 		return schoolRepository.search(country, "%" + escaped + "%", afterId, PageRequest.of(0, limit)).stream()
-				.map(school -> new CatalogSchool(school.getId(), school.getName(), school.getCountry(),
-						school.getTeachingTypes())).toList();
+				.map(SchoolCatalogPersistenceAdapter::toCatalog).toList();
+	}
+
+	private static CatalogSchool toCatalog(BackSchoolEntity school) {
+		String postal = school.getPostalCode() == null ? "" : school.getPostalCode();
+		return new CatalogSchool(
+				school.getId(),
+				school.getName(),
+				school.getCountry(),
+				school.getTeachingTypes(),
+				postal);
 	}
 
 }

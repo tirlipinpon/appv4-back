@@ -31,6 +31,8 @@ import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredDeactivateNo
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredTransferRequest;
 import com.appv4.auth.application.result.TeacherSubjectsView;
+import com.appv4.auth.application.result.TeacherSubjectsView.AddableCourse;
+import com.appv4.auth.application.result.TeacherSubjectsView.GradeGroup;
 import com.appv4.auth.application.result.TeacherSubjectsView.SharedHolder;
 import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
 import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
@@ -72,8 +74,8 @@ class TeacherSubjectServiceTest {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE2"))));
 		List<CatalogSchool> catalog = List.of(
-				new CatalogSchool(FRENCH_SCHOOL, "École française", "France", "Primaire"),
-				new CatalogSchool(BELGIAN_SCHOOL, "École belge", "Belgique", "Primaire"));
+				new CatalogSchool(FRENCH_SCHOOL, "École française", "France", "Primaire", "75011"),
+				new CatalogSchool(BELGIAN_SCHOOL, "École belge", "Belgique", "Primaire", "1000"));
 		TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
 		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
 		service = new TeacherSubjectService(subjects, profiles, () -> catalog, roles, questions);
@@ -117,6 +119,39 @@ class TeacherSubjectServiceTest {
 		assertThat(french.owner().displayName()).isEqualTo("Anne");
 		assertThat(maths.id()).isNotEqualTo(mathsCe2.id());
 		assertThat(subjects.all()).hasSize(3);
+	}
+
+	@Test
+	void doesNotOfferASubjectFromAnotherYear() {
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Français");
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
+		service.create(TEACHER_ID, "teacher", BELGIAN_SCHOOL, "3e primaire", "Éveil");
+
+		TeacherSubjectsView view = service.list(TEACHER_ID, "teacher");
+		GradeGroup ce1 = view.schools().get(0).grades().get(0);
+		GradeGroup ce2 = view.schools().get(0).grades().get(1);
+		GradeGroup belgian = view.schools().get(1).grades().get(0);
+
+		assertThat(ce1.addableCourses()).isEmpty();
+		assertThat(ce2.addableCourses()).isEmpty();
+		assertThat(belgian.addableCourses()).isEmpty();
+	}
+
+	@Test
+	void removedSubjectCanBeAddedBackBecauseTheRowIsStillInTheDatabase() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.remove(TEACHER_ID, "teacher", maths.id());
+
+		TeacherSubjectsView view = service.list(TEACHER_ID, "teacher");
+		AddableCourse onCe1 = view.schools().get(0).grades().get(0).addableCourses().get(0);
+
+		assertThat(view.schools().get(0).grades().get(0).subjects()).isEmpty();
+		assertThat(onCe1.name()).isEqualTo("Mathématiques");
+		assertThat(onCe1.grades()).containsExactly("CE1");
+		assertThat(onCe1.removedHere()).isTrue();
+		assertThat(onCe1.label()).startsWith("A été retirée : Mathématiques");
+		assertThat(view.schools().get(0).grades().get(1).addableCourses()).isEmpty();
 	}
 
 	@Test
@@ -931,6 +966,16 @@ class TeacherSubjectServiceTest {
 				}
 			}
 			throw new AssertionError(id);
+		}
+
+		@Override
+		public List<TeacherSubjectPort.ReusableSubject> findReusable() {
+			List<TeacherSubjectPort.ReusableSubject> all = new ArrayList<>();
+			for (StoredSubject row : rows) {
+				all.add(new TeacherSubjectPort.ReusableSubject(
+						row.schoolId(), row.grade(), row.name(), hidden.contains(row.id())));
+			}
+			return all;
 		}
 
 		@Override

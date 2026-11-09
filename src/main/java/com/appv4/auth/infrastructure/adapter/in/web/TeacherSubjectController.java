@@ -18,6 +18,7 @@ import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.auth.application.result.TeacherDeactivateNoticesView;
 import com.appv4.auth.application.result.TeacherSubjectColleaguesView;
 import com.appv4.auth.application.result.TeacherSubjectsView;
+import com.appv4.auth.application.result.TeacherSubjectsView.AddableCourse;
 import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
 import com.appv4.auth.application.result.TeacherTransferInvitesView;
 import com.appv4.configuration.OpenApiConfiguration;
@@ -62,7 +63,10 @@ public class TeacherSubjectController {
 	@ApiResponse(
 			responseCode = "200",
 			description = "Écoles du profil, années cochées, matières triées par nom. "
-					+ "followedByMe faux : visible, mais ce professeur ne la suit pas")
+					+ "followedByMe faux : visible, mais ce professeur ne la suit pas. "
+					+ "addableCourses : matières déjà créées dans une autre année, "
+					+ "absentes de l'année affichée. label assemble le nom, le code postal, "
+					+ "les années de création et le nom de l'école.")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace professeur",
@@ -423,6 +427,9 @@ public class TeacherSubjectController {
 										grade.grade(),
 										grade.subjects().stream()
 												.map(TeacherSubjectController::item)
+												.toList(),
+										grade.addableCourses().stream()
+												.map(TeacherSubjectController::addable)
 												.toList()))
 								.toList()))
 				.toList();
@@ -450,6 +457,16 @@ public class TeacherSubjectController {
 				subject.questionCount());
 	}
 
+	private static TeacherSubjectAddableCourse addable(AddableCourse course) {
+		return new TeacherSubjectAddableCourse(
+				course.name(),
+				course.schoolId(),
+				course.schoolName(),
+				course.postalCode(),
+				course.grades(),
+				course.label());
+	}
+
 	@Schema(name = "TeacherSubjectsResponse")
 	public record TeacherSubjectsResponse(List<TeacherSubjectSchool> schools) {
 	}
@@ -459,7 +476,32 @@ public class TeacherSubjectController {
 	}
 
 	@Schema(name = "TeacherSubjectGrade")
-	public record TeacherSubjectGrade(String grade, List<TeacherSubjectItem> subjects) {
+	public record TeacherSubjectGrade(
+			String grade,
+			List<TeacherSubjectItem> subjects,
+			@Schema(description = "Matières déjà créées dans une autre année, absentes de celle-ci")
+			List<TeacherSubjectAddableCourse> addableCourses) {
+	}
+
+	/**
+	 * Matière déjà créée ailleurs, proposée pour remplir le nom d'une autre année.
+	 *
+	 * <p><b>Business :</b> le professeur voit où elle existe déjà : code postal,
+	 * années et école. Il ne la voit pas si ce nom est déjà dans l'année affichée.
+	 * <p><b>Technique :</b> {@code label} est le texte du menu. Les autres champs
+	 * portent les mêmes informations, séparées.
+	 * <p><b>Métier / flow :</b> lu dans {@code GET /api/int/teacher/subjects}.
+	 * Le choix remplit le nom envoyé à {@code POST /api/int/teacher/subjects}.
+	 */
+	@Schema(name = "TeacherSubjectAddableCourse")
+	public record TeacherSubjectAddableCourse(
+			String name,
+			long schoolId,
+			String schoolName,
+			String postalCode,
+			List<String> grades,
+			@Schema(description = "Nom, code postal, années de création et école, prêts à afficher")
+			String label) {
 	}
 
 	@Schema(name = "TeacherSubjectItem")

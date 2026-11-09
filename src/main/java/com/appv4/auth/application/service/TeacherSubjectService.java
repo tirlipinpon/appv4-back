@@ -3,6 +3,8 @@ package com.appv4.auth.application.service;
 import java.text.Collator;
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +34,7 @@ import com.appv4.auth.application.result.TeacherDeactivateNoticesView.NoticeLine
 import com.appv4.auth.application.result.TeacherSubjectColleaguesView;
 import com.appv4.auth.application.result.TeacherSubjectColleaguesView.ColleagueLine;
 import com.appv4.auth.application.result.TeacherSubjectsView;
+import com.appv4.auth.application.result.TeacherSubjectsView.AddableCourse;
 import com.appv4.auth.application.result.TeacherSubjectsView.GradeGroup;
 import com.appv4.auth.application.result.TeacherSubjectsView.SchoolGroup;
 import com.appv4.auth.application.result.TeacherSubjectsView.SharedHolder;
@@ -580,7 +583,10 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			}
 			List<GradeGroup> groups = new ArrayList<>();
 			for (String grade : grades) {
-				groups.add(new GradeGroup(grade, listingLines(userId, link.schoolId(), grade, listing, questionCounts)));
+				groups.add(new GradeGroup(
+						grade,
+						listingLines(userId, link.schoolId(), grade, listing, questionCounts),
+						addableCourses(link.schoolId(), grade, links, listing, catalog)));
 			}
 			schools.add(new SchoolGroup(link.schoolId(), schoolName(link.schoolId(), catalog), groups));
 		}
@@ -701,6 +707,102 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			}
 		}
 		return List.copyOf(unique);
+	}
+
+	/**
+	 * Matières déjà créées dans une autre année, absentes de l'année affichée.
+	 *
+	 * <p><b>Business :</b> le professeur reconnaît une matière par le code postal,
+	 * les années où elle existe et le nom de l'école. Un nom déjà présent dans
+	 * l'année en cours n'est pas reproposé.
+	 * <p><b>Technique :</b> regroupement par école et nom en minuscules. Les années
+	 * suivent l'ordre du profil. Le texte affiché est {@code label}.
+	 * <p><b>Métier / flow :</b> champ de {@code GET /api/int/teacher/subjects},
+	 * calculé après le regroupement des classes. Choisir une ligne côté écran
+	 * remplit le nom ; la création reste {@code POST}.
+	 */
+	private List<AddableCourse> addableCourses(
+			long targetSchoolId,
+			String targetGrade,
+			List<TeacherSchoolLink> links,
+			List<TeacherSubjectPort.SubjectListing> listing,
+			List<CatalogSchool> catalog) {
+		Set<String> present = new HashSet<>();
+		for (TeacherSubjectPort.SubjectListing row : listing) {
+			StoredSubject subject = row.subject();
+			if (subject.schoolId() == targetSchoolId && targetGrade.equals(subject.grade())) {
+				present.add(nameKey(subject.name()));
+			}
+		}
+		Map<String, CourseDraft> drafts = new LinkedHashMap<>();
+		for (TeacherSchoolLink link : links) {
+			List<String> grades = SchoolCurricula.ordered(link.curriculum(), link.grades());
+			if (grades.isEmpty()) {
+				grades = link.grades();
+			}
+			String sourceSchool = schoolName(link.schoolId(), catalog);
+			String postal = postalCode(link.schoolId(), catalog);
+			for (String grade : grades) {
+				for (TeacherSubjectPort.SubjectListing row : listing) {
+					StoredSubject subject = row.subject();
+					if (subject.schoolId() != link.schoolId() || !grade.equals(subject.grade())) {
+						continue;
+					}
+					String key = nameKey(subject.name());
+					if (present.contains(key)) {
+						continue;
+					}
+					String groupKey = link.schoolId() + "\n" + key;
+					CourseDraft draft = drafts.get(groupKey);
+					if (draft == null) {
+						draft = new CourseDraft(subject.name(), link.schoolId(), sourceSchool, postal);
+						drafts.put(groupKey, draft);
+					}
+					draft.addGrade(grade);
+				}
+			}
+		}
+		List<AddableCourse> courses = new ArrayList<>();
+		for (CourseDraft draft : drafts.values()) {
+			courses.add(draft.toCourse());
+		}
+		Collator order = Collator.getInstance(Locale.FRENCH);
+		order.setStrength(Collator.PRIMARY);
+		courses.sort((left, right) -> {
+			int byName = order.compare(left.name(), right.name());
+			if (byName != 0) {
+				return byName;
+			}
+			return order.compare(left.schoolName(), right.schoolName());
+		});
+		return List.copyOf(courses);
+	}
+
+	private static String postalCode(long schoolId, List<CatalogSchool> catalog) {
+		if (catalog == null) {
+			return "";
+		}
+		for (CatalogSchool school : catalog) {
+			if (school.id() == schoolId) {
+				return school.postalCode() == null ? "" : school.postalCode();
+			}
+		}
+		return "";
+	}
+
+	private static String courseLabel(String name, String postalCode, List<String> grades, String schoolName) {
+		List<String> parts = new ArrayList<>();
+		parts.add(name);
+		if (postalCode != null && !postalCode.isBlank()) {
+			parts.add(postalCode.trim());
+		}
+		if (!grades.isEmpty()) {
+			parts.add(String.join(", ", grades));
+		}
+		if (schoolName != null && !schoolName.isBlank()) {
+			parts.add(schoolName);
+		}
+		return String.join(" — ", parts);
 	}
 
 	private static String schoolName(long schoolId, List<CatalogSchool> catalog) {
@@ -1124,6 +1226,40 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 
 	private static AuthDomainException inviteMissing() {
 		return new AuthDomainException(AuthErrorCode.NOT_FOUND, INVITE_MISSING);
+	}
+
+	/** Accumulation d'une matière (même école, même nom) sur plusieurs années. */
+	private static final class CourseDraft {
+
+		private final String name;
+		private final long schoolId;
+		private final String schoolName;
+		private final String postalCode;
+		private final List<String> grades = new ArrayList<>();
+
+		private CourseDraft(String name, long schoolId, String schoolName, String postalCode) {
+			this.name = name;
+			this.schoolId = schoolId;
+			this.schoolName = schoolName;
+			this.postalCode = postalCode;
+		}
+
+		private void addGrade(String grade) {
+			if (!grades.contains(grade)) {
+				grades.add(grade);
+			}
+		}
+
+		private AddableCourse toCourse() {
+			List<String> years = List.copyOf(grades);
+			return new AddableCourse(
+					name,
+					schoolId,
+					schoolName,
+					postalCode,
+					years,
+					courseLabel(name, postalCode, years, schoolName));
+		}
 	}
 }
 

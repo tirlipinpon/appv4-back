@@ -31,6 +31,8 @@ import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredDeactivateNo
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredTransferRequest;
 import com.appv4.auth.application.result.TeacherSubjectsView;
+import com.appv4.auth.application.result.TeacherSubjectsView.AddableCourse;
+import com.appv4.auth.application.result.TeacherSubjectsView.GradeGroup;
 import com.appv4.auth.application.result.TeacherSubjectsView.SharedHolder;
 import com.appv4.auth.application.result.TeacherSubjectsView.SubjectLine;
 import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
@@ -72,8 +74,8 @@ class TeacherSubjectServiceTest {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE2"))));
 		List<CatalogSchool> catalog = List.of(
-				new CatalogSchool(FRENCH_SCHOOL, "École française", "France", "Primaire"),
-				new CatalogSchool(BELGIAN_SCHOOL, "École belge", "Belgique", "Primaire"));
+				new CatalogSchool(FRENCH_SCHOOL, "École française", "France", "Primaire", "75011"),
+				new CatalogSchool(BELGIAN_SCHOOL, "École belge", "Belgique", "Primaire", "1000"));
 		TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
 		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
 		service = new TeacherSubjectService(subjects, profiles, () -> catalog, roles, questions);
@@ -117,6 +119,44 @@ class TeacherSubjectServiceTest {
 		assertThat(french.owner().displayName()).isEqualTo("Anne");
 		assertThat(maths.id()).isNotEqualTo(mathsCe2.id());
 		assertThat(subjects.all()).hasSize(3);
+	}
+
+	@Test
+	void listsCoursesMissingFromTheYearWithPostalCodeYearsAndSchool() {
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Français");
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
+		service.create(TEACHER_ID, "teacher", BELGIAN_SCHOOL, "3e primaire", "Éveil");
+
+		TeacherSubjectsView view = service.list(TEACHER_ID, "teacher");
+		GradeGroup ce1 = view.schools().get(0).grades().get(0);
+		GradeGroup ce2 = view.schools().get(0).grades().get(1);
+		GradeGroup belgian = view.schools().get(1).grades().get(0);
+
+		assertThat(ce1.addableCourses()).extracting(AddableCourse::name).containsExactly("Éveil");
+		AddableCourse eveil = ce1.addableCourses().get(0);
+		assertThat(eveil.postalCode()).isEqualTo("1000");
+		assertThat(eveil.grades()).containsExactly("3e primaire");
+		assertThat(eveil.schoolName()).isEqualTo("École belge");
+		assertThat(eveil.schoolId()).isEqualTo(BELGIAN_SCHOOL);
+		assertThat(eveil.label()).isEqualTo("Éveil — 1000 — 3e primaire — École belge");
+
+		assertThat(ce2.addableCourses()).extracting(AddableCourse::name).containsExactly("Éveil", "Français");
+		AddableCourse francais = ce2.addableCourses().get(1);
+		assertThat(francais.postalCode()).isEqualTo("75011");
+		assertThat(francais.grades()).containsExactly("CE1");
+		assertThat(francais.schoolName()).isEqualTo("École française");
+		assertThat(francais.label()).isEqualTo("Français — 75011 — CE1 — École française");
+		assertThat(ce2.addableCourses()).extracting(AddableCourse::name).doesNotContain("Mathématiques");
+
+		assertThat(belgian.addableCourses()).extracting(AddableCourse::name)
+				.containsExactly("Français", "Mathématiques");
+		AddableCourse maths = belgian.addableCourses().get(1);
+		assertThat(maths.grades()).containsExactly("CE1", "CE2");
+		assertThat(maths.postalCode()).isEqualTo("75011");
+		assertThat(maths.schoolName()).isEqualTo("École française");
+		assertThat(maths.label()).isEqualTo("Mathématiques — 75011 — CE1, CE2 — École française");
+		assertThat(belgian.addableCourses()).extracting(AddableCourse::name).doesNotContain("Éveil");
 	}
 
 	@Test

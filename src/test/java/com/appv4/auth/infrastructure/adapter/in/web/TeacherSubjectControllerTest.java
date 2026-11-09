@@ -102,7 +102,14 @@ class TeacherSubjectControllerTest {
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[1].name").value("Mathématiques"))
 				.andExpect(jsonPath("$.schools[0].grades[0].subjects[1].followedByMe").value(true))
 				.andExpect(jsonPath("$.schools[0].grades[1].grade").value("CE2"))
-				.andExpect(jsonPath("$.schools[0].grades[1].subjects").isEmpty());
+				.andExpect(jsonPath("$.schools[0].grades[1].subjects").isEmpty())
+				.andExpect(jsonPath("$.schools[0].grades[0].addableCourses").isEmpty())
+				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[0].name").value("Français"))
+				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[0].grades[0]").value("CE1"))
+				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[0].label").value("Français — CE1"))
+				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[1].name").value("Mathématiques"))
+				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[1].postalCode").value(""))
+				.andExpect(jsonPath("$.schools[0].grades[1].addableCourses[1].schoolName").value(""));
 	}
 
 	@Test

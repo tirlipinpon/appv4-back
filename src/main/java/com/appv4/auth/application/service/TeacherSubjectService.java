@@ -3,10 +3,10 @@ package com.appv4.auth.application.service;
 import java.text.Collator;
 import java.text.Normalizer;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -21,6 +21,7 @@ import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.AccessHolder;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredDeactivateNotice;
@@ -43,14 +44,17 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
  *
  * <p><b>Business :</b> il crée, voit et retire un nom dans une année déjà cochée.
  * Seul le créateur renomme, même si la matière est partagée. Après un déplacement
- * accepté, le collègue devient le créateur et peut renommer. Dans cette année,
+ * ou un handover accepté, le collègue devient le créateur et peut renommer. Dans cette année,
  * il voit aussi les matières déjà suivies par un collègue, et le nom de ce
  * collègue, sans pouvoir les modifier tant qu'il ne les suit pas.
  * S'il retape le nom d'une matière retirée, on lui propose de
- * la réactiver (même enregistrement). Si le nom est déjà pris, ou s'il
+ * la réactiver (même enregistrement) : le restaurateur en devient le propriétaire.
+ * Si le nom est déjà pris, ou s'il
  * ressemble fortement à une matière encore visible, il peut demander au
  * créateur qui la possède encore de la partager. Il propose aussi un déplacement
  * ou un partage à un collègue qui n'a pas encore la matière ; le collègue accepte ou refuse.
+ * S'il veut partir alors que d'autres suivent, il désigne un successeur (handover) ;
+ * acceptation / refus avec alertes ; si tous refusent, la matière est retirée.
  * La désactivation est par accès :
  * le non-créateur seulement pour lui ; le créateur peut cibler des co-profs et
  * les autres détenteurs reçoivent une alerte. Pas de copie : même id.
@@ -94,6 +98,25 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public static final String MODE_SHARE = "share";
 	/** Le collègue demande au créateur de partager. L'accès ne change qu'après acceptation. */
 	public static final String MODE_ASK = "ask";
+	/**
+	 * Le créateur demande à un co-détenteur de reprendre la propriété pour pouvoir partir.
+	 */
+	public static final String MODE_HANDOVER = "handover";
+	public static final String HANDOVER_REQUIRED =
+			"Choisis un collègue qui suit déjà cette matière pour lui en laisser la responsabilité.";
+	public static final String HANDOVER_NOT_HOLDER =
+			"Ce professeur ne suit pas cette matière.";
+	public static final String HANDOVER_ALREADY_REFUSED =
+			"Ce collègue a déjà refusé de reprendre cette matière.";
+	public static final String HANDOVER_NOT_OWNER =
+			"Seul le propriétaire peut proposer de laisser la matière.";
+	public static final String OWNER_WITHOUT_ACCESS =
+			"Cette matière n'a plus de propriétaire joignable. Elle ne peut pas être demandée ainsi.";
+	public static final String NOTICE_KIND_DEACTIVATE = "deactivate";
+	public static final String NOTICE_KIND_HANDOVER_ACCEPTED = "handover_accepted";
+	public static final String NOTICE_KIND_HANDOVER_REJECTED = "handover_rejected";
+	/** Refus d'une invite move / share / ask (pas handover). */
+	public static final String NOTICE_KIND_INVITE_REJECTED = "invite_rejected";
 
 	/**
 	 * Message affiché quand le nom est déjà pris et que le professeur peut
@@ -130,16 +153,19 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	private final TeacherProfilePort teacherProfilePort;
 	private final SchoolCatalogPort schoolCatalogPort;
 	private final ActiveRolePort activeRolePort;
+	private final TeacherQuestionPort teacherQuestionPort;
 
 	public TeacherSubjectService(
 			TeacherSubjectPort teacherSubjectPort,
 			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort,
-			ActiveRolePort activeRolePort) {
+			ActiveRolePort activeRolePort,
+			TeacherQuestionPort teacherQuestionPort) {
 		this.teacherSubjectPort = teacherSubjectPort;
 		this.teacherProfilePort = teacherProfilePort;
 		this.schoolCatalogPort = schoolCatalogPort;
 		this.activeRolePort = activeRolePort;
+		this.teacherQuestionPort = teacherQuestionPort;
 	}
 
 	@Override
@@ -162,7 +188,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		String trimmed = requiredName(name);
 		String key = nameKey(trimmed);
 		if (removedAndFree(schoolId, grade, key)) {
-			throw bad(REMOVED_RESTORABLE);
+			throw new AuthDomainException(AuthErrorCode.SUBJECT_RESTORABLE, REMOVED_RESTORABLE);
 		}
 		if (teacherSubjectPort.nameTaken(schoolId, grade, key, null)) {
 			throw bad(takenMessage(userId, schoolId, grade, key));
@@ -302,6 +328,13 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	public void remove(long userId, String activeRole, long subjectId) {
 		requireTeacher(activeRole);
 		requireAccount(userId);
+		StoredSubject subject = requireOwned(userId, subjectId);
+		if (subject.userId() == userId) {
+			List<Long> holders = teacherSubjectPort.accessUserIds(subjectId);
+			if (holders != null && holders.size() > 1) {
+				throw bad(HANDOVER_REQUIRED);
+			}
+		}
 		if (!teacherSubjectPort.hide(userId, subjectId)) {
 			throw missing();
 		}
@@ -329,6 +362,10 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		if (colleagueUserId == null) {
 			throw bad(COLLEAGUE_REQUIRED);
 		}
+		if (MODE_HANDOVER.equals(transferMode)) {
+			requestHandover(userId, subject, colleagueUserId);
+			return;
+		}
 		if (colleagueUserId == userId || teacherSubjectPort.hasAccess(subjectId, colleagueUserId)) {
 			throw bad(ALREADY_HAS);
 		}
@@ -339,6 +376,29 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw bad(INVITE_PENDING);
 		}
 		teacherSubjectPort.insertTransferRequest(subjectId, userId, colleagueUserId, transferMode);
+	}
+
+	/**
+	 * Le propriétaire désigne un co-détenteur pour reprendre la matière avant de partir.
+	 */
+	private void requestHandover(long userId, StoredSubject subject, long colleagueUserId) {
+		if (subject.userId() != userId) {
+			throw bad(HANDOVER_NOT_OWNER);
+		}
+		if (colleagueUserId == userId) {
+			throw bad(COLLEAGUE_REQUIRED);
+		}
+		if (!teacherSubjectPort.hasAccess(subject.id(), colleagueUserId)) {
+			throw bad(HANDOVER_NOT_HOLDER);
+		}
+		if (teacherSubjectPort.rejectedHandoverToUserIds(subject.id(), userId).contains(colleagueUserId)) {
+			throw bad(HANDOVER_ALREADY_REFUSED);
+		}
+		if (teacherSubjectPort.hasPendingTransfer(subject.id(), colleagueUserId)
+				|| teacherSubjectPort.hasPendingTransferBetween(subject.id(), userId, colleagueUserId)) {
+			throw bad(INVITE_PENDING);
+		}
+		teacherSubjectPort.insertTransferRequest(subject.id(), userId, colleagueUserId, MODE_HANDOVER);
 	}
 
 	@Override
@@ -357,6 +417,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			String fromName = teacherProfilePort.findAccount(request.fromUserId())
 					.map(TeacherAccount::displayName)
 					.orElse("");
+			String from = fromName == null ? "" : fromName;
 			lines.add(new InviteLine(
 					request.id(),
 					row.id(),
@@ -365,7 +426,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 					schoolName(row.schoolId(), catalog),
 					row.grade(),
 					request.mode(),
-					fromName == null ? "" : fromName));
+					from,
+					inviteMessage(request.mode(), from, row.name(), schoolName(row.schoolId(), catalog), row.grade())));
 		}
 		return new TeacherTransferInvitesView(lines);
 	}
@@ -382,6 +444,10 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				.orElseThrow(() -> bad(INVITE_STALE));
 		if (MODE_ASK.equals(request.mode())) {
 			acceptShareAsk(userId, request, subject);
+			return;
+		}
+		if (MODE_HANDOVER.equals(request.mode())) {
+			acceptHandover(userId, request, subject);
 			return;
 		}
 		if (!teacherSubjectPort.hasAccess(request.subjectId(), request.fromUserId())) {
@@ -416,6 +482,11 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				.findPendingTransferForTarget(inviteId, userId)
 				.orElseThrow(() -> inviteMissing());
 		teacherSubjectPort.markTransferRejected(request.id());
+		if (MODE_HANDOVER.equals(request.mode())) {
+			afterHandoverRejected(request);
+			return;
+		}
+		notifyInviteRejected(request);
 	}
 
 	@Override
@@ -426,20 +497,22 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		List<NoticeLine> lines = new ArrayList<>();
 		for (StoredDeactivateNotice notice : teacherSubjectPort.findOpenDeactivateNoticesTo(userId)) {
 			Optional<StoredSubject> subject = teacherSubjectPort.findVisible(notice.subjectId());
-			if (subject.isEmpty()) {
-				continue;
+			String subjectName = subject.map(StoredSubject::name).orElse("cette matière");
+			long subjectId = subject.map(StoredSubject::id).orElse(notice.subjectId());
+			String kind = notice.kind() == null || notice.kind().isBlank()
+					? NOTICE_KIND_DEACTIVATE
+					: notice.kind();
+			String message = notice.message();
+			if (message == null || message.isBlank()) {
+				String fromName = teacherProfilePort.findAccount(notice.fromUserId())
+						.map(TeacherAccount::displayName)
+						.orElse("");
+				message = deactivateNoticeMessage(
+						fromName == null ? "" : fromName,
+						subjectName,
+						notice.deactivatedUserIds());
 			}
-			String fromName = teacherProfilePort.findAccount(notice.fromUserId())
-					.map(TeacherAccount::displayName)
-					.orElse("");
-			lines.add(new NoticeLine(
-					notice.id(),
-					subject.get().id(),
-					subject.get().name(),
-					deactivateNoticeMessage(
-							fromName == null ? "" : fromName,
-							subject.get().name(),
-							notice.deactivatedUserIds())));
+			lines.add(new NoticeLine(notice.id(), subjectId, subjectName, kind, message));
 		}
 		return new TeacherDeactivateNoticesView(lines);
 	}
@@ -492,66 +565,47 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	}
 
 	private TeacherSubjectsView grouped(long userId) {
-		List<StoredSubject> owned = teacherSubjectPort.findByUser(userId);
-		if (owned == null) {
-			owned = List.of();
-		}
+		List<TeacherSchoolLink> links = teacherProfilePort.findSchools(userId);
+		List<TeacherSubjectPort.SubjectListing> listing = teacherSubjectPort.findListing(userId,
+				links.stream().map(TeacherSchoolLink::schoolId).distinct().toList(),
+				links.stream().flatMap(link -> link.grades().stream()).distinct().toList());
+		Map<Long, Long> questionCounts = teacherQuestionPort.countBySubjectIds(
+				listing.stream().map(row -> row.subject().id()).distinct().toList());
 		List<CatalogSchool> catalog = schoolCatalogPort.list();
 		List<SchoolGroup> schools = new ArrayList<>();
-		for (TeacherSchoolLink link : teacherProfilePort.findSchools(userId)) {
+		for (TeacherSchoolLink link : links) {
 			List<String> grades = SchoolCurricula.ordered(link.curriculum(), link.grades());
 			if (grades.isEmpty()) {
 				grades = link.grades();
 			}
 			List<GradeGroup> groups = new ArrayList<>();
 			for (String grade : grades) {
-				groups.add(new GradeGroup(grade, linesFor(userId, link.schoolId(), grade, owned)));
+				groups.add(new GradeGroup(grade, listingLines(userId, link.schoolId(), grade, listing, questionCounts)));
 			}
 			schools.add(new SchoolGroup(link.schoolId(), schoolName(link.schoolId(), catalog), groups));
 		}
 		return new TeacherSubjectsView(schools);
 	}
 
-	/**
-	 * Matières de cette année : celles du professeur, plus celles déjà visibles
-	 * dans la classe qu'un collègue suit encore. Une matière sans aucun accès
-	 * n'est pas montrée. La ligne « à moi » garde le flag d'accès personnel.
-	 */
-	private List<SubjectLine> linesFor(
-			long userId, long schoolId, String grade, List<StoredSubject> owned) {
-		List<StoredSubject> matches = new ArrayList<>();
-		Set<Long> seen = new HashSet<>();
-		for (StoredSubject subject : owned) {
-			if (subject.schoolId() == schoolId && grade.equals(subject.grade())) {
-				matches.add(subject);
-				seen.add(subject.id());
-			}
-		}
-		List<StoredSubject> inClass = teacherSubjectPort.findVisibleInClass(schoolId, grade);
-		if (inClass != null) {
-			for (StoredSubject subject : inClass) {
-				if (subject == null || seen.contains(subject.id())) {
-					continue;
-				}
-				if (teacherSubjectPort.hasAccess(subject.id(), userId)) {
-					continue;
-				}
-				List<AccessHolder> holders = teacherSubjectPort.otherAccessHolders(subject.id(), userId);
-				if (holders == null || holders.isEmpty()) {
-					continue;
-				}
-				matches.add(subject);
-				seen.add(subject.id());
-			}
-		}
+	private List<SubjectLine> listingLines(long userId, long schoolId, String grade,
+			List<TeacherSubjectPort.SubjectListing> listing, Map<Long, Long> questionCounts) {
 		Collator order = Collator.getInstance(Locale.FRENCH);
 		order.setStrength(Collator.PRIMARY);
-		matches.sort((left, right) -> order.compare(left.name(), right.name()));
-		List<SubjectLine> lines = new ArrayList<>();
-		for (StoredSubject subject : matches) {
-			lines.add(line(userId, subject));
-		}
-		return List.copyOf(lines);
+		return listing.stream().filter(row -> row.subject().schoolId() == schoolId && grade.equals(row.subject().grade()))
+				.sorted((a, b) -> order.compare(a.subject().name(), b.subject().name()))
+				.map(row -> new SubjectLine(row.subject().id(), row.subject().name(), row.subject().active(),
+						row.subject().userId() == userId, row.followed(),
+						row.others().stream()
+								.map(TeacherSubjectService::sharedHolder).toList(),
+						row.asked().stream()
+								.map(TeacherSubjectService::sharedHolder).toList(),
+						new SharedHolder(row.subject().userId(), row.ownerName()),
+						questionCounts.getOrDefault(row.subject().id(), 0L)))
+				.toList();
+	}
+
+	private static SharedHolder sharedHolder(AccessHolder holder) {
+		return new SharedHolder(holder.userId(), holder.displayName());
 	}
 
 	private SubjectLine line(long userId, StoredSubject subject) {
@@ -563,6 +617,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		List<SharedHolder> shared = holders.stream()
 				.map(holder -> new SharedHolder(holder.userId(), holder.displayName()))
 				.toList();
+		long questionCount = teacherQuestionPort.countBySubjectIds(List.of(subject.id()))
+				.getOrDefault(subject.id(), 0L);
 		return new SubjectLine(
 				subject.id(),
 				subject.name(),
@@ -571,7 +627,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				followedByMe,
 				shared,
 				shareAskedTo(userId, subject.id()),
-				ownerOf(subject));
+				ownerOf(subject),
+				questionCount);
 	}
 
 	/** Propriétaire enregistré : le professeur qui peut renommer. */
@@ -686,7 +743,9 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw bad(MODE_REQUIRED);
 		}
 		String trimmed = mode.trim().toLowerCase(Locale.ROOT);
-		if (!MODE_MOVE.equals(trimmed) && !MODE_SHARE.equals(trimmed)) {
+		if (!MODE_MOVE.equals(trimmed)
+				&& !MODE_SHARE.equals(trimmed)
+				&& !MODE_HANDOVER.equals(trimmed)) {
 			throw bad(MODE_REQUIRED);
 		}
 		return trimmed;
@@ -726,6 +785,122 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	}
 
 	/**
+	 * Le co-détenteur accepte : il devient propriétaire, l'ancien propriétaire quitte.
+	 */
+	private void acceptHandover(long userId, StoredTransferRequest request, StoredSubject subject) {
+		if (subject.userId() != request.fromUserId()) {
+			throw bad(INVITE_STALE);
+		}
+		if (!teacherSubjectPort.hasAccess(request.subjectId(), request.fromUserId())
+				|| !teacherSubjectPort.hasAccess(request.subjectId(), userId)) {
+			throw bad(INVITE_STALE);
+		}
+		if (!hasClass(userId, subject.schoolId(), subject.grade())) {
+			throw bad(INVITE_STALE);
+		}
+		teacherSubjectPort.assignOwnership(request.subjectId(), userId);
+		teacherSubjectPort.markTransferAccepted(request.id());
+		teacherSubjectPort.cancelPendingTransfers(request.subjectId(), request.id());
+		if (!teacherSubjectPort.hide(request.fromUserId(), request.subjectId())) {
+			throw bad(INVITE_STALE);
+		}
+		String acceptorName = teacherProfilePort.findAccount(userId)
+				.map(TeacherAccount::displayName)
+				.orElse("Un collègue");
+		String who = acceptorName == null || acceptorName.isBlank() ? "Un collègue" : acceptorName.trim();
+		teacherSubjectPort.insertSubjectNotice(
+				request.subjectId(),
+				userId,
+				request.fromUserId(),
+				NOTICE_KIND_HANDOVER_ACCEPTED,
+				who + " a accepté de reprendre " + subject.name() + ". Tu n'y as plus accès.");
+	}
+
+	/**
+	 * Refus move / share / ask : l'émetteur reçoit une notice dismissible.
+	 */
+	private void notifyInviteRejected(StoredTransferRequest request) {
+		Optional<StoredSubject> found = teacherSubjectPort.findVisible(request.subjectId());
+		String subjectName = found.map(StoredSubject::name).orElse("cette matière");
+		String rejector = teacherProfilePort.findAccount(request.toUserId())
+				.map(TeacherAccount::displayName)
+				.orElse("Un collègue");
+		String who = rejector == null || rejector.isBlank() ? "Un collègue" : rejector.trim();
+		String message;
+		if (MODE_MOVE.equals(request.mode())) {
+			message = who + " a refusé le déplacement de " + subjectName + ".";
+		} else if (MODE_ASK.equals(request.mode())) {
+			message = who + " a refusé de partager " + subjectName + " avec toi.";
+		} else {
+			message = who + " a refusé de partager " + subjectName + ".";
+		}
+		teacherSubjectPort.insertSubjectNotice(
+				request.subjectId(),
+				request.toUserId(),
+				request.fromUserId(),
+				NOTICE_KIND_INVITE_REJECTED,
+				message);
+	}
+
+	/**
+	 * Refus de reprise : alerte à l'émetteur ; si plus personne d'éligible, matière retirée.
+	 */
+	private void afterHandoverRejected(StoredTransferRequest request) {
+		Optional<StoredSubject> found = teacherSubjectPort.findVisible(request.subjectId());
+		String subjectName = found.map(StoredSubject::name).orElse("cette matière");
+		String rejector = teacherProfilePort.findAccount(request.toUserId())
+				.map(TeacherAccount::displayName)
+				.orElse("Un collègue");
+		String who = rejector == null || rejector.isBlank() ? "Un collègue" : rejector.trim();
+		boolean removeAll = false;
+		if (found.isPresent() && found.get().userId() == request.fromUserId()) {
+			StoredSubject subject = found.get();
+			Set<Long> holders = new LinkedHashSet<>(teacherSubjectPort.accessUserIds(subject.id()));
+			holders.remove(request.fromUserId());
+			Set<Long> rejected = new LinkedHashSet<>(
+					teacherSubjectPort.rejectedHandoverToUserIds(subject.id(), request.fromUserId()));
+			removeAll = true;
+			for (Long holder : holders) {
+				if (!rejected.contains(holder)) {
+					removeAll = false;
+					break;
+				}
+			}
+			if (removeAll) {
+				teacherSubjectPort.hideCompletely(subject.id());
+				teacherSubjectPort.cancelPendingTransfers(subject.id(), null);
+			}
+		}
+		String message = removeAll
+				? who + " a refusé de reprendre " + subjectName
+						+ ". Plus aucun collègue n'accepte : la matière a été retirée."
+				: who + " a refusé de reprendre " + subjectName + ". Tu peux en proposer un autre.";
+		teacherSubjectPort.insertSubjectNotice(
+				request.subjectId(),
+				request.toUserId(),
+				request.fromUserId(),
+				NOTICE_KIND_HANDOVER_REJECTED,
+				message);
+	}
+
+	private static String inviteMessage(
+			String mode, String fromDisplayName, String subjectName, String schoolName, String grade) {
+		String from = fromDisplayName == null || fromDisplayName.isBlank() ? "Un collègue" : fromDisplayName.trim();
+		String place = schoolName == null || schoolName.isBlank()
+				? subjectName + " (" + grade + ")"
+				: subjectName + " (" + schoolName + ", " + grade + ")";
+		if (MODE_ASK.equals(mode)) {
+			return from + " demande à voir aussi " + place + ". Si tu acceptes, vous la partagerez.";
+		}
+		if (MODE_HANDOVER.equals(mode)) {
+			return from + " te demande de reprendre " + place
+					+ ". Si tu acceptes, tu en seras le propriétaire et il quittera la matière.";
+		}
+		String action = MODE_MOVE.equals(mode) ? "déplacer" : "partager";
+		return from + " propose de " + action + " " + place + ".";
+	}
+
+	/**
 	 * Message quand le nom est déjà pris. Propose une demande de partage seulement
 	 * si un autre professeur, encore détenteur, a créé la matière.
 	 */
@@ -739,7 +914,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			return NAME_TAKEN;
 		}
 		if (!teacherSubjectPort.hasAccess(subject.id(), subject.userId())) {
-			return NAME_TAKEN;
+			return OWNER_WITHOUT_ACCESS;
 		}
 		if (teacherSubjectPort.hasPendingTransferBetween(subject.id(), userId, subject.userId())) {
 			return ASK_PENDING;
@@ -747,7 +922,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		String creator = teacherProfilePort.findAccount(subject.userId())
 				.map(TeacherAccount::displayName)
 				.orElse("");
-		return nameCanAsk(creator);
+		throw new AuthDomainException(AuthErrorCode.SUBJECT_SHARE_AVAILABLE, nameCanAsk(creator));
 	}
 
 	/**
@@ -776,7 +951,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw bad(similar ? similarOwn(subject.name()) : NAME_TAKEN);
 		}
 		if (!teacherSubjectPort.hasAccess(subject.id(), subject.userId())) {
-			throw bad(similar ? SUBJECT_MISSING : NAME_TAKEN);
+			throw bad(OWNER_WITHOUT_ACCESS);
 		}
 		return subject;
 	}
@@ -805,7 +980,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		String creator = teacherProfilePort.findAccount(subject.userId())
 				.map(TeacherAccount::displayName)
 				.orElse("");
-		return nameSimilarCanAsk(subject.name(), creator);
+		throw new AuthDomainException(AuthErrorCode.SUBJECT_SHARE_AVAILABLE, nameSimilarCanAsk(subject.name(), creator));
 	}
 
 	/** La matière visible la plus proche, hors nom exactement identique. */

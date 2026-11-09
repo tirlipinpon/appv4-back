@@ -1,6 +1,7 @@
 package com.appv4.auth.application.port.out;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -17,7 +18,19 @@ import java.util.Optional;
  */
 public interface TeacherQuestionPort {
 
-	List<StoredQuestion> findBySubject(long subjectId);
+	List<StoredQuestion> findBySubject(long subjectId, long afterId, int limit);
+
+	/**
+	 * Total de questions par matière.
+	 *
+	 * <p><b>Business :</b> le professeur et le parent voient ce nombre sur la liste
+	 * des matières, sans ouvrir chaque matière.
+	 * <p><b>Technique :</b> une entrée absente de la map vaut 0. Les id inconnus
+	 * ne sont pas inventés : le service lit {@code getOrDefault(id, 0L)}.
+	 * <p><b>Métier / flow :</b> alimente {@code questionCount} sur les listes
+	 * {@code /teacher/subjects} et {@code /parent/subjects}.
+	 */
+	Map<Long, Long> countBySubjectIds(List<Long> subjectIds);
 
 	/**
 	 * Enregistre l'énoncé et les propositions déjà nettoyées (non vides, au moins deux,

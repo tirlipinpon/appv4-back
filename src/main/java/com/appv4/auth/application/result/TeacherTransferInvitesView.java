@@ -17,7 +17,8 @@ public record TeacherTransferInvitesView(List<InviteLine> invites) {
 	}
 
 	/**
-	 * @param mode {@code move} ou {@code share}
+	 * @param mode    {@code move}, {@code share}, {@code ask} ou {@code handover}
+	 * @param message texte prêt à afficher (source de vérité back)
 	 */
 	public record InviteLine(
 			long id,
@@ -27,6 +28,7 @@ public record TeacherTransferInvitesView(List<InviteLine> invites) {
 			String schoolName,
 			String grade,
 			String mode,
-			String fromDisplayName) {
+			String fromDisplayName,
+			String message) {
 	}
 }

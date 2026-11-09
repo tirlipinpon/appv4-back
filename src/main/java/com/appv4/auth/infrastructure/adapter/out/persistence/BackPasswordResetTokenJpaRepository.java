@@ -1,7 +1,6 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,8 +13,14 @@ import org.springframework.data.repository.query.Param;
  */
 public interface BackPasswordResetTokenJpaRepository extends JpaRepository<BackPasswordResetTokenEntity, Long> {
 
-	@Query("select t from BackPasswordResetTokenEntity t where t.user.id = :userId and t.usedAt is null")
-	List<BackPasswordResetTokenEntity> findUnusedByUserId(@Param("userId") Long userId);
+	/** Deletes at most one batch of expired tokens; concurrent workers skip locked rows. */
+	@Modifying(flushAutomatically = true)
+	@Query(value = """
+			delete from back_password_reset_tokens where id in (
+			  select id from back_password_reset_tokens where expires_at < :cutoff
+			  order by expires_at, id limit :batchSize for update skip locked)
+			""", nativeQuery = true)
+	int deleteExpiredBatch(@Param("cutoff") Instant cutoff, @Param("batchSize") int batchSize);
 
 	@Query("""
 			select t from BackPasswordResetTokenEntity t

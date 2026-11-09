@@ -52,6 +52,15 @@ class ParentChildrenControllerTest {
 	}
 
 	@Test
+	void schoolSearchRequiresParentOrTeacherAuthentication() throws Exception {
+		mockMvc.perform(get("/api/int/schools")).andExpect(status().isUnauthorized());
+		mockMvc.perform(get("/api/int/schools").header(HttpHeaders.AUTHORIZATION, bearer("parent")))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.schools").isEmpty());
+		mockMvc.perform(get("/api/int/schools").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
+				.andExpect(status().isOk());
+	}
+
+	@Test
 	void parentListsAnEmptyPage() throws Exception {
 		mockMvc.perform(get("/api/int/parent/children").header(HttpHeaders.AUTHORIZATION, bearer("parent")))
 				.andExpect(status().isOk())

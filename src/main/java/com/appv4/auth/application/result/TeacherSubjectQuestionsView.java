@@ -25,7 +25,11 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
  * <p><b>Métier / flow :</b> résultat de {@code GET/POST /api/int/teacher/subjects/{id}/questions}
  * et des copies renvoyées par {@code POST .../questions/clone}.
  */
-public record TeacherSubjectQuestionsView(List<QuestionLine> questions) {
+public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nextCursor) {
+
+	public TeacherSubjectQuestionsView(List<QuestionLine> questions) {
+		this(questions, null);
+	}
 
 	public record QuestionLine(
 			long id,

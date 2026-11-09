@@ -3,13 +3,16 @@ package com.appv4.auth.infrastructure.adapter.out.persistence;
 import java.text.Collator;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,6 +67,66 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 			rows.add(toStored(found.get(), link.isActive()));
 		}
 		return List.copyOf(rows);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<SubjectListing> findListing(long userId, List<Long> schoolIds, List<String> grades) {
+		if (schoolIds.isEmpty() || grades.isEmpty()) {
+			return List.of();
+		}
+		List<BackTeacherSubjectEntity> rows = new ArrayList<>();
+		for (int start = 0; start < schoolIds.size(); start += 500) {
+			for (int gradeStart = 0; gradeStart < grades.size(); gradeStart += 500) {
+				rows.addAll(subjects.findBySchoolIdInAndGradeLabelInAndHiddenFalseOrderByIdAsc(
+						schoolIds.subList(start, Math.min(start + 500, schoolIds.size())),
+						grades.subList(gradeStart, Math.min(gradeStart + 500, grades.size()))));
+			}
+		}
+		List<Long> ids = rows.stream().map(BackTeacherSubjectEntity::getId).toList();
+		List<BackTeacherSubjectAccessEntity> links = new ArrayList<>();
+		List<BackTeacherSubjectTransferRequestEntity> asks = new ArrayList<>();
+		for (int start = 0; start < ids.size(); start += 500) {
+			List<Long> batch = ids.subList(start, Math.min(start + 500, ids.size()));
+			links.addAll(access.findBySubjectIdInOrderByIdAsc(batch));
+			asks.addAll(transfers.findBySubjectIdInAndFromUserIdAndModeAndStatusOrderByIdAsc(
+					batch, userId, "ask", "pending"));
+		}
+		Map<Long, List<BackTeacherSubjectAccessEntity>> linksBySubject = links.stream()
+				.collect(Collectors.groupingBy(BackTeacherSubjectAccessEntity::getSubjectId));
+		Map<Long, List<BackTeacherSubjectTransferRequestEntity>> asksBySubject = asks.stream()
+				.collect(Collectors.groupingBy(BackTeacherSubjectTransferRequestEntity::getSubjectId));
+		Set<Long> userIds = new HashSet<>();
+		rows.forEach(row -> userIds.add(row.getUserId()));
+		links.forEach(link -> userIds.add(link.getUserId()));
+		asks.forEach(ask -> userIds.add(ask.getToUserId()));
+		Map<Long, String> names = new HashMap<>();
+		List<Long> people = new ArrayList<>(userIds);
+		for (int start = 0; start < people.size(); start += 500) {
+			users.findAllById(people.subList(start, Math.min(start + 500, people.size())))
+					.forEach(user -> names.put(user.getId(),
+							user.getDisplayName() == null ? "" : user.getDisplayName()));
+		}
+		Collator order = Collator.getInstance(Locale.FRENCH);
+		order.setStrength(Collator.PRIMARY);
+		List<SubjectListing> result = new ArrayList<>();
+		for (BackTeacherSubjectEntity row : rows) {
+			List<BackTeacherSubjectAccessEntity> holders = linksBySubject.getOrDefault(row.getId(), List.of());
+			if (holders.isEmpty()) {
+				continue;
+			}
+			BackTeacherSubjectAccessEntity own = holders.stream().filter(link -> link.getUserId() == userId)
+					.findFirst().orElse(null);
+			List<AccessHolder> others = holders.stream().filter(link -> link.getUserId() != userId)
+					.map(link -> new AccessHolder(link.getUserId(), names.getOrDefault(link.getUserId(), "")))
+					.sorted((a, b) -> order.compare(a.displayName(), b.displayName())).toList();
+			List<AccessHolder> asked = asksBySubject.getOrDefault(row.getId(), List.of()).stream()
+					.map(ask -> new AccessHolder(ask.getToUserId(),
+							names.getOrDefault(ask.getToUserId(), ""))).toList();
+			result.add(new SubjectListing(toStored(row, own == null ? row.isActive() : own.isActive()), own != null,
+					others, asked, names.getOrDefault(row.getUserId(), "")));
+		}
+		return List.copyOf(result);
 	}
 
 	@Override
@@ -178,6 +241,19 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 			again.get().hide();
 			subjects.saveAndFlush(again.get());
 		} else {
+			// Invariant : le propriétaire a toujours un accès. Sinon → orphelin (QA #163).
+			Optional<BackTeacherSubjectEntity> again = subjects.findById(subjectId);
+			if (again.isPresent()) {
+				BackTeacherSubjectEntity subject = again.get();
+				if (!access.existsBySubjectIdAndUserId(subjectId, subject.getUserId())) {
+					List<BackTeacherSubjectAccessEntity> remaining =
+							access.findBySubjectIdOrderByIdAsc(subjectId);
+					if (!remaining.isEmpty()) {
+						subject.assignTo(remaining.get(0).getUserId());
+						subjects.flush();
+					}
+				}
+			}
 			syncSubjectActive(subjectId);
 		}
 		return true;
@@ -186,32 +262,15 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	@Override
 	@Transactional(readOnly = true)
 	public Optional<StoredSubject> findRemovedByName(long schoolId, String grade, String nameKey) {
-		BackTeacherSubjectEntity match = null;
-		for (BackTeacherSubjectEntity row : subjects.findBySchoolIdAndGradeLabelOrderByIdAsc(schoolId, grade)) {
-			if (row.getNameKey() == null || !nameKey.equals(row.getNameKey())) {
-				continue;
-			}
-			if (!row.isHidden() && access.countBySubjectId(row.getId()) > 0) {
-				continue;
-			}
-			match = row;
-		}
-		if (match == null) {
-			return Optional.empty();
-		}
-		return Optional.of(toStored(match, false));
+		return subjects.findRemovedByName(schoolId, grade, nameKey, PageRequest.of(0, 1)).stream()
+				.findFirst().map(row -> toStored(row, false));
 	}
 
 	@Override
 	@Transactional(readOnly = true)
 	public Optional<StoredSubject> findVisibleByName(long schoolId, String grade, String nameKey) {
-		for (BackTeacherSubjectEntity row : subjects.findBySchoolIdAndGradeLabelOrderByIdAsc(schoolId, grade)) {
-			if (row.isHidden() || row.getNameKey() == null || !nameKey.equals(row.getNameKey())) {
-				continue;
-			}
-			return Optional.of(toStored(row, row.isActive()));
-		}
-		return Optional.empty();
+		return subjects.findFirstBySchoolIdAndGradeLabelAndNameKeyAndHiddenFalseOrderByIdAsc(schoolId, grade, nameKey)
+				.map(row -> toStored(row, row.isActive()));
 	}
 
 	@Override
@@ -250,6 +309,10 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		} else if (!link.get().isActive()) {
 			link.get().reactivate();
 			access.flush();
+		}
+		if (entity.getUserId() != userId) {
+			entity.assignTo(userId);
+			subjects.flush();
 		}
 		syncSubjectActive(subjectId);
 		return Optional.of(toStored(entity, true));
@@ -311,11 +374,37 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		}
 		access.deleteBySubjectId(subjectId);
 		access.saveAndFlush(new BackTeacherSubjectAccessEntity(subjectId, soleUserId));
-		found.get().assignTo(soleUserId);
-		if (!found.get().isActive()) {
-			found.get().reactivate();
+		BackTeacherSubjectEntity subject = subjects.findById(subjectId).orElseThrow();
+		subject.assignTo(soleUserId);
+		if (!subject.isActive()) {
+			subject.reactivate();
 		}
 		subjects.flush();
+	}
+
+	@Override
+	@Transactional
+	public void assignOwnership(long subjectId, long newOwnerUserId) {
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty() || found.get().isHidden()) {
+			return;
+		}
+		found.get().assignTo(newOwnerUserId);
+		subjects.flush();
+	}
+
+	@Override
+	@Transactional
+	public void hideCompletely(long subjectId) {
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty() || found.get().isHidden()) {
+			return;
+		}
+		access.deleteBySubjectId(subjectId);
+		access.flush();
+		BackTeacherSubjectEntity entity = subjects.findById(subjectId).orElseThrow();
+		entity.hide();
+		subjects.saveAndFlush(entity);
 	}
 
 	@Override
@@ -413,9 +502,35 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 				continue;
 			}
 			notices.save(new BackTeacherSubjectDeactivateNoticeEntity(
-					subjectId, fromUserId, toUserId, encoded));
+					subjectId,
+					fromUserId,
+					toUserId,
+					encoded,
+					BackTeacherSubjectDeactivateNoticeEntity.KIND_DEACTIVATE,
+					null));
 		}
 		notices.flush();
+	}
+
+	@Override
+	@Transactional
+	public void insertSubjectNotice(
+			long subjectId, long fromUserId, long toUserId, String kind, String message) {
+		notices.save(new BackTeacherSubjectDeactivateNoticeEntity(
+				subjectId, fromUserId, toUserId, "", kind, message));
+		notices.flush();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Long> rejectedHandoverToUserIds(long subjectId, long fromUserId) {
+		List<Long> ids = new ArrayList<>();
+		for (BackTeacherSubjectTransferRequestEntity row : transfers
+				.findBySubjectIdAndFromUserIdAndModeAndStatusOrderByIdAsc(
+						subjectId, fromUserId, "handover", "rejected")) {
+			ids.add(row.getToUserId());
+		}
+		return List.copyOf(ids);
 	}
 
 	@Override
@@ -521,11 +636,18 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	}
 
 	private static StoredDeactivateNotice toNotice(BackTeacherSubjectDeactivateNoticeEntity entity) {
+		String kind = entity.getKind();
+		if (kind == null || kind.isBlank()) {
+			kind = BackTeacherSubjectDeactivateNoticeEntity.KIND_DEACTIVATE;
+		}
+		String message = entity.getMessage();
 		return new StoredDeactivateNotice(
 				entity.getId(),
 				entity.getSubjectId(),
 				entity.getFromUserId(),
 				entity.getToUserId(),
+				kind,
+				message == null ? "" : message,
 				decodeIds(entity.getDeactivatedUserIds()));
 	}
 

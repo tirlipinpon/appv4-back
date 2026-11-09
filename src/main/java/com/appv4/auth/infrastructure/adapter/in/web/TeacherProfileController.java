@@ -77,7 +77,7 @@ public class TeacherProfileController {
 			@RequestBody UpdateTeacherProfileRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		UpdateTeacherProfileRequest body = request == null
-				? new UpdateTeacherProfileRequest(null, List.of())
+				? new UpdateTeacherProfileRequest(null, null)
 				: request;
 		TeacherProfileView view = teacherProfileUseCase.update(
 				user.userId(),
@@ -113,8 +113,15 @@ public class TeacherProfileController {
 		return ResponseEntity.ok(toPreview(view));
 	}
 
+	/**
+	 * {@code null} = la page n'envoie pas les écoles (ne pas les remplacer).
+	 * Liste vide = retirer tous les rattachements.
+	 */
 	private static List<TeacherSchoolCommand> toCommands(List<TeacherSchoolInput> schools) {
-		if (schools == null || schools.isEmpty()) {
+		if (schools == null) {
+			return null;
+		}
+		if (schools.isEmpty()) {
 			return List.of();
 		}
 		return schools.stream()
@@ -211,10 +218,13 @@ public class TeacherProfileController {
 	public record TeacherCurriculumOption(String code, String label, List<String> grades) {
 	}
 
-	@Schema(name = "UpdateTeacherProfileRequest")
+	@Schema(
+			name = "UpdateTeacherProfileRequest",
+			description = "Champs absents (null) : ne pas modifier. schools [] vide : retirer toutes les écoles.")
 	public record UpdateTeacherProfileRequest(
-			String displayName,
-			List<TeacherSchoolInput> schools,
+			@Schema(nullable = true, description = "Null = garder le nom actuel") String displayName,
+			@Schema(nullable = true, description = "Null = garder les écoles ; [] = tout retirer")
+					List<TeacherSchoolInput> schools,
 			@Schema(nullable = true) String contactEmail,
 			@Schema(nullable = true) String phone,
 			@Schema(nullable = true) String avatarCode) {

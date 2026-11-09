@@ -55,10 +55,10 @@ public class TeacherModerationService implements TeacherModerationUseCase {
 
 	@Override
 	@Transactional(readOnly = true)
-	public TeacherRequestPage list(long callerId, int limit) {
+	public TeacherRequestPage list(long callerId, int limit, int page) {
 		requireAdmin(callerId);
 		int capped = Math.min(Math.max(limit, 1), LIST_MAX_LIMIT);
-		return teacherModerationPort.findModerationQueue(capped);
+		return teacherModerationPort.findModerationQueue(capped, Math.min(Math.max(0, page), Integer.MAX_VALUE / capped));
 	}
 
 	@Override

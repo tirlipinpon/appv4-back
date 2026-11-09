@@ -100,9 +100,6 @@ class TeacherProfileServiceTest {
 		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "   ", List.of()))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherProfileService.NAME_REQUIRED);
-		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", null, List.of()))
-				.isInstanceOf(AuthDomainException.class)
-				.hasMessage(TeacherProfileService.NAME_REQUIRED);
 		assertThatThrownBy(() -> service.update(TEACHER_ID, "teacher", "x".repeat(256), List.of()))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherProfileService.NAME_TOO_LONG);
@@ -110,6 +107,42 @@ class TeacherProfileServiceTest {
 		assertThat(profiles.account(TEACHER_ID).displayName()).isEqualTo("Ancien nom");
 		assertThat(service.update(TEACHER_ID, "teacher", "x".repeat(255), List.of()).displayName())
 				.hasSize(255);
+	}
+
+	@Test
+	void omittedNameOrSchoolsDoNotOverwriteTheOtherPage() {
+		catalog.add(new CatalogSchool(1L, "École A", "France", "ELEMENTAIRE"));
+		service.update(
+				TEACHER_ID,
+				"teacher",
+				"Nom profil",
+				List.of(new TeacherSchoolCommand(1L, "FRANCE", List.of("CE1"))),
+				"a@example.com",
+				"0470000001",
+				"fox");
+
+		TeacherProfileView afterSchoolsOnly = service.update(
+				TEACHER_ID,
+				"teacher",
+				null,
+				List.of(new TeacherSchoolCommand(1L, "FRANCE", List.of("CE1", "CE2"))));
+		assertThat(afterSchoolsOnly.displayName()).isEqualTo("Nom profil");
+		assertThat(afterSchoolsOnly.contactEmail()).isEqualTo("a@example.com");
+		assertThat(afterSchoolsOnly.schools().get(0).grades()).containsExactly("CE1", "CE2");
+
+		TeacherProfileView afterProfileOnly = service.update(
+				TEACHER_ID,
+				"teacher",
+				"Nouveau nom",
+				null,
+				"b@example.com",
+				null,
+				null);
+		assertThat(afterProfileOnly.displayName()).isEqualTo("Nouveau nom");
+		assertThat(afterProfileOnly.contactEmail()).isEqualTo("b@example.com");
+		assertThat(afterProfileOnly.phone()).isEqualTo("0470000001");
+		assertThat(afterProfileOnly.schools().get(0).grades()).containsExactly("CE1", "CE2");
+		assertThat(profiles.schoolsOf(TEACHER_ID)).hasSize(1);
 	}
 
 	@Test
@@ -152,6 +185,18 @@ class TeacherProfileServiceTest {
 				.contains("1re maternelle", "1re primaire")
 				.doesNotContain("CP", "1re secondaire");
 		assertThat(profiles.schoolsOf(OTHER_ID)).isEmpty();
+	}
+
+	@Test
+	void profileOnlyReturnsSelectedSchoolMetadata() {
+		for (long id = 1; id <= 100; id++) {
+			catalog.add(school(id, "School " + id, SchoolCurricula.COUNTRY_FRANCE, "Primaire"));
+		}
+		service.update(TEACHER_ID, "teacher", "Ancien nom", List.of(
+				new TeacherSchoolCommand(100L, null, List.of("CE1"))));
+		TeacherProfileView view = service.load(TEACHER_ID, "teacher");
+		assertThat(view.schools()).extracting(item -> item.schoolId()).containsExactly(100L);
+		assertThat(view.availableSchools()).extracting(item -> item.id()).containsExactly(100L);
 	}
 
 	@Test

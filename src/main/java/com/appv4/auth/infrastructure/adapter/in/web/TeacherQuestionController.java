@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -113,10 +114,12 @@ public class TeacherQuestionController {
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	public ResponseEntity<TeacherSubjectQuestionsResponse> list(
 			@AuthenticationPrincipal AuthenticatedUser principal,
-			@PathVariable long subjectId) {
+			@PathVariable long subjectId,
+			@RequestParam(defaultValue = "0") long afterId,
+			@RequestParam(defaultValue = "25") int limit) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		return ResponseEntity.ok(questions(
-				teacherQuestionUseCase.list(user.userId(), user.activeRole(), subjectId)));
+				teacherQuestionUseCase.list(user.userId(), user.activeRole(), subjectId, afterId, limit)));
 	}
 
 	@PostMapping("/subjects/{subjectId}/questions")
@@ -462,7 +465,7 @@ public class TeacherQuestionController {
 		for (QuestionLine line : view.questions()) {
 			items.add(item(line));
 		}
-		return new TeacherSubjectQuestionsResponse(items);
+		return new TeacherSubjectQuestionsResponse(items, view.nextCursor());
 	}
 
 	private static TeacherSubjectQuestionItem item(QuestionLine line) {
@@ -535,7 +538,7 @@ public class TeacherQuestionController {
 	}
 
 	@Schema(name = "TeacherSubjectQuestionsResponse")
-	public record TeacherSubjectQuestionsResponse(List<TeacherSubjectQuestionItem> questions) {
+	public record TeacherSubjectQuestionsResponse(List<TeacherSubjectQuestionItem> questions, Long nextCursor) {
 	}
 
 	@Schema(name = "TeacherSubjectQuestionItem")

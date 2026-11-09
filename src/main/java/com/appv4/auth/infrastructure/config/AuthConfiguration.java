@@ -404,6 +404,11 @@ public class AuthConfiguration {
 		return new ConnectedAccountService(authUserAccountPort);
 	}
 
+	@Bean
+	com.appv4.auth.application.service.SchoolCatalogSearchService schoolCatalogSearchService(SchoolCatalogPort catalog) {
+		return new com.appv4.auth.application.service.SchoolCatalogSearchService(catalog);
+	}
+
 	/**
 	 * Profil professeur (SCRUM-159) — nom du compte et écoles, si le référentiel en a.
 	 */
@@ -439,12 +444,14 @@ public class AuthConfiguration {
 			TeacherSubjectPort teacherSubjectPort,
 			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort,
-			ActiveRolePort activeRolePort) {
+			ActiveRolePort activeRolePort,
+			TeacherQuestionPort teacherQuestionPort) {
 		return new TeacherSubjectService(
 				teacherSubjectPort,
 				teacherProfilePort,
 				schoolCatalogPort,
-				activeRolePort);
+				activeRolePort,
+				teacherQuestionPort);
 	}
 
 	/**
@@ -560,8 +567,9 @@ public class AuthConfiguration {
 	ChildSubjectService childSubjectService(
 			ChildPort childPort,
 			ChildSubjectPort childSubjectPort,
-			SchoolCatalogPort schoolCatalogPort) {
-		return new ChildSubjectService(childPort, childSubjectPort, schoolCatalogPort);
+			SchoolCatalogPort schoolCatalogPort,
+			TeacherQuestionPort teacherQuestionPort) {
+		return new ChildSubjectService(childPort, childSubjectPort, schoolCatalogPort, teacherQuestionPort);
 	}
 
 	/**

@@ -2,9 +2,13 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +26,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.result.ChildSubjectsView;
 import com.appv4.auth.application.result.ChildSubjectsView.SubjectOffer;
 import com.appv4.auth.application.result.ParentSubjectsView;
@@ -43,8 +48,10 @@ class ChildSubjectServiceTest {
 		subjects.visible.add(new CatalogSubject(11L, "Mathématiques", "Prof A", 1L, "CE1"));
 		subjects.visible.add(new CatalogSubject(12L, "Mathématiques", "Prof A", 1L, "CE2"));
 		subjects.visible.add(new CatalogSubject(13L, "Sciences", "Prof B", 1L, "CE1"));
+		TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
+		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
 		service = new ChildSubjectService(children, subjects, () -> List.of(
-				new CatalogSchool(1L, "École française", "France", "Primaire")));
+				new CatalogSchool(1L, "École française", "France", "Primaire")), questions);
 	}
 
 	@Test
@@ -124,6 +131,53 @@ class ChildSubjectServiceTest {
 		assertThat(view.proposed()).isNotEmpty().allMatch(offer -> !offer.scolaire());
 		ChildSubjectsView added = one(service.add(1L, "parent", 4L, 10L), 4L);
 		assertThat(added.chosen()).singleElement().extracting(SubjectOffer::scolaire).isEqualTo(false);
+	}
+
+	@Test
+	void boundedSearchAndMutationsKeepOnlyTheAffectedAssociation() {
+		ChildSubjectsView summary = one(service.loadSummary(1L, "parent"), 3L);
+		assertThat(summary.chosen()).hasSize(3);
+		assertThat(summary.proposed()).isEmpty();
+		var page = service.searchOffers(1L, "parent", 3L, "math", 0, "", 0, 1);
+		assertThat(page.offers()).extracting(SubjectOffer::subjectId).containsExactly(12L);
+		assertThat(page.nextCursor()).isNull();
+		assertThat(service.addOne(1L, "parent", 3L, 12L).subjectId()).isEqualTo(12L);
+		assertThat(service.searchOffers(1L, "parent", 3L, "math", 0, "", 0, 1).offers()).isEmpty();
+		assertThat(service.removeOne(1L, "parent", 3L, 11L).subjectId()).isEqualTo(11L);
+		assertThat(service.searchOffers(1L, "parent", 3L, "math", 0, "", 0, 1).offers())
+				.extracting(SubjectOffer::subjectId).containsExactly(11L);
+		assertThat(one(service.loadSummary(1L, "parent"), 3L).chosen())
+				.extracting(SubjectOffer::subjectId).doesNotContain(11L);
+		assertThatThrownBy(() -> service.searchOffers(2L, "parent", 3L, "", 0, "", 0, 10))
+				.hasMessage(ChildSubjectService.CHILD_UNKNOWN);
+	}
+
+	@Test
+	void directSearchAndMutationRespectDefaultsBeforeFamilyWasLoaded() {
+		assertThat(service.searchOffers(1L, "parent", 3L, "sciences", 0, "", 0, 40).offers()).isEmpty();
+		assertThatThrownBy(() -> service.addOne(1L, "parent", 3L, 13L))
+				.hasMessage(ChildSubjectService.ALREADY_LINKED);
+		assertThat(service.removeOne(1L, "parent", 3L, 13L).subjectId()).isEqualTo(13L);
+		assertThat(service.searchOffers(1L, "parent", 3L, "sciences", 0, "", 0, 40).offers())
+				.extracting(SubjectOffer::subjectId).containsExactly(13L);
+	}
+
+	@Test
+	void thousandSubjectCatalogueProducesBoundedSearchAndMutationJson() throws Exception {
+		for (long id = 100; id < 1100; id++) {
+			subjects.visible.add(new CatalogSubject(id, "Course " + id, "Teacher", 1L, "CE2"));
+		}
+		var page = service.searchOffers(1L, "parent", 4L, "course", 0, "", 0, 1000);
+		assertThat(page.offers()).hasSize(40);
+		assertThat(page.nextCursor()).isEqualTo(139L);
+		var legacy = service.add(1L, "parent", 4L, 100L);
+		service.remove(1L, "parent", 4L, 100L);
+		var affected = service.addOne(1L, "parent", 4L, 100L);
+		var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+		int oldBytes = mapper.writeValueAsBytes(legacy).length;
+		int newBytes = mapper.writeValueAsBytes(affected).length;
+		System.out.printf("Synthetic mutation JSON: old=%d bytes, new=%d bytes%n", oldBytes, newBytes);
+		assertThat(newBytes).isLessThan(oldBytes / 20);
 	}
 
 	@Test
@@ -277,6 +331,13 @@ class ChildSubjectServiceTest {
 		@Override
 		public List<CountedLink> visibleLinksForParent(long parentUserId) {
 			return List.of();
+		}
+
+		@Override
+		public void ensureDefault(long childId, long subjectId) {
+			if (linksOf(childId).stream().noneMatch(link -> link.subjectId() == subjectId)) {
+				save(childId, subjectId, false);
+			}
 		}
 
 		@Override

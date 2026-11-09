@@ -2,6 +2,9 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,6 +24,7 @@ import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.AccessHolder;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredDeactivateNotice;
@@ -70,7 +74,9 @@ class TeacherSubjectServiceTest {
 		List<CatalogSchool> catalog = List.of(
 				new CatalogSchool(FRENCH_SCHOOL, "École française", "France", "Primaire"),
 				new CatalogSchool(BELGIAN_SCHOOL, "École belge", "Belgique", "Primaire"));
-		service = new TeacherSubjectService(subjects, profiles, () -> catalog, roles);
+		TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
+		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
+		service = new TeacherSubjectService(subjects, profiles, () -> catalog, roles, questions);
 	}
 
 	@Test
@@ -421,7 +427,7 @@ class TeacherSubjectServiceTest {
 		SubjectLine back = service.restore(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 
 		assertThat(back.id()).isEqualTo(maths.id());
-		assertThat(back.ownedByMe()).isFalse();
+		assertThat(back.ownedByMe()).isTrue();
 		assertThat(back.followedByMe()).isTrue();
 		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
@@ -430,7 +436,49 @@ class TeacherSubjectServiceTest {
 				.extracting(SharedHolder::displayName)
 				.containsExactly("Camille");
 		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques"))
-				.hasMessage(TeacherSubjectService.NAME_TAKEN);
+				.hasMessage(TeacherSubjectService.nameCanAsk("Camille"));
+	}
+
+	@Test
+	void ownerCannotRemoveWhileOthersFollowWithoutHandover() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		assertThatThrownBy(() -> service.remove(TEACHER_ID, "teacher", maths.id()))
+				.hasMessage(TeacherSubjectService.HANDOVER_REQUIRED);
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
+		service.acceptTransfer(OTHER_ID, "teacher", inviteId);
+
+		assertThat(lineOf(OTHER_ID, maths.id()).ownedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(service.listDeactivateNotices(TEACHER_ID, "teacher").notices())
+				.extracting(n -> n.kind(), n -> n.message().contains("Camille"))
+				.containsExactly(org.assertj.core.groups.Tuple.tuple(
+						TeacherSubjectService.NOTICE_KIND_HANDOVER_ACCEPTED, true));
+	}
+
+	@Test
+	void handoverRejectedThenAllGoneRemovesSubject() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
+		service.rejectTransfer(OTHER_ID, "teacher", inviteId);
+
+		assertThat(service.listDeactivateNotices(TEACHER_ID, "teacher").notices())
+				.extracting(n -> n.kind())
+				.containsExactly(TeacherSubjectService.NOTICE_KIND_HANDOVER_REJECTED);
+		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).isEmpty();
+		assertThat(subjects.hidden(maths.id())).isTrue();
 	}
 
 	@Test
@@ -583,6 +631,34 @@ class TeacherSubjectServiceTest {
 		assertThat(lineOf(TEACHER_ID, maths.id()).ownedByMe()).isTrue();
 		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isTrue();
 		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites()).isEmpty();
+		assertThat(service.listDeactivateNotices(TEACHER_ID, "teacher").notices())
+				.extracting(n -> n.kind(), n -> n.message())
+				.containsExactly(org.assertj.core.groups.Tuple.tuple(
+						TeacherSubjectService.NOTICE_KIND_INVITE_REJECTED,
+						"Camille a refusé de partager Mathématiques."));
+	}
+
+	@Test
+	void leavingHolderReassignsOwnershipWhenOwnerHadNoAccess() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		service.acceptTransfer(
+				THIRD_ID, "teacher", service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+		subjects.dropAccess(maths.id(), TEACHER_ID);
+
+		service.remove(OTHER_ID, "teacher", maths.id());
+
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(lineOf(THIRD_ID, maths.id()).ownedByMe()).isTrue();
+		assertThat(lineOf(THIRD_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(TEACHER_ID, maths.id()).ownedByMe()).isFalse();
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(subjects.find(maths.id()).userId()).isEqualTo(THIRD_ID);
 	}
 
 	@Test
@@ -836,6 +912,18 @@ class TeacherSubjectServiceTest {
 			hidden.remove(subjectId);
 		}
 
+		/** Retire l'accès d'un professeur sans toucher au propriétaire enregistré. */
+		void dropAccess(long subjectId, long userId) {
+			Set<Long> holders = accessBySubject.get(subjectId);
+			if (holders != null) {
+				holders.remove(userId);
+			}
+			Map<Long, Boolean> actives = accessActive.get(subjectId);
+			if (actives != null) {
+				actives.remove(userId);
+			}
+		}
+
 		StoredSubject find(long id) {
 			for (StoredSubject row : rows) {
 				if (row.id() == id) {
@@ -855,6 +943,25 @@ class TeacherSubjectServiceTest {
 				}
 			}
 			return owned;
+		}
+
+		@Override
+		public List<TeacherSubjectPort.SubjectListing> findListing(long userId, List<Long> schoolIds, List<String> grades) {
+			List<TeacherSubjectPort.SubjectListing> result = new ArrayList<>();
+			for (StoredSubject row : rows) {
+				if (!schoolIds.contains(row.schoolId()) || !grades.contains(row.grade())
+						|| hidden.contains(row.id()) || accessCount(row.id()) == 0) {
+					continue;
+				}
+				boolean followed = hasAccess(row.id(), userId);
+				List<TeacherSubjectPort.AccessHolder> asked = findPendingAsksFrom(row.id(), userId).stream()
+						.map(ask -> new TeacherSubjectPort.AccessHolder(ask.toUserId(),
+								displayNames.getOrDefault(ask.toUserId(), ""))).toList();
+				result.add(new TeacherSubjectPort.SubjectListing(followed ? withAccessActive(row, userId) : row,
+						followed, otherAccessHolders(row.id(), userId), asked,
+						displayNames.getOrDefault(row.userId(), "")));
+			}
+			return result;
 		}
 
 		@Override
@@ -977,7 +1084,7 @@ class TeacherSubjectServiceTest {
 				}
 				hidden.remove(row.id());
 				StoredSubject restored = new StoredSubject(
-						row.id(), row.userId(), row.schoolId(), row.grade(), row.name(), true);
+						row.id(), userId, row.schoolId(), row.grade(), row.name(), true);
 				rows.set(index, restored);
 				accessBySubject.computeIfAbsent(row.id(), key -> new HashSet<>()).add(userId);
 				accessActive.computeIfAbsent(row.id(), key -> new HashMap<>()).put(userId, true);
@@ -999,6 +1106,22 @@ class TeacherSubjectServiceTest {
 			if (holders.isEmpty()) {
 				hidden.add(subjectId);
 			} else {
+				for (int index = 0; index < rows.size(); index++) {
+					StoredSubject row = rows.get(index);
+					if (row.id() == subjectId && !holders.contains(row.userId())) {
+						long nextOwner = holders.iterator().next();
+						rows.set(
+								index,
+								new StoredSubject(
+										row.id(),
+										nextOwner,
+										row.schoolId(),
+										row.grade(),
+										row.name(),
+										row.active()));
+						break;
+					}
+				}
 				syncGlobalActive(subjectId);
 			}
 			return true;
@@ -1057,6 +1180,25 @@ class TeacherSubjectServiceTest {
 					return;
 				}
 			}
+		}
+
+		@Override
+		public void assignOwnership(long subjectId, long newOwnerUserId) {
+			for (int index = 0; index < rows.size(); index++) {
+				StoredSubject row = rows.get(index);
+				if (row.id() == subjectId) {
+					rows.set(index, new StoredSubject(
+							row.id(), newOwnerUserId, row.schoolId(), row.grade(), row.name(), row.active()));
+					return;
+				}
+			}
+		}
+
+		@Override
+		public void hideCompletely(long subjectId) {
+			accessBySubject.put(subjectId, new HashSet<>());
+			accessActive.put(subjectId, new HashMap<>());
+			hidden.add(subjectId);
 		}
 
 		@Override
@@ -1185,8 +1327,35 @@ class TeacherSubjectServiceTest {
 					continue;
 				}
 				notices.add(new StoredDeactivateNotice(
-						nextNoticeId++, subjectId, fromUserId, toUserId, List.copyOf(deactivatedUserIds)));
+						nextNoticeId++,
+						subjectId,
+						fromUserId,
+						toUserId,
+						TeacherSubjectService.NOTICE_KIND_DEACTIVATE,
+						"",
+						List.copyOf(deactivatedUserIds)));
 			}
+		}
+
+		@Override
+		public void insertSubjectNotice(
+				long subjectId, long fromUserId, long toUserId, String kind, String message) {
+			notices.add(new StoredDeactivateNotice(
+					nextNoticeId++, subjectId, fromUserId, toUserId, kind, message, List.of()));
+		}
+
+		@Override
+		public List<Long> rejectedHandoverToUserIds(long subjectId, long fromUserId) {
+			List<Long> ids = new ArrayList<>();
+			for (StoredTransferRequest row : transfers) {
+				if (row.subjectId() == subjectId
+						&& row.fromUserId() == fromUserId
+						&& TeacherSubjectService.MODE_HANDOVER.equals(row.mode())
+						&& "rejected".equals(row.status())) {
+					ids.add(row.toUserId());
+				}
+			}
+			return ids;
 		}
 
 		@Override

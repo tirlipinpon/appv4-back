@@ -8,6 +8,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,8 +38,9 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 
 	@Override
 	@Transactional(readOnly = true)
-	public List<StoredQuestion> findBySubject(long subjectId) {
-		List<BackSubjectQuestionEntity> rows = questions.findBySubjectIdOrderByIdAsc(subjectId);
+	public List<StoredQuestion> findBySubject(long subjectId, long afterId, int limit) {
+		List<BackSubjectQuestionEntity> rows = questions.findBySubjectIdAndIdGreaterThanOrderByIdAsc(
+				subjectId, afterId, PageRequest.of(0, limit));
 		Map<String, List<BackSubjectQuestionEntity>> byForm = rows.stream()
 				.collect(Collectors.groupingBy(BackSubjectQuestionEntity::getFormCode));
 		Map<Long, StoredContent> contents = new HashMap<>();
@@ -50,6 +52,22 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 			}
 		});
 		return rows.stream().map(row -> stored(row, contents.get(row.getId()))).toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Map<Long, Long> countBySubjectIds(List<Long> subjectIds) {
+		if (subjectIds == null || subjectIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, Long> totals = new HashMap<>();
+		for (int start = 0; start < subjectIds.size(); start += CONTENT_BATCH_SIZE) {
+			List<Long> batch = subjectIds.subList(start, Math.min(start + CONTENT_BATCH_SIZE, subjectIds.size()));
+			for (Object[] row : questions.countGroupedBySubjectId(batch)) {
+				totals.put((Long) row[0], (Long) row[1]);
+			}
+		}
+		return totals;
 	}
 
 	@Override

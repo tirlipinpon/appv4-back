@@ -325,7 +325,8 @@ public class TeacherSubjectController {
 						line.schoolName(),
 						line.grade(),
 						line.mode(),
-						line.fromDisplayName()))
+						line.fromDisplayName(),
+						line.message()))
 				.toList();
 		return ResponseEntity.ok(new TeacherTransferInvitesResponse(items));
 	}
@@ -388,7 +389,7 @@ public class TeacherSubjectController {
 				teacherSubjectUseCase.listDeactivateNotices(user.userId(), user.activeRole());
 		List<TeacherDeactivateNoticeItem> items = view.notices().stream()
 				.map(line -> new TeacherDeactivateNoticeItem(
-						line.id(), line.subjectId(), line.subjectName(), line.message()))
+						line.id(), line.subjectId(), line.subjectName(), line.kind(), line.message()))
 				.toList();
 		return ResponseEntity.ok(new TeacherDeactivateNoticesResponse(items));
 	}
@@ -445,7 +446,8 @@ public class TeacherSubjectController {
 				subject.followedByMe(),
 				shared,
 				asked,
-				owner);
+				owner,
+				subject.questionCount());
 	}
 
 	@Schema(name = "TeacherSubjectsResponse")
@@ -474,7 +476,9 @@ public class TeacherSubjectController {
 					+ "envoyée par ce professeur. Vide s'il n'y en a pas.")
 			List<TeacherSubjectSharedHolder> shareAskedTo,
 			@Schema(description = "Propriétaire de la matière : le professeur qui peut la renommer.")
-			TeacherSubjectSharedHolder owner) {
+			TeacherSubjectSharedHolder owner,
+			@Schema(description = "Nombre total de questions enregistrées sur cette matière.")
+			long questionCount) {
 	}
 
 	@Schema(name = "TeacherSubjectSharedHolder")
@@ -497,7 +501,10 @@ public class TeacherSubjectController {
 	@Schema(name = "TransferTeacherSubjectRequest")
 	public record TransferTeacherSubjectRequest(
 			@Schema(description = "Identifiant du collègue choisi dans la liste") Long colleagueUserId,
-			@Schema(description = "move ou share", allowableValues = { "move", "share" }) String mode) {
+			@Schema(
+					description = "move, share (collègue sans accès) ou handover (co-détenteur reprend la propriété)",
+					allowableValues = { "move", "share", "handover" })
+			String mode) {
 	}
 
 	@Schema(name = "TeacherSubjectColleaguesResponse")
@@ -521,7 +528,8 @@ public class TeacherSubjectController {
 			String schoolName,
 			String grade,
 			String mode,
-			String fromDisplayName) {
+			String fromDisplayName,
+			@Schema(description = "Texte prêt à afficher pour la demande") String message) {
 	}
 
 	@Schema(name = "TeacherDeactivateNoticesResponse")
@@ -530,6 +538,10 @@ public class TeacherSubjectController {
 
 	@Schema(name = "TeacherDeactivateNoticeItem")
 	public record TeacherDeactivateNoticeItem(
-			long id, long subjectId, String subjectName, String message) {
+			long id,
+			long subjectId,
+			String subjectName,
+			@Schema(description = "deactivate, handover_accepted, handover_rejected, invite_rejected, …") String kind,
+			String message) {
 	}
 }

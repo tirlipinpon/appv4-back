@@ -328,15 +328,27 @@ class TeacherQuestionServiceTest {
 	}
 
 	@Test
+	void questionPageIsCappedAndReturnsCursor() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		List<StoredQuestion> rows = java.util.stream.LongStream.rangeClosed(1, 101)
+				.mapToObj(id -> new StoredQuestion(id, SUBJECT_ID, "qcm", "Question", List.of(), List.of(), List.of()))
+				.toList();
+		when(questions.findBySubject(SUBJECT_ID, 0, 101)).thenReturn(rows);
+		var page = service.list(TEACHER_ID, "teacher", SUBJECT_ID, 0, 10000);
+		assertThat(page.questions()).hasSize(100);
+		assertThat(page.nextCursor()).isEqualTo(100);
+	}
+
+	@Test
 	void anotherTeacherDoesNotSeeTheQuestion() {
 		when(subjects.findOwned(10L, SUBJECT_ID)).thenReturn(Optional.empty());
 
-		assertThatThrownBy(() -> service.list(10L, "teacher", SUBJECT_ID))
+		assertThatThrownBy(() -> service.list(10L, "teacher", SUBJECT_ID, 0, 25))
 				.isInstanceOf(AuthDomainException.class)
 				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
 				.isEqualTo(AuthErrorCode.NOT_FOUND);
 
-		verify(questions, never()).findBySubject(SUBJECT_ID);
+		verify(questions, never()).findBySubject(SUBJECT_ID, 0, 26);
 	}
 
 	@Test

@@ -70,15 +70,19 @@ public interface TeacherSubjectUseCase {
 
 	void reactivate(long userId, String activeRole, long subjectId);
 
-	/** Retire l'accès de ce professeur. La matière reste si d'autres y ont accès. */
+	/**
+	 * Retire l'accès de ce professeur. La matière reste si d'autres y ont accès.
+	 * Le propriétaire qui n'est pas seul doit d'abord proposer un handover.
+	 */
 	void remove(long userId, String activeRole, long subjectId);
 
 	TeacherSubjectColleaguesView listColleagues(long userId, String activeRole, long subjectId);
 
 	/**
-	 * Propose un déplacement ou un partage. L'accès ne change qu'après acceptation.
+	 * Propose un déplacement, un partage, ou un handover (reprise de propriété).
+	 * L'accès / la propriété ne change qu'après acceptation.
 	 *
-	 * @param mode {@code move} ou {@code share}
+	 * @param mode {@code move}, {@code share} ou {@code handover}
 	 */
 	void requestTransfer(
 			long userId, String activeRole, long subjectId, Long colleagueUserId, String mode);

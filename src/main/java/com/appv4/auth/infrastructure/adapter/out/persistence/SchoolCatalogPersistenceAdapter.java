@@ -3,6 +3,7 @@ package com.appv4.auth.infrastructure.adapter.out.persistence;
 import java.util.List;
 
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
@@ -37,4 +38,23 @@ public class SchoolCatalogPersistenceAdapter implements SchoolCatalogPort {
 						school.getTeachingTypes()))
 				.toList();
 	}
+	@Override
+	public List<CatalogSchool> findByIds(List<Long> ids) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		return schoolRepository.findAllById(ids).stream()
+				.sorted(java.util.Comparator.comparing(BackSchoolEntity::getId))
+				.map(school -> new CatalogSchool(school.getId(), school.getName(), school.getCountry(),
+						school.getTeachingTypes())).toList();
+	}
+
+	@Override
+	public List<CatalogSchool> search(String country, String query, long afterId, int limit) {
+		String escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+		return schoolRepository.search(country, "%" + escaped + "%", afterId, PageRequest.of(0, limit)).stream()
+				.map(school -> new CatalogSchool(school.getId(), school.getName(), school.getCountry(),
+						school.getTeachingTypes())).toList();
+	}
+
 }

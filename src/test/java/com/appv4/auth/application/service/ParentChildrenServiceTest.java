@@ -2,10 +2,14 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +25,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.result.ParentChildrenView.ChildCard;
 import com.appv4.auth.application.result.ParentChildrenView.KinshipMark;
 
@@ -46,8 +51,11 @@ class ParentChildrenServiceTest {
 			}
 		};
 		NoChildSubjects links = new NoChildSubjects();
+		TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
+		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
 		service = new ParentChildrenService(
-				children, () -> catalog, encoder, links, new ChildSubjectService(children, links, () -> catalog));
+				children, () -> catalog, encoder, links,
+				new ChildSubjectService(children, links, () -> catalog, questions));
 	}
 
 	@Test
@@ -82,6 +90,8 @@ class ParentChildrenServiceTest {
 				command("Noah", "Martin", "8", "Belgique", "3e primaire", 4L, "owl", "9090", "9090"));
 		assertThat(saved.schoolName()).isEqualTo("Ecole Nouvelle");
 		assertThat(saved.grade()).isEqualTo("3e primaire");
+		catalog.add(new CatalogSchool(5L, "Other school", "Belgique", "Primaire"));
+		assertThat(service.list(1L, "parent").schools()).extracting(item -> item.id()).containsExactly(4L);
 
 		assertThatThrownBy(() -> service.add(1L, "parent",
 				command("Noah", "Martin", "8", "Belgique", "1re secondaire", 4L, "owl", "9090", "9090")))
@@ -623,6 +633,10 @@ class ParentChildrenServiceTest {
 		@Override
 		public java.util.List<CountedLink> visibleLinksForParent(long parentUserId) {
 			return java.util.List.of();
+		}
+
+		@Override
+		public void ensureDefault(long childId, long subjectId) {
 		}
 
 		@Override

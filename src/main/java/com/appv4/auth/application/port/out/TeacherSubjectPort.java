@@ -22,6 +22,13 @@ public interface TeacherSubjectPort {
 	/** Matières encore affichées auxquelles ce professeur a accès. {@code active} = accès du viewer. */
 	List<StoredSubject> findByUser(long userId);
 
+	/** Batch data for listing subjects in the viewer's schools. */
+	List<SubjectListing> findListing(long userId, List<Long> schoolIds, List<String> grades);
+
+	record SubjectListing(StoredSubject subject, boolean followed, List<AccessHolder> others,
+			List<AccessHolder> asked, String ownerName) {
+	}
+
 	StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey);
 
 	/**
@@ -110,6 +117,18 @@ public interface TeacherSubjectPort {
 	 */
 	void replaceAccessWith(long subjectId, long soleUserId);
 
+	/**
+	 * Change le propriétaire technique sans toucher aux autres accès.
+	 *
+	 * <p><b>Business :</b> après un handover accepté ou un restore par un autre prof.
+	 */
+	void assignOwnership(long subjectId, long newOwnerUserId);
+
+	/**
+	 * Retire tous les accès et cache la matière (plus personne ne la voit).
+	 */
+	void hideCompletely(long subjectId);
+
 	boolean hasAccess(long subjectId, long userId);
 
 	/** Crée une demande pending. */
@@ -151,6 +170,19 @@ public interface TeacherSubjectPort {
 	void insertDeactivateNotices(
 			long subjectId, long fromUserId, List<Long> toUserIds, List<Long> deactivatedUserIds);
 
+	/**
+	 * Alerte informative (texte déjà formé) pour un destinataire.
+	 *
+	 * @param kind ex. {@code handover_accepted}, {@code handover_rejected}
+	 */
+	void insertSubjectNotice(
+			long subjectId, long fromUserId, long toUserId, String kind, String message);
+
+	/**
+	 * Destinataires d'un handover déjà refusé pour cette matière et cet émetteur.
+	 */
+	List<Long> rejectedHandoverToUserIds(long subjectId, long fromUserId);
+
 	List<StoredDeactivateNotice> findOpenDeactivateNoticesTo(long toUserId);
 
 	/**
@@ -180,7 +212,7 @@ public interface TeacherSubjectPort {
 	/**
 	 * Demande de transfert encore ouverte ou déjà tranchée.
 	 *
-	 * @param mode {@code move}, {@code share} ou {@code ask}
+	 * @param mode {@code move}, {@code share}, {@code ask} ou {@code handover}
 	 */
 	record StoredTransferRequest(
 			long id,
@@ -192,13 +224,17 @@ public interface TeacherSubjectPort {
 	}
 
 	/**
-	 * @param deactivatedUserIds créateur + co-profs choisis au moment de la désactivation
+	 * @param kind               {@code deactivate}, {@code handover_accepted}, …
+	 * @param message            texte prêt ; peut être vide si ancienne ligne deactivate
+	 * @param deactivatedUserIds créateur + co-profs choisis (désactivation) ; vide sinon
 	 */
 	record StoredDeactivateNotice(
 			long id,
 			long subjectId,
 			long fromUserId,
 			long toUserId,
+			String kind,
+			String message,
 			List<Long> deactivatedUserIds) {
 	}
 }

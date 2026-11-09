@@ -212,10 +212,15 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 
 	@Override
 	@Transactional(readOnly = true)
-	public TeacherSubjectQuestionsView list(long userId, String activeRole, long subjectId) {
+	public TeacherSubjectQuestionsView list(long userId, String activeRole, long subjectId, long afterId, int limit) {
 		requireTeacher(activeRole);
 		requireOwned(userId, subjectId);
-		return new TeacherSubjectQuestionsView(lines(teacherQuestionPort.findBySubject(subjectId)));
+		int capped = Math.min(100, Math.max(1, limit));
+		List<StoredQuestion> fetched = teacherQuestionPort.findBySubject(subjectId, Math.max(0, afterId), capped + 1);
+		boolean hasNext = fetched.size() > capped;
+		List<StoredQuestion> page = hasNext ? fetched.subList(0, capped) : fetched;
+		Long next = hasNext ? page.get(page.size() - 1).id() : null;
+		return new TeacherSubjectQuestionsView(lines(page), next);
 	}
 
 	@Override

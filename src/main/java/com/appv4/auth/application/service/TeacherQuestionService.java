@@ -50,11 +50,13 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
+import com.appv4.auth.application.result.LetterAttemptView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
 import com.appv4.auth.application.result.TeacherSubjectFollowersView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
+import com.appv4.auth.application.service.question.LetterByLetterMatch;
 import com.appv4.auth.application.service.question.QuestionFormHandler;
 import com.appv4.auth.application.service.question.QuestionFormHandler.Prepared;
 import com.appv4.auth.application.service.question.QuestionFormRegistry;
@@ -74,6 +76,9 @@ import com.appv4.auth.application.service.question.QuestionFormRegistry;
  * Le nom de la matière ne change pas. L'élève ne joue pas ici.
  * La réponse libre (SCRUM-198) exige un énoncé et une réponse attendue.
  * La comparaison, quand l'élève validera, ignore majuscules, accents et espaces au bord.
+ * La saisie lettre par lettre (SCRUM-182) exige aussi un énoncé et un mot.
+ * L'élève a une case par lettre. Valider ignore les majuscules et les espaces
+ * au bord, et refuse un accent différent.
  * <p><b>Technique :</b> registre de validateurs indépendants par forme.
  * Les énoncés passent par {@link TeacherQuestionPort}. L'accès matière passe par
  * {@link TeacherSubjectPort#findOwned}. Les enfants passent par {@link ChildSubjectPort}.
@@ -137,6 +142,13 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final int TEXTE_ORDER = 11;
 	public static final String ANSWER_REQUIRED = "La réponse attendue est obligatoire.";
 	public static final String ANSWER_TOO_LONG = "La réponse attendue dépasse 500 caractères.";
+
+	public static final String REPONSE_LIBRE = "reponse_libre";
+	public static final String REPONSE_LIBRE_LABEL = "Lettre par lettre";
+	public static final int REPONSE_LIBRE_ORDER = 9;
+	public static final String LETTER_ACCEPTED = "La réponse est acceptée.";
+	public static final String LETTER_REFUSED = "La réponse n'est pas acceptée.";
+	public static final String LETTER_FORM = "Cette question n'utilise pas la saisie lettre par lettre.";
 
 	public static final String IMAGE_CLICK = "image_interactive";
 	public static final String IMAGE_CLICK_LABEL = "Image à cliquer";
@@ -270,6 +282,25 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 		Prepared prepared = handler.prepare(prompt, content);
 		return line(teacherQuestionPort.replace(
 				questionId, prepared.prompt(), prepared.content()));
+	}
+
+	/**
+	 * Compare le mot composé au mot enregistré.
+	 * Une autre forme, ou une question absente, ne donne pas de verdict.
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public LetterAttemptView tryLetterAnswer(
+			long userId, String activeRole, long subjectId, long questionId, String attempt) {
+		requireTeacher(activeRole);
+		requireOwned(userId, subjectId);
+		StoredQuestion current = teacherQuestionPort.findInSubject(subjectId, questionId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, QUESTION_MISSING));
+		if (!REPONSE_LIBRE.equals(current.formCode())) {
+			throw bad(LETTER_FORM);
+		}
+		boolean accepted = LetterByLetterMatch.accepted(current.expectedAnswer(), attempt);
+		return new LetterAttemptView(accepted, accepted ? LETTER_ACCEPTED : LETTER_REFUSED);
 	}
 
 	@Override

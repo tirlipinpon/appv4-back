@@ -9,6 +9,7 @@ import com.appv4.auth.application.service.question.CaseVideQuestionForm;
 import com.appv4.auth.application.service.question.ClickImageQuestionForm;
 import com.appv4.auth.application.service.question.PuzzleQuestionForm;
 import com.appv4.auth.application.service.question.LinkQuestionForm;
+import com.appv4.auth.application.service.question.ReponseLibreQuestionForm;
 import com.appv4.auth.application.service.question.TexteQuestionForm;
 import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
 import java.util.List;
@@ -494,6 +495,15 @@ public class AuthConfiguration {
 	@Bean
 	QuestionFormHandler texteQuestionForm() {
 		return new TexteQuestionForm();
+	}
+
+	/**
+	 * Saisie lettre par lettre dans une matière (SCRUM-182). Une case par lettre.
+	 * Valider ignore les majuscules et les espaces au bord, pas les accents.
+	 */
+	@Bean
+	QuestionFormHandler reponseLibreQuestionForm() {
+		return new ReponseLibreQuestionForm();
 	}
 
 	/**

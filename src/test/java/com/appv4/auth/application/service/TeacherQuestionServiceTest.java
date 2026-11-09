@@ -64,6 +64,7 @@ import com.appv4.auth.application.port.in.TeacherQuestionUseCase.FreeTextInput;
 import com.appv4.auth.application.service.question.CaseVideQuestionForm;
 import com.appv4.auth.application.service.question.ClickImageQuestionForm;
 import com.appv4.auth.application.service.question.PuzzleQuestionForm;
+import com.appv4.auth.application.service.question.ReponseLibreQuestionForm;
 import com.appv4.auth.application.service.question.TexteQuestionForm;
 import com.appv4.auth.application.service.question.LinkQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
@@ -131,14 +132,15 @@ class TeacherQuestionServiceTest {
 		service = new TeacherQuestionService(subjects, questions, children, new QuestionFormRegistry(List.of(
 				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm(),
 				new TrueFalseQuestionForm(), new LinkQuestionForm(), new CaseVideQuestionForm(),
-				new ClickImageQuestionForm(), new PuzzleQuestionForm(), new TexteQuestionForm())));
+				new ClickImageQuestionForm(), new ReponseLibreQuestionForm(),
+				new PuzzleQuestionForm(), new TexteQuestionForm())));
 	}
 
 	@Test
 	void offeredFormsAreMultipleChoiceThenMemoryThenOrderThenTrueFalse() {
 		assertThat(service.listForms(TEACHER_ID, "teacher").forms())
 				.satisfies(forms -> {
-					assertThat(forms).hasSize(9);
+					assertThat(forms).hasSize(10);
 					assertThat(forms.get(0).code()).isEqualTo("qcm");
 					assertThat(forms.get(0).label()).isEqualTo("Choix multiples");
 					assertThat(forms.get(0).sortOrder()).isEqualTo(1);
@@ -160,12 +162,15 @@ class TeacherQuestionServiceTest {
 					assertThat(forms.get(6).code()).isEqualTo("image_interactive");
 					assertThat(forms.get(6).label()).isEqualTo("Image à cliquer");
 					assertThat(forms.get(6).sortOrder()).isEqualTo(8);
-					assertThat(forms.get(7).code()).isEqualTo("puzzle");
-					assertThat(forms.get(7).label()).isEqualTo("Puzzle");
-					assertThat(forms.get(7).sortOrder()).isEqualTo(10);
-					assertThat(forms.get(8).code()).isEqualTo("texte");
-					assertThat(forms.get(8).label()).isEqualTo("Réponse libre");
-					assertThat(forms.get(8).sortOrder()).isEqualTo(11);
+					assertThat(forms.get(7).code()).isEqualTo("reponse_libre");
+					assertThat(forms.get(7).label()).isEqualTo("Lettre par lettre");
+					assertThat(forms.get(7).sortOrder()).isEqualTo(9);
+					assertThat(forms.get(8).code()).isEqualTo("puzzle");
+					assertThat(forms.get(8).label()).isEqualTo("Puzzle");
+					assertThat(forms.get(8).sortOrder()).isEqualTo(10);
+					assertThat(forms.get(9).code()).isEqualTo("texte");
+					assertThat(forms.get(9).label()).isEqualTo("Réponse libre");
+					assertThat(forms.get(9).sortOrder()).isEqualTo(11);
 				});
 	}
 
@@ -947,6 +952,85 @@ class TeacherQuestionServiceTest {
 				.hasMessage(TeacherQuestionService.FORM_LOCKED);
 
 		verify(questions, never()).replace(anyLong(), any(), any());
+	}
+
+	@Test
+	void letterByLetterKeepsThePromptAndTheExpectedWord() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("reponse_libre"), eq("Capitale de la France"), any()))
+				.thenReturn(new StoredQuestion(
+						15L,
+						SUBJECT_ID,
+						"reponse_libre",
+						"Capitale de la France",
+						new TeacherQuestionPort.StoredFreeText("Paris")));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"reponse_libre",
+				"  Capitale de la France  ",
+				new FreeTextInput("  Paris  "));
+
+		assertThat(line.prompt()).isEqualTo("Capitale de la France");
+		assertThat(line.formCode()).isEqualTo("reponse_libre");
+		assertThat(line.formLabel()).isEqualTo("Lettre par lettre");
+		assertThat(line.expectedAnswer()).isEqualTo("Paris");
+		verify(questions).ensureForm(SUBJECT_ID, "reponse_libre", "Lettre par lettre", 9);
+	}
+
+	@Test
+	void letterByLetterRefusesAnEmptyAnswer() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "reponse_libre", "Capitale de la France",
+				new FreeTextInput("  ")))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ANSWER_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("reponse_libre"), any(), any());
+	}
+
+	@Test
+	void letterByLetterRefusesAnEmptyPrompt() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "reponse_libre", "  ",
+				new FreeTextInput("Paris")))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PROMPT_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("reponse_libre"), any(), any());
+	}
+
+	@Test
+	void letterAttemptAcceptsTheSameWordAndRefusesAnAccent() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 15L)).thenReturn(Optional.of(new StoredQuestion(
+				15L, SUBJECT_ID, "reponse_libre", "Capitale de la France",
+				new TeacherQuestionPort.StoredFreeText("Paris"))));
+
+		assertThat(service.tryLetterAnswer(TEACHER_ID, "teacher", SUBJECT_ID, 15L, "PARIS").accepted()).isTrue();
+		assertThat(service.tryLetterAnswer(TEACHER_ID, "teacher", SUBJECT_ID, 15L, "PARIS").message())
+				.isEqualTo(TeacherQuestionService.LETTER_ACCEPTED);
+		assertThat(service.tryLetterAnswer(TEACHER_ID, "teacher", SUBJECT_ID, 15L, "Parïs").accepted()).isFalse();
+		assertThat(service.tryLetterAnswer(TEACHER_ID, "teacher", SUBJECT_ID, 15L, "Parix").message())
+				.isEqualTo(TeacherQuestionService.LETTER_REFUSED);
+	}
+
+	@Test
+	void letterAttemptRefusesAnotherForm() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 15L)).thenReturn(Optional.of(new StoredQuestion(
+				15L, SUBJECT_ID, "texte", "Capitale de la France",
+				new TeacherQuestionPort.StoredFreeText("Paris"))));
+
+		assertThatThrownBy(() -> service.tryLetterAnswer(TEACHER_ID, "teacher", SUBJECT_ID, 15L, "Paris"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.LETTER_FORM);
 	}
 
 	@Test

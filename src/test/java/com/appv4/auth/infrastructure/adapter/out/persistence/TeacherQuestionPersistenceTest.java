@@ -50,7 +50,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 @Import({TeacherQuestionPersistenceAdapter.class, ChoiceQuestionContentStore.class,
 		PairQuestionContentStore.class, ItemQuestionContentStore.class,
 		StatementQuestionContentStore.class, LinkQuestionContentStore.class,
-		CaseVideQuestionContentStore.class, TexteQuestionContentStore.class})
+		CaseVideQuestionContentStore.class, TexteQuestionContentStore.class,
+		LetterQuestionContentStore.class})
 @EnabledIfEnvironmentVariable(named = "APPV4_PERSISTENCE_TEST_URL", matches = ".+")
 class TeacherQuestionPersistenceTest {
 
@@ -242,6 +243,20 @@ class TeacherQuestionPersistenceTest {
 				select form_code from back_subject_question_forms
 				where subject_id = ? and form_code = 'texte'
 				""", String.class, subjectId)).isEqualTo("texte");
+	}
+
+	@Test
+	void letterReplacementKeepsTheExpectedWord() {
+		adapter.ensureForm(subjectId, "reponse_libre", "Lettre par lettre", 9);
+		StoredQuestion saved = adapter.insert(
+				subjectId, "reponse_libre", "Capitale de la France", new FreeTextDraft("Paris"));
+		adapter.replace(saved.id(), "Capitale de la France", new FreeTextDraft("Lyon"));
+		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
+		assertThat(loaded.formCode()).isEqualTo("reponse_libre");
+		assertThat(loaded.expectedAnswer()).isEqualTo("Lyon");
+		assertThat(jdbc.queryForObject("""
+				select expected_answer from back_subject_question_letters where question_id = ?
+				""", String.class, saved.id())).isEqualTo("Lyon");
 	}
 
 	@Test

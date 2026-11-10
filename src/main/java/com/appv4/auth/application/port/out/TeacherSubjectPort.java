@@ -38,9 +38,10 @@ public interface TeacherSubjectPort {
 	List<ReusableSubject> findReusable();
 
 	/**
+	 * @param id     matière en base, pour compter ses questions
 	 * @param hidden vrai si la matière a été retirée de l'écran
 	 */
-	record ReusableSubject(long schoolId, String grade, String name, boolean hidden) {
+	record ReusableSubject(long id, long schoolId, String grade, String name, boolean hidden) {
 	}
 
 	record SubjectListing(StoredSubject subject, boolean followed, List<AccessHolder> others,

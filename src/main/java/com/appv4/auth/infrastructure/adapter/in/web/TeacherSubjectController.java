@@ -65,8 +65,8 @@ public class TeacherSubjectController {
 			description = "Écoles du profil, années cochées, matières triées par nom. "
 					+ "followedByMe faux : visible, mais ce professeur ne la suit pas. "
 					+ "addableCourses : cours déjà créés, absents de l'année affichée. "
-					+ "label commence par « Existe déjà » et donne le nom, le code postal, "
-					+ "les années de création et le nom de l'école.")
+					+ "label commence par le nom, puis le code postal, les années et l'école. "
+					+ "questionCount est le nombre de questions de ce cours.")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace professeur",
@@ -465,7 +465,8 @@ public class TeacherSubjectController {
 				course.postalCode(),
 				course.grades(),
 				course.label(),
-				course.removedHere());
+				course.removedHere(),
+				course.questionCount());
 	}
 
 	@Schema(name = "TeacherSubjectsResponse")
@@ -487,10 +488,11 @@ public class TeacherSubjectController {
 	/**
 	 * Cours déjà créé, proposé pour remplir le nom au lieu de l'écrire.
 	 *
-	 * <p><b>Business :</b> le libellé dit que le cours existe déjà : nom, code postal,
-	 * années et école. Il n'est pas proposé si ce nom est déjà dans l'année affichée.
-	 * <p><b>Technique :</b> {@code label} est le texte du menu. Les autres champs
-	 * portent les mêmes informations, séparées.
+	 * <p><b>Business :</b> le professeur reconnaît le cours par son nom, le code postal,
+	 * les années, l'école et le nombre de questions. Rien n'est écrit devant le nom.
+	 * Il n'est pas proposé si ce nom est déjà dans l'année affichée.
+	 * <p><b>Technique :</b> {@code label} est le texte du menu, sans le nombre.
+	 * {@code questionCount} porte ce nombre.
 	 * <p><b>Métier / flow :</b> lu dans {@code GET /api/int/teacher/subjects}.
 	 * Le choix remplit le nom envoyé à {@code POST /api/int/teacher/subjects}.
 	 */
@@ -501,11 +503,13 @@ public class TeacherSubjectController {
 			String schoolName,
 			String postalCode,
 			List<String> grades,
-			@Schema(description = "« Existe déjà » ou « A été retirée », puis le nom, le code postal, les années et l'école")
+			@Schema(description = "Nom, code postal, années et école. Le nom est en premier, sans indication devant.")
 			String label,
 			@Schema(description = "Vrai si cette matière a été retirée de ce cours et que la ligne "
 					+ "est encore en base. Le choix la réactive.")
-			boolean removedHere) {
+			boolean removedHere,
+			@Schema(description = "Nombre de questions enregistrées sur ce cours. 0 s'il n'y en a pas.")
+			long questionCount) {
 	}
 
 	@Schema(name = "TeacherSubjectItem")

@@ -49,6 +49,7 @@ class TeacherSubjectServiceTest {
 	private MemoryProfile profiles;
 	private MemorySubjects subjects;
 	private MemoryRoles roles;
+	private TeacherQuestionPort questions;
 	private TeacherSubjectService service;
 
 	@BeforeEach
@@ -76,7 +77,7 @@ class TeacherSubjectServiceTest {
 		List<CatalogSchool> catalog = List.of(
 				new CatalogSchool(FRENCH_SCHOOL, "École française", "France", "Primaire", "75011"),
 				new CatalogSchool(BELGIAN_SCHOOL, "École belge", "Belgique", "Primaire", "1000"));
-		TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
+		questions = mock(TeacherQuestionPort.class);
 		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
 		service = new TeacherSubjectService(subjects, profiles, () -> catalog, roles, questions);
 	}
@@ -142,6 +143,7 @@ class TeacherSubjectServiceTest {
 	void removedSubjectCanBeAddedBackBecauseTheRowIsStillInTheDatabase() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 		service.remove(TEACHER_ID, "teacher", maths.id());
+		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of(maths.id(), 7L));
 
 		TeacherSubjectsView view = service.list(TEACHER_ID, "teacher");
 		AddableCourse onCe1 = view.schools().get(0).grades().get(0).addableCourses().get(0);
@@ -150,7 +152,8 @@ class TeacherSubjectServiceTest {
 		assertThat(onCe1.name()).isEqualTo("Mathématiques");
 		assertThat(onCe1.grades()).containsExactly("CE1");
 		assertThat(onCe1.removedHere()).isTrue();
-		assertThat(onCe1.label()).startsWith("A été retirée : Mathématiques");
+		assertThat(onCe1.label()).isEqualTo("Mathématiques — 75011 — CE1 — École française");
+		assertThat(onCe1.questionCount()).isEqualTo(7);
 		assertThat(view.schools().get(0).grades().get(1).addableCourses()).isEmpty();
 	}
 
@@ -973,7 +976,7 @@ class TeacherSubjectServiceTest {
 			List<TeacherSubjectPort.ReusableSubject> all = new ArrayList<>();
 			for (StoredSubject row : rows) {
 				all.add(new TeacherSubjectPort.ReusableSubject(
-						row.schoolId(), row.grade(), row.name(), hidden.contains(row.id())));
+						row.id(), row.schoolId(), row.grade(), row.name(), hidden.contains(row.id())));
 			}
 			return all;
 		}

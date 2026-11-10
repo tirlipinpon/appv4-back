@@ -16,8 +16,8 @@ import java.util.List;
  * {@code ownedByMe} est vrai si ce professeur est le créateur / propriétaire.
  * {@code owner} nomme ce propriétaire, celui qui peut renommer.
  * Chaque année propose les cours déjà créés (toutes écoles) dont le nom n'est
- * pas dans l'année affichée. Le libellé dit que le cours existe déjà, avec le
- * code postal, les années de création et le nom de l'école.
+ * pas dans l'année affichée. Le libellé commence par le nom, puis le code postal,
+ * les années et l'école. Le nombre de questions est à part.
  * <p><b>Technique :</b> pas d'exercice, pas de forme de question, pas d'élève.
  * <p><b>Métier / flow :</b> résultat de {@code GET /api/int/teacher/subjects}.
  */
@@ -52,19 +52,23 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 	 * Matière déjà créée, que le professeur peut reprendre dans une autre année.
 	 *
 	 * <p><b>Business :</b> il reconnaît la matière par son nom, le code postal,
-	 * les années où elle existe déjà et le nom de l'école.
+	 * les années où elle existe déjà, le nom de l'école et le nombre de questions.
+	 * Rien n'est écrit devant le nom.
 	 * <p><b>Technique :</b> un nom identique (casse ignorée) dans la même école
-	 * est une seule ligne, avec toutes ses années.
+	 * est une seule ligne, avec toutes ses années. {@code questionCount} additionne
+	 * les questions de ces lignes.
 	 * <p><b>Métier / flow :</b> champ {@code addableCourses} de chaque année
-	 * dans {@code GET /api/int/teacher/subjects}. Le front affiche {@code label}.
+	 * dans {@code GET /api/int/teacher/subjects}. Le front affiche {@code label}
+	 * et {@code questionCount}.
 	 *
-	 * @param name       nom affiché, celui de la première année trouvée
-	 * @param schoolId   école où la matière a été créée
-	 * @param schoolName nom du référentiel, vide si l'école n'y est plus
-	 * @param postalCode code postal de cette école, vide s'il manque
-	 * @param grades     années où ce nom existe déjà, dans l'ordre du profil
-	 * @param label       texte prêt à afficher
-	 * @param removedHere vrai si la ligne de ce cours a été retirée et reste en base
+	 * @param name          nom affiché, celui de la première année trouvée
+	 * @param schoolId      école où la matière a été créée
+	 * @param schoolName    nom du référentiel, vide si l'école n'y est plus
+	 * @param postalCode    code postal de cette école, vide s'il manque
+	 * @param grades        années où ce nom existe déjà, dans l'ordre du profil
+	 * @param label         texte du menu, le nom en premier
+	 * @param removedHere   vrai si la ligne de ce cours a été retirée et reste en base
+	 * @param questionCount total des questions de ce cours (0 si aucune)
 	 */
 	public record AddableCourse(
 			String name,
@@ -73,7 +77,8 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 			String postalCode,
 			List<String> grades,
 			String label,
-			boolean removedHere) {
+			boolean removedHere,
+			long questionCount) {
 
 		public AddableCourse {
 			grades = grades == null ? List.of() : List.copyOf(grades);

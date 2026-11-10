@@ -28,7 +28,8 @@ public interface TeacherQuestionPort {
 	 * <p><b>Technique :</b> une entrée absente de la map vaut 0. Les id inconnus
 	 * ne sont pas inventés : le service lit {@code getOrDefault(id, 0L)}.
 	 * <p><b>Métier / flow :</b> alimente {@code questionCount} sur les listes
-	 * {@code /teacher/subjects} et {@code /parent/subjects}.
+	 * {@code /teacher/subjects} (matières affichées et cours déjà créés)
+	 * et {@code /parent/subjects}.
 	 */
 	Map<Long, Long> countBySubjectIds(List<Long> subjectIds);
 

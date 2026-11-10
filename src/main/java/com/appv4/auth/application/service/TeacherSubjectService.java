@@ -572,13 +572,13 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		List<TeacherSubjectPort.SubjectListing> listing = teacherSubjectPort.findListing(userId,
 				links.stream().map(TeacherSchoolLink::schoolId).distinct().toList(),
 				links.stream().flatMap(link -> link.grades().stream()).distinct().toList());
-		Map<Long, Long> questionCounts = teacherQuestionPort.countBySubjectIds(
-				listing.stream().map(row -> row.subject().id()).distinct().toList());
 		List<CatalogSchool> catalog = schoolCatalogPort.list();
 		List<TeacherSubjectPort.ReusableSubject> reusable = teacherSubjectPort.findReusable();
 		if (reusable == null) {
 			reusable = List.of();
 		}
+		Map<Long, Long> questionCounts = teacherQuestionPort.countBySubjectIds(
+				countedSubjectIds(listing, reusable));
 		List<SchoolGroup> schools = new ArrayList<>();
 		for (TeacherSchoolLink link : links) {
 			List<String> grades = SchoolCurricula.ordered(link.curriculum(), link.grades());
@@ -590,11 +590,28 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				groups.add(new GradeGroup(
 						grade,
 						listingLines(userId, link.schoolId(), grade, listing, questionCounts),
-						addableCourses(link.schoolId(), grade, listing, reusable, catalog)));
+						addableCourses(link.schoolId(), grade, listing, reusable, catalog, questionCounts)));
 			}
 			schools.add(new SchoolGroup(link.schoolId(), schoolName(link.schoolId(), catalog), groups));
 		}
 		return new TeacherSubjectsView(schools);
+	}
+
+	/**
+	 * Identifiants dont on compte les questions : matières affichées et cours
+	 * proposés dans le menu, y compris une matière retirée encore en base.
+	 */
+	private static List<Long> countedSubjectIds(
+			List<TeacherSubjectPort.SubjectListing> listing,
+			List<TeacherSubjectPort.ReusableSubject> reusable) {
+		LinkedHashSet<Long> ids = new LinkedHashSet<>();
+		for (TeacherSubjectPort.SubjectListing row : listing) {
+			ids.add(row.subject().id());
+		}
+		for (TeacherSubjectPort.ReusableSubject subject : reusable) {
+			ids.add(subject.id());
+		}
+		return List.copyOf(ids);
 	}
 
 	private List<SubjectLine> listingLines(long userId, long schoolId, String grade,
@@ -717,12 +734,13 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	 * Cours déjà créés, que le professeur peut reprendre sans retaper le nom.
 	 *
 	 * <p><b>Business :</b> seules les matières de cette année sont proposées.
-	 * Une matière de 4e primaire n'apparaît pas en 3e primaire. Le libellé dit
-	 * qu'elle existe déjà, ou qu'elle a été retirée de ce cours. Un nom encore
-	 * affiché dans l'année n'est pas reproposé.
+	 * Une matière de 4e primaire n'apparaît pas en 3e primaire. Le libellé
+	 * commence par le nom : code postal, années et école. Le nombre de questions
+	 * est à côté. Un nom encore affiché dans l'année n'est pas reproposé.
 	 * <p><b>Technique :</b> regroupement par école et nom en minuscules.
 	 * {@code removedHere} vrai : la ligne de cette école et de cette année est cachée,
 	 * le choix la réactive. Sinon le choix crée le même nom dans ce cours.
+	 * {@code questionCount} additionne les questions des lignes regroupées.
 	 * <p><b>Métier / flow :</b> champ de {@code GET /api/int/teacher/subjects}.
 	 * Choisir une ligne remplit le nom ; la création reste {@code POST}.
 	 */
@@ -731,7 +749,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			String targetGrade,
 			List<TeacherSubjectPort.SubjectListing> listing,
 			List<TeacherSubjectPort.ReusableSubject> reusable,
-			List<CatalogSchool> catalog) {
+			List<CatalogSchool> catalog,
+			Map<Long, Long> questionCounts) {
 		Set<String> present = new HashSet<>();
 		for (TeacherSubjectPort.SubjectListing row : listing) {
 			StoredSubject subject = row.subject();
@@ -762,6 +781,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				drafts.put(groupKey, draft);
 			}
 			draft.addGrade(subject.grade());
+			draft.addQuestions(questionCounts.getOrDefault(subject.id(), 0L));
 			if (subject.hidden()
 					&& subject.schoolId() == targetSchoolId
 					&& targetGrade.equals(subject.grade())) {
@@ -1243,6 +1263,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		private final String postalCode;
 		private final List<String> grades = new ArrayList<>();
 		private boolean removedHere;
+		private long questionCount;
 
 		private CourseDraft(String name, long schoolId, String schoolName, String postalCode) {
 			this.name = name;
@@ -1261,17 +1282,23 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			this.removedHere = true;
 		}
 
+		private void addQuestions(long count) {
+			if (count > 0) {
+				this.questionCount += count;
+			}
+		}
+
 		private AddableCourse toCourse() {
 			List<String> years = List.copyOf(grades);
-			String prefix = removedHere ? "A été retirée : " : "Existe déjà : ";
 			return new AddableCourse(
 					name,
 					schoolId,
 					schoolName,
 					postalCode,
 					years,
-					prefix + courseLabel(name, postalCode, years, schoolName),
-					removedHere);
+					courseLabel(name, postalCode, years, schoolName),
+					removedHere,
+					questionCount);
 		}
 	}
 }

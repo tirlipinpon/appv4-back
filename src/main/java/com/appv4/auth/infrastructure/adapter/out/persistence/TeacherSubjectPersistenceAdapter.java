@@ -257,6 +257,7 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 			}
 			again.get().hide();
 			subjects.saveAndFlush(again.get());
+			forgetRejectedHandovers(subjectId);
 		} else {
 			// Invariant : le propriétaire a toujours un accès. Sinon → orphelin (QA #163).
 			Optional<BackTeacherSubjectEntity> again = subjects.findById(subjectId);
@@ -422,6 +423,28 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		BackTeacherSubjectEntity entity = subjects.findById(subjectId).orElseThrow();
 		entity.hide();
 		subjects.saveAndFlush(entity);
+		forgetRejectedHandovers(subjectId);
+	}
+
+	/**
+	 * Oublie les refus de reprise d'une matière qui n'appartient plus à personne.
+	 *
+	 * <p><b>Business :</b> un « non » ancien ne doit pas bloquer le propriétaire
+	 * après qu'il a repris un cours retiré de toutes les listes.
+	 * <p><b>Technique :</b> supprime les demandes {@code handover} au statut {@code rejected}.
+	 * Les refus de partage ou de déplacement restent.
+	 * <p><b>Métier / flow :</b> appelé par {@link #hide} quand le dernier accès part,
+	 * et par {@link #hideCompletely} après le dernier refus de reprise.
+	 */
+	private void forgetRejectedHandovers(long subjectId) {
+		List<BackTeacherSubjectTransferRequestEntity> rejected = transfers
+				.findBySubjectIdAndStatusOrderByIdAsc(subjectId, "rejected");
+		for (BackTeacherSubjectTransferRequestEntity row : rejected) {
+			if ("handover".equals(row.getMode())) {
+				transfers.delete(row);
+			}
+		}
+		transfers.flush();
 	}
 
 	@Override

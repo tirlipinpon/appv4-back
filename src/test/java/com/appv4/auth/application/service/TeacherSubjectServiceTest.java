@@ -527,6 +527,56 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
+	void aPastHandoverRefusalIsForgottenOnceNobodyHoldsTheSubject() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		service.rejectTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		assertThat(subjects.hidden(maths.id())).isTrue();
+
+		SubjectLine restored = service.restore(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", restored.id(), OTHER_ID, "share");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		assertThat(lineOf(TEACHER_ID, restored.id()).sharedWith())
+				.extracting(SharedHolder::displayName, SharedHolder::refusedAction)
+				.containsExactly(org.assertj.core.groups.Tuple.tuple("Camille", ""));
+		service.requestTransfer(
+				TEACHER_ID, "teacher", restored.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites())
+				.extracting(InviteLine::mode)
+				.containsExactly(TeacherSubjectService.MODE_HANDOVER);
+	}
+
+	@Test
+	void aHandoverRefusalStaysWhileSomeoneStillHoldsTheSubject() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		service.acceptTransfer(THIRD_ID, "teacher",
+				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		service.rejectTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.remove(THIRD_ID, "teacher", maths.id());
+
+		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName, SharedHolder::refusedAction)
+				.containsExactly(org.assertj.core.groups.Tuple.tuple(
+						"Camille", TeacherSubjectService.HANDOVER_ACTION_NAME));
+		assertThat(subjects.hidden(maths.id())).isFalse();
+	}
+
+	@Test
 	void handoverRejectedThenAllGoneRemovesSubject() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
@@ -1249,6 +1299,7 @@ class TeacherSubjectServiceTest {
 			}
 			if (holders.isEmpty()) {
 				hidden.add(subjectId);
+				forgetRejectedHandovers(subjectId);
 			} else {
 				for (int index = 0; index < rows.size(); index++) {
 					StoredSubject row = rows.get(index);
@@ -1343,6 +1394,13 @@ class TeacherSubjectServiceTest {
 			accessBySubject.put(subjectId, new HashSet<>());
 			accessActive.put(subjectId, new HashMap<>());
 			hidden.add(subjectId);
+			forgetRejectedHandovers(subjectId);
+		}
+
+		private void forgetRejectedHandovers(long subjectId) {
+			transfers.removeIf(row -> row.subjectId() == subjectId
+					&& TeacherSubjectService.MODE_HANDOVER.equals(row.mode())
+					&& "rejected".equals(row.status()));
 		}
 
 		@Override

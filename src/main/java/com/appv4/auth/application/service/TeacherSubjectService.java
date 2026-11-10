@@ -60,6 +60,7 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
  * Les collègues qui suivaient déjà gardent la matière.
  * S'il veut partir alors que d'autres suivent, il désigne un successeur (handover) ;
  * acceptation / refus avec alertes ; si tous refusent, la matière est retirée.
+ * Quand plus personne ne l'a, les anciens refus de reprise sont oubliés.
  * La désactivation est par accès :
  * le non-créateur seulement pour lui ; le créateur peut cibler des co-profs et
  * les autres détenteurs reçoivent une alerte. Pas de copie : même id.

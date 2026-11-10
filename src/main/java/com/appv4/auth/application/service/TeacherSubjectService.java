@@ -1334,7 +1334,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 
 	private static void requireTeacher(String activeRole) {
 		if (!ActiveRoles.TEACHER.equals(activeRole)) {
-			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, SpaceHello.DENIED);
+			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, SpaceAccess.DENIED);
 		}
 	}
 

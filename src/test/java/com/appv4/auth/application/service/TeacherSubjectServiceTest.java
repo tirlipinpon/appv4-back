@@ -967,9 +967,9 @@ class TeacherSubjectServiceTest {
 	@Test
 	void parentCannotOpenThePage() {
 		assertThatThrownBy(() -> service.list(TEACHER_ID, "parent"))
-				.hasMessage(SpaceHello.DENIED);
+				.hasMessage(SpaceAccess.DENIED);
 		assertThatThrownBy(() -> service.create(TEACHER_ID, null, FRENCH_SCHOOL, "CE1", "Français"))
-				.hasMessage(SpaceHello.DENIED);
+				.hasMessage(SpaceAccess.DENIED);
 		assertThat(subjects.all()).isEmpty();
 	}
 

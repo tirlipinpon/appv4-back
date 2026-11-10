@@ -179,9 +179,9 @@ class TeacherStudentsServiceTest {
 	void parentCannotListOrOpenAPhoto() {
 		assertThatThrownBy(() -> service.list(TEACHER_ID, "parent"))
 				.isInstanceOf(AuthDomainException.class)
-				.hasMessage(SpaceHello.DENIED);
+				.hasMessage(SpaceAccess.DENIED);
 		assertThatThrownBy(() -> service.photo(TEACHER_ID, "parent", 1L))
-				.hasMessage(SpaceHello.DENIED);
+				.hasMessage(SpaceAccess.DENIED);
 		assertThat(roster.reads).isZero();
 		assertThat(roster.photoReads).isZero();
 	}

@@ -30,11 +30,6 @@ import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
 import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
-import com.appv4.hello.application.port.in.GetHelloMessageUseCase;
-import com.appv4.hello.application.port.out.HelloMessageRepository;
-import com.appv4.hello.application.service.GetHelloMessageService;
-import com.appv4.hello.domain.model.HelloAudience;
-import com.appv4.hello.domain.model.HelloMessage;
 
 /**
  * Remplace la base pendant les tests web.
@@ -129,23 +124,6 @@ public class TestProfileConfiguration {
 	@Bean
 	ChildSubjectPort childSubjectPort() {
 		return mock(ChildSubjectPort.class, withSettings().strictness(Strictness.LENIENT));
-	}
-
-	@Bean
-	HelloMessageRepository helloMessageRepository() {
-		return audience -> Optional.of(new HelloMessage(textFor(audience)));
-	}
-
-	@Bean
-	GetHelloMessageUseCase getHelloMessageUseCase(HelloMessageRepository helloMessageRepository) {
-		return new GetHelloMessageService(helloMessageRepository);
-	}
-
-	private static String textFor(HelloAudience audience) {
-		if (audience == HelloAudience.ADMIN) {
-			return "admin-helloworld";
-		}
-		return "hello learning";
 	}
 
 	/**

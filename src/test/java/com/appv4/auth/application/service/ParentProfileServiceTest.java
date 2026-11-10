@@ -74,7 +74,7 @@ class ParentProfileServiceTest {
 		assertThatThrownBy(() -> service.update(4L, "parent", "Nom", "a@b.c", "0470000001", "dragon"))
 				.hasMessage(AccountContact.AVATAR_UNKNOWN);
 		assertThatThrownBy(() -> service.update(4L, "teacher", "Nom", "", "", ""))
-				.hasMessage(SpaceHello.DENIED);
+				.hasMessage(SpaceAccess.DENIED);
 
 		assertThat(profiles.account(4L).displayName()).isEqualTo("Ancien");
 		assertThat(profiles.account(4L).contactEmail()).isNull();

@@ -402,7 +402,7 @@ class TeacherProfileServiceTest {
 	private static void assertDenied(Runnable call) {
 		assertThatThrownBy(call::run)
 				.isInstanceOf(AuthDomainException.class)
-				.hasMessage(SpaceHello.DENIED);
+				.hasMessage(SpaceAccess.DENIED);
 	}
 
 	private static final class MemoryProfile implements TeacherProfilePort {

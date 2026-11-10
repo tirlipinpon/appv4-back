@@ -56,8 +56,12 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
  * ressemble fortement à une matière encore visible, il peut demander au
  * créateur qui la possède encore de la partager. Il propose aussi un déplacement
  * ou un partage à un collègue qui n'a pas encore la matière ; le collègue accepte ou refuse.
+ * Au déplacement accepté, seul le propriétaire peut l'envoyer : il quitte sa liste
+ * et le destinataire devient propriétaire.
+ * Les collègues qui suivaient déjà gardent la matière.
  * S'il veut partir alors que d'autres suivent, il désigne un successeur (handover) ;
  * acceptation / refus avec alertes ; si tous refusent, la matière est retirée.
+ * Quand plus personne ne l'a, les anciens refus de reprise sont oubliés.
  * La désactivation est par accès :
  * le non-créateur seulement pour lui ; le créateur peut cibler des co-profs et
  * les autres détenteurs reçoivent une alerte. Pas de copie : même id.
@@ -105,6 +109,15 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	 * Le créateur demande à un co-détenteur de reprendre la propriété pour pouvoir partir.
 	 */
 	public static final String MODE_HANDOVER = "handover";
+	/**
+	 * Nom de l'action affichée à côté d'un collègue qui a déjà refusé la reprise.
+	 * C'est le même libellé que le bouton de l'écran.
+	 */
+	public static final String HANDOVER_ACTION_NAME = "Demander la reprise";
+	/** Affiché à côté d'un collègue qui a déjà la matière, pendant un déplacement. */
+	public static final String ALREADY_ON_LIST = "la possède déjà";
+	/** Affiché à côté d'un collègue qui n'a pas encore la matière, pendant un déplacement. */
+	public static final String NOT_YET_ON_LIST = "pas encore dans sa liste";
 	public static final String HANDOVER_REQUIRED =
 			"Choisis un collègue qui suit déjà cette matière pour lui en laisser la responsabilité.";
 	public static final String HANDOVER_NOT_HOLDER =
@@ -113,6 +126,12 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			"Ce collègue a déjà refusé de reprendre cette matière.";
 	public static final String HANDOVER_NOT_OWNER =
 			"Seul le propriétaire peut proposer de laisser la matière.";
+	/** Déplacer change le propriétaire : un co-détenteur ne peut pas l'envoyer. */
+	public static final String MOVE_ONLY_OWNER = "Seul le propriétaire peut déplacer cette matière.";
+	/** Même libellé que le bouton Déplacer, affiché après un refus. */
+	public static final String MOVE_ACTION_NAME = "Déplacer";
+	public static final String MOVE_ALREADY_REFUSED =
+			"Ce collègue a déjà refusé le déplacement de cette matière.";
 	public static final String OWNER_WITHOUT_ACCESS =
 			"Cette matière n'a plus de propriétaire joignable. Elle ne peut pas être demandée ainsi.";
 	public static final String NOTICE_KIND_DEACTIVATE = "deactivate";
@@ -369,10 +388,25 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			requestHandover(userId, subject, colleagueUserId);
 			return;
 		}
-		if (colleagueUserId == userId || teacherSubjectPort.hasAccess(subjectId, colleagueUserId)) {
+		if (MODE_MOVE.equals(transferMode) && subject.userId() != userId) {
+			throw bad(MOVE_ONLY_OWNER);
+		}
+		if (MODE_MOVE.equals(transferMode)
+				&& rejectedTransferTargets(subjectId, userId, MODE_MOVE).contains(colleagueUserId)) {
+			throw bad(MOVE_ALREADY_REFUSED);
+		}
+		if (colleagueUserId == userId) {
 			throw bad(ALREADY_HAS);
 		}
-		if (!isEligibleColleague(userId, subject, colleagueUserId)) {
+		boolean alreadyFollows = teacherSubjectPort.hasAccess(subjectId, colleagueUserId);
+		if (alreadyFollows) {
+			if (!MODE_MOVE.equals(transferMode) || subject.userId() != userId) {
+				throw bad(ALREADY_HAS);
+			}
+			if (!canReceiveOwnerMove(subject, colleagueUserId)) {
+				throw bad(COLLEAGUE_NOT_ELIGIBLE);
+			}
+		} else if (!isEligibleColleague(userId, subject, colleagueUserId)) {
 			throw bad(COLLEAGUE_NOT_ELIGIBLE);
 		}
 		if (teacherSubjectPort.hasPendingTransfer(subjectId, colleagueUserId)) {
@@ -464,16 +498,14 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			return;
 		}
 		if (MODE_MOVE.equals(request.mode())) {
-			if (teacherSubjectPort.hasAccess(request.subjectId(), userId)) {
+			if (subject.userId() != request.fromUserId()) {
 				throw bad(INVITE_STALE);
 			}
-			teacherSubjectPort.replaceAccessWith(request.subjectId(), userId);
-			teacherSubjectPort.markTransferAccepted(inviteId);
-			teacherSubjectPort.cancelPendingTransfers(request.subjectId(), inviteId);
-		} else {
-			teacherSubjectPort.addAccess(request.subjectId(), userId);
-			teacherSubjectPort.markTransferAccepted(inviteId);
+			acceptMove(userId, request);
+			return;
 		}
+		teacherSubjectPort.addAccess(request.subjectId(), userId);
+		teacherSubjectPort.markTransferAccepted(inviteId);
 	}
 
 	@Override
@@ -530,7 +562,16 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		}
 	}
 
+	/**
+	 * Collègues de la classe. Ceux qui ne suivent pas encore peuvent recevoir un partage
+	 * ou un déplacement. Ceux qui suivent déjà n'apparaissent que pour le propriétaire,
+	 * afin qu'il puisse leur proposer de devenir propriétaire.
+	 */
 	private List<ColleagueLine> eligibleColleagues(long userId, StoredSubject subject) {
+		boolean owner = subject.userId() == userId;
+		Set<Long> refusedMove = owner
+				? rejectedTransferTargets(subject.id(), userId, MODE_MOVE)
+				: Set.of();
 		List<ColleagueLine> lines = new ArrayList<>();
 		for (Long candidate : teacherProfilePort.findUserIdsWithClass(subject.schoolId(), subject.grade())) {
 			if (candidate == null || candidate == userId) {
@@ -539,18 +580,28 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			if (!isAcceptedTeacher(candidate)) {
 				continue;
 			}
-			if (teacherSubjectPort.hasAccess(subject.id(), candidate)) {
+			boolean alreadyFollows = teacherSubjectPort.hasAccess(subject.id(), candidate);
+			if (alreadyFollows && !owner) {
 				continue;
 			}
 			String name = teacherProfilePort.findAccount(candidate)
 					.map(TeacherAccount::displayName)
 					.orElse("");
-			lines.add(new ColleagueLine(candidate, name == null ? "" : name));
+			String label = alreadyFollows ? ALREADY_ON_LIST : NOT_YET_ON_LIST;
+			String refusedAction = refusedMove.contains(candidate) ? MOVE_ACTION_NAME : "";
+			lines.add(new ColleagueLine(
+					candidate, name == null ? "" : name, alreadyFollows, label, refusedAction));
 		}
 		Collator order = Collator.getInstance(Locale.FRENCH);
 		order.setStrength(Collator.PRIMARY);
 		lines.sort((left, right) -> order.compare(left.displayName(), right.displayName()));
 		return List.copyOf(lines);
+	}
+
+	/** Professeur accepté de la même classe : il peut recevoir le déplacement du propriétaire. */
+	private boolean canReceiveOwnerMove(StoredSubject subject, long colleagueUserId) {
+		return isAcceptedTeacher(colleagueUserId)
+				&& hasClass(colleagueUserId, subject.schoolId(), subject.grade());
 	}
 
 	private boolean isEligibleColleague(long userId, StoredSubject subject, long colleagueUserId) {
@@ -620,19 +671,44 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		order.setStrength(Collator.PRIMARY);
 		return listing.stream().filter(row -> row.subject().schoolId() == schoolId && grade.equals(row.subject().grade()))
 				.sorted((a, b) -> order.compare(a.subject().name(), b.subject().name()))
-				.map(row -> new SubjectLine(row.subject().id(), row.subject().name(), row.subject().active(),
-						row.subject().userId() == userId, row.followed(),
-						row.others().stream()
-								.map(TeacherSubjectService::sharedHolder).toList(),
-						row.asked().stream()
-								.map(TeacherSubjectService::sharedHolder).toList(),
-						new SharedHolder(row.subject().userId(), row.ownerName()),
-						questionCounts.getOrDefault(row.subject().id(), 0L)))
+				.map(row -> {
+					Set<Long> refused = refusedHandoverTargets(row.subject().id(), userId);
+					return new SubjectLine(row.subject().id(), row.subject().name(), row.subject().active(),
+							row.subject().userId() == userId, row.followed(),
+							row.others().stream()
+									.map(holder -> sharedHolder(holder, refused)).toList(),
+							row.asked().stream()
+									.map(TeacherSubjectService::sharedHolder).toList(),
+							new SharedHolder(row.subject().userId(), row.ownerName()),
+							questionCounts.getOrDefault(row.subject().id(), 0L));
+				})
 				.toList();
 	}
 
 	private static SharedHolder sharedHolder(AccessHolder holder) {
-		return new SharedHolder(holder.userId(), holder.displayName());
+		return sharedHolder(holder, Set.of());
+	}
+
+	/** Le nom d'action n'est rempli que pour un handover déjà refusé à ce professeur. */
+	private static SharedHolder sharedHolder(AccessHolder holder, Set<Long> refusedHandover) {
+		String action = refusedHandover.contains(holder.userId()) ? HANDOVER_ACTION_NAME : "";
+		return new SharedHolder(holder.userId(), holder.displayName(), action);
+	}
+
+	private Set<Long> rejectedTransferTargets(long subjectId, long fromUserId, String mode) {
+		List<Long> ids = teacherSubjectPort.rejectedTransferToUserIds(subjectId, fromUserId, mode);
+		if (ids == null || ids.isEmpty()) {
+			return Set.of();
+		}
+		return new HashSet<>(ids);
+	}
+
+	private Set<Long> refusedHandoverTargets(long subjectId, long fromUserId) {
+		List<Long> ids = teacherSubjectPort.rejectedHandoverToUserIds(subjectId, fromUserId);
+		if (ids == null || ids.isEmpty()) {
+			return Set.of();
+		}
+		return new HashSet<>(ids);
 	}
 
 	private SubjectLine line(long userId, StoredSubject subject) {
@@ -641,8 +717,9 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		if (holders == null) {
 			holders = List.of();
 		}
+		Set<Long> refused = refusedHandoverTargets(subject.id(), userId);
 		List<SharedHolder> shared = holders.stream()
-				.map(holder -> new SharedHolder(holder.userId(), holder.displayName()))
+				.map(holder -> sharedHolder(holder, refused))
 				.toList();
 		long questionCount = teacherQuestionPort.countBySubjectIds(List.of(subject.id()))
 				.getOrDefault(subject.id(), 0L);
@@ -910,6 +987,25 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			teacherSubjectPort.addAccess(request.subjectId(), request.fromUserId());
 		}
 		teacherSubjectPort.markTransferAccepted(request.id());
+	}
+
+	/**
+	 * Déplacement accepté.
+	 *
+	 * <p><b>Business :</b> l'émetteur ne voit plus la matière. Le destinataire en devient
+	 * le propriétaire. Un collègue qui la suivait déjà la garde.
+	 * <p><b>Technique :</b> accès ajouté, {@code user_id} aligné, puis {@code hide} de l'émetteur.
+	 * L'ordre compte : sinon {@code hide} réattribuerait la propriété au premier accès restant.
+	 * <p><b>Métier / flow :</b> suite de {@link #acceptTransfer} quand le mode est {@code move}.
+	 */
+	private void acceptMove(long recipientUserId, StoredTransferRequest request) {
+		teacherSubjectPort.addAccess(request.subjectId(), recipientUserId);
+		teacherSubjectPort.assignOwnership(request.subjectId(), recipientUserId);
+		if (!teacherSubjectPort.hide(request.fromUserId(), request.subjectId())) {
+			throw bad(INVITE_STALE);
+		}
+		teacherSubjectPort.markTransferAccepted(request.id());
+		teacherSubjectPort.cancelPendingTransfers(request.subjectId(), request.id());
 	}
 
 	/**

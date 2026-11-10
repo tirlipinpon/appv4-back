@@ -257,6 +257,7 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 			}
 			again.get().hide();
 			subjects.saveAndFlush(again.get());
+			forgetRejectedHandovers(subjectId);
 		} else {
 			// Invariant : le propriétaire a toujours un accès. Sinon → orphelin (QA #163).
 			Optional<BackTeacherSubjectEntity> again = subjects.findById(subjectId);
@@ -422,6 +423,28 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		BackTeacherSubjectEntity entity = subjects.findById(subjectId).orElseThrow();
 		entity.hide();
 		subjects.saveAndFlush(entity);
+		forgetRejectedHandovers(subjectId);
+	}
+
+	/**
+	 * Oublie les refus de reprise d'une matière qui n'appartient plus à personne.
+	 *
+	 * <p><b>Business :</b> un « non » ancien ne doit pas bloquer le propriétaire
+	 * après qu'il a repris un cours retiré de toutes les listes.
+	 * <p><b>Technique :</b> supprime les demandes {@code handover} et {@code move} au statut {@code rejected}.
+	 * Un refus encore utile, tant que quelqu'un a la matière, n'est pas touché. Les refus de partage restent.
+	 * <p><b>Métier / flow :</b> appelé par {@link #hide} quand le dernier accès part,
+	 * et par {@link #hideCompletely} après le dernier refus de reprise.
+	 */
+	private void forgetRejectedHandovers(long subjectId) {
+		List<BackTeacherSubjectTransferRequestEntity> rejected = transfers
+				.findBySubjectIdAndStatusOrderByIdAsc(subjectId, "rejected");
+		for (BackTeacherSubjectTransferRequestEntity row : rejected) {
+			if ("handover".equals(row.getMode()) || "move".equals(row.getMode())) {
+				transfers.delete(row);
+			}
+		}
+		transfers.flush();
 	}
 
 	@Override
@@ -541,10 +564,16 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 	@Override
 	@Transactional(readOnly = true)
 	public List<Long> rejectedHandoverToUserIds(long subjectId, long fromUserId) {
+		return rejectedTransferToUserIds(subjectId, fromUserId, "handover");
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Long> rejectedTransferToUserIds(long subjectId, long fromUserId, String mode) {
 		List<Long> ids = new ArrayList<>();
 		for (BackTeacherSubjectTransferRequestEntity row : transfers
 				.findBySubjectIdAndFromUserIdAndModeAndStatusOrderByIdAsc(
-						subjectId, fromUserId, "handover", "rejected")) {
+						subjectId, fromUserId, mode, "rejected")) {
 			ids.add(row.getToUserId());
 		}
 		return List.copyOf(ids);

@@ -271,7 +271,9 @@ public class TeacherSubjectController {
 		TeacherSubjectColleaguesView view =
 				teacherSubjectUseCase.listColleagues(user.userId(), user.activeRole(), id);
 		List<TeacherSubjectColleagueItem> items = view.colleagues().stream()
-				.map(line -> new TeacherSubjectColleagueItem(line.userId(), line.displayName()))
+				.map(line -> new TeacherSubjectColleagueItem(
+						line.userId(), line.displayName(), line.alreadyFollows(), line.listLabel(),
+						line.refusedAction()))
 				.toList();
 		return ResponseEntity.ok(new TeacherSubjectColleaguesResponse(items));
 	}
@@ -438,7 +440,8 @@ public class TeacherSubjectController {
 
 	private static TeacherSubjectItem item(SubjectLine subject) {
 		List<TeacherSubjectSharedHolder> shared = subject.sharedWith().stream()
-				.map(holder -> new TeacherSubjectSharedHolder(holder.userId(), holder.displayName()))
+				.map(holder -> new TeacherSubjectSharedHolder(
+						holder.userId(), holder.displayName(), holder.refusedAction()))
 				.toList();
 		List<TeacherSubjectSharedHolder> asked = subject.shareAskedTo().stream()
 				.map(holder -> new TeacherSubjectSharedHolder(holder.userId(), holder.displayName()))
@@ -532,7 +535,16 @@ public class TeacherSubjectController {
 	}
 
 	@Schema(name = "TeacherSubjectSharedHolder")
-	public record TeacherSubjectSharedHolder(long userId, String displayName) {
+	public record TeacherSubjectSharedHolder(
+			long userId,
+			String displayName,
+			@Schema(description = "Nom de l'action déjà refusée par ce collègue au professeur connecté. "
+					+ "Vide s'il peut encore être sollicité. Exemple : Demander la reprise.")
+			String refusedAction) {
+
+		public TeacherSubjectSharedHolder(long userId, String displayName) {
+			this(userId, displayName, "");
+		}
 	}
 
 	@Schema(name = "CreateTeacherSubjectRequest")
@@ -562,7 +574,18 @@ public class TeacherSubjectController {
 	}
 
 	@Schema(name = "TeacherSubjectColleagueItem")
-	public record TeacherSubjectColleagueItem(long userId, String displayName) {
+	public record TeacherSubjectColleagueItem(
+			long userId,
+			String displayName,
+			@Schema(description = "Vrai si ce collègue suit déjà la matière. Le propriétaire peut "
+					+ "quand même lui proposer un déplacement. Un partage reste refusé.")
+			boolean alreadyFollows,
+			@Schema(description = "Texte à afficher à côté du nom pendant un déplacement. "
+					+ "Dit si ce collègue possède déjà la matière, ou pas encore.")
+			String listLabel,
+			@Schema(description = "Nom de l'action déjà refusée par ce collègue au professeur connecté. "
+					+ "Vide s'il peut encore être choisi. Exemple : Déplacer.")
+			String refusedAction) {
 	}
 
 	@Schema(name = "TeacherTransferInvitesResponse")

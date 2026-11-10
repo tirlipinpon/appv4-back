@@ -118,6 +118,20 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 		}
 	}
 
-	public record SharedHolder(long userId, String displayName) {
+	/**
+	 * Collègue lié à une matière.
+	 *
+	 * @param refusedAction nom de l'action que ce collègue a déjà refusée au professeur
+	 *                      connecté. Vide s'il peut encore être sollicité.
+	 */
+	public record SharedHolder(long userId, String displayName, String refusedAction) {
+
+		public SharedHolder(long userId, String displayName) {
+			this(userId, displayName, "");
+		}
+
+		public SharedHolder {
+			refusedAction = refusedAction == null ? "" : refusedAction;
+		}
 	}
 }

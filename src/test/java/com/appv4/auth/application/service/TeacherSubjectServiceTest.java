@@ -501,6 +501,82 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
+	void aColleagueWhoAlreadyRefusedHandoverKeepsThatActionName() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		service.acceptTransfer(
+				THIRD_ID, "teacher", service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		service.rejectTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName, SharedHolder::refusedAction)
+				.contains(
+						org.assertj.core.groups.Tuple.tuple("Camille", TeacherSubjectService.HANDOVER_ACTION_NAME),
+						org.assertj.core.groups.Tuple.tuple("Luc", ""));
+		assertThatThrownBy(() -> service.requestTransfer(
+				TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER))
+				.hasMessage(TeacherSubjectService.HANDOVER_ALREADY_REFUSED);
+	}
+
+	@Test
+	void aPastHandoverRefusalIsForgottenOnceNobodyHoldsTheSubject() {
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		service.rejectTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		assertThat(subjects.hidden(maths.id())).isTrue();
+
+		SubjectLine restored = service.restore(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", restored.id(), OTHER_ID, "share");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		assertThat(lineOf(TEACHER_ID, restored.id()).sharedWith())
+				.extracting(SharedHolder::displayName, SharedHolder::refusedAction)
+				.containsExactly(org.assertj.core.groups.Tuple.tuple("Camille", ""));
+		service.requestTransfer(
+				TEACHER_ID, "teacher", restored.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites())
+				.extracting(InviteLine::mode)
+				.containsExactly(TeacherSubjectService.MODE_HANDOVER);
+	}
+
+	@Test
+	void aHandoverRefusalStaysWhileSomeoneStillHoldsTheSubject() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		service.acceptTransfer(THIRD_ID, "teacher",
+				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		service.rejectTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.remove(THIRD_ID, "teacher", maths.id());
+
+		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName, SharedHolder::refusedAction)
+				.containsExactly(org.assertj.core.groups.Tuple.tuple(
+						"Camille", TeacherSubjectService.HANDOVER_ACTION_NAME));
+		assertThat(subjects.hidden(maths.id())).isFalse();
+	}
+
+	@Test
 	void handoverRejectedThenAllGoneRemovesSubject() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
@@ -551,7 +627,10 @@ class TeacherSubjectServiceTest {
 		assertThat(camille.sharedWith()).extracting(SharedHolder::displayName).containsExactly("Anne");
 		assertThat(camille.owner().displayName()).isEqualTo("Anne");
 		assertThat(anne.owner().userId()).isEqualTo(TEACHER_ID);
-		assertThat(service.listColleagues(TEACHER_ID, "teacher", maths.id()).colleagues()).isEmpty();
+		assertThat(service.listColleagues(TEACHER_ID, "teacher", maths.id()).colleagues())
+				.extracting(c -> c.userId(), c -> c.displayName(), c -> c.alreadyFollows(), c -> c.listLabel())
+				.containsExactly(org.assertj.core.groups.Tuple.tuple(
+						OTHER_ID, "Camille", true, TeacherSubjectService.ALREADY_ON_LIST));
 		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites()).isEmpty();
 	}
 
@@ -700,6 +779,34 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
+	void moveByTheOwnerKeepsColleaguesWhoAlreadyFollow() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		service.acceptTransfer(THIRD_ID, "teacher",
+				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(lineOf(OTHER_ID, maths.id()).ownedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName)
+				.containsExactly("Luc");
+		assertThat(lineOf(THIRD_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(THIRD_ID, maths.id()).ownedByMe()).isFalse();
+		assertThat(lineOf(THIRD_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName)
+				.containsExactly("Camille");
+		assertThat(subjects.accessCount(maths.id())).isEqualTo(2);
+		assertThat(subjects.find(maths.id()).userId()).isEqualTo(OTHER_ID);
+	}
+
+	@Test
 	void moveInviteGivesSoleAccessAfterAccept() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
@@ -717,6 +824,55 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
+	void aRefusedMoveStaysBlockedWhileSomeoneStillHoldsTheSubject() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
+		service.rejectTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		assertThat(service.listColleagues(TEACHER_ID, "teacher", maths.id()).colleagues())
+				.extracting(c -> c.displayName(), c -> c.listLabel(), c -> c.refusedAction())
+				.contains(
+						org.assertj.core.groups.Tuple.tuple(
+								"Camille",
+								TeacherSubjectService.NOT_YET_ON_LIST,
+								TeacherSubjectService.MOVE_ACTION_NAME),
+						org.assertj.core.groups.Tuple.tuple("Luc", TeacherSubjectService.NOT_YET_ON_LIST, ""));
+		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move"))
+				.hasMessage(TeacherSubjectService.MOVE_ALREADY_REFUSED);
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "move");
+		assertThat(service.listTransferInvites(THIRD_ID, "teacher").invites())
+				.extracting(InviteLine::mode)
+				.containsExactly("move");
+
+		service.remove(TEACHER_ID, "teacher", maths.id());
+		SubjectLine restored = service.restore(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", restored.id(), OTHER_ID, "move");
+		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites())
+				.extracting(InviteLine::mode)
+				.containsExactly("move");
+	}
+
+	@Test
+	void aFollowerCanShareButCannotMove() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		assertThatThrownBy(() -> service.requestTransfer(OTHER_ID, "teacher", maths.id(), THIRD_ID, "move"))
+				.hasMessage(TeacherSubjectService.MOVE_ONLY_OWNER);
+		service.requestTransfer(OTHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		assertThat(service.listTransferInvites(THIRD_ID, "teacher").invites())
+				.extracting(InviteLine::mode)
+				.containsExactly("share");
+	}
+
+	@Test
 	void moveToAColleagueWhoAlreadyFollowsIsRefused() {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
@@ -730,7 +886,7 @@ class TeacherSubjectServiceTest {
 
 		assertThat(service.listColleagues(OTHER_ID, "teacher", maths.id()).colleagues()).isEmpty();
 		assertThatThrownBy(() -> service.requestTransfer(OTHER_ID, "teacher", maths.id(), TEACHER_ID, "move"))
-				.hasMessage(TeacherSubjectService.ALREADY_HAS);
+				.hasMessage(TeacherSubjectService.MOVE_ONLY_OWNER);
 		assertThatThrownBy(() -> service.requestTransfer(OTHER_ID, "teacher", maths.id(), THIRD_ID, "share"))
 				.hasMessage(TeacherSubjectService.ALREADY_HAS);
 		assertThat(subjects.accessCount(maths.id())).isEqualTo(3);
@@ -756,8 +912,47 @@ class TeacherSubjectServiceTest {
 				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
 		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share"))
 				.hasMessage(TeacherSubjectService.ALREADY_HAS);
-		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move"))
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
+		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites())
+				.extracting(InviteLine::mode)
+				.containsExactly("move");
+	}
+
+	@Test
+	void ownerCanMoveToAColleagueWhoAlreadyFollows() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		service.acceptTransfer(THIRD_ID, "teacher",
+				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+
+		assertThat(service.listColleagues(TEACHER_ID, "teacher", maths.id()).colleagues())
+				.extracting(c -> c.userId(), c -> c.displayName(), c -> c.alreadyFollows(), c -> c.listLabel())
+				.containsExactlyInAnyOrder(
+						org.assertj.core.groups.Tuple.tuple(
+								OTHER_ID, "Camille", false, TeacherSubjectService.NOT_YET_ON_LIST),
+						org.assertj.core.groups.Tuple.tuple(
+								THIRD_ID, "Luc", true, TeacherSubjectService.ALREADY_ON_LIST));
+		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share"))
 				.hasMessage(TeacherSubjectService.ALREADY_HAS);
+		assertThatThrownBy(() -> service.requestTransfer(THIRD_ID, "teacher", maths.id(), TEACHER_ID, "move"))
+				.hasMessage(TeacherSubjectService.MOVE_ONLY_OWNER);
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "move");
+		service.acceptTransfer(THIRD_ID, "teacher",
+				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(lineOf(THIRD_ID, maths.id()).ownedByMe()).isTrue();
+		assertThat(lineOf(THIRD_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).ownedByMe()).isFalse();
+		assertThat(subjects.accessCount(maths.id())).isEqualTo(2);
+		assertThat(subjects.find(maths.id()).userId()).isEqualTo(THIRD_ID);
 	}
 
 	@Test
@@ -1153,6 +1348,7 @@ class TeacherSubjectServiceTest {
 			}
 			if (holders.isEmpty()) {
 				hidden.add(subjectId);
+				forgetRejectedHandovers(subjectId);
 			} else {
 				for (int index = 0; index < rows.size(); index++) {
 					StoredSubject row = rows.get(index);
@@ -1247,6 +1443,14 @@ class TeacherSubjectServiceTest {
 			accessBySubject.put(subjectId, new HashSet<>());
 			accessActive.put(subjectId, new HashMap<>());
 			hidden.add(subjectId);
+			forgetRejectedHandovers(subjectId);
+		}
+
+		private void forgetRejectedHandovers(long subjectId) {
+			transfers.removeIf(row -> row.subjectId() == subjectId
+					&& "rejected".equals(row.status())
+					&& (TeacherSubjectService.MODE_HANDOVER.equals(row.mode())
+							|| TeacherSubjectService.MODE_MOVE.equals(row.mode())));
 		}
 
 		@Override
@@ -1394,11 +1598,16 @@ class TeacherSubjectServiceTest {
 
 		@Override
 		public List<Long> rejectedHandoverToUserIds(long subjectId, long fromUserId) {
+			return rejectedTransferToUserIds(subjectId, fromUserId, TeacherSubjectService.MODE_HANDOVER);
+		}
+
+		@Override
+		public List<Long> rejectedTransferToUserIds(long subjectId, long fromUserId, String mode) {
 			List<Long> ids = new ArrayList<>();
 			for (StoredTransferRequest row : transfers) {
 				if (row.subjectId() == subjectId
 						&& row.fromUserId() == fromUserId
-						&& TeacherSubjectService.MODE_HANDOVER.equals(row.mode())
+						&& mode.equals(row.mode())
 						&& "rejected".equals(row.status())) {
 					ids.add(row.toUserId());
 				}

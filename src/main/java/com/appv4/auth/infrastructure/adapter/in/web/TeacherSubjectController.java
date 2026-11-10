@@ -272,7 +272,8 @@ public class TeacherSubjectController {
 				teacherSubjectUseCase.listColleagues(user.userId(), user.activeRole(), id);
 		List<TeacherSubjectColleagueItem> items = view.colleagues().stream()
 				.map(line -> new TeacherSubjectColleagueItem(
-						line.userId(), line.displayName(), line.alreadyFollows(), line.listLabel()))
+						line.userId(), line.displayName(), line.alreadyFollows(), line.listLabel(),
+						line.refusedAction()))
 				.toList();
 		return ResponseEntity.ok(new TeacherSubjectColleaguesResponse(items));
 	}
@@ -581,7 +582,10 @@ public class TeacherSubjectController {
 			boolean alreadyFollows,
 			@Schema(description = "Texte à afficher à côté du nom pendant un déplacement. "
 					+ "Dit si ce collègue possède déjà la matière, ou pas encore.")
-			String listLabel) {
+			String listLabel,
+			@Schema(description = "Nom de l'action déjà refusée par ce collègue au professeur connecté. "
+					+ "Vide s'il peut encore être choisi. Exemple : Déplacer.")
+			String refusedAction) {
 	}
 
 	@Schema(name = "TeacherTransferInvitesResponse")

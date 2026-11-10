@@ -202,6 +202,11 @@ public interface TeacherSubjectPort {
 	 */
 	List<Long> rejectedHandoverToUserIds(long subjectId, long fromUserId);
 
+	/**
+	 * Destinataires d'une demande déjà refusée, pour ce mode (move, handover, …).
+	 */
+	List<Long> rejectedTransferToUserIds(long subjectId, long fromUserId, String mode);
+
 	List<StoredDeactivateNotice> findOpenDeactivateNoticesTo(long toUserId);
 
 	/**

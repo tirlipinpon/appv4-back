@@ -105,6 +105,11 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	 * Le créateur demande à un co-détenteur de reprendre la propriété pour pouvoir partir.
 	 */
 	public static final String MODE_HANDOVER = "handover";
+	/**
+	 * Nom de l'action affichée à côté d'un collègue qui a déjà refusé la reprise.
+	 * C'est le même libellé que le bouton de l'écran.
+	 */
+	public static final String HANDOVER_ACTION_NAME = "Demander la reprise";
 	public static final String HANDOVER_REQUIRED =
 			"Choisis un collègue qui suit déjà cette matière pour lui en laisser la responsabilité.";
 	public static final String HANDOVER_NOT_HOLDER =
@@ -620,19 +625,36 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		order.setStrength(Collator.PRIMARY);
 		return listing.stream().filter(row -> row.subject().schoolId() == schoolId && grade.equals(row.subject().grade()))
 				.sorted((a, b) -> order.compare(a.subject().name(), b.subject().name()))
-				.map(row -> new SubjectLine(row.subject().id(), row.subject().name(), row.subject().active(),
-						row.subject().userId() == userId, row.followed(),
-						row.others().stream()
-								.map(TeacherSubjectService::sharedHolder).toList(),
-						row.asked().stream()
-								.map(TeacherSubjectService::sharedHolder).toList(),
-						new SharedHolder(row.subject().userId(), row.ownerName()),
-						questionCounts.getOrDefault(row.subject().id(), 0L)))
+				.map(row -> {
+					Set<Long> refused = refusedHandoverTargets(row.subject().id(), userId);
+					return new SubjectLine(row.subject().id(), row.subject().name(), row.subject().active(),
+							row.subject().userId() == userId, row.followed(),
+							row.others().stream()
+									.map(holder -> sharedHolder(holder, refused)).toList(),
+							row.asked().stream()
+									.map(TeacherSubjectService::sharedHolder).toList(),
+							new SharedHolder(row.subject().userId(), row.ownerName()),
+							questionCounts.getOrDefault(row.subject().id(), 0L));
+				})
 				.toList();
 	}
 
 	private static SharedHolder sharedHolder(AccessHolder holder) {
-		return new SharedHolder(holder.userId(), holder.displayName());
+		return sharedHolder(holder, Set.of());
+	}
+
+	/** Le nom d'action n'est rempli que pour un handover déjà refusé à ce professeur. */
+	private static SharedHolder sharedHolder(AccessHolder holder, Set<Long> refusedHandover) {
+		String action = refusedHandover.contains(holder.userId()) ? HANDOVER_ACTION_NAME : "";
+		return new SharedHolder(holder.userId(), holder.displayName(), action);
+	}
+
+	private Set<Long> refusedHandoverTargets(long subjectId, long fromUserId) {
+		List<Long> ids = teacherSubjectPort.rejectedHandoverToUserIds(subjectId, fromUserId);
+		if (ids == null || ids.isEmpty()) {
+			return Set.of();
+		}
+		return new HashSet<>(ids);
 	}
 
 	private SubjectLine line(long userId, StoredSubject subject) {
@@ -641,8 +663,9 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		if (holders == null) {
 			holders = List.of();
 		}
+		Set<Long> refused = refusedHandoverTargets(subject.id(), userId);
 		List<SharedHolder> shared = holders.stream()
-				.map(holder -> new SharedHolder(holder.userId(), holder.displayName()))
+				.map(holder -> sharedHolder(holder, refused))
 				.toList();
 		long questionCount = teacherQuestionPort.countBySubjectIds(List.of(subject.id()))
 				.getOrDefault(subject.id(), 0L);

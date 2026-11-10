@@ -501,6 +501,32 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
+	void aColleagueWhoAlreadyRefusedHandoverKeepsThatActionName() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		service.acceptTransfer(
+				THIRD_ID, "teacher", service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER);
+		service.rejectTransfer(
+				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName, SharedHolder::refusedAction)
+				.contains(
+						org.assertj.core.groups.Tuple.tuple("Camille", TeacherSubjectService.HANDOVER_ACTION_NAME),
+						org.assertj.core.groups.Tuple.tuple("Luc", ""));
+		assertThatThrownBy(() -> service.requestTransfer(
+				TEACHER_ID, "teacher", maths.id(), OTHER_ID, TeacherSubjectService.MODE_HANDOVER))
+				.hasMessage(TeacherSubjectService.HANDOVER_ALREADY_REFUSED);
+	}
+
+	@Test
 	void handoverRejectedThenAllGoneRemovesSubject() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");

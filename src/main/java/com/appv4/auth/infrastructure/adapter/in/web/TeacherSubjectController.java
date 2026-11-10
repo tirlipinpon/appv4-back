@@ -438,7 +438,8 @@ public class TeacherSubjectController {
 
 	private static TeacherSubjectItem item(SubjectLine subject) {
 		List<TeacherSubjectSharedHolder> shared = subject.sharedWith().stream()
-				.map(holder -> new TeacherSubjectSharedHolder(holder.userId(), holder.displayName()))
+				.map(holder -> new TeacherSubjectSharedHolder(
+						holder.userId(), holder.displayName(), holder.refusedAction()))
 				.toList();
 		List<TeacherSubjectSharedHolder> asked = subject.shareAskedTo().stream()
 				.map(holder -> new TeacherSubjectSharedHolder(holder.userId(), holder.displayName()))
@@ -532,7 +533,16 @@ public class TeacherSubjectController {
 	}
 
 	@Schema(name = "TeacherSubjectSharedHolder")
-	public record TeacherSubjectSharedHolder(long userId, String displayName) {
+	public record TeacherSubjectSharedHolder(
+			long userId,
+			String displayName,
+			@Schema(description = "Nom de l'action déjà refusée par ce collègue au professeur connecté. "
+					+ "Vide s'il peut encore être sollicité. Exemple : Demander la reprise.")
+			String refusedAction) {
+
+		public TeacherSubjectSharedHolder(long userId, String displayName) {
+			this(userId, displayName, "");
+		}
 	}
 
 	@Schema(name = "CreateTeacherSubjectRequest")

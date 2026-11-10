@@ -25,6 +25,12 @@ class IntHelloSecurityTest {
 	private IssueJwtUseCase issueJwtUseCase;
 
 	@Test
+	void healthRemainsAvailableWithoutAuthentication() throws Exception {
+		mockMvc.perform(get("/actuator/health"))
+				.andExpect(status().isOk());
+	}
+
+	@Test
 	void unknownPathOutsideInventoryIsRejected() throws Exception {
 		// denyAll + anonyme → 401 (entry point), pas 200 public
 		mockMvc.perform(get("/api/unknown-audit-probe"))

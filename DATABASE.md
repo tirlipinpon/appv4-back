@@ -62,7 +62,7 @@ Toute table **métier** doit commencer par l’un de ces deux préfixes :
 | Préfixe | Usage | Consommée surtout par |
 |---------|--------|------------------------|
 | `front_` | Données de l’expérience **learning** (enfant) : progression, tentatives, badges côté enfant, messages “hello” MVP, etc. | App Angular `learning` via API `/api/ext/**` |
-| `back_` | Données **admin** : comptes, écoles, matières, jeux pédagogiques, affectations, messages admin MVP, etc. | App Angular `admin` via API `/api/int/**` |
+| `back_` | Données **admin** : comptes, écoles, matières, jeux pédagogiques, affectations, etc. | App Angular `admin` via API `/api/int/**` |
 
 ### Pourquoi ?
 
@@ -73,11 +73,9 @@ Toute table **métier** doit commencer par l’un de ces deux préfixes :
 ### Exemples valides
 
 ```text
-front_hello_messages
 front_game_attempts
 front_child_badges
 
-back_hello_messages
 back_subjects
 back_teachers
 back_games
@@ -86,7 +84,7 @@ back_games
 ### Exemples interdits
 
 ```text
-hello_messages      ❌ pas de préfixe
+demo_messages       ❌ pas de préfixe
 users               ❌ pas de préfixe
 game_attempts       ❌ ambigu (front ou back ?)
 frontend_attempts   ❌ mauvais préfixe (utiliser front_)
@@ -96,12 +94,9 @@ frontend_attempts   ❌ mauvais préfixe (utiliser front_)
 
 Les tables gérées par l’outil de migration (ex. `flyway_schema_history`) **n’ont pas** besoin du préfixe `front_` / `back_` : ce ne sont pas des tables métier applicatives.
 
-## MVP smoke (migration V1)
+## Anciennes tables de demonstration
 
-Migration : `db/migration/V1__create_hello_messages.sql`
-
-- `front_hello_messages` — seed : `hello learning` → `GET /api/ext/hello`
-- `back_hello_messages` — seed : `admin-helloworld` → `GET /api/int/hello`
+Les tables hello creees par V1 sont supprimees par la migration V46. Les migrations historiques restent inchangees.
 
 ## Checklist avant de créer une table
 

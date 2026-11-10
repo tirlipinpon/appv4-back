@@ -15,6 +15,6 @@ and write overhead can change the result; use `EXPLAIN (ANALYZE, BUFFERS)` on
 representative data before drawing production conclusions.
 
 The browser still requests each photo separately (up to four at once). Parent
-lists may still read photo bytes while constructing their response. Network and
-SQL measurements for those paths remain necessary before choosing caching,
+and teacher lists use projections that do not select the photo bytes. Network and
+SQL measurements for photo requests remain necessary before choosing caching,
 batching, or an additional projection.

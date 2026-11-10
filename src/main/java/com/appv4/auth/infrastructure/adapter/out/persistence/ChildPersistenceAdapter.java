@@ -57,8 +57,11 @@ public class ChildPersistenceAdapter implements ChildPort {
 	@Override
 	@Transactional(readOnly = true)
 	public List<ChildSaved> findByParent(long parentUserId) {
-		return childRepository.findByParentUserIdAndHiddenFalseOrderByIdAsc(parentUserId).stream()
-				.map(ChildPersistenceAdapter::toSaved)
+		return childRepository.findParentSummaries(parentUserId).stream()
+				.map(child -> new ChildSaved(child.getId(), child.getParentUserId(), child.getFirstName(),
+						child.getLastName(), child.getSex(), child.getAge(),
+						child.getCurriculum(), child.getGradeLabel(),
+						child.getSchoolId(), child.getAvatarCode(), child.getHasPhoto(), child.getActive()))
 				.toList();
 	}
 

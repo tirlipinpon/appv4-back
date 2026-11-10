@@ -42,5 +42,11 @@ class StudentSummaryPersistenceTest {
         assertThat(rows).hasSize(2);
         assertThat(rows).filteredOn(row -> row.getFirstName().equals("Alice")).allMatch(BackChildJpaRepository.StudentSummary::getHasPhoto);
         assertThat(rows).filteredOn(row -> row.getFirstName().equals("Bob")).noneMatch(BackChildJpaRepository.StudentSummary::getHasPhoto);
+        var parentRows = children.findParentSummaries(user);
+        assertThat(parentRows).hasSize(2);
+        assertThat(parentRows.get(0).getHasPhoto()).isTrue();
+        assertThat(parentRows.get(1).getHasPhoto()).isFalse();
+        assertThat(parentRows).allMatch(BackChildJpaRepository.ChildSummary::getActive);
+        assertThat(children.findParentSummaries(-1)).isEmpty();
     }
 }

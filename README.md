@@ -147,14 +147,10 @@ Détail JDBC + variables `SPRING_DATASOURCE_*` : **[DATABASE.md](./DATABASE.md)*
 - CORS local (profil `local`) : `http://localhost:4200` et `http://localhost:4201`  
   → `appv4.cors.allowed-origins` dans `application-local.yml`
 
-## Smoke hello
+## Verification du backend
 
-Avec Postgres + `.\mvnw.cmd spring-boot:run` :
-
-- [http://localhost:8080/api/ext/hello](http://localhost:8080/api/ext/hello) → `{"text":"hello learning"}`
-- [http://localhost:8080/api/int/hello](http://localhost:8080/api/int/hello) → `{"text":"admin-helloworld"}`
-- OpenAPI (SCRUM-147) : [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs)
-- Swagger UI (profil `local` seulement) : [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+Avec Postgres et `./mvnw spring-boot:run`, verifier http://localhost:8080/actuator/health.
+Le contrat est disponible sur http://localhost:8080/v3/api-docs et Swagger UI sur le profil local.
 
 ## Tickets liés
 
@@ -164,11 +160,6 @@ Avec Postgres + `.\mvnw.cmd spring-boot:run` :
 | README (cette doc) | SCRUM-45 |
 | Suite : Postgres / Flyway | SCRUM-36 |
 | Suite : Spring Boot hexa | SCRUM-35 |
-
-## Prochaines étapes
-
-1. Angular `learning` + `admin` consommant `/api/ext/hello` et `/api/int/hello` (SCRUM-34)
-2. Erreurs ProblemDetail + OpenAPI (socle shared)
 
 ## Branches & deploiement
 

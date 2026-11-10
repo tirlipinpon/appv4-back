@@ -90,8 +90,8 @@ class TeacherSubjectControllerTest {
 						new StoredSubject(1L, 9L, 1L, "CE1", "Français", true),
 						true, List.of(), List.of(), "Martin")));
 		when(subjects.findReusable()).thenReturn(List.of(
-				new TeacherSubjectPort.ReusableSubject(1L, "CE1", "Français", false),
-				new TeacherSubjectPort.ReusableSubject(1L, "CE1", "Mathématiques", false)));
+				new TeacherSubjectPort.ReusableSubject(1L, 1L, "CE1", "Français", false),
+				new TeacherSubjectPort.ReusableSubject(2L, 1L, "CE1", "Mathématiques", false)));
 
 		mockMvc.perform(get("/api/int/teacher/subjects").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())

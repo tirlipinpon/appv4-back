@@ -137,6 +137,7 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		List<ReusableSubject> rows = new ArrayList<>();
 		for (BackTeacherSubjectEntity row : subjects.findAllByOrderByIdAsc()) {
 			rows.add(new ReusableSubject(
+					row.getId(),
 					row.getSchoolId(),
 					row.getGradeLabel(),
 					row.getName(),

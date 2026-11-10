@@ -114,7 +114,7 @@ class ParentChildrenServiceTest {
 		NewChildCommand teacherAttempt = command(
 				"Léa", "Martin", "7", "France", "CP", null, "fox", "4821", "4821");
 		assertThatThrownBy(() -> service.add(1L, "teacher", teacherAttempt))
-				.hasMessage(SpaceHello.DENIED);
+				.hasMessage(SpaceAccess.DENIED);
 		assertThat(children.all).isEmpty();
 	}
 
@@ -278,7 +278,7 @@ class ParentChildrenServiceTest {
 				.hasMessage(ParentChildrenService.CHILD_UNKNOWN);
 		assertThatThrownBy(() -> service.add(1L, "teacher",
 				from(lea.id(), "Nina", "Martin", "7", "France", "CE1", "fox", "8642", "8642", "SOEUR")))
-				.hasMessage(SpaceHello.DENIED);
+				.hasMessage(SpaceAccess.DENIED);
 
 		assertThat(children.all).hasSize(1);
 		assertThat(children.links).isEmpty();

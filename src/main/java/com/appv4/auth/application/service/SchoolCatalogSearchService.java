@@ -19,7 +19,7 @@ public class SchoolCatalogSearchService {
 
 	public SchoolPage search(String role, String country, String query, long afterId, int limit) {
 		if (!ActiveRoles.PARENT.equals(role) && !ActiveRoles.TEACHER.equals(role)) {
-			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, SpaceHello.DENIED);
+			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, SpaceAccess.DENIED);
 		}
 		String countryKey = country == null ? "" : country.trim().toLowerCase(Locale.ROOT);
 		String text = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);

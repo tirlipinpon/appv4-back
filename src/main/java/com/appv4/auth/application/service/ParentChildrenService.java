@@ -636,7 +636,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 
 	private static void requireParent(String activeRole) {
 		if (!ActiveRoles.PARENT.equals(activeRole)) {
-			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, SpaceHello.DENIED);
+			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, SpaceAccess.DENIED);
 		}
 	}
 

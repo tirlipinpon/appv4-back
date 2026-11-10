@@ -31,7 +31,7 @@ import com.appv4.auth.application.port.out.EnrolledChildPort.EnrolledPhoto;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
-import com.appv4.auth.application.service.SpaceHello;
+import com.appv4.auth.application.service.SpaceAccess;
 import com.appv4.auth.application.service.TeacherStudentsService;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
 
@@ -137,7 +137,7 @@ class TeacherStudentsControllerTest {
 	void parentAndAnonymousCannotListStudents() throws Exception {
 		mockMvc.perform(get("/api/int/teacher/students").header(HttpHeaders.AUTHORIZATION, bearer("parent")))
 				.andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value(SpaceHello.DENIED));
+				.andExpect(jsonPath("$.message").value(SpaceAccess.DENIED));
 
 		mockMvc.perform(get("/api/int/teacher/students"))
 				.andExpect(status().isUnauthorized());

@@ -24,7 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.service.AccountContact;
-import com.appv4.auth.application.service.SpaceHello;
+import com.appv4.auth.application.service.SpaceAccess;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
 
 @SpringBootTest
@@ -102,7 +102,7 @@ class ParentProfileControllerTest {
 	void teacherAndAnonymousCannotOpenTheParentProfile() throws Exception {
 		mockMvc.perform(get("/api/int/parent/profile").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value(SpaceHello.DENIED));
+				.andExpect(jsonPath("$.message").value(SpaceAccess.DENIED));
 
 		mockMvc.perform(get("/api/int/parent/profile"))
 				.andExpect(status().isUnauthorized());

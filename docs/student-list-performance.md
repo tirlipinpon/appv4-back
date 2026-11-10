@@ -14,7 +14,12 @@ are illustrative, not a production benchmark. Data distribution, storage, cache,
 and write overhead can change the result; use `EXPLAIN (ANALYZE, BUFFERS)` on
 representative data before drawing production conclusions.
 
-The browser still requests each photo separately (up to four at once). Parent
-and teacher lists use projections that do not select the photo bytes. Network and
-SQL measurements for photo requests remain necessary before choosing caching,
-batching, or an additional projection.
+An automated PostgreSQL test with 30 synthetic children verifies that each
+parent or teacher list projection runs one SQL statement and loads no child
+entities. A frontend HTTP-mock test verifies that 30 photographed students cause
+30 photo requests, with no more than four active at once. These tests count
+requests, not end-to-end latency or SQL used by photo authorization.
+
+The browser still requests each photo separately. Production-scale network and
+SQL measurements for photo requests would be needed before choosing caching or
+batching, while preserving authorization and photo invalidation.

@@ -726,6 +726,34 @@ class TeacherSubjectServiceTest {
 	}
 
 	@Test
+	void moveByTheOwnerKeepsColleaguesWhoAlreadyFollow() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		service.acceptTransfer(THIRD_ID, "teacher",
+				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(lineOf(OTHER_ID, maths.id()).ownedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName)
+				.containsExactly("Luc");
+		assertThat(lineOf(THIRD_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(THIRD_ID, maths.id()).ownedByMe()).isFalse();
+		assertThat(lineOf(THIRD_ID, maths.id()).sharedWith())
+				.extracting(SharedHolder::displayName)
+				.containsExactly("Camille");
+		assertThat(subjects.accessCount(maths.id())).isEqualTo(2);
+		assertThat(subjects.find(maths.id()).userId()).isEqualTo(OTHER_ID);
+	}
+
+	@Test
 	void moveInviteGivesSoleAccessAfterAccept() {
 		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");

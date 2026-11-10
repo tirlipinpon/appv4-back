@@ -56,6 +56,8 @@ import com.appv4.auth.application.result.TeacherTransferInvitesView.InviteLine;
  * ressemble fortement à une matière encore visible, il peut demander au
  * créateur qui la possède encore de la partager. Il propose aussi un déplacement
  * ou un partage à un collègue qui n'a pas encore la matière ; le collègue accepte ou refuse.
+ * Au déplacement accepté, l'émetteur quitte sa liste et le destinataire devient propriétaire.
+ * Les collègues qui suivaient déjà gardent la matière.
  * S'il veut partir alors que d'autres suivent, il désigne un successeur (handover) ;
  * acceptation / refus avec alertes ; si tous refusent, la matière est retirée.
  * La désactivation est par accès :
@@ -472,13 +474,11 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			if (teacherSubjectPort.hasAccess(request.subjectId(), userId)) {
 				throw bad(INVITE_STALE);
 			}
-			teacherSubjectPort.replaceAccessWith(request.subjectId(), userId);
-			teacherSubjectPort.markTransferAccepted(inviteId);
-			teacherSubjectPort.cancelPendingTransfers(request.subjectId(), inviteId);
-		} else {
-			teacherSubjectPort.addAccess(request.subjectId(), userId);
-			teacherSubjectPort.markTransferAccepted(inviteId);
+			acceptMove(userId, request);
+			return;
 		}
+		teacherSubjectPort.addAccess(request.subjectId(), userId);
+		teacherSubjectPort.markTransferAccepted(inviteId);
 	}
 
 	@Override
@@ -933,6 +933,25 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			teacherSubjectPort.addAccess(request.subjectId(), request.fromUserId());
 		}
 		teacherSubjectPort.markTransferAccepted(request.id());
+	}
+
+	/**
+	 * Déplacement accepté.
+	 *
+	 * <p><b>Business :</b> l'émetteur ne voit plus la matière. Le destinataire en devient
+	 * le propriétaire. Un collègue qui la suivait déjà la garde.
+	 * <p><b>Technique :</b> accès ajouté, {@code user_id} aligné, puis {@code hide} de l'émetteur.
+	 * L'ordre compte : sinon {@code hide} réattribuerait la propriété au premier accès restant.
+	 * <p><b>Métier / flow :</b> suite de {@link #acceptTransfer} quand le mode est {@code move}.
+	 */
+	private void acceptMove(long recipientUserId, StoredTransferRequest request) {
+		teacherSubjectPort.addAccess(request.subjectId(), recipientUserId);
+		teacherSubjectPort.assignOwnership(request.subjectId(), recipientUserId);
+		if (!teacherSubjectPort.hide(request.fromUserId(), request.subjectId())) {
+			throw bad(INVITE_STALE);
+		}
+		teacherSubjectPort.markTransferAccepted(request.id());
+		teacherSubjectPort.cancelPendingTransfers(request.subjectId(), request.id());
 	}
 
 	/**

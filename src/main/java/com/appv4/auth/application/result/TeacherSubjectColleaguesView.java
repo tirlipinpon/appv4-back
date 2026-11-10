@@ -18,7 +18,8 @@ public record TeacherSubjectColleaguesView(List<ColleagueLine> colleagues) {
 	/**
 	 * @param alreadyFollows vrai si ce collègue a déjà la matière. Le propriétaire peut
 	 *     quand même lui proposer un déplacement. Un partage reste impossible.
+	 * @param listLabel texte à montrer à côté du nom : déjà dans sa liste, ou pas encore.
 	 */
-	public record ColleagueLine(long userId, String displayName, boolean alreadyFollows) {
+	public record ColleagueLine(long userId, String displayName, boolean alreadyFollows, String listLabel) {
 	}
 }

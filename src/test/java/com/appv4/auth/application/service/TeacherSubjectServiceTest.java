@@ -578,8 +578,9 @@ class TeacherSubjectServiceTest {
 		assertThat(camille.owner().displayName()).isEqualTo("Anne");
 		assertThat(anne.owner().userId()).isEqualTo(TEACHER_ID);
 		assertThat(service.listColleagues(TEACHER_ID, "teacher", maths.id()).colleagues())
-				.extracting(c -> c.userId(), c -> c.displayName(), c -> c.alreadyFollows())
-				.containsExactly(org.assertj.core.groups.Tuple.tuple(OTHER_ID, "Camille", true));
+				.extracting(c -> c.userId(), c -> c.displayName(), c -> c.alreadyFollows(), c -> c.listLabel())
+				.containsExactly(org.assertj.core.groups.Tuple.tuple(
+						OTHER_ID, "Camille", true, TeacherSubjectService.ALREADY_ON_LIST));
 		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites()).isEmpty();
 	}
 
@@ -828,10 +829,12 @@ class TeacherSubjectServiceTest {
 				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
 
 		assertThat(service.listColleagues(TEACHER_ID, "teacher", maths.id()).colleagues())
-				.extracting(c -> c.userId(), c -> c.displayName(), c -> c.alreadyFollows())
+				.extracting(c -> c.userId(), c -> c.displayName(), c -> c.alreadyFollows(), c -> c.listLabel())
 				.containsExactlyInAnyOrder(
-						org.assertj.core.groups.Tuple.tuple(OTHER_ID, "Camille", false),
-						org.assertj.core.groups.Tuple.tuple(THIRD_ID, "Luc", true));
+						org.assertj.core.groups.Tuple.tuple(
+								OTHER_ID, "Camille", false, TeacherSubjectService.NOT_YET_ON_LIST),
+						org.assertj.core.groups.Tuple.tuple(
+								THIRD_ID, "Luc", true, TeacherSubjectService.ALREADY_ON_LIST));
 		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share"))
 				.hasMessage(TeacherSubjectService.ALREADY_HAS);
 		assertThatThrownBy(() -> service.requestTransfer(THIRD_ID, "teacher", maths.id(), TEACHER_ID, "move"))

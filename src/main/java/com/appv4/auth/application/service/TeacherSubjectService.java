@@ -112,6 +112,10 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	 * C'est le même libellé que le bouton de l'écran.
 	 */
 	public static final String HANDOVER_ACTION_NAME = "Demander la reprise";
+	/** Affiché à côté d'un collègue qui a déjà la matière, pendant un déplacement. */
+	public static final String ALREADY_ON_LIST = "la possède déjà";
+	/** Affiché à côté d'un collègue qui n'a pas encore la matière, pendant un déplacement. */
+	public static final String NOT_YET_ON_LIST = "pas encore dans sa liste";
 	public static final String HANDOVER_REQUIRED =
 			"Choisis un collègue qui suit déjà cette matière pour lui en laisser la responsabilité.";
 	public static final String HANDOVER_NOT_HOLDER =
@@ -566,7 +570,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			String name = teacherProfilePort.findAccount(candidate)
 					.map(TeacherAccount::displayName)
 					.orElse("");
-			lines.add(new ColleagueLine(candidate, name == null ? "" : name, alreadyFollows));
+			String label = alreadyFollows ? ALREADY_ON_LIST : NOT_YET_ON_LIST;
+			lines.add(new ColleagueLine(candidate, name == null ? "" : name, alreadyFollows, label));
 		}
 		Collator order = Collator.getInstance(Locale.FRENCH);
 		order.setStrength(Collator.PRIMARY);

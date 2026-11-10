@@ -577,7 +577,9 @@ class TeacherSubjectServiceTest {
 		assertThat(camille.sharedWith()).extracting(SharedHolder::displayName).containsExactly("Anne");
 		assertThat(camille.owner().displayName()).isEqualTo("Anne");
 		assertThat(anne.owner().userId()).isEqualTo(TEACHER_ID);
-		assertThat(service.listColleagues(TEACHER_ID, "teacher", maths.id()).colleagues()).isEmpty();
+		assertThat(service.listColleagues(TEACHER_ID, "teacher", maths.id()).colleagues())
+				.extracting(c -> c.userId(), c -> c.displayName(), c -> c.alreadyFollows())
+				.containsExactly(org.assertj.core.groups.Tuple.tuple(OTHER_ID, "Camille", true));
 		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites()).isEmpty();
 	}
 
@@ -810,8 +812,45 @@ class TeacherSubjectServiceTest {
 				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
 		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share"))
 				.hasMessage(TeacherSubjectService.ALREADY_HAS);
-		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move"))
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
+		assertThat(service.listTransferInvites(OTHER_ID, "teacher").invites())
+				.extracting(InviteLine::mode)
+				.containsExactly("move");
+	}
+
+	@Test
+	void ownerCanMoveToAColleagueWhoAlreadyFollows() {
+		profiles.put(THIRD_ID, List.of(
+				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
+		service.acceptTransfer(THIRD_ID, "teacher",
+				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+
+		assertThat(service.listColleagues(TEACHER_ID, "teacher", maths.id()).colleagues())
+				.extracting(c -> c.userId(), c -> c.displayName(), c -> c.alreadyFollows())
+				.containsExactlyInAnyOrder(
+						org.assertj.core.groups.Tuple.tuple(OTHER_ID, "Camille", false),
+						org.assertj.core.groups.Tuple.tuple(THIRD_ID, "Luc", true));
+		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share"))
 				.hasMessage(TeacherSubjectService.ALREADY_HAS);
+		assertThatThrownBy(() -> service.requestTransfer(THIRD_ID, "teacher", maths.id(), TEACHER_ID, "move"))
+				.hasMessage(TeacherSubjectService.ALREADY_HAS);
+
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
+		service.acceptTransfer(OTHER_ID, "teacher",
+				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
+		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "move");
+		service.acceptTransfer(THIRD_ID, "teacher",
+				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
+
+		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isFalse();
+		assertThat(lineOf(THIRD_ID, maths.id()).ownedByMe()).isTrue();
+		assertThat(lineOf(THIRD_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isTrue();
+		assertThat(lineOf(OTHER_ID, maths.id()).ownedByMe()).isFalse();
+		assertThat(subjects.accessCount(maths.id())).isEqualTo(2);
+		assertThat(subjects.find(maths.id()).userId()).isEqualTo(THIRD_ID);
 	}
 
 	@Test

@@ -376,10 +376,18 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			requestHandover(userId, subject, colleagueUserId);
 			return;
 		}
-		if (colleagueUserId == userId || teacherSubjectPort.hasAccess(subjectId, colleagueUserId)) {
+		if (colleagueUserId == userId) {
 			throw bad(ALREADY_HAS);
 		}
-		if (!isEligibleColleague(userId, subject, colleagueUserId)) {
+		boolean alreadyFollows = teacherSubjectPort.hasAccess(subjectId, colleagueUserId);
+		if (alreadyFollows) {
+			if (!MODE_MOVE.equals(transferMode) || subject.userId() != userId) {
+				throw bad(ALREADY_HAS);
+			}
+			if (!canReceiveOwnerMove(subject, colleagueUserId)) {
+				throw bad(COLLEAGUE_NOT_ELIGIBLE);
+			}
+		} else if (!isEligibleColleague(userId, subject, colleagueUserId)) {
 			throw bad(COLLEAGUE_NOT_ELIGIBLE);
 		}
 		if (teacherSubjectPort.hasPendingTransfer(subjectId, colleagueUserId)) {
@@ -471,7 +479,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			return;
 		}
 		if (MODE_MOVE.equals(request.mode())) {
-			if (teacherSubjectPort.hasAccess(request.subjectId(), userId)) {
+			boolean recipientAlreadyFollows = teacherSubjectPort.hasAccess(request.subjectId(), userId);
+			if (recipientAlreadyFollows && subject.userId() != request.fromUserId()) {
 				throw bad(INVITE_STALE);
 			}
 			acceptMove(userId, request);
@@ -535,7 +544,13 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		}
 	}
 
+	/**
+	 * Collègues de la classe. Ceux qui ne suivent pas encore peuvent recevoir un partage
+	 * ou un déplacement. Ceux qui suivent déjà n'apparaissent que pour le propriétaire,
+	 * afin qu'il puisse leur proposer de devenir propriétaire.
+	 */
 	private List<ColleagueLine> eligibleColleagues(long userId, StoredSubject subject) {
+		boolean owner = subject.userId() == userId;
 		List<ColleagueLine> lines = new ArrayList<>();
 		for (Long candidate : teacherProfilePort.findUserIdsWithClass(subject.schoolId(), subject.grade())) {
 			if (candidate == null || candidate == userId) {
@@ -544,18 +559,25 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			if (!isAcceptedTeacher(candidate)) {
 				continue;
 			}
-			if (teacherSubjectPort.hasAccess(subject.id(), candidate)) {
+			boolean alreadyFollows = teacherSubjectPort.hasAccess(subject.id(), candidate);
+			if (alreadyFollows && !owner) {
 				continue;
 			}
 			String name = teacherProfilePort.findAccount(candidate)
 					.map(TeacherAccount::displayName)
 					.orElse("");
-			lines.add(new ColleagueLine(candidate, name == null ? "" : name));
+			lines.add(new ColleagueLine(candidate, name == null ? "" : name, alreadyFollows));
 		}
 		Collator order = Collator.getInstance(Locale.FRENCH);
 		order.setStrength(Collator.PRIMARY);
 		lines.sort((left, right) -> order.compare(left.displayName(), right.displayName()));
 		return List.copyOf(lines);
+	}
+
+	/** Professeur accepté de la même classe : il peut recevoir le déplacement du propriétaire. */
+	private boolean canReceiveOwnerMove(StoredSubject subject, long colleagueUserId) {
+		return isAcceptedTeacher(colleagueUserId)
+				&& hasClass(colleagueUserId, subject.schoolId(), subject.grade());
 	}
 
 	private boolean isEligibleColleague(long userId, StoredSubject subject, long colleagueUserId) {

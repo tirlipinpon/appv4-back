@@ -271,7 +271,8 @@ public class TeacherSubjectController {
 		TeacherSubjectColleaguesView view =
 				teacherSubjectUseCase.listColleagues(user.userId(), user.activeRole(), id);
 		List<TeacherSubjectColleagueItem> items = view.colleagues().stream()
-				.map(line -> new TeacherSubjectColleagueItem(line.userId(), line.displayName()))
+				.map(line -> new TeacherSubjectColleagueItem(
+						line.userId(), line.displayName(), line.alreadyFollows()))
 				.toList();
 		return ResponseEntity.ok(new TeacherSubjectColleaguesResponse(items));
 	}
@@ -572,7 +573,12 @@ public class TeacherSubjectController {
 	}
 
 	@Schema(name = "TeacherSubjectColleagueItem")
-	public record TeacherSubjectColleagueItem(long userId, String displayName) {
+	public record TeacherSubjectColleagueItem(
+			long userId,
+			String displayName,
+			@Schema(description = "Vrai si ce collègue suit déjà la matière. Le propriétaire peut "
+					+ "quand même lui proposer un déplacement. Un partage reste refusé.")
+			boolean alreadyFollows) {
 	}
 
 	@Schema(name = "TeacherTransferInvitesResponse")

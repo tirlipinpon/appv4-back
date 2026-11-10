@@ -15,6 +15,10 @@ public record TeacherSubjectColleaguesView(List<ColleagueLine> colleagues) {
 		colleagues = colleagues == null ? List.of() : List.copyOf(colleagues);
 	}
 
-	public record ColleagueLine(long userId, String displayName) {
+	/**
+	 * @param alreadyFollows vrai si ce collègue a déjà la matière. Le propriétaire peut
+	 *     quand même lui proposer un déplacement. Un partage reste impossible.
+	 */
+	public record ColleagueLine(long userId, String displayName, boolean alreadyFollows) {
 	}
 }

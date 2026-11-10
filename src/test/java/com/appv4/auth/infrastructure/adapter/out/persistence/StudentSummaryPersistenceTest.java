@@ -44,4 +44,3 @@ class StudentSummaryPersistenceTest {
         assertThat(rows).filteredOn(row -> row.getFirstName().equals("Bob")).noneMatch(BackChildJpaRepository.StudentSummary::getHasPhoto);
     }
 }
-

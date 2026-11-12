@@ -35,7 +35,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzlePiece
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
-import com.appv4.auth.application.service.SpaceHello;
+import com.appv4.auth.application.service.SpaceAccess;
 import com.appv4.auth.application.service.TeacherQuestionService;
 import com.appv4.auth.application.service.TeacherSubjectService;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
@@ -693,7 +693,7 @@ class TeacherQuestionControllerTest {
 	void parentAndAnonymousCannotOpenQuestions() throws Exception {
 		mockMvc.perform(get("/api/int/teacher/question-forms").header(HttpHeaders.AUTHORIZATION, bearer("parent")))
 				.andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value(SpaceHello.DENIED));
+				.andExpect(jsonPath("$.message").value(SpaceAccess.DENIED));
 
 		mockMvc.perform(get("/api/int/teacher/question-forms"))
 				.andExpect(status().isUnauthorized());

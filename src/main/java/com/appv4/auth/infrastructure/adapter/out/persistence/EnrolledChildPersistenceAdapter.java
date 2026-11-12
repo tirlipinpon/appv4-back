@@ -34,8 +34,10 @@ public class EnrolledChildPersistenceAdapter implements EnrolledChildPort {
 		if (schoolIds == null || schoolIds.isEmpty()) {
 			return List.of();
 		}
-		return childRepository.findByHiddenFalseAndActiveTrueAndSchoolIdIn(schoolIds).stream()
-				.map(EnrolledChildPersistenceAdapter::toEnrolled)
+		return childRepository.findStudentSummaries(schoolIds).stream()
+				.map(child -> new EnrolledChild(child.getId(), child.getFirstName(), child.getLastName(),
+						child.getAge(), child.getCurriculum(), child.getGradeLabel(), child.getSchoolId(),
+						child.getAvatarCode(), child.getHasPhoto(), true))
 				.toList();
 	}
 

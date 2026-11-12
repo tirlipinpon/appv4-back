@@ -183,7 +183,7 @@ class ChildSubjectServiceTest {
 	@Test
 	void anotherParentAndATeacherCannotOpenTheList() {
 		assertThatThrownBy(() -> service.loadAll(1L, "teacher"))
-				.hasMessage(SpaceHello.DENIED);
+				.hasMessage(SpaceAccess.DENIED);
 		assertThatThrownBy(() -> service.add(1L, "parent", 3L, 99L))
 				.hasMessage(ChildSubjectService.SUBJECT_UNAVAILABLE);
 	}

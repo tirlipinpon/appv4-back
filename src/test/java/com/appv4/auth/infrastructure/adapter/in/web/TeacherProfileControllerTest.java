@@ -31,7 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
-import com.appv4.auth.application.service.SpaceHello;
+import com.appv4.auth.application.service.SpaceAccess;
 import com.appv4.auth.application.service.TeacherProfileService;
 import com.appv4.auth.application.service.TeacherStudentsService;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
@@ -164,7 +164,7 @@ class TeacherProfileControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"displayName\":\"Parent\",\"schools\":[]}"))
 				.andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value(SpaceHello.DENIED));
+				.andExpect(jsonPath("$.message").value(SpaceAccess.DENIED));
 
 		mockMvc.perform(get("/api/int/teacher/profile").header(HttpHeaders.AUTHORIZATION, bearer(null)))
 				.andExpect(status().isForbidden());
@@ -204,7 +204,7 @@ class TeacherProfileControllerTest {
 						.param("schoolId", "1")
 						.header(HttpHeaders.AUTHORIZATION, bearer("parent")))
 				.andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.message").value(SpaceHello.DENIED));
+				.andExpect(jsonPath("$.message").value(SpaceAccess.DENIED));
 
 		mockMvc.perform(get("/api/int/teacher/profile/removal-preview").param("schoolId", "1"))
 				.andExpect(status().isUnauthorized());

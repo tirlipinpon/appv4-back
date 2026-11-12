@@ -31,7 +31,7 @@ class OpenApiContractExportTest {
 	private MockMvc mockMvc;
 
 	@Test
-	void apiDocsDescribesAuthAndHelloAndExportsJson() throws Exception {
+	void apiDocsDescribesAuthAndExportsJson() throws Exception {
 		MvcResult result = mockMvc.perform(get("/v3/api-docs"))
 				.andExpect(status().isOk())
 				.andReturn();
@@ -60,9 +60,7 @@ class OpenApiContractExportTest {
 				.contains("/api/int/teacher/subjects/{subjectId}/questions/delete")
 				.contains("/api/int/parent/profile")
 				.contains("/api/int/parent/children")
-				.contains("/api/int/parent/subjects")
-				.contains("/api/int/hello")
-				.contains("/api/ext/hello");
+				.contains("/api/int/parent/subjects");
 		// switch-role est authentifié — le contrat doit l'annoncer (issue #51)
 		int switchRoleIdx = body.indexOf("\"operationId\":\"switchRole\"");
 		assertThat(switchRoleIdx).isPositive();

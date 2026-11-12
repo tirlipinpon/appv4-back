@@ -1,5 +1,7 @@
 # appv4-back
 
+Jeu volumineux pour tester le front : **[installation, comptes et rollback](scripts/front-demo/README.md)**.
+
 Backend de l’application éducative **appv4** :
 **Java 21 + Spring Boot 3.5.x**, architecture **hexagonale** (Ports & Adapters), API REST.
 

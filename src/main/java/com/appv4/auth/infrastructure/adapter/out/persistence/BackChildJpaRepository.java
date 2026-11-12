@@ -34,7 +34,20 @@ public interface BackChildJpaRepository extends JpaRepository<BackChildEntity, L
 			""")
 	List<StudentSummary> findStudentSummaries(@Param("schoolIds") Collection<Long> schoolIds);
 
-	List<BackChildEntity> findByParentUserIdAndHiddenFalseOrderByIdAsc(long parentUserId);
+	interface ChildSummary extends StudentSummary {
+		long getParentUserId();
+		String getSex();
+		boolean getActive();
+	}
+
+	@Query("""
+			select c.id as id, c.parentUserId as parentUserId, c.firstName as firstName,
+			c.lastName as lastName, c.sex as sex, c.age as age, c.curriculum as curriculum,
+			c.gradeLabel as gradeLabel, c.schoolId as schoolId, c.avatarCode as avatarCode,
+			(case when c.photo is null then false else true end) as hasPhoto, c.active as active
+			from BackChildEntity c where c.parentUserId = :parentUserId and c.hidden = false order by c.id
+			""")
+	List<ChildSummary> findParentSummaries(@Param("parentUserId") long parentUserId);
 
 	Optional<BackChildEntity> findByIdAndParentUserIdAndHiddenFalse(long id, long parentUserId);
 

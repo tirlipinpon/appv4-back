@@ -34,7 +34,8 @@ class LocalLoginProfilesControllerTest {
 	@Test
 	void onlyLocalProfileRegistersTheControllerEvenWithMixedProfiles() {
 		for (String[] profiles : List.of(new String[]{"local"}, new String[]{"production"}, new String[]{"prod"},
-				new String[]{"test"}, new String[]{"local", "production"}, new String[]{"local", "prod"}, new String[]{})) {
+				new String[]{"test"}, new String[]{"local", "production"}, new String[]{"local", "prod"},
+				new String[]{"default"})) {
 			try (var context = new AnnotationConfigApplicationContext()) {
 				context.getEnvironment().setActiveProfiles(profiles);
 				context.registerBean(LocalLoginProfilesPort.class, () -> mock(LocalLoginProfilesPort.class));

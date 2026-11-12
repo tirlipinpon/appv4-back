@@ -631,6 +631,7 @@ public class AuthConfiguration {
 	@Bean
 	SecurityFilterChain securityFilterChain(
 			HttpSecurity http,
+			org.springframework.core.env.Environment environment,
 			JwtAuthenticationFilter jwtAuthenticationFilter,
 			AuthRateLimitFilter authRateLimitFilter,
 			CorsConfigurationSource corsConfigurationSource) throws Exception {
@@ -638,7 +639,11 @@ public class AuthConfiguration {
 				.csrf(csrf -> csrf.disable())
 				.cors(cors -> cors.configurationSource(corsConfigurationSource))
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.authorizeHttpRequests(auth -> auth
+				.authorizeHttpRequests(auth -> {
+					if (environment.matchesProfiles("local & !prod & !production & !test")) {
+						auth.requestMatchers(HttpMethod.GET, "/api/int/auth/dev-profiles").permitAll();
+					}
+					auth
 						.requestMatchers("/actuator/health", "/actuator/info").permitAll()
 						.requestMatchers("/error").permitAll()
 						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -656,7 +661,8 @@ public class AuthConfiguration {
 						.requestMatchers("/api/int/auth/forgot-password").permitAll()
 						.requestMatchers("/api/int/auth/reset-password").permitAll()
 						.requestMatchers("/api/int/**").authenticated()
-						.anyRequest().denyAll())
+						.anyRequest().denyAll();
+				})
 				.httpBasic(AbstractHttpConfigurer::disable)
 				.formLogin(AbstractHttpConfigurer::disable)
 				// API REST : on veut 401 JSON/HTTP, pas une redirection vers une page login

@@ -12,14 +12,36 @@ import org.springframework.data.repository.query.Param;
  */
 public interface BackChildLinkJpaRepository extends JpaRepository<BackChildLinkEntity, Long> {
 
+	/**
+	 * Prénom et sexe seulement. La photo reste sur {@code GET …/photo}.
+	 */
 	@Query("""
-			select link from BackChildLinkEntity link
-			join fetch link.subject
-			join fetch link.related
+			select subject.id as subjectId, subject.firstName as subjectFirstName, subject.sex as subjectSex,
+			       related.id as relatedId, related.firstName as relatedFirstName, related.sex as relatedSex,
+			       link.relation as relation
+			from BackChildLinkEntity link
+			join link.subject subject
+			join link.related related
 			where link.parentUserId = :parentUserId
 			order by link.id
 			""")
-	List<BackChildLinkEntity> findDetailedByParentUserId(@Param("parentUserId") long parentUserId);
+	List<ChildLinkFace> findFacesByParentUserId(@Param("parentUserId") long parentUserId);
+
+	interface ChildLinkFace {
+		Long getSubjectId();
+
+		String getSubjectFirstName();
+
+		String getSubjectSex();
+
+		Long getRelatedId();
+
+		String getRelatedFirstName();
+
+		String getRelatedSex();
+
+		String getRelation();
+	}
 
 	/** Paire déjà enregistrée, quel que soit l'enfant qui a été créé en second. */
 	@Query("""

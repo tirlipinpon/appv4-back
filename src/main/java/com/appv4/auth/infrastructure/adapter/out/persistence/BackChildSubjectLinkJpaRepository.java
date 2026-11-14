@@ -32,6 +32,27 @@ public interface BackChildSubjectLinkJpaRepository extends JpaRepository<BackChi
 			+ "values (:childId, :subjectId, false) on conflict (child_id, subject_id) do nothing", nativeQuery = true)
 	int insertDefaultIfAbsent(@Param("childId") long childId, @Param("subjectId") long subjectId);
 
+	/**
+	 * Une passe pour toute la famille. Le conflit laisse une exclusion déjà posée.
+	 */
+	@Modifying(flushAutomatically = true)
+	@Query(value = """
+			insert into back_child_subject_links (child_id, subject_id, excluded)
+			select c.id, s.id, false
+			from back_children c
+			join back_teacher_subjects s
+			  on s.school_id = c.school_id
+			 and s.grade_label = c.grade_label
+			 and s.hidden = false
+			 and s.active = true
+			where c.parent_user_id = :parentUserId
+			  and c.hidden = false
+			  and c.school_id is not null
+			  and btrim(c.grade_label) <> ''
+			on conflict (child_id, subject_id) do nothing
+			""", nativeQuery = true)
+	int insertDefaultsForParent(@Param("parentUserId") long parentUserId);
+
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("""
 			delete from BackChildSubjectLinkEntity link

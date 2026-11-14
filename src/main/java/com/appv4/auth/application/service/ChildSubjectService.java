@@ -4,6 +4,7 @@ import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -60,33 +61,98 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 		this.teacherQuestionPort = teacherQuestionPort;
 	}
 
+	/**
+	 * Liste chaque enfant et ses matières déjà choisies.
+	 *
+	 * <p><b>Business :</b> la page s'ouvre sur les cours déjà là. Le sexe, l'âge et l'avatar
+	 * sont dans la même réponse. Les images se chargent à part.
+	 * <p><b>Technique :</b> l'insert des matières manquantes commit avant les lectures.
+	 * Un seul comptage de questions pour toute la famille.
+	 * <p><b>Métier / flow :</b> {@code GET /api/int/parent/subjects}.
+	 */
 	@Override
-	@Transactional
 	public ParentSubjectsView loadSummary(long parentUserId, String activeRole) {
 		requireParent(activeRole);
-		List<ChildSubjectsView> result = new ArrayList<>();
-		for (ChildSaved child : childPort.findByParent(parentUserId)) {
-			ensure(child, classCatalog(child));
-			List<Long> ids = linksOf(child.id()).stream().filter(link -> !link.excluded())
-					.map(StoredLink::subjectId).toList();
-			List<CatalogSubject> subjects = childSubjectPort.visibleByIds(ids);
-			List<Long> schoolIds = new ArrayList<>(subjects.stream().map(CatalogSubject::schoolId).distinct().toList());
-			if (child.schoolId() != null && !schoolIds.contains(child.schoolId())) {
+		List<ChildSaved> family = childPort.findByParent(parentUserId);
+		Map<Long, List<ChildSubjectPort.ChildLink>> linksByChild = groupLinks(
+				childSubjectPort.linksForParent(parentUserId, family));
+		if (needsClassDefaults(family, linksByChild)) {
+			childSubjectPort.ensureMissingClassLinks(family);
+			linksByChild = groupLinks(childSubjectPort.linksForParent(parentUserId, family));
+		}
+		List<Long> subjectIds = new ArrayList<>();
+		for (List<ChildSubjectPort.ChildLink> rows : linksByChild.values()) {
+			for (ChildSubjectPort.ChildLink link : rows) {
+				if (!link.excluded()) {
+					subjectIds.add(link.subjectId());
+				}
+			}
+		}
+		List<Long> distinctIds = subjectIds.stream().distinct().toList();
+		Map<Long, CatalogSubject> bySubject = new LinkedHashMap<>();
+		for (CatalogSubject subject : childSubjectPort.visibleByIds(distinctIds)) {
+			bySubject.putIfAbsent(subject.id(), subject);
+		}
+		List<Long> schoolIds = new ArrayList<>();
+		for (ChildSaved child : family) {
+			if (child.schoolId() != null) {
 				schoolIds.add(child.schoolId());
 			}
-			List<CatalogSchool> schools = schoolCatalogPort.findByIds(schoolIds);
-			Map<Long, Long> questionCounts = teacherQuestionPort.countBySubjectIds(
-					subjects.stream().map(CatalogSubject::id).toList());
+		}
+		for (CatalogSubject subject : bySubject.values()) {
+			schoolIds.add(subject.schoolId());
+		}
+		List<CatalogSchool> schools = schoolCatalogPort.findByIds(schoolIds.stream().distinct().toList());
+		Map<Long, Long> questionCounts = teacherQuestionPort.countBySubjectIds(distinctIds);
+		if (questionCounts == null) {
+			questionCounts = Map.of();
+		}
+		List<ChildSubjectsView> result = new ArrayList<>();
+		for (ChildSaved child : family) {
 			List<SubjectOffer> chosen = new ArrayList<>();
-			for (CatalogSubject subject : subjects) {
+			for (ChildSubjectPort.ChildLink link : linksByChild.getOrDefault(child.id(), List.of())) {
+				if (link.excluded()) {
+					continue;
+				}
+				CatalogSubject subject = bySubject.get(link.subjectId());
+				if (subject == null) {
+					continue;
+				}
 				chosen.add(offer(child, subject, schools, questionCounts));
 			}
 			sort(chosen);
-			result.add(new ChildSubjectsView(child.id(), child.firstName(), child.lastName(), child.schoolId(),
-					schoolName(child.schoolId() == null ? -1L : child.schoolId(), schools),
-					child.grade(), chosen, List.of()));
+			result.add(portrait(child, schools, chosen, List.of()));
 		}
 		return new ParentSubjectsView(result);
+	}
+
+	/**
+	 * Vrai seulement si un enfant scolarisé n'a encore aucun lien matière.
+	 * Évite un {@code INSERT} lourd quand la famille est déjà à jour.
+	 */
+	private static boolean needsClassDefaults(
+			List<ChildSaved> family,
+			Map<Long, List<ChildSubjectPort.ChildLink>> linksByChild) {
+		for (ChildSaved child : family) {
+			if (child.schoolId() == null || child.grade() == null || child.grade().isBlank()) {
+				continue;
+			}
+			if (linksByChild.getOrDefault(child.id(), List.of()).isEmpty()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static Map<Long, List<ChildSubjectPort.ChildLink>> groupLinks(List<ChildSubjectPort.ChildLink> rows) {
+		Map<Long, List<ChildSubjectPort.ChildLink>> byChild = new LinkedHashMap<>();
+		if (rows == null) {
+			return byChild;
+		}
+		for (ChildSubjectPort.ChildLink link : rows) {
+			byChild.computeIfAbsent(link.childId(), ignored -> new ArrayList<>()).add(link);
+		}
+		return byChild;
 	}
 
 	@Override
@@ -214,11 +280,14 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 
 	/**
 	 * Rattache les matières visibles de l'école et de l'année, si le parent ne les a pas retirées.
+	 *
+	 * <p><b>Business :</b> un cours de la classe est déjà dans la liste à la prochaine ouverture.
+	 * <p><b>Technique :</b> transaction courte, à part de la lecture de la page.
+	 * <p><b>Métier / flow :</b> avant {@code GET /parent/children}, et après un ajout ou une correction d'enfant.
 	 */
+	@Transactional
 	public void ensureDefaults(long parentUserId) {
-		for (ChildSaved child : childPort.findByParent(parentUserId)) {
-			ensure(child, classCatalog(child));
-		}
+		childSubjectPort.ensureMissingClassLinks(childPort.findByParent(parentUserId));
 	}
 
 	private ParentSubjectsView family(long parentUserId) {
@@ -273,10 +342,22 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 		}
 		sort(chosen);
 		sort(proposed);
+		return portrait(child, schools, chosen, proposed);
+	}
+
+	private static ChildSubjectsView portrait(
+			ChildSaved child,
+			List<CatalogSchool> schools,
+			List<SubjectOffer> chosen,
+			List<SubjectOffer> proposed) {
 		return new ChildSubjectsView(
 				child.id(),
 				child.firstName(),
 				child.lastName(),
+				child.sex(),
+				child.age(),
+				child.avatarCode(),
+				child.hasPhoto(),
 				child.schoolId(),
 				schoolName(child.schoolId() == null ? -1L : child.schoolId(), schools),
 				child.grade(),

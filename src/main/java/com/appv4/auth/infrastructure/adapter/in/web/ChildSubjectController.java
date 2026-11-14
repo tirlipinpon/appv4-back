@@ -122,6 +122,10 @@ public class ChildSubjectController {
 				view.childId(),
 				view.firstName(),
 				view.lastName(),
+				view.sex(),
+				view.age(),
+				view.avatarCode(),
+				view.hasPhoto(),
 				view.schoolId(),
 				view.schoolName(),
 				view.grade(),
@@ -150,6 +154,12 @@ public class ChildSubjectController {
 			long childId,
 			String firstName,
 			String lastName,
+			@Schema(description = "GARCON, FILLE ou NON_GENRE")
+			String sex,
+			int age,
+			String avatarCode,
+			@Schema(description = "Vrai si une photo est enregistrée. Le fichier se lit à part.")
+			boolean hasPhoto,
 			Long schoolId,
 			String schoolName,
 			String grade,

@@ -1,6 +1,10 @@
 package com.appv4.auth.application.port.out;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+
+import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 
 /**
  * Matières qu'un parent rattache à un enfant (SCRUM-162).
@@ -47,6 +51,25 @@ public interface ChildSubjectPort {
 		return linksOf(childId).stream().filter(link -> link.subjectId() == subjectId).findFirst();
 	}
 
+	/**
+	 * Tous les liens matière des enfants encore affichés de ce parent.
+	 *
+	 * <p><b>Business :</b> la page matières charge la famille en une fois.
+	 * <p><b>Technique :</b> défaut : une lecture par enfant. L'adapter Postgres regroupe.
+	 */
+	default List<ChildLink> linksForParent(long parentUserId, List<ChildSaved> children) {
+		if (children == null || children.isEmpty()) {
+			return List.of();
+		}
+		List<ChildLink> rows = new java.util.ArrayList<>();
+		for (ChildSaved child : children) {
+			for (StoredLink link : linksOf(child.id())) {
+				rows.add(new ChildLink(child.id(), link.subjectId(), link.excluded()));
+			}
+		}
+		return rows;
+	}
+
 	List<CountedLink> visibleLinksForParent(long parentUserId);
 
 	/** Crée le lien, ou met à jour {@code excluded} s'il existe déjà. */
@@ -54,6 +77,34 @@ public interface ChildSubjectPort {
 
 	/** Insert a default link only when absent, preserving any exclusion. */
 	void ensureDefault(long childId, long subjectId);
+
+	/**
+	 * Rattache en une fois les matières visibles de la classe.
+	 *
+	 * <p><b>Business :</b> un cours de l'école et de l'année apparaît dans la liste
+	 * sans que le parent le cherche. Un cours déjà retiré reste retiré.
+	 * <p><b>Technique :</b> un seul insert. La ligne déjà là n'est pas réécrite.
+	 * <p><b>Métier / flow :</b> court, et terminé avant la lecture de la page.
+	 */
+	default void ensureMissingClassLinks(List<ChildSaved> children) {
+		if (children == null) {
+			return;
+		}
+		for (ChildSaved child : children) {
+			if (child.schoolId() == null || child.grade() == null || child.grade().isBlank()) {
+				continue;
+			}
+			Set<Long> known = new HashSet<>();
+			for (StoredLink link : linksOf(child.id())) {
+				known.add(link.subjectId());
+			}
+			for (CatalogSubject subject : visibleInClass(child.schoolId(), child.grade())) {
+				if (!known.contains(subject.id())) {
+					ensureDefault(child.id(), subject.id());
+				}
+			}
+		}
+	}
 
 	/**
 	 * Efface le lien. Sert aux cours extra-scolaires.
@@ -76,6 +127,12 @@ public interface ChildSubjectPort {
 	List<SubjectChildLink> linksOfSubject(long subjectId);
 
 	record StoredLink(long subjectId, boolean excluded) {
+	}
+
+	/**
+	 * Lien matière d'un enfant, pour une lecture groupée par parent.
+	 */
+	record ChildLink(long childId, long subjectId, boolean excluded) {
 	}
 
 	/**

@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort.ChildLink;
 import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 
@@ -100,6 +101,23 @@ public class ChildSubjectPersistenceAdapter implements ChildSubjectPort {
 		List<StoredLink> rows = new ArrayList<>();
 		for (BackChildSubjectLinkEntity link : links.findByChildIdOrderByIdAsc(childId)) {
 			rows.add(new StoredLink(link.getSubjectId(), link.isExcluded()));
+		}
+		return List.copyOf(rows);
+	}
+
+	/**
+	 * Une requête pour toute la famille.
+	 *
+	 * <p><b>Business :</b> la page matières n'ouvre pas une requête par enfant.
+	 * <p><b>Technique :</b> {@link BackChildSubjectLinkJpaRepository#findForParent}.
+	 * <p><b>Métier / flow :</b> {@code GET /api/int/parent/subjects}.
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public List<ChildLink> linksForParent(long parentUserId, List<ChildSaved> children) {
+		List<ChildLink> rows = new ArrayList<>();
+		for (BackChildSubjectLinkEntity link : links.findForParent(parentUserId)) {
+			rows.add(new ChildLink(link.getChildId(), link.getSubjectId(), link.isExcluded()));
 		}
 		return List.copyOf(rows);
 	}

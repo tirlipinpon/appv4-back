@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +27,7 @@ import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
+import com.appv4.auth.application.port.out.ChildSubjectPort.ChildLink;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.service.SpaceAccess;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
@@ -59,6 +61,17 @@ class ChildSubjectControllerTest {
 				new CatalogSubject(10L, "Français", "Prof A", 1L, "CE1"),
 				new CatalogSubject(12L, "Mathématiques", "Prof A", 1L, "CE2")));
 		when(subjects.linksOf(3L)).thenReturn(List.of(new StoredLink(10L, false)));
+		when(subjects.linksForParent(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyList()))
+				.thenAnswer(call -> {
+					List<ChildSaved> family = call.getArgument(1);
+					List<ChildLink> rows = new ArrayList<>();
+					for (ChildSaved child : family) {
+						for (StoredLink link : subjects.linksOf(child.id())) {
+							rows.add(new ChildLink(child.id(), link.subjectId(), link.excluded()));
+						}
+					}
+					return rows;
+				});
 		when(subjects.findLink(3L, 10L)).thenReturn(Optional.of(new StoredLink(10L, false)));
 		when(subjects.visibleInClass(1L, "CE1")).thenReturn(List.of(
 				new CatalogSubject(10L, "Français", "Prof A", 1L, "CE1")));

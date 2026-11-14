@@ -51,6 +51,25 @@ public interface ChildSubjectPort {
 		return linksOf(childId).stream().filter(link -> link.subjectId() == subjectId).findFirst();
 	}
 
+	/**
+	 * Tous les liens matière des enfants encore affichés de ce parent.
+	 *
+	 * <p><b>Business :</b> la page matières charge la famille en une fois.
+	 * <p><b>Technique :</b> défaut : une lecture par enfant. L'adapter Postgres regroupe.
+	 */
+	default List<ChildLink> linksForParent(long parentUserId, List<ChildSaved> children) {
+		if (children == null || children.isEmpty()) {
+			return List.of();
+		}
+		List<ChildLink> rows = new java.util.ArrayList<>();
+		for (ChildSaved child : children) {
+			for (StoredLink link : linksOf(child.id())) {
+				rows.add(new ChildLink(child.id(), link.subjectId(), link.excluded()));
+			}
+		}
+		return rows;
+	}
+
 	List<CountedLink> visibleLinksForParent(long parentUserId);
 
 	/** Crée le lien, ou met à jour {@code excluded} s'il existe déjà. */
@@ -108,6 +127,12 @@ public interface ChildSubjectPort {
 	List<SubjectChildLink> linksOfSubject(long subjectId);
 
 	record StoredLink(long subjectId, boolean excluded) {
+	}
+
+	/**
+	 * Lien matière d'un enfant, pour une lecture groupée par parent.
+	 */
+	record ChildLink(long childId, long subjectId, boolean excluded) {
 	}
 
 	/**

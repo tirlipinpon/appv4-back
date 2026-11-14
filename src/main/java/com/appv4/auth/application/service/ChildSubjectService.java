@@ -74,13 +74,15 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 	public ParentSubjectsView loadSummary(long parentUserId, String activeRole) {
 		requireParent(activeRole);
 		List<ChildSaved> family = childPort.findByParent(parentUserId);
-		childSubjectPort.ensureMissingClassLinks(family);
-		Map<Long, List<StoredLink>> linksByChild = new LinkedHashMap<>();
+		Map<Long, List<ChildSubjectPort.ChildLink>> linksByChild = groupLinks(
+				childSubjectPort.linksForParent(parentUserId, family));
+		if (needsClassDefaults(family, linksByChild)) {
+			childSubjectPort.ensureMissingClassLinks(family);
+			linksByChild = groupLinks(childSubjectPort.linksForParent(parentUserId, family));
+		}
 		List<Long> subjectIds = new ArrayList<>();
-		for (ChildSaved child : family) {
-			List<StoredLink> rows = linksOf(child.id());
-			linksByChild.put(child.id(), rows);
-			for (StoredLink link : rows) {
+		for (List<ChildSubjectPort.ChildLink> rows : linksByChild.values()) {
+			for (ChildSubjectPort.ChildLink link : rows) {
 				if (!link.excluded()) {
 					subjectIds.add(link.subjectId());
 				}
@@ -108,7 +110,7 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 		List<ChildSubjectsView> result = new ArrayList<>();
 		for (ChildSaved child : family) {
 			List<SubjectOffer> chosen = new ArrayList<>();
-			for (StoredLink link : linksByChild.getOrDefault(child.id(), List.of())) {
+			for (ChildSubjectPort.ChildLink link : linksByChild.getOrDefault(child.id(), List.of())) {
 				if (link.excluded()) {
 					continue;
 				}
@@ -122,6 +124,35 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 			result.add(portrait(child, schools, chosen, List.of()));
 		}
 		return new ParentSubjectsView(result);
+	}
+
+	/**
+	 * Vrai seulement si un enfant scolarisé n'a encore aucun lien matière.
+	 * Évite un {@code INSERT} lourd quand la famille est déjà à jour.
+	 */
+	private static boolean needsClassDefaults(
+			List<ChildSaved> family,
+			Map<Long, List<ChildSubjectPort.ChildLink>> linksByChild) {
+		for (ChildSaved child : family) {
+			if (child.schoolId() == null || child.grade() == null || child.grade().isBlank()) {
+				continue;
+			}
+			if (linksByChild.getOrDefault(child.id(), List.of()).isEmpty()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static Map<Long, List<ChildSubjectPort.ChildLink>> groupLinks(List<ChildSubjectPort.ChildLink> rows) {
+		Map<Long, List<ChildSubjectPort.ChildLink>> byChild = new LinkedHashMap<>();
+		if (rows == null) {
+			return byChild;
+		}
+		for (ChildSubjectPort.ChildLink link : rows) {
+			byChild.computeIfAbsent(link.childId(), ignored -> new ArrayList<>()).add(link);
+		}
+		return byChild;
 	}
 
 	@Override

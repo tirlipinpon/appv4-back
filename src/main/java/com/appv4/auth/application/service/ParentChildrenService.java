@@ -88,10 +88,17 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		this.childSubjectService = childSubjectService;
 	}
 
+	/**
+	 * Liste les fiches. Le rattachement des matières de la classe se termine avant la lecture.
+	 *
+	 * <p><b>Business :</b> le parent voit ses enfants et le nombre de matières, sans attendre les photos.
+	 * <p><b>Technique :</b> l'insert éventuel commit, puis les lectures. Pas une seule transaction d'écriture.
+	 * <p><b>Métier / flow :</b> {@code GET /api/int/parent/children}.
+	 */
 	@Override
-	@Transactional
 	public ParentChildrenView list(long parentUserId, String activeRole) {
 		requireParent(activeRole);
+		childSubjectService.ensureDefaults(parentUserId);
 		return view(parentUserId);
 	}
 
@@ -312,7 +319,6 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	}
 
 	private ParentChildrenView view(long parentUserId) {
-		childSubjectService.ensureDefaults(parentUserId);
 		List<ChildSaved> family = childPort.findByParent(parentUserId);
 		List<Long> schoolIds = family.stream().map(ChildSaved::schoolId).filter(java.util.Objects::nonNull).distinct().toList();
 		Map<Long, CatalogSchool> schools = new LinkedHashMap<>();

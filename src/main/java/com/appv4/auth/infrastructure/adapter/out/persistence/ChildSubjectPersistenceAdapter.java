@@ -13,6 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
@@ -130,6 +131,22 @@ public class ChildSubjectPersistenceAdapter implements ChildSubjectPort {
 	@Transactional
 	public void ensureDefault(long childId, long subjectId) {
 		links.insertDefaultIfAbsent(childId, subjectId);
+	}
+
+	/**
+	 * Une requête pour tous les enfants encore affichés de ce parent.
+	 *
+	 * <p><b>Business :</b> les cours de la classe sont là à l'ouverture, sans rouvrir un retrait.
+	 * <p><b>Technique :</b> {@code INSERT … SELECT} puis commit. Le verrou ne couvre pas la lecture suivante.
+	 * <p><b>Métier / flow :</b> appelé avant {@code GET /parent/children} et {@code GET /parent/subjects}.
+	 */
+	@Override
+	@Transactional
+	public void ensureMissingClassLinks(List<ChildSaved> children) {
+		if (children == null || children.isEmpty()) {
+			return;
+		}
+		links.insertDefaultsForParent(children.get(0).parentUserId());
 	}
 
 	@Override

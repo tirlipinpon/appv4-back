@@ -171,17 +171,24 @@ public class ChildPersistenceAdapter implements ChildPort {
 				.ifPresent(linkRepository::delete);
 	}
 
+	/**
+	 * Phrases de fratrie, sans la colonne photo.
+	 *
+	 * <p><b>Business :</b> la liste montre le prénom et le mot du lien. L'image arrive après.
+	 * <p><b>Technique :</b> projection. {@code back_children.photo} n'est pas lue ici.
+	 * <p><b>Métier / flow :</b> {@code GET /api/int/parent/children}, après le rattachement des matières.
+	 */
 	@Override
 	@Transactional(readOnly = true)
 	public List<ChildLinkView> findLinks(long parentUserId) {
-		return linkRepository.findDetailedByParentUserId(parentUserId).stream()
+		return linkRepository.findFacesByParentUserId(parentUserId).stream()
 				.map(link -> new ChildLinkView(
-						link.getSubject().getId(),
-						link.getSubject().getFirstName(),
-						link.getSubject().getSex(),
-						link.getRelated().getId(),
-						link.getRelated().getFirstName(),
-						link.getRelated().getSex(),
+						link.getSubjectId(),
+						link.getSubjectFirstName(),
+						link.getSubjectSex(),
+						link.getRelatedId(),
+						link.getRelatedFirstName(),
+						link.getRelatedSex(),
 						link.getRelation()))
 				.toList();
 	}

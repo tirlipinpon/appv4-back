@@ -76,6 +76,10 @@ class ChildSubjectControllerTest {
 		mockMvc.perform(get("/api/int/parent/subjects").header(HttpHeaders.AUTHORIZATION, bearer("parent")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.children[0].firstName").value("Léa"))
+				.andExpect(jsonPath("$.children[0].sex").value("FILLE"))
+				.andExpect(jsonPath("$.children[0].age").value(7))
+				.andExpect(jsonPath("$.children[0].avatarCode").value("fox"))
+				.andExpect(jsonPath("$.children[0].hasPhoto").value(false))
 				.andExpect(jsonPath("$.children[0].chosen[0].name").value("Français"))
 				.andExpect(jsonPath("$.children[0].chosen[0].scolaire").value(true))
 				.andExpect(jsonPath("$.children[0].proposed").isEmpty());

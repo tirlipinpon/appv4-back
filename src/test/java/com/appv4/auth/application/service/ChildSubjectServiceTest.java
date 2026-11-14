@@ -136,6 +136,10 @@ class ChildSubjectServiceTest {
 	@Test
 	void boundedSearchAndMutationsKeepOnlyTheAffectedAssociation() {
 		ChildSubjectsView summary = one(service.loadSummary(1L, "parent"), 3L);
+		assertThat(summary.sex()).isEqualTo("FILLE");
+		assertThat(summary.age()).isEqualTo(7);
+		assertThat(summary.avatarCode()).isEqualTo("fox");
+		assertThat(summary.hasPhoto()).isFalse();
 		assertThat(summary.chosen()).hasSize(3);
 		assertThat(summary.proposed()).isEmpty();
 		var page = service.searchOffers(1L, "parent", 3L, "math", 0, "", 0, 1);

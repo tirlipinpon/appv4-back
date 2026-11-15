@@ -36,8 +36,12 @@ final class DrawnImageRules {
 	}
 
 	static byte[] requireWebp(String raw) {
+		return requireWebp(raw, IMAGE_REQUIRED);
+	}
+
+	static byte[] requireWebp(String raw, String missingMessage) {
 		if (raw == null || raw.isBlank()) {
-			throw bad(IMAGE_REQUIRED);
+			throw bad(missingMessage);
 		}
 		String payload = raw.trim();
 		int comma = payload.indexOf(',');

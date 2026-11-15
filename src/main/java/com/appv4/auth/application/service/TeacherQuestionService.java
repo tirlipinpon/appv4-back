@@ -157,6 +157,12 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String SHAPE_RECT = "rect";
 	public static final String SHAPE_ELLIPSE = "ellipse";
 	public static final String IMAGE_REQUIRED = "L'image est obligatoire.";
+	public static final String BOARD_IMAGE_REQUIRED = "L'image de fond est obligatoire.";
+	public static final String BOARD_MODE_INVALID = "Choisis un plateau : fond, blanc ou trous.";
+	public static final String BOARD_MODE_FOND = "fond";
+	public static final String BOARD_MODE_BLANC = "blanc";
+	public static final String BOARD_MODE_TROUS = "trous";
+	public static final String BOARD_MODE_DEFAULT = BOARD_MODE_TROUS;
 	public static final String IMAGE_NOT_WEBP = "L'image doit être au format WebP.";
 	public static final String IMAGE_TOO_LARGE = "L'image dépasse 5 Mo.";
 	public static final String ZONES_REQUIRED = "Il faut au moins une zone.";
@@ -175,6 +181,12 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String PIECE_NAME_TOO_LONG = "Un nom de pièce dépasse 200 caractères.";
 	public static final String PIECE_SHAPE = "La forme de la pièce n'est pas reconnue.";
 	public static final String PIECE_POINTS = "Les points de la pièce ne restent pas sur l'image.";
+	public static final String PIECE_SLOT_REQUIRED =
+			"Sur le cadre blanc, pose chaque pièce pour fixer son emplacement.";
+	public static final String PIECE_SLOT_RANGE =
+			"L'emplacement d'une pièce dépasse trop le plateau.";
+	public static final String PIECE_SLOT_OFF_BOARD =
+			"L'emplacement d'une pièce sort entièrement du plateau.";
 	/** Magnétisme par défaut : 8 % de la largeur de l'image. */
 	public static final double SNAP_DEFAULT = 0.08;
 	/** Magnétisme maximum : 25 % de la largeur de l'image. */
@@ -493,9 +505,15 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 		if (content instanceof StoredPuzzle puzzle) {
 			List<PuzzlePieceDraft> pieces = new ArrayList<>();
 			for (StoredPuzzlePiece piece : puzzle.pieces()) {
-				pieces.add(new PuzzlePieceDraft(piece.label(), piece.shape(), piece.points()));
+				pieces.add(new PuzzlePieceDraft(
+						piece.label(), piece.shape(), piece.points(), piece.slotX(), piece.slotY()));
 			}
-			return new PuzzleDraft(puzzle.imageWebp(), puzzle.snapDistance(), pieces);
+			return new PuzzleDraft(
+					puzzle.imageWebp(),
+					puzzle.boardMode(),
+					puzzle.boardImageWebp(),
+					puzzle.snapDistance(),
+					pieces);
 		}
 		throw new IllegalStateException("Copie non prévue pour la forme : " + source.formCode());
 	}

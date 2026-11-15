@@ -19,9 +19,8 @@ import com.appv4.auth.application.service.TeacherQuestionService;
 /**
  * Stockage du puzzle (SCRUM-183).
  *
- * <p><b>Business :</b> une question de cette forme a une image et ses pièces.
- * <p><b>Technique :</b> une lecture groupée de l'image, une lecture groupée des pièces.
- * Les points passent par {@link ClickZonePoints}, comme les zones du clic.
+ * <p><b>Business :</b> image de découpe, mode de plateau, fond optionnel, pièces.
+ * <p><b>Technique :</b> lecture groupée image + pièces ; points via {@link ClickZonePoints}.
  * <p><b>Métier / flow :</b> le port des questions délègue ici dès que le code est {@code puzzle}.
  */
 @Component
@@ -59,14 +58,18 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 					row.getId(),
 					row.getLabel(),
 					row.getShape(),
-					ClickZonePoints.decode(row.getPoints())));
+					ClickZonePoints.decode(row.getPoints()),
+					row.getSlotX(),
+					row.getSlotY()));
 		}
 		Map<Long, StoredContent> contents = new HashMap<>();
 		for (long id : questionIds) {
 			BackSubjectQuestionPuzzleImageEntity image = imagesById.get(id);
 			byte[] bytes = image == null ? new byte[0] : image.getImageWebp();
+			String mode = image == null ? TeacherQuestionService.BOARD_MODE_DEFAULT : image.getBoardMode();
+			byte[] board = image == null ? null : image.getBoardImageWebp();
 			double snap = image == null ? TeacherQuestionService.SNAP_DEFAULT : image.getSnapDistance();
-			contents.put(id, new StoredPuzzle(bytes, snap, piecesById.get(id)));
+			contents.put(id, new StoredPuzzle(bytes, mode, board, snap, piecesById.get(id)));
 		}
 		return contents;
 	}
@@ -77,7 +80,12 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 			throw new IllegalArgumentException("Contenu incompatible avec le puzzle");
 		}
 		BackSubjectQuestionPuzzleImageEntity image = images.saveAndFlush(
-				new BackSubjectQuestionPuzzleImageEntity(questionId, draft.imageWebp(), draft.snapDistance()));
+				new BackSubjectQuestionPuzzleImageEntity(
+						questionId,
+						draft.imageWebp(),
+						draft.boardMode(),
+						draft.boardImageWebp(),
+						draft.snapDistance()));
 		List<BackSubjectQuestionPuzzlePieceEntity> rows = new ArrayList<>();
 		for (PuzzlePieceDraft piece : draft.pieces()) {
 			rows.add(new BackSubjectQuestionPuzzlePieceEntity(
@@ -85,17 +93,21 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 					piece.label(),
 					piece.shape(),
 					ClickZonePoints.encode(piece.points()),
+					piece.slotX(),
+					piece.slotY(),
 					rows.size()));
 		}
 		List<StoredPuzzlePiece> stored = storedPieces(pieces.saveAllAndFlush(rows));
-		return new StoredPuzzle(image.getImageWebp(), image.getSnapDistance(), stored);
+		return new StoredPuzzle(
+				image.getImageWebp(),
+				image.getBoardMode(),
+				image.getBoardImageWebp(),
+				image.getSnapDistance(),
+				stored);
 	}
 
 	@Override
 	public void delete(long questionId) {
-		// Les lignes viennent d'être lues : elles sont dans la session.
-		// Un DELETE groupé les laisserait en mémoire, et l'insert suivant
-		// avec le même id plante (500) au moment de corriger la question.
 		List<BackSubjectQuestionPuzzlePieceEntity> current = pieces
 				.findByQuestionIdInOrderByQuestionIdAscSortOrderAsc(List.of(questionId));
 		pieces.deleteAll(current);
@@ -110,7 +122,9 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 					row.getId(),
 					row.getLabel(),
 					row.getShape(),
-					ClickZonePoints.decode(row.getPoints())));
+					ClickZonePoints.decode(row.getPoints()),
+					row.getSlotX(),
+					row.getSlotY()));
 		}
 		return List.copyOf(stored);
 	}

@@ -237,35 +237,55 @@ public interface TeacherQuestionPort {
 		}
 	}
 
-	/** Pièce déjà nommée, sans côté juste ou faux. */
-	record PuzzlePieceDraft(String label, String shape, List<ClickPoint> points) {
+	/**
+	 * Pièce déjà nommée, sans côté juste ou faux.
+	 * {@code slotX}/{@code slotY} : emplacement cible sur le plateau (mode blanc), sinon null.
+	 */
+	record PuzzlePieceDraft(
+			String label, String shape, List<ClickPoint> points, Double slotX, Double slotY) {
 		public PuzzlePieceDraft {
 			points = List.copyOf(points);
 		}
 	}
 
 	/**
-	 * Image WebP déjà allégée, magnétisme, et les pièces qui restent collées à ce dessin.
+	 * Image de découpe, mode de plateau, fond optionnel, magnétisme, et pièces.
 	 * {@code snapDistance} est une fraction de la largeur : 0,08 veut dire 8 %.
+	 * {@code boardImageWebp} est null hors mode {@code fond}.
 	 */
-	record PuzzleDraft(byte[] imageWebp, double snapDistance, List<PuzzlePieceDraft> pieces) implements DraftContent {
+	record PuzzleDraft(
+			byte[] imageWebp,
+			String boardMode,
+			byte[] boardImageWebp,
+			double snapDistance,
+			List<PuzzlePieceDraft> pieces)
+			implements DraftContent {
 		public PuzzleDraft {
 			imageWebp = imageWebp.clone();
+			boardImageWebp = boardImageWebp == null ? null : boardImageWebp.clone();
 			pieces = List.copyOf(pieces);
 		}
 	}
 
-	/** Pièce relue, avec l'id de la ligne. */
-	record StoredPuzzlePiece(long id, String label, String shape, List<ClickPoint> points) {
+	/** Pièce relue, avec l'id de la ligne. Slots null hors mode blanc. */
+	record StoredPuzzlePiece(
+			long id, String label, String shape, List<ClickPoint> points, Double slotX, Double slotY) {
 		public StoredPuzzlePiece {
 			points = List.copyOf(points);
 		}
 	}
 
-	/** Image, magnétisme et pièces tels que le professeur les a enregistrés. */
-	record StoredPuzzle(byte[] imageWebp, double snapDistance, List<StoredPuzzlePiece> pieces) implements StoredContent {
+	/** Découpe, mode de plateau, fond optionnel, magnétisme et pièces enregistrés. */
+	record StoredPuzzle(
+			byte[] imageWebp,
+			String boardMode,
+			byte[] boardImageWebp,
+			double snapDistance,
+			List<StoredPuzzlePiece> pieces)
+			implements StoredContent {
 		public StoredPuzzle {
 			imageWebp = imageWebp.clone();
+			boardImageWebp = boardImageWebp == null ? null : boardImageWebp.clone();
 			pieces = List.copyOf(pieces);
 		}
 	}

@@ -11,6 +11,7 @@ import jakarta.persistence.Table;
  * Pièce d'un puzzle (SCRUM-183).
  *
  * <p><b>Business :</b> un nom et la forme que le professeur a ajustée. Pas de vert ni de rouge.
+ * En mode blanc, {@code slotX}/{@code slotY} fixent l'emplacement cible sur le plateau.
  * <p><b>Technique :</b> table {@code back_subject_question_puzzle_pieces}. {@code points}
  * garde des coordonnées entre 0 et 1, pour que la pièce suive l'image si l'écran change.
  * <p><b>Métier / flow :</b> plusieurs lignes pour une question de forme {@code puzzle}.
@@ -36,6 +37,12 @@ public class BackSubjectQuestionPuzzlePieceEntity {
 	@Column(nullable = false, length = 800)
 	private String points;
 
+	@Column(name = "slot_x")
+	private Double slotX;
+
+	@Column(name = "slot_y")
+	private Double slotY;
+
 	@Column(name = "sort_order", nullable = false)
 	private int sortOrder;
 
@@ -43,11 +50,19 @@ public class BackSubjectQuestionPuzzlePieceEntity {
 	}
 
 	public BackSubjectQuestionPuzzlePieceEntity(
-			long questionId, String label, String shape, String points, int sortOrder) {
+			long questionId,
+			String label,
+			String shape,
+			String points,
+			Double slotX,
+			Double slotY,
+			int sortOrder) {
 		this.questionId = questionId;
 		this.label = label;
 		this.shape = shape;
 		this.points = points;
+		this.slotX = slotX;
+		this.slotY = slotY;
 		this.sortOrder = sortOrder;
 	}
 
@@ -69,5 +84,13 @@ public class BackSubjectQuestionPuzzlePieceEntity {
 
 	public String getPoints() {
 		return points;
+	}
+
+	public Double getSlotX() {
+		return slotX;
+	}
+
+	public Double getSlotY() {
+		return slotY;
 	}
 }

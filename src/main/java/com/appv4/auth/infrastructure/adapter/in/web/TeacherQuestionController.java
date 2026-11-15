@@ -145,7 +145,7 @@ public class TeacherQuestionController {
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
 						null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -181,7 +181,7 @@ public class TeacherQuestionController {
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
 						null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -321,7 +321,12 @@ public class TeacherQuestionController {
 			return new ClickImageInput(body.imageWebp(), body.requireAllCorrect(), zoneInputs(body.zones()));
 		}
 		if (TeacherQuestionService.PUZZLE.equals(code)) {
-			return new PuzzleInput(body.imageWebp(), body.snapDistance(), pieceInputs(body.pieces()));
+			return new PuzzleInput(
+					body.imageWebp(),
+					body.boardMode(),
+					body.boardImageWebp(),
+					body.snapDistance(),
+					pieceInputs(body.pieces()));
 		}
 		return new LegacyInput(inputs(body.choices()), pairInputs(body.pairs()), itemInputs(body.items()));
 	}
@@ -419,7 +424,8 @@ public class TeacherQuestionController {
 			if (piece == null) {
 				continue;
 			}
-			inputs.add(new PuzzlePieceInput(piece.label(), piece.shape(), pointInputs(piece.points())));
+			inputs.add(new PuzzlePieceInput(
+					piece.label(), piece.shape(), pointInputs(piece.points()), piece.slotX(), piece.slotY()));
 		}
 		return inputs;
 	}
@@ -505,13 +511,18 @@ public class TeacherQuestionController {
 		List<TeacherQuestionPieceItem> pieces = new ArrayList<>();
 		for (PieceLine piece : line.pieces()) {
 			pieces.add(new TeacherQuestionPieceItem(
-					piece.id(), piece.label(), piece.shape(), pointItems(piece.points())));
+					piece.id(),
+					piece.label(),
+					piece.shape(),
+					pointItems(piece.points()),
+					piece.slotX(),
+					piece.slotY()));
 		}
 		return new TeacherSubjectQuestionItem(
 				line.id(), line.formCode(), line.formLabel(), line.prompt(),
 				choices, pairs, items, statements, links, line.sentence(), answers, decoys,
-				line.expectedAnswer(), base64(line.imageWebp()), line.requireAllCorrect(), zones, pieces,
-				line.snapDistance());
+				line.expectedAnswer(), base64(line.imageWebp()), line.boardMode(),
+				base64(line.boardImageWebp()), line.requireAllCorrect(), zones, pieces, line.snapDistance());
 	}
 
 	private static List<TeacherQuestionPointItem> pointItems(List<ClickPoint> points) {
@@ -557,6 +568,8 @@ public class TeacherQuestionController {
 			List<TeacherQuestionGapWordItem> decoys,
 			String expectedAnswer,
 			String imageWebp,
+			String boardMode,
+			String boardImageWebp,
 			Boolean requireAllCorrect,
 			List<TeacherQuestionZoneItem> zones,
 			List<TeacherQuestionPieceItem> pieces,
@@ -625,6 +638,8 @@ public class TeacherQuestionController {
 			List<TeacherQuestionGapWordInput> decoys,
 			String expectedAnswer,
 			String imageWebp,
+			String boardMode,
+			String boardImageWebp,
 			Boolean requireAllCorrect,
 			List<TeacherQuestionZoneInput> zones,
 			List<TeacherQuestionPieceInput> pieces,
@@ -633,7 +648,11 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionPieceInput")
 	public record TeacherQuestionPieceInput(
-			String label, String shape, List<TeacherQuestionPointInput> points) {
+			String label,
+			String shape,
+			List<TeacherQuestionPointInput> points,
+			Double slotX,
+			Double slotY) {
 	}
 
 	@Schema(name = "TeacherQuestionZoneInput")
@@ -652,7 +671,12 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionPieceItem")
 	public record TeacherQuestionPieceItem(
-			long id, String label, String shape, List<TeacherQuestionPointItem> points) {
+			long id,
+			String label,
+			String shape,
+			List<TeacherQuestionPointItem> points,
+			Double slotX,
+			Double slotY) {
 	}
 
 	@Schema(name = "TeacherQuestionPointItem")

@@ -237,8 +237,12 @@ public interface TeacherQuestionPort {
 		}
 	}
 
-	/** Pièce déjà nommée, sans côté juste ou faux. */
-	record PuzzlePieceDraft(String label, String shape, List<ClickPoint> points) {
+	/**
+	 * Pièce déjà nommée, sans côté juste ou faux.
+	 * {@code slotX}/{@code slotY} : emplacement cible sur le plateau (mode blanc), sinon null.
+	 */
+	record PuzzlePieceDraft(
+			String label, String shape, List<ClickPoint> points, Double slotX, Double slotY) {
 		public PuzzlePieceDraft {
 			points = List.copyOf(points);
 		}
@@ -263,8 +267,9 @@ public interface TeacherQuestionPort {
 		}
 	}
 
-	/** Pièce relue, avec l'id de la ligne. */
-	record StoredPuzzlePiece(long id, String label, String shape, List<ClickPoint> points) {
+	/** Pièce relue, avec l'id de la ligne. Slots null hors mode blanc. */
+	record StoredPuzzlePiece(
+			long id, String label, String shape, List<ClickPoint> points, Double slotX, Double slotY) {
 		public StoredPuzzlePiece {
 			points = List.copyOf(points);
 		}

@@ -10,6 +10,8 @@ import static com.appv4.auth.application.service.TeacherQuestionService.PIECE_NA
 import static com.appv4.auth.application.service.TeacherQuestionService.PIECE_NAME_TOO_LONG;
 import static com.appv4.auth.application.service.TeacherQuestionService.PIECE_POINTS;
 import static com.appv4.auth.application.service.TeacherQuestionService.PIECE_SHAPE;
+import static com.appv4.auth.application.service.TeacherQuestionService.PIECE_SLOT_OFF_BOARD;
+import static com.appv4.auth.application.service.TeacherQuestionService.PIECE_SLOT_REQUIRED;
 import static com.appv4.auth.application.service.TeacherQuestionService.PIECES_REQUIRED;
 import static com.appv4.auth.application.service.TeacherQuestionService.PUZZLE;
 import static com.appv4.auth.application.service.TeacherQuestionService.PUZZLE_LABEL;
@@ -25,6 +27,7 @@ import java.util.List;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzleInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzlePieceInput;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PuzzleDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PuzzlePieceDraft;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
@@ -33,15 +36,17 @@ import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
  * Règles de saisie d'un puzzle (SCRUM-183).
  *
  * <p><b>Business :</b> le professeur découpe une image en pièces nommées, puis choisit
- * le plateau : fond dédié, cadre blanc, ou image de découpe trouée. Pas de vert ni de rouge.
- * L'énoncé peut rester vide. Au moins deux pièces. Le magnétisme dit à quelle distance
- * une pièce se colle sur sa place.
+ * le plateau : fond dédié, cadre blanc, ou image de découpe trouée. En mode blanc, il pose
+ * chaque pièce sur le cadre pour fixer l'emplacement que l'enfant devra retrouver — sans
+ * silhouette visible en jeu. Pas de vert ni de rouge. L'énoncé peut rester vide. Au moins
+ * deux pièces. Le magnétisme dit à quelle distance une pièce se colle sur sa place.
  * <p><b>Technique :</b> code {@code puzzle}, ordre 10. Images et points via {@link DrawnImageRules}.
  * <p><b>Métier / flow :</b> le registre appelle {@link #prepare} avant l'enregistrement.
  */
 public final class PuzzleQuestionForm implements QuestionFormHandler {
 
 	private static final int NAME_MAX = 200;
+	private static final double MIN_SPAN = 0.02;
 
 	@Override
 	public FormLine form() {
@@ -60,7 +65,12 @@ public final class PuzzleQuestionForm implements QuestionFormHandler {
 				: null;
 		return new Prepared(
 				QuestionValidation.optionalPrompt(prompt),
-				new PuzzleDraft(cut, mode, board, requireSnap(puzzle.snapDistance()), requirePieces(puzzle.pieces())));
+				new PuzzleDraft(
+						cut,
+						mode,
+						board,
+						requireSnap(puzzle.snapDistance()),
+						requirePieces(mode, puzzle.pieces())));
 	}
 
 	/** Absent : trous. Autre valeur : refus. */
@@ -88,21 +98,60 @@ public final class PuzzleQuestionForm implements QuestionFormHandler {
 		return raw;
 	}
 
-	private static List<PuzzlePieceDraft> requirePieces(List<PuzzlePieceInput> pieces) {
+	private static List<PuzzlePieceDraft> requirePieces(String mode, List<PuzzlePieceInput> pieces) {
 		if (pieces == null || pieces.size() < 2) {
 			throw bad(PIECES_REQUIRED);
 		}
+		boolean blanc = BOARD_MODE_BLANC.equals(mode);
 		List<PuzzlePieceDraft> drafts = new ArrayList<>();
 		for (PuzzlePieceInput piece : pieces) {
 			if (piece == null) {
 				throw bad(PIECE_NAME_REQUIRED);
 			}
+			List<ClickPoint> points = DrawnImageRules.points(
+					piece.shape(), piece.points(), PIECE_SHAPE, PIECE_POINTS);
+			Double slotX = null;
+			Double slotY = null;
+			if (blanc) {
+				double[] slot = requireSlot(piece.slotX(), piece.slotY(), points);
+				slotX = slot[0];
+				slotY = slot[1];
+			}
 			drafts.add(new PuzzlePieceDraft(
 					requireName(piece.label()),
 					DrawnImageRules.shape(piece.shape(), PIECE_SHAPE),
-					DrawnImageRules.points(piece.shape(), piece.points(), PIECE_SHAPE, PIECE_POINTS)));
+					points,
+					slotX,
+					slotY));
 		}
 		return List.copyOf(drafts);
+	}
+
+	/**
+	 * Coin haut-gauche de l'emplacement sur le plateau.
+	 * Peut sortir un peu de [0, 1] (débord) tant que la pièce reste partiellement visible.
+	 */
+	private static double[] requireSlot(Double rawX, Double rawY, List<ClickPoint> points) {
+		if (rawX == null || rawY == null || rawX.isNaN() || rawY.isNaN()) {
+			throw bad(PIECE_SLOT_REQUIRED);
+		}
+		double minX = points.get(0).x();
+		double maxX = minX;
+		double minY = points.get(0).y();
+		double maxY = minY;
+		for (ClickPoint point : points) {
+			minX = Math.min(minX, point.x());
+			maxX = Math.max(maxX, point.x());
+			minY = Math.min(minY, point.y());
+			maxY = Math.max(maxY, point.y());
+		}
+		double width = Math.max(MIN_SPAN, maxX - minX);
+		double height = Math.max(MIN_SPAN, maxY - minY);
+		boolean onBoard = rawX < 1 && rawY < 1 && rawX + width > 0 && rawY + height > 0;
+		if (!onBoard) {
+			throw bad(PIECE_SLOT_OFF_BOARD);
+		}
+		return new double[] {rawX, rawY};
 	}
 
 	private static String requireName(String label) {

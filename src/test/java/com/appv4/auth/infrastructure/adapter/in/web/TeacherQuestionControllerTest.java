@@ -462,10 +462,20 @@ class TeacherQuestionControllerTest {
 						"puzzle",
 						"",
 						new StoredPuzzle(webp, "fond", webp, 0.12, List.of(
-								new StoredPuzzlePiece(1L, "le ciel", "rect", List.of(
-										new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5))),
-								new StoredPuzzlePiece(2L, "le sol", "rect", List.of(
-										new ClickPoint(0.0, 0.5), new ClickPoint(1.0, 1.0)))))));
+								new StoredPuzzlePiece(
+										1L,
+										"le ciel",
+										"rect",
+										List.of(new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5)),
+										null,
+										null),
+								new StoredPuzzlePiece(
+										2L,
+										"le sol",
+										"rect",
+										List.of(new ClickPoint(0.0, 0.5), new ClickPoint(1.0, 1.0)),
+										null,
+										null)))));
 
 		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))

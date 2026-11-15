@@ -1158,19 +1158,37 @@ class TeacherQuestionServiceTest {
 						"puzzle",
 						"",
 						new StoredPuzzle(webp, "fond", webp, 0.12, List.of(
-								new StoredPuzzlePiece(1L, "le ciel", "rect", List.of(
-										new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5))),
-								new StoredPuzzlePiece(2L, "le sol", "rect", List.of(
-										new ClickPoint(0.0, 0.5), new ClickPoint(1.0, 1.0)))))));
+								new StoredPuzzlePiece(
+										1L,
+										"le ciel",
+										"rect",
+										List.of(new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5)),
+										null,
+										null),
+								new StoredPuzzlePiece(
+										2L,
+										"le sol",
+										"rect",
+										List.of(new ClickPoint(0.0, 0.5), new ClickPoint(1.0, 1.0)),
+										null,
+										null)))));
 
 		String encoded = Base64.getEncoder().encodeToString(webp);
 		QuestionLine line = service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "  ",
 				new PuzzleInput(encoded, "fond", encoded, 0.12, List.of(
-						new PuzzlePieceInput(" le ciel ", "rect", List.of(
-								new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5))),
-						new PuzzlePieceInput("le sol", "ellipse", List.of(
-								new ClickPointInput(0.5, 0.75), new ClickPointInput(0.7, 0.9))))));
+						new PuzzlePieceInput(
+								" le ciel ",
+								"rect",
+								List.of(new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5)),
+								null,
+								null),
+						new PuzzlePieceInput(
+								"le sol",
+								"ellipse",
+								List.of(new ClickPointInput(0.5, 0.75), new ClickPointInput(0.7, 0.9)),
+								null,
+								null))));
 
 		assertThat(line.prompt()).isEmpty();
 		assertThat(line.formCode()).isEqualTo("puzzle");
@@ -1202,10 +1220,9 @@ class TeacherQuestionServiceTest {
 		byte[] webp = tinyWebp();
 		String encoded = Base64.getEncoder().encodeToString(webp);
 		PuzzlePieceInput sky = new PuzzlePieceInput("le ciel", "rect", List.of(
-				new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5)));
+				new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5)), null, null);
 		PuzzlePieceInput ground = new PuzzlePieceInput("le sol", "rect", List.of(
-				new ClickPointInput(0.0, 0.5), new ClickPointInput(1.0, 1.0)));
-
+				new ClickPointInput(0.0, 0.5), new ClickPointInput(1.0, 1.0)), null, null);
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
 				new PuzzleInput("  ", "fond", encoded, null, List.of(sky, ground))))
@@ -1237,9 +1254,17 @@ class TeacherQuestionServiceTest {
 						"blanc",
 						null,
 						null,
-						List.of(sky, new PuzzlePieceInput("  ", "rect", ground.points())))))
+						List.of(
+								new PuzzlePieceInput("le ciel", "rect", sky.points(), 0.1, 0.1),
+								new PuzzlePieceInput("  ", "rect", ground.points(), 0.2, 0.6)))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.PIECE_NAME_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, "blanc", null, null, List.of(sky, ground))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PIECE_SLOT_REQUIRED);
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
@@ -1248,7 +1273,7 @@ class TeacherQuestionServiceTest {
 						"trous",
 						null,
 						null,
-						List.of(sky, new PuzzlePieceInput("le sol", "star", ground.points())))))
+						List.of(sky, new PuzzlePieceInput("le sol", "star", ground.points(), null, null)))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.PIECE_SHAPE);
 
@@ -1259,6 +1284,60 @@ class TeacherQuestionServiceTest {
 				.hasMessage(TeacherQuestionService.SNAP_RANGE);
 
 		verify(questions, never()).insert(eq(SUBJECT_ID), eq("puzzle"), any(), any());
+	}
+
+	@Test
+	void puzzleBlancKeepsTeacherDefinedSlots() {
+		byte[] webp = tinyWebp();
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("puzzle"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						16L,
+						SUBJECT_ID,
+						"puzzle",
+						"",
+						new StoredPuzzle(webp, "blanc", null, 0.08, List.of(
+								new StoredPuzzlePiece(
+										1L,
+										"le ciel",
+										"rect",
+										List.of(new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5)),
+										0.1,
+										0.2),
+								new StoredPuzzlePiece(
+										2L,
+										"le sol",
+										"rect",
+										List.of(new ClickPoint(0.0, 0.5), new ClickPoint(1.0, 1.0)),
+										0.15,
+										0.55)))));
+
+		String encoded = Base64.getEncoder().encodeToString(webp);
+		QuestionLine line = service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, "blanc", null, null, List.of(
+						new PuzzlePieceInput(
+								"le ciel",
+								"rect",
+								List.of(new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5)),
+								0.1,
+								0.2),
+						new PuzzlePieceInput(
+								"le sol",
+								"rect",
+								List.of(new ClickPointInput(0.0, 0.5), new ClickPointInput(1.0, 1.0)),
+								0.15,
+								0.55))));
+
+		assertThat(line.boardMode()).isEqualTo("blanc");
+		assertThat(line.pieces().get(0).slotX()).isEqualTo(0.1);
+		assertThat(line.pieces().get(0).slotY()).isEqualTo(0.2);
+
+		ArgumentCaptor<PuzzleDraft> captor = ArgumentCaptor.forClass(PuzzleDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("puzzle"), eq(""), captor.capture());
+		assertThat(captor.getValue().boardMode()).isEqualTo("blanc");
+		assertThat(captor.getValue().pieces().get(0).slotX()).isEqualTo(0.1);
+		assertThat(captor.getValue().pieces().get(1).slotY()).isEqualTo(0.55);
 	}
 
 	private static byte[] tinyWebp() {

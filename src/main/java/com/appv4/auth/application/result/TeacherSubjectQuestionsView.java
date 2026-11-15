@@ -130,7 +130,13 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 		public List<PieceLine> pieces() {
 			return content instanceof StoredPuzzle value
 					? value.pieces().stream()
-							.map(row -> new PieceLine(row.id(), row.label(), row.shape(), row.points()))
+							.map(row -> new PieceLine(
+									row.id(),
+									row.label(),
+									row.shape(),
+									row.points(),
+									row.slotX(),
+									row.slotY()))
 							.toList()
 					: List.of();
 		}
@@ -163,7 +169,11 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 	public record ZoneLine(long id, String label, boolean correct, String shape, List<ClickPoint> points) {
 	}
 
-	/** Pièce d'un puzzle. Les points sont en proportion de l'image. Pas de côté juste ou faux. */
-	public record PieceLine(long id, String label, String shape, List<ClickPoint> points) {
+	/**
+	 * Pièce d'un puzzle. Les points sont en proportion de l'image. Pas de côté juste ou faux.
+	 * {@code slotX}/{@code slotY} : emplacement cible (mode blanc), sinon null.
+	 */
+	public record PieceLine(
+			long id, String label, String shape, List<ClickPoint> points, Double slotX, Double slotY) {
 	}
 }

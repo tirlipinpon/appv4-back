@@ -181,6 +181,12 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String PIECE_NAME_TOO_LONG = "Un nom de pièce dépasse 200 caractères.";
 	public static final String PIECE_SHAPE = "La forme de la pièce n'est pas reconnue.";
 	public static final String PIECE_POINTS = "Les points de la pièce ne restent pas sur l'image.";
+	public static final String PIECE_SLOT_REQUIRED =
+			"Sur le cadre blanc, pose chaque pièce pour fixer son emplacement.";
+	public static final String PIECE_SLOT_RANGE =
+			"L'emplacement d'une pièce dépasse trop le plateau.";
+	public static final String PIECE_SLOT_OFF_BOARD =
+			"L'emplacement d'une pièce sort entièrement du plateau.";
 	/** Magnétisme par défaut : 8 % de la largeur de l'image. */
 	public static final double SNAP_DEFAULT = 0.08;
 	/** Magnétisme maximum : 25 % de la largeur de l'image. */
@@ -499,7 +505,8 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 		if (content instanceof StoredPuzzle puzzle) {
 			List<PuzzlePieceDraft> pieces = new ArrayList<>();
 			for (StoredPuzzlePiece piece : puzzle.pieces()) {
-				pieces.add(new PuzzlePieceDraft(piece.label(), piece.shape(), piece.points()));
+				pieces.add(new PuzzlePieceDraft(
+						piece.label(), piece.shape(), piece.points(), piece.slotX(), piece.slotY()));
 			}
 			return new PuzzleDraft(
 					puzzle.imageWebp(),

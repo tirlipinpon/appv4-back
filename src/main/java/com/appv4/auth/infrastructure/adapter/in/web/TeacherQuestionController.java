@@ -424,7 +424,8 @@ public class TeacherQuestionController {
 			if (piece == null) {
 				continue;
 			}
-			inputs.add(new PuzzlePieceInput(piece.label(), piece.shape(), pointInputs(piece.points())));
+			inputs.add(new PuzzlePieceInput(
+					piece.label(), piece.shape(), pointInputs(piece.points()), piece.slotX(), piece.slotY()));
 		}
 		return inputs;
 	}
@@ -510,7 +511,12 @@ public class TeacherQuestionController {
 		List<TeacherQuestionPieceItem> pieces = new ArrayList<>();
 		for (PieceLine piece : line.pieces()) {
 			pieces.add(new TeacherQuestionPieceItem(
-					piece.id(), piece.label(), piece.shape(), pointItems(piece.points())));
+					piece.id(),
+					piece.label(),
+					piece.shape(),
+					pointItems(piece.points()),
+					piece.slotX(),
+					piece.slotY()));
 		}
 		return new TeacherSubjectQuestionItem(
 				line.id(), line.formCode(), line.formLabel(), line.prompt(),
@@ -642,7 +648,11 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionPieceInput")
 	public record TeacherQuestionPieceInput(
-			String label, String shape, List<TeacherQuestionPointInput> points) {
+			String label,
+			String shape,
+			List<TeacherQuestionPointInput> points,
+			Double slotX,
+			Double slotY) {
 	}
 
 	@Schema(name = "TeacherQuestionZoneInput")
@@ -661,7 +671,12 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionPieceItem")
 	public record TeacherQuestionPieceItem(
-			long id, String label, String shape, List<TeacherQuestionPointItem> points) {
+			long id,
+			String label,
+			String shape,
+			List<TeacherQuestionPointItem> points,
+			Double slotX,
+			Double slotY) {
 	}
 
 	@Schema(name = "TeacherQuestionPointItem")

@@ -101,9 +101,17 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 			return new byte[0];
 		}
 
-		/** Fond de jeu du puzzle. Vide pour les autres formes. */
+		/** Mode de plateau du puzzle. Vide pour les autres formes. */
+		public String boardMode() {
+			return content instanceof StoredPuzzle puzzle ? puzzle.boardMode() : null;
+		}
+
+		/** Fond de jeu du puzzle (mode fond). Vide sinon. */
 		public byte[] boardImageWebp() {
-			return content instanceof StoredPuzzle puzzle ? puzzle.boardImageWebp() : new byte[0];
+			if (!(content instanceof StoredPuzzle puzzle) || puzzle.boardImageWebp() == null) {
+				return new byte[0];
+			}
+			return puzzle.boardImageWebp();
 		}
 
 		public Boolean requireAllCorrect() {

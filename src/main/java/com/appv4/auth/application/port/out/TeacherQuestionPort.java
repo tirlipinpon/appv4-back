@@ -245,15 +245,20 @@ public interface TeacherQuestionPort {
 	}
 
 	/**
-	 * Image de découpe, fond de jeu, magnétisme, et les pièces découpées.
+	 * Image de découpe, mode de plateau, fond optionnel, magnétisme, et pièces.
 	 * {@code snapDistance} est une fraction de la largeur : 0,08 veut dire 8 %.
+	 * {@code boardImageWebp} est null hors mode {@code fond}.
 	 */
 	record PuzzleDraft(
-			byte[] imageWebp, byte[] boardImageWebp, double snapDistance, List<PuzzlePieceDraft> pieces)
+			byte[] imageWebp,
+			String boardMode,
+			byte[] boardImageWebp,
+			double snapDistance,
+			List<PuzzlePieceDraft> pieces)
 			implements DraftContent {
 		public PuzzleDraft {
 			imageWebp = imageWebp.clone();
-			boardImageWebp = boardImageWebp.clone();
+			boardImageWebp = boardImageWebp == null ? null : boardImageWebp.clone();
 			pieces = List.copyOf(pieces);
 		}
 	}
@@ -265,13 +270,17 @@ public interface TeacherQuestionPort {
 		}
 	}
 
-	/** Découpe, fond, magnétisme et pièces tels que le professeur les a enregistrés. */
+	/** Découpe, mode de plateau, fond optionnel, magnétisme et pièces enregistrés. */
 	record StoredPuzzle(
-			byte[] imageWebp, byte[] boardImageWebp, double snapDistance, List<StoredPuzzlePiece> pieces)
+			byte[] imageWebp,
+			String boardMode,
+			byte[] boardImageWebp,
+			double snapDistance,
+			List<StoredPuzzlePiece> pieces)
 			implements StoredContent {
 		public StoredPuzzle {
 			imageWebp = imageWebp.clone();
-			boardImageWebp = boardImageWebp.clone();
+			boardImageWebp = boardImageWebp == null ? null : boardImageWebp.clone();
 			pieces = List.copyOf(pieces);
 		}
 	}

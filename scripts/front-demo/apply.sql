@@ -2,8 +2,8 @@ DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM dev_front_demo.installation) THEN
    RAISE EXCEPTION 'Demo already installed. Use status, rollback or reset (no duplicates created).';
  END IF;
- IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '48' THEN
-   RAISE EXCEPTION 'Fixtures validated against V48. Review schema changes before updating this guard.';
+ IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '49' THEN
+   RAISE EXCEPTION 'Fixtures validated against V49. Review schema changes before updating this guard.';
  END IF;
 END $$;
 
@@ -161,8 +161,8 @@ INSERT INTO back_subject_question_click_zones(question_id,label,correct,shape,po
 SELECT q.id,v.label,v.correct,v.shape,v.points,v.ord FROM questions q CROSS JOIN
  (VALUES ('Bleu',true,'rect','0,0;0.5,1',0),('Orange',false,'rect','0.5,0;1,1',1)) v(label,correct,shape,points,ord)
 WHERE code='image_interactive';
-INSERT INTO back_subject_question_puzzle_images(question_id,image_webp,board_image_webp,snap_distance)
-SELECT id,decode(:'demo_image','hex'),decode(:'demo_image','hex'),0.04+0.02*(n%5) FROM questions WHERE code='puzzle';
+INSERT INTO back_subject_question_puzzle_images(question_id,image_webp,board_mode,board_image_webp,snap_distance)
+SELECT id,decode(:'demo_image','hex'),'trous',NULL,0.04+0.02*(n%5) FROM questions WHERE code='puzzle';
 INSERT INTO back_subject_question_puzzle_pieces(question_id,label,shape,points,sort_order)
 SELECT q.id,v.label,'rect',v.points,v.ord FROM questions q CROSS JOIN
  (VALUES ('Moitié gauche','0,0;0.5,1',0),('Moitié droite','0.5,0;1,1',1)) v(label,points,ord) WHERE code='puzzle';

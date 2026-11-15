@@ -168,12 +168,16 @@ public interface TeacherQuestionUseCase {
 	}
 
 	/**
-	 * Puzzle. {@code imageWebp} sert à découper ; {@code boardImageWebp} est le fond de jeu.
-	 * Les deux sont en base64 WebP déjà allégé. {@code snapDistance} est le magnétisme
-	 * (fraction de la largeur). Les pièces n'ont pas de côté juste ou faux.
+	 * Puzzle. {@code imageWebp} sert à découper. {@code boardMode} dit le plateau :
+	 * {@code fond} (image dédiée), {@code blanc} (cadre vide), {@code trous} (découpe trouée).
+	 * {@code boardImageWebp} n'est requis qu'en mode fond. {@code snapDistance} est le magnétisme.
 	 */
 	record PuzzleInput(
-			String imageWebp, String boardImageWebp, Double snapDistance, List<PuzzlePieceInput> pieces)
+			String imageWebp,
+			String boardMode,
+			String boardImageWebp,
+			Double snapDistance,
+			List<PuzzlePieceInput> pieces)
 			implements ContentInput {
 	}
 

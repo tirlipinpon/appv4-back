@@ -1157,7 +1157,7 @@ class TeacherQuestionServiceTest {
 						SUBJECT_ID,
 						"puzzle",
 						"",
-						new StoredPuzzle(webp, webp, 0.12, List.of(
+						new StoredPuzzle(webp, "fond", webp, 0.12, List.of(
 								new StoredPuzzlePiece(1L, "le ciel", "rect", List.of(
 										new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5))),
 								new StoredPuzzlePiece(2L, "le sol", "rect", List.of(
@@ -1166,7 +1166,7 @@ class TeacherQuestionServiceTest {
 		String encoded = Base64.getEncoder().encodeToString(webp);
 		QuestionLine line = service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "  ",
-				new PuzzleInput(encoded, encoded, 0.12, List.of(
+				new PuzzleInput(encoded, "fond", encoded, 0.12, List.of(
 						new PuzzlePieceInput(" le ciel ", "rect", List.of(
 								new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5))),
 						new PuzzlePieceInput("le sol", "ellipse", List.of(
@@ -1178,6 +1178,7 @@ class TeacherQuestionServiceTest {
 		assertThat(line.requireAllCorrect()).isNull();
 		assertThat(line.zones()).isEmpty();
 		assertThat(line.imageWebp()).containsExactly(webp);
+		assertThat(line.boardMode()).isEqualTo("fond");
 		assertThat(line.boardImageWebp()).containsExactly(webp);
 		assertThat(line.pieces()).hasSize(2);
 		assertThat(line.pieces().get(0).label()).isEqualTo("le ciel");
@@ -1186,6 +1187,7 @@ class TeacherQuestionServiceTest {
 		ArgumentCaptor<PuzzleDraft> captor = ArgumentCaptor.forClass(PuzzleDraft.class);
 		verify(questions).insert(eq(SUBJECT_ID), eq("puzzle"), eq(""), captor.capture());
 		assertThat(captor.getValue().imageWebp()).containsExactly(webp);
+		assertThat(captor.getValue().boardMode()).isEqualTo("fond");
 		assertThat(captor.getValue().boardImageWebp()).containsExactly(webp);
 		assertThat(captor.getValue().pieces()).hasSize(2);
 		assertThat(captor.getValue().pieces().get(0).label()).isEqualTo("le ciel");
@@ -1206,19 +1208,25 @@ class TeacherQuestionServiceTest {
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
-				new PuzzleInput("  ", encoded, null, List.of(sky, ground))))
+				new PuzzleInput("  ", "fond", encoded, null, List.of(sky, ground))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.IMAGE_REQUIRED);
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
-				new PuzzleInput(encoded, "  ", null, List.of(sky, ground))))
+				new PuzzleInput(encoded, "fond", "  ", null, List.of(sky, ground))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.BOARD_IMAGE_REQUIRED);
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
-				new PuzzleInput(encoded, encoded, null, List.of(sky))))
+				new PuzzleInput(encoded, "nope", null, null, List.of(sky, ground))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.BOARD_MODE_INVALID);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, "trous", null, null, List.of(sky))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.PIECES_REQUIRED);
 
@@ -1226,7 +1234,8 @@ class TeacherQuestionServiceTest {
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
 				new PuzzleInput(
 						encoded,
-						encoded,
+						"blanc",
+						null,
 						null,
 						List.of(sky, new PuzzlePieceInput("  ", "rect", ground.points())))))
 				.isInstanceOf(AuthDomainException.class)
@@ -1236,7 +1245,8 @@ class TeacherQuestionServiceTest {
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
 				new PuzzleInput(
 						encoded,
-						encoded,
+						"trous",
+						null,
 						null,
 						List.of(sky, new PuzzlePieceInput("le sol", "star", ground.points())))))
 				.isInstanceOf(AuthDomainException.class)
@@ -1244,7 +1254,7 @@ class TeacherQuestionServiceTest {
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
-				new PuzzleInput(encoded, encoded, 0.5, List.of(sky, ground))))
+				new PuzzleInput(encoded, "trous", null, 0.5, List.of(sky, ground))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.SNAP_RANGE);
 

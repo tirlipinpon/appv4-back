@@ -461,7 +461,7 @@ class TeacherQuestionControllerTest {
 						4L,
 						"puzzle",
 						"",
-						new StoredPuzzle(webp, webp, 0.12, List.of(
+						new StoredPuzzle(webp, "fond", webp, 0.12, List.of(
 								new StoredPuzzlePiece(1L, "le ciel", "rect", List.of(
 										new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5))),
 								new StoredPuzzlePiece(2L, "le sol", "rect", List.of(
@@ -475,6 +475,7 @@ class TeacherQuestionControllerTest {
 								  "formCode":"puzzle",
 								  "prompt":"",
 								  "imageWebp":"UklGRiQAAABXRUJQVlA4IBgAAAA=",
+								  "boardMode":"fond",
 								  "boardImageWebp":"UklGRiQAAABXRUJQVlA4IBgAAAA=",
 								  "snapDistance":0.12,
 								  "pieces":[
@@ -495,6 +496,7 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.formCode").value("puzzle"))
 				.andExpect(jsonPath("$.formLabel").value("Puzzle"))
 				.andExpect(jsonPath("$.imageWebp").value("UklGRiQAAABXRUJQVlA4IBgAAAA="))
+				.andExpect(jsonPath("$.boardMode").value("fond"))
 				.andExpect(jsonPath("$.boardImageWebp").value("UklGRiQAAABXRUJQVlA4IBgAAAA="))
 				.andExpect(jsonPath("$.requireAllCorrect").value(org.hamcrest.Matchers.nullValue()))
 				.andExpect(jsonPath("$.zones").isEmpty())

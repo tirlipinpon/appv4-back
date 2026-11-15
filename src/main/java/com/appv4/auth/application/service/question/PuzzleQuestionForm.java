@@ -1,6 +1,11 @@
 package com.appv4.auth.application.service.question;
 
 import static com.appv4.auth.application.service.TeacherQuestionService.BOARD_IMAGE_REQUIRED;
+import static com.appv4.auth.application.service.TeacherQuestionService.BOARD_MODE_BLANC;
+import static com.appv4.auth.application.service.TeacherQuestionService.BOARD_MODE_DEFAULT;
+import static com.appv4.auth.application.service.TeacherQuestionService.BOARD_MODE_FOND;
+import static com.appv4.auth.application.service.TeacherQuestionService.BOARD_MODE_INVALID;
+import static com.appv4.auth.application.service.TeacherQuestionService.BOARD_MODE_TROUS;
 import static com.appv4.auth.application.service.TeacherQuestionService.PIECE_NAME_REQUIRED;
 import static com.appv4.auth.application.service.TeacherQuestionService.PIECE_NAME_TOO_LONG;
 import static com.appv4.auth.application.service.TeacherQuestionService.PIECE_POINTS;
@@ -27,14 +32,12 @@ import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
 /**
  * Règles de saisie d'un puzzle (SCRUM-183).
  *
- * <p><b>Business :</b> le professeur découpe une image en pièces nommées, et choisit
- * un fond de jeu distinct pour y reposer les pièces. Il n'y a pas de vert ni de rouge.
- * L'énoncé peut rester vide. Il faut au moins deux pièces.
- * Le magnétisme dit à quelle distance une pièce se colle sur sa découpe.
- * <p><b>Technique :</b> code {@code puzzle}, ordre 10. Les deux images et les points passent
- * par {@link DrawnImageRules}, déjà utilisés pour l'image à cliquer.
+ * <p><b>Business :</b> le professeur découpe une image en pièces nommées, puis choisit
+ * le plateau : fond dédié, cadre blanc, ou image de découpe trouée. Pas de vert ni de rouge.
+ * L'énoncé peut rester vide. Au moins deux pièces. Le magnétisme dit à quelle distance
+ * une pièce se colle sur sa place.
+ * <p><b>Technique :</b> code {@code puzzle}, ordre 10. Images et points via {@link DrawnImageRules}.
  * <p><b>Métier / flow :</b> le registre appelle {@link #prepare} avant l'enregistrement.
- * L'élève n'a pas encore d'écran dans l'application.
  */
 public final class PuzzleQuestionForm implements QuestionFormHandler {
 
@@ -50,13 +53,28 @@ public final class PuzzleQuestionForm implements QuestionFormHandler {
 		if (!(input instanceof PuzzleInput puzzle)) {
 			throw new IllegalArgumentException("Entrée incompatible avec le puzzle");
 		}
+		String mode = requireMode(puzzle.boardMode());
+		byte[] cut = DrawnImageRules.requireWebp(puzzle.imageWebp());
+		byte[] board = BOARD_MODE_FOND.equals(mode)
+				? DrawnImageRules.requireWebp(puzzle.boardImageWebp(), BOARD_IMAGE_REQUIRED)
+				: null;
 		return new Prepared(
 				QuestionValidation.optionalPrompt(prompt),
-				new PuzzleDraft(
-						DrawnImageRules.requireWebp(puzzle.imageWebp()),
-						DrawnImageRules.requireWebp(puzzle.boardImageWebp(), BOARD_IMAGE_REQUIRED),
-						requireSnap(puzzle.snapDistance()),
-						requirePieces(puzzle.pieces())));
+				new PuzzleDraft(cut, mode, board, requireSnap(puzzle.snapDistance()), requirePieces(puzzle.pieces())));
+	}
+
+	/** Absent : trous. Autre valeur : refus. */
+	private static String requireMode(String raw) {
+		if (raw == null || raw.isBlank()) {
+			return BOARD_MODE_DEFAULT;
+		}
+		String mode = raw.trim();
+		if (!BOARD_MODE_FOND.equals(mode)
+				&& !BOARD_MODE_BLANC.equals(mode)
+				&& !BOARD_MODE_TROUS.equals(mode)) {
+			throw bad(BOARD_MODE_INVALID);
+		}
+		return mode;
 	}
 
 	/** Absent : 8 %. Hors de 0 à 25 % : refus. */

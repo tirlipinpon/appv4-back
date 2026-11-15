@@ -158,6 +158,11 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String SHAPE_ELLIPSE = "ellipse";
 	public static final String IMAGE_REQUIRED = "L'image est obligatoire.";
 	public static final String BOARD_IMAGE_REQUIRED = "L'image de fond est obligatoire.";
+	public static final String BOARD_MODE_INVALID = "Choisis un plateau : fond, blanc ou trous.";
+	public static final String BOARD_MODE_FOND = "fond";
+	public static final String BOARD_MODE_BLANC = "blanc";
+	public static final String BOARD_MODE_TROUS = "trous";
+	public static final String BOARD_MODE_DEFAULT = BOARD_MODE_TROUS;
 	public static final String IMAGE_NOT_WEBP = "L'image doit être au format WebP.";
 	public static final String IMAGE_TOO_LARGE = "L'image dépasse 5 Mo.";
 	public static final String ZONES_REQUIRED = "Il faut au moins une zone.";
@@ -497,7 +502,11 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 				pieces.add(new PuzzlePieceDraft(piece.label(), piece.shape(), piece.points()));
 			}
 			return new PuzzleDraft(
-					puzzle.imageWebp(), puzzle.boardImageWebp(), puzzle.snapDistance(), pieces);
+					puzzle.imageWebp(),
+					puzzle.boardMode(),
+					puzzle.boardImageWebp(),
+					puzzle.snapDistance(),
+					pieces);
 		}
 		throw new IllegalStateException("Copie non prévue pour la forme : " + source.formCode());
 	}

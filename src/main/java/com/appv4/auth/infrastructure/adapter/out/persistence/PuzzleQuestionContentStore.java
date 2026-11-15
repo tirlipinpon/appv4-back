@@ -19,7 +19,8 @@ import com.appv4.auth.application.service.TeacherQuestionService;
 /**
  * Stockage du puzzle (SCRUM-183).
  *
- * <p><b>Business :</b> une question de cette forme a une image et ses pièces.
+ * <p><b>Business :</b> une question de cette forme a une image de découpe, un fond de jeu
+ * et ses pièces.
  * <p><b>Technique :</b> une lecture groupée de l'image, une lecture groupée des pièces.
  * Les points passent par {@link ClickZonePoints}, comme les zones du clic.
  * <p><b>Métier / flow :</b> le port des questions délègue ici dès que le code est {@code puzzle}.
@@ -65,8 +66,9 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 		for (long id : questionIds) {
 			BackSubjectQuestionPuzzleImageEntity image = imagesById.get(id);
 			byte[] bytes = image == null ? new byte[0] : image.getImageWebp();
+			byte[] board = image == null ? new byte[0] : image.getBoardImageWebp();
 			double snap = image == null ? TeacherQuestionService.SNAP_DEFAULT : image.getSnapDistance();
-			contents.put(id, new StoredPuzzle(bytes, snap, piecesById.get(id)));
+			contents.put(id, new StoredPuzzle(bytes, board, snap, piecesById.get(id)));
 		}
 		return contents;
 	}
@@ -77,7 +79,8 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 			throw new IllegalArgumentException("Contenu incompatible avec le puzzle");
 		}
 		BackSubjectQuestionPuzzleImageEntity image = images.saveAndFlush(
-				new BackSubjectQuestionPuzzleImageEntity(questionId, draft.imageWebp(), draft.snapDistance()));
+				new BackSubjectQuestionPuzzleImageEntity(
+						questionId, draft.imageWebp(), draft.boardImageWebp(), draft.snapDistance()));
 		List<BackSubjectQuestionPuzzlePieceEntity> rows = new ArrayList<>();
 		for (PuzzlePieceDraft piece : draft.pieces()) {
 			rows.add(new BackSubjectQuestionPuzzlePieceEntity(
@@ -88,7 +91,8 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 					rows.size()));
 		}
 		List<StoredPuzzlePiece> stored = storedPieces(pieces.saveAllAndFlush(rows));
-		return new StoredPuzzle(image.getImageWebp(), image.getSnapDistance(), stored);
+		return new StoredPuzzle(
+				image.getImageWebp(), image.getBoardImageWebp(), image.getSnapDistance(), stored);
 	}
 
 	@Override

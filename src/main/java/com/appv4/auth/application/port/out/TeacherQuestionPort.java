@@ -245,12 +245,15 @@ public interface TeacherQuestionPort {
 	}
 
 	/**
-	 * Image WebP déjà allégée, magnétisme, et les pièces qui restent collées à ce dessin.
+	 * Image de découpe, fond de jeu, magnétisme, et les pièces découpées.
 	 * {@code snapDistance} est une fraction de la largeur : 0,08 veut dire 8 %.
 	 */
-	record PuzzleDraft(byte[] imageWebp, double snapDistance, List<PuzzlePieceDraft> pieces) implements DraftContent {
+	record PuzzleDraft(
+			byte[] imageWebp, byte[] boardImageWebp, double snapDistance, List<PuzzlePieceDraft> pieces)
+			implements DraftContent {
 		public PuzzleDraft {
 			imageWebp = imageWebp.clone();
+			boardImageWebp = boardImageWebp.clone();
 			pieces = List.copyOf(pieces);
 		}
 	}
@@ -262,10 +265,13 @@ public interface TeacherQuestionPort {
 		}
 	}
 
-	/** Image, magnétisme et pièces tels que le professeur les a enregistrés. */
-	record StoredPuzzle(byte[] imageWebp, double snapDistance, List<StoredPuzzlePiece> pieces) implements StoredContent {
+	/** Découpe, fond, magnétisme et pièces tels que le professeur les a enregistrés. */
+	record StoredPuzzle(
+			byte[] imageWebp, byte[] boardImageWebp, double snapDistance, List<StoredPuzzlePiece> pieces)
+			implements StoredContent {
 		public StoredPuzzle {
 			imageWebp = imageWebp.clone();
+			boardImageWebp = boardImageWebp.clone();
 			pieces = List.copyOf(pieces);
 		}
 	}

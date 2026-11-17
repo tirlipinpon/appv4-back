@@ -410,7 +410,8 @@ public class TeacherQuestionController {
 			if (zone == null) {
 				continue;
 			}
-			inputs.add(new ClickZoneInput(zone.label(), zone.correct(), zone.shape(), pointInputs(zone.points())));
+			inputs.add(new ClickZoneInput(
+					zone.label(), zone.correct(), zone.shape(), pointInputs(zone.points()), zone.clickOrder()));
 		}
 		return inputs;
 	}
@@ -506,7 +507,12 @@ public class TeacherQuestionController {
 		List<TeacherQuestionZoneItem> zones = new ArrayList<>();
 		for (ZoneLine zone : line.zones()) {
 			zones.add(new TeacherQuestionZoneItem(
-					zone.id(), zone.label(), zone.correct(), zone.shape(), pointItems(zone.points())));
+					zone.id(),
+					zone.label(),
+					zone.correct(),
+					zone.shape(),
+					pointItems(zone.points()),
+					zone.clickOrder()));
 		}
 		List<TeacherQuestionPieceItem> pieces = new ArrayList<>();
 		for (PieceLine piece : line.pieces()) {
@@ -657,7 +663,11 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionZoneInput")
 	public record TeacherQuestionZoneInput(
-			String label, Boolean correct, String shape, List<TeacherQuestionPointInput> points) {
+			String label,
+			Boolean correct,
+			String shape,
+			List<TeacherQuestionPointInput> points,
+			Integer clickOrder) {
 	}
 
 	@Schema(name = "TeacherQuestionPointInput")
@@ -666,7 +676,12 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionZoneItem")
 	public record TeacherQuestionZoneItem(
-			long id, String label, boolean correct, String shape, List<TeacherQuestionPointItem> points) {
+			long id,
+			String label,
+			boolean correct,
+			String shape,
+			List<TeacherQuestionPointItem> points,
+			Integer clickOrder) {
 	}
 
 	@Schema(name = "TeacherQuestionPieceItem")

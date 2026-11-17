@@ -10,7 +10,8 @@ import jakarta.persistence.Table;
 /**
  * Zone dessinée sur une image à cliquer (SCRUM-181).
  *
- * <p><b>Business :</b> un nom, un vert ou un rouge, et la forme que le professeur a ajustée.
+ * <p><b>Business :</b> un nom, un vert ou un rouge, la forme, et pour une zone juste
+ * le rang du clic (1, puis 2, puis 3). Une zone fausse n'a pas de rang.
  * <p><b>Technique :</b> table {@code back_subject_question_click_zones}. {@code points}
  * garde des coordonnées entre 0 et 1, pour que la forme suive l'image si l'écran change.
  * <p><b>Métier / flow :</b> plusieurs lignes pour une question de forme {@code image_interactive}.
@@ -41,17 +42,28 @@ public class BackSubjectQuestionClickZoneEntity {
 	@Column(name = "sort_order", nullable = false)
 	private int sortOrder;
 
+	/** Rang du clic (1, 2, 3…) si la zone est juste. Null si elle est fausse. */
+	@Column(name = "click_order")
+	private Integer clickOrder;
+
 	protected BackSubjectQuestionClickZoneEntity() {
 	}
 
 	public BackSubjectQuestionClickZoneEntity(
-			long questionId, String label, boolean correct, String shape, String points, int sortOrder) {
+			long questionId,
+			String label,
+			boolean correct,
+			String shape,
+			String points,
+			int sortOrder,
+			Integer clickOrder) {
 		this.questionId = questionId;
 		this.label = label;
 		this.correct = correct;
 		this.shape = shape;
 		this.points = points;
 		this.sortOrder = sortOrder;
+		this.clickOrder = clickOrder;
 	}
 
 	public Long getId() {
@@ -76,5 +88,9 @@ public class BackSubjectQuestionClickZoneEntity {
 
 	public String getPoints() {
 		return points;
+	}
+
+	public Integer getClickOrder() {
+		return clickOrder;
 	}
 }

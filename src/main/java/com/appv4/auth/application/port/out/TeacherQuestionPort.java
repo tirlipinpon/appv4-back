@@ -101,8 +101,11 @@ public interface TeacherQuestionPort {
 	record ClickPoint(double x, double y) {
 	}
 
-	/** Zone déjà nommée, juste ou non, avec sa forme. */
-	record ClickZoneDraft(String label, boolean correct, String shape, List<ClickPoint> points) {
+	/**
+	 * Zone déjà nommée, juste ou non, avec sa forme.
+	 * {@code clickOrder} est le rang du clic (1, 2, 3…) si la zone est juste, sinon null.
+	 */
+	record ClickZoneDraft(String label, boolean correct, String shape, List<ClickPoint> points, Integer clickOrder) {
 		public ClickZoneDraft {
 			points = List.copyOf(points);
 		}
@@ -221,8 +224,9 @@ public interface TeacherQuestionPort {
 	record StoredFreeText(String expectedAnswer) implements StoredContent {
 	}
 
-	/** Zone relue, avec l'id de la ligne. */
-	record StoredClickZone(long id, String label, boolean correct, String shape, List<ClickPoint> points) {
+	/** Zone relue, avec l'id de la ligne et le rang de clic s'il y en a un. */
+	record StoredClickZone(
+			long id, String label, boolean correct, String shape, List<ClickPoint> points, Integer clickOrder) {
 		public StoredClickZone {
 			points = List.copyOf(points);
 		}

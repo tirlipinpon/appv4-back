@@ -1051,7 +1051,8 @@ class TeacherQuestionServiceTest {
 								List.of(
 										new ClickPoint(0.1, 0.2),
 										new ClickPoint(0.3, 0.2),
-										new ClickPoint(0.2, 0.4)))))));
+										new ClickPoint(0.2, 0.4)),
+								1)))));
 
 		QuestionLine line = service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "  ",
@@ -1059,10 +1060,10 @@ class TeacherQuestionServiceTest {
 						new ClickZoneInput(" le soleil ", true, "polygon", List.of(
 								new ClickPointInput(0.1, 0.2),
 								new ClickPointInput(0.3, 0.2),
-								new ClickPointInput(0.2, 0.4))),
+								new ClickPointInput(0.2, 0.4)), 1),
 						new ClickZoneInput("le nuage", false, "rect", List.of(
 								new ClickPointInput(0.6, 0.7),
-								new ClickPointInput(0.5, 0.55))))));
+								new ClickPointInput(0.5, 0.55)), null))));
 
 		assertThat(line.prompt()).isEmpty();
 		assertThat(line.formCode()).isEqualTo("image_interactive");
@@ -1072,6 +1073,7 @@ class TeacherQuestionServiceTest {
 		assertThat(line.zones()).hasSize(1);
 		assertThat(line.zones().get(0).label()).isEqualTo("le soleil");
 		assertThat(line.zones().get(0).correct()).isTrue();
+		assertThat(line.zones().get(0).clickOrder()).isEqualTo(1);
 
 		ArgumentCaptor<ClickImageDraft> captor = ArgumentCaptor.forClass(ClickImageDraft.class);
 		verify(questions).insert(eq(SUBJECT_ID), eq("image_interactive"), eq(""), captor.capture());
@@ -1079,8 +1081,10 @@ class TeacherQuestionServiceTest {
 		assertThat(captor.getValue().requireAllCorrect()).isTrue();
 		assertThat(captor.getValue().zones()).hasSize(2);
 		assertThat(captor.getValue().zones().get(0).label()).isEqualTo("le soleil");
+		assertThat(captor.getValue().zones().get(0).clickOrder()).isEqualTo(1);
 		assertThat(captor.getValue().zones().get(1).shape()).isEqualTo("rect");
 		assertThat(captor.getValue().zones().get(1).correct()).isFalse();
+		assertThat(captor.getValue().zones().get(1).clickOrder()).isNull();
 		assertThat(captor.getValue().zones().get(1).points().get(0).x()).isEqualTo(0.5);
 		assertThat(captor.getValue().zones().get(1).points().get(0).y()).isEqualTo(0.55);
 		verify(questions).ensureForm(SUBJECT_ID, "image_interactive", "Image à cliquer", 8);
@@ -1092,7 +1096,7 @@ class TeacherQuestionServiceTest {
 		byte[] webp = tinyWebp();
 		String encoded = Base64.getEncoder().encodeToString(webp);
 		ClickZoneInput sun = new ClickZoneInput("le soleil", true, "polygon", List.of(
-				new ClickPointInput(0.1, 0.2), new ClickPointInput(0.3, 0.2), new ClickPointInput(0.2, 0.4)));
+				new ClickPointInput(0.1, 0.2), new ClickPointInput(0.3, 0.2), new ClickPointInput(0.2, 0.4)), 1);
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
@@ -1115,14 +1119,14 @@ class TeacherQuestionServiceTest {
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
 				new ClickImageInput(encoded, true, List.of(
-						new ClickZoneInput("  ", true, "polygon", sun.points())))))
+						new ClickZoneInput("  ", true, "polygon", sun.points(), 1)))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.ZONE_NAME_REQUIRED);
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
 				new ClickImageInput(encoded, true, List.of(
-						new ClickZoneInput("le soleil", null, "polygon", sun.points())))))
+						new ClickZoneInput("le soleil", null, "polygon", sun.points(), 1)))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.ZONE_SIDE_REQUIRED);
 
@@ -1132,7 +1136,7 @@ class TeacherQuestionServiceTest {
 						new ClickZoneInput("le soleil", true, "polygon", List.of(
 								new ClickPointInput(1.2, 0.2),
 								new ClickPointInput(0.3, 0.2),
-								new ClickPointInput(0.2, 0.4)))))))
+								new ClickPointInput(0.2, 0.4)), 1)))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.ZONE_POINTS);
 
@@ -1143,6 +1147,48 @@ class TeacherQuestionServiceTest {
 				}), true, List.of(sun))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.IMAGE_NOT_WEBP);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("image_interactive"), any(), any());
+	}
+
+	@Test
+	void clickImageRefusesABrokenClickOrder() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		String encoded = Base64.getEncoder().encodeToString(tinyWebp());
+		List<ClickPointInput> sunPoints = List.of(
+				new ClickPointInput(0.1, 0.2), new ClickPointInput(0.3, 0.2), new ClickPointInput(0.2, 0.4));
+		List<ClickPointInput> cloudPoints = List.of(
+				new ClickPointInput(0.5, 0.5), new ClickPointInput(0.8, 0.8));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", true, "polygon", sunPoints, null)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_CLICK_ORDER);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", false, "polygon", sunPoints, 1)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_CLICK_ORDER);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", true, "polygon", sunPoints, 1),
+						new ClickZoneInput("la lune", true, "rect", cloudPoints, 1)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_CLICK_ORDER);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", true, "polygon", sunPoints, 1),
+						new ClickZoneInput("la lune", true, "rect", cloudPoints, 3)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_CLICK_ORDER);
 
 		verify(questions, never()).insert(eq(SUBJECT_ID), eq("image_interactive"), any(), any());
 	}

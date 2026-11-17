@@ -170,6 +170,9 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String ZONE_NAME_TOO_LONG = "Un nom de zone dépasse 200 caractères.";
 	public static final String ZONE_SIDE_REQUIRED = "Chaque zone doit être marquée correcte ou incorrecte.";
 	public static final String ZONE_RULE_REQUIRED = "Indique s'il faut cliquer toutes les zones correctes.";
+	public static final String ZONE_CLICK_ORDER =
+			"L'ordre de clic des zones correctes va de 1 à leur nombre, sans trou ni doublon. "
+					+ "Une zone incorrecte n'a pas d'ordre.";
 	public static final String ZONE_SHAPE = "La forme de la zone n'est pas reconnue.";
 	public static final String ZONE_POINTS = "Les points de la zone ne restent pas sur l'image.";
 
@@ -498,7 +501,8 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 		if (content instanceof StoredClickImage image) {
 			List<ClickZoneDraft> zones = new ArrayList<>();
 			for (StoredClickZone zone : image.zones()) {
-				zones.add(new ClickZoneDraft(zone.label(), zone.correct(), zone.shape(), zone.points()));
+				zones.add(new ClickZoneDraft(
+						zone.label(), zone.correct(), zone.shape(), zone.points(), zone.clickOrder()));
 			}
 			return new ClickImageDraft(image.imageWebp(), image.requireAllCorrect(), zones);
 		}

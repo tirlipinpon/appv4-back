@@ -58,7 +58,8 @@ public class ClickImageQuestionContentStore implements QuestionContentStore {
 					row.getLabel(),
 					row.isCorrect(),
 					row.getShape(),
-					ClickZonePoints.decode(row.getPoints())));
+					ClickZonePoints.decode(row.getPoints()),
+					row.getClickOrder()));
 		}
 		Map<Long, StoredContent> contents = new HashMap<>();
 		for (long id : questionIds) {
@@ -88,7 +89,8 @@ public class ClickImageQuestionContentStore implements QuestionContentStore {
 					zone.correct(),
 					zone.shape(),
 					ClickZonePoints.encode(zone.points()),
-					rows.size()));
+					rows.size(),
+					zone.clickOrder()));
 		}
 		List<StoredClickZone> stored = imagesZones(zones.saveAllAndFlush(rows));
 		return new StoredClickImage(image.getImageWebp(), image.isRequireAllCorrect(), stored);
@@ -114,7 +116,8 @@ public class ClickImageQuestionContentStore implements QuestionContentStore {
 					row.getLabel(),
 					row.isCorrect(),
 					row.getShape(),
-					ClickZonePoints.decode(row.getPoints())));
+					ClickZonePoints.decode(row.getPoints()),
+					row.getClickOrder()));
 		}
 		return List.copyOf(stored);
 	}

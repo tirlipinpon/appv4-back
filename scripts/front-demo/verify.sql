@@ -34,6 +34,14 @@ DO $$ BEGIN
    WHEN 'texte' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_texts c WHERE c.question_id=q.id)
    WHEN 'reponse_libre' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_letters c WHERE c.question_id=q.id)
    WHEN 'image_interactive' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_click_images c WHERE c.question_id=q.id)
+     OR EXISTS (
+      SELECT 1 FROM back_subject_question_click_zones z WHERE z.question_id=q.id
+      GROUP BY z.question_id
+      HAVING bool_or(z.correct AND z.click_order IS NULL)
+          OR bool_or(NOT z.correct AND z.click_order IS NOT NULL)
+          OR count(*) FILTER (WHERE z.correct) <> count(DISTINCT z.click_order) FILTER (WHERE z.correct)
+          OR coalesce(max(z.click_order) FILTER (WHERE z.correct), 0) <> count(*) FILTER (WHERE z.correct)
+     )
    WHEN 'puzzle' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_puzzle_images c WHERE c.question_id=q.id)
    ELSE true END
  ) THEN RAISE EXCEPTION 'Missing question content'; END IF;

@@ -122,7 +122,12 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 			return content instanceof StoredClickImage value
 					? value.zones().stream()
 							.map(row -> new ZoneLine(
-									row.id(), row.label(), row.correct(), row.shape(), row.points()))
+									row.id(),
+									row.label(),
+									row.correct(),
+									row.shape(),
+									row.points(),
+									row.clickOrder()))
 							.toList()
 					: List.of();
 		}
@@ -165,8 +170,12 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 	public record GapWordLine(long id, String label) {
 	}
 
-	/** Zone d'une image à cliquer. Les points sont en proportion de l'image. */
-	public record ZoneLine(long id, String label, boolean correct, String shape, List<ClickPoint> points) {
+	/**
+	 * Zone d'une image à cliquer. Les points sont en proportion de l'image.
+	 * {@code clickOrder} est le rang du clic (1, 2, 3…) si la zone est juste, sinon null.
+	 */
+	public record ZoneLine(
+			long id, String label, boolean correct, String shape, List<ClickPoint> points, Integer clickOrder) {
 	}
 
 	/**

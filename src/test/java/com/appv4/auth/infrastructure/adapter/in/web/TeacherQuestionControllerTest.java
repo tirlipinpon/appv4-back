@@ -420,7 +420,8 @@ class TeacherQuestionControllerTest {
 								List.of(
 										new ClickPoint(0.1, 0.2),
 										new ClickPoint(0.3, 0.2),
-										new ClickPoint(0.2, 0.4)))))));
+										new ClickPoint(0.2, 0.4)),
+								1)))));
 
 		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -435,6 +436,7 @@ class TeacherQuestionControllerTest {
 								    "label":"le soleil",
 								    "correct":true,
 								    "shape":"polygon",
+								    "clickOrder":1,
 								    "points":[{"x":0.1,"y":0.2},{"x":0.3,"y":0.2},{"x":0.2,"y":0.4}]
 								  }]
 								}
@@ -446,6 +448,7 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.requireAllCorrect").value(true))
 				.andExpect(jsonPath("$.zones[0].label").value("le soleil"))
 				.andExpect(jsonPath("$.zones[0].correct").value(true))
+				.andExpect(jsonPath("$.zones[0].clickOrder").value(1))
 				.andExpect(jsonPath("$.zones[0].shape").value("polygon"))
 				.andExpect(jsonPath("$.zones[0].points[0].x").value(0.1));
 	}

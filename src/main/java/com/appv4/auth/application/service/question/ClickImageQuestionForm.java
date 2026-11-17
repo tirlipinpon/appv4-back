@@ -3,6 +3,7 @@ package com.appv4.auth.application.service.question;
 import static com.appv4.auth.application.service.TeacherQuestionService.IMAGE_CLICK;
 import static com.appv4.auth.application.service.TeacherQuestionService.IMAGE_CLICK_LABEL;
 import static com.appv4.auth.application.service.TeacherQuestionService.IMAGE_CLICK_ORDER;
+import static com.appv4.auth.application.service.TeacherQuestionService.ZONE_CLICK_ORDER;
 import static com.appv4.auth.application.service.TeacherQuestionService.ZONE_NAME_REQUIRED;
 import static com.appv4.auth.application.service.TeacherQuestionService.ZONE_NAME_TOO_LONG;
 import static com.appv4.auth.application.service.TeacherQuestionService.ZONE_RULE_REQUIRED;
@@ -11,6 +12,7 @@ import static com.appv4.auth.application.service.TeacherQuestionService.ZONES_RE
 import static com.appv4.auth.application.service.question.QuestionValidation.bad;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickImageInput;
@@ -24,7 +26,8 @@ import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
  * Règles de saisie d'une image à cliquer (SCRUM-181).
  *
  * <p><b>Business :</b> le professeur pose une image, nomme chaque zone, et dit si elle est
- * juste. Il dit aussi s'il faut cliquer toutes les zones justes. L'énoncé peut rester vide.
+ * juste. Sur les zones justes, il donne l'ordre des clics (1, puis 2, puis 3).
+ * Il dit aussi s'il faut cliquer toutes les zones justes. L'énoncé peut rester vide.
  * <p><b>Technique :</b> code {@code image_interactive}, ordre 8. L'image et les points
  * passent par {@link DrawnImageRules}.
  * <p><b>Métier / flow :</b> le registre appelle {@link #prepare} avant l'enregistrement.
@@ -68,9 +71,38 @@ public final class ClickImageQuestionForm implements QuestionFormHandler {
 					requireName(zone.label()),
 					requireSide(zone.correct()),
 					DrawnImageRules.shape(zone.shape()),
-					DrawnImageRules.points(zone.shape(), zone.points())));
+					DrawnImageRules.points(zone.shape(), zone.points()),
+					zone.clickOrder()));
 		}
+		requireClickOrder(drafts);
 		return List.copyOf(drafts);
+	}
+
+	/**
+	 * Les zones justes portent les rangs 1, 2, 3… sans trou ni doublon.
+	 * Une zone fausse n'a pas de rang : elle n'est pas une étape de clic.
+	 */
+	private static void requireClickOrder(List<ClickZoneDraft> drafts) {
+		List<Integer> orders = new ArrayList<>();
+		for (ClickZoneDraft zone : drafts) {
+			Integer order = zone.clickOrder();
+			if (!zone.correct()) {
+				if (order != null) {
+					throw bad(ZONE_CLICK_ORDER);
+				}
+				continue;
+			}
+			if (order == null || order < 1) {
+				throw bad(ZONE_CLICK_ORDER);
+			}
+			orders.add(order);
+		}
+		orders.sort(Comparator.naturalOrder());
+		for (int index = 0; index < orders.size(); index++) {
+			if (orders.get(index) != index + 1) {
+				throw bad(ZONE_CLICK_ORDER);
+			}
+		}
 	}
 
 	private static String requireName(String label) {

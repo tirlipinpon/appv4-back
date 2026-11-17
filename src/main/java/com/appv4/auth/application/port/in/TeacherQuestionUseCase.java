@@ -159,8 +159,12 @@ public interface TeacherQuestionUseCase {
 			implements ContentInput {
 	}
 
-	/** Une zone : nom, juste ou non, forme, points entre 0 et 1. */
-	record ClickZoneInput(String label, Boolean correct, String shape, List<ClickPointInput> points) {
+	/**
+	 * Une zone : nom, juste ou non, forme, points entre 0 et 1.
+	 * {@code clickOrder} est le rang du clic demandé au professeur pour une zone juste.
+	 */
+	record ClickZoneInput(
+			String label, Boolean correct, String shape, List<ClickPointInput> points, Integer clickOrder) {
 	}
 
 	/** Coordonnée en proportion de l'image. */

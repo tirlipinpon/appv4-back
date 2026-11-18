@@ -22,10 +22,12 @@ public interface ChildQuestionPlayUseCase {
 	record StatementAnswer(long statementId, boolean value) {
 	}
 
-	record AttemptAnswers(List<Long> selectedChoiceIds, List<StatementAnswer> statements) {
+	record AttemptAnswers(
+			List<Long> selectedChoiceIds, List<StatementAnswer> statements, List<Long> matchedPairIds) {
 		public AttemptAnswers {
 			selectedChoiceIds = selectedChoiceIds == null ? List.of() : List.copyOf(selectedChoiceIds);
 			statements = statements == null ? List.of() : List.copyOf(statements);
+			matchedPairIds = matchedPairIds == null ? List.of() : List.copyOf(matchedPairIds);
 		}
 	}
 }

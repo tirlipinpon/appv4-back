@@ -24,8 +24,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import com.appv4.auth.application.port.out.TeacherQuestionPort.CardDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoicesDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClassificationDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ColumnDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.FreeTextDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.GapWordDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.GapsDraft;
@@ -50,6 +53,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 @Import({TeacherQuestionPersistenceAdapter.class, ChoiceQuestionContentStore.class,
 		PairQuestionContentStore.class, ItemQuestionContentStore.class,
 		StatementQuestionContentStore.class, LinkQuestionContentStore.class,
+		ClassificationQuestionContentStore.class,
 		CaseVideQuestionContentStore.class, TexteQuestionContentStore.class,
 		LetterQuestionContentStore.class})
 @EnabledIfEnvironmentVariable(named = "APPV4_PERSISTENCE_TEST_URL", matches = ".+")
@@ -203,6 +207,32 @@ class TeacherQuestionPersistenceTest {
 		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
 		assertThat(loaded.links()).extracting(row -> row.leftLabel() + "/" + row.rightLabel())
 				.containsExactly("Pomme/Fruit", "Voiture/Véhicule");
+	}
+
+	@Test
+	void classificationReplacementKeepsColumnsAndCards() {
+		adapter.ensureForm(subjectId, "classement", "Classement", 7);
+		StoredQuestion saved = adapter.insert(
+				subjectId,
+				"classement",
+				"Classe.",
+				new ClassificationDraft(
+						List.of(new ColumnDraft("A"), new ColumnDraft("B")),
+						List.of(new CardDraft("un", 0), new CardDraft("deux", 1))));
+		adapter.replace(
+				saved.id(),
+				"Classe.",
+				new ClassificationDraft(
+						List.of(new ColumnDraft("Oui"), new ColumnDraft("Non"), new ColumnDraft("Parfois")),
+						List.of(
+								new CardDraft("un", 0),
+								new CardDraft("deux", 1),
+								new CardDraft("trois", 2))));
+		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
+		assertThat(loaded.columns()).extracting(row -> row.label()).containsExactly("Oui", "Non", "Parfois");
+		assertThat(loaded.cards()).extracting(row -> row.label()).containsExactly("un", "deux", "trois");
+		assertThat(loaded.cards().get(0).correctColumnId()).isEqualTo(loaded.columns().get(0).id());
+		assertThat(loaded.cards().get(2).correctColumnId()).isEqualTo(loaded.columns().get(2).id());
 	}
 
 	@Test

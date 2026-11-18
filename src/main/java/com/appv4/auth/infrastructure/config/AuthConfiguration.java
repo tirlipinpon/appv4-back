@@ -6,6 +6,7 @@ import com.appv4.auth.application.service.question.QcmQuestionForm;
 import com.appv4.auth.application.service.question.MemoryQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
 import com.appv4.auth.application.service.question.CaseVideQuestionForm;
+import com.appv4.auth.application.service.question.ClassificationQuestionForm;
 import com.appv4.auth.application.service.question.ClickImageQuestionForm;
 import com.appv4.auth.application.service.question.PuzzleQuestionForm;
 import com.appv4.auth.application.service.question.LinkQuestionForm;
@@ -641,6 +642,15 @@ public class AuthConfiguration {
 	@Bean
 	QuestionFormHandler caseVideQuestionForm() {
 		return new CaseVideQuestionForm();
+	}
+
+	/**
+	 * Classement dans une matière : cartes à ranger dans N colonnes.
+	 * L'élève joue via Learn ; le score reste calculé côté serveur.
+	 */
+	@Bean
+	QuestionFormHandler classificationQuestionForm() {
+		return new ClassificationQuestionForm();
 	}
 
 	/**

@@ -27,10 +27,13 @@ import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.CardInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClassificationInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickImageInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickPointInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickZoneInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ColumnInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapWordInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapsInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
@@ -62,6 +65,7 @@ import com.appv4.auth.application.service.question.QcmQuestionForm;
 import com.appv4.auth.application.service.question.MemoryQuestionForm;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.FreeTextInput;
 import com.appv4.auth.application.service.question.CaseVideQuestionForm;
+import com.appv4.auth.application.service.question.ClassificationQuestionForm;
 import com.appv4.auth.application.service.question.ClickImageQuestionForm;
 import com.appv4.auth.application.service.question.PuzzleQuestionForm;
 import com.appv4.auth.application.service.question.ReponseLibreQuestionForm;
@@ -132,6 +136,7 @@ class TeacherQuestionServiceTest {
 		service = new TeacherQuestionService(subjects, questions, children, new QuestionFormRegistry(List.of(
 				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm(),
 				new TrueFalseQuestionForm(), new LinkQuestionForm(), new CaseVideQuestionForm(),
+				new ClassificationQuestionForm(),
 				new ClickImageQuestionForm(), new ReponseLibreQuestionForm(),
 				new PuzzleQuestionForm(), new TexteQuestionForm())));
 	}
@@ -140,7 +145,7 @@ class TeacherQuestionServiceTest {
 	void offeredFormsAreMultipleChoiceThenMemoryThenOrderThenTrueFalse() {
 		assertThat(service.listForms(TEACHER_ID, "teacher").forms())
 				.satisfies(forms -> {
-					assertThat(forms).hasSize(10);
+					assertThat(forms).hasSize(11);
 					assertThat(forms.get(0).code()).isEqualTo("qcm");
 					assertThat(forms.get(0).label()).isEqualTo("Choix multiples");
 					assertThat(forms.get(0).sortOrder()).isEqualTo(1);
@@ -159,18 +164,21 @@ class TeacherQuestionServiceTest {
 					assertThat(forms.get(5).code()).isEqualTo("case_vide");
 					assertThat(forms.get(5).label()).isEqualTo("Case vide");
 					assertThat(forms.get(5).sortOrder()).isEqualTo(6);
-					assertThat(forms.get(6).code()).isEqualTo("image_interactive");
-					assertThat(forms.get(6).label()).isEqualTo("Image à cliquer");
-					assertThat(forms.get(6).sortOrder()).isEqualTo(8);
-					assertThat(forms.get(7).code()).isEqualTo("reponse_libre");
-					assertThat(forms.get(7).label()).isEqualTo("Lettre par lettre");
-					assertThat(forms.get(7).sortOrder()).isEqualTo(9);
-					assertThat(forms.get(8).code()).isEqualTo("puzzle");
-					assertThat(forms.get(8).label()).isEqualTo("Puzzle");
-					assertThat(forms.get(8).sortOrder()).isEqualTo(10);
-					assertThat(forms.get(9).code()).isEqualTo("texte");
-					assertThat(forms.get(9).label()).isEqualTo("Réponse libre");
-					assertThat(forms.get(9).sortOrder()).isEqualTo(11);
+					assertThat(forms.get(6).code()).isEqualTo("classement");
+					assertThat(forms.get(6).label()).isEqualTo("Classement");
+					assertThat(forms.get(6).sortOrder()).isEqualTo(7);
+					assertThat(forms.get(7).code()).isEqualTo("image_interactive");
+					assertThat(forms.get(7).label()).isEqualTo("Image à cliquer");
+					assertThat(forms.get(7).sortOrder()).isEqualTo(8);
+					assertThat(forms.get(8).code()).isEqualTo("reponse_libre");
+					assertThat(forms.get(8).label()).isEqualTo("Lettre par lettre");
+					assertThat(forms.get(8).sortOrder()).isEqualTo(9);
+					assertThat(forms.get(9).code()).isEqualTo("puzzle");
+					assertThat(forms.get(9).label()).isEqualTo("Puzzle");
+					assertThat(forms.get(9).sortOrder()).isEqualTo(10);
+					assertThat(forms.get(10).code()).isEqualTo("texte");
+					assertThat(forms.get(10).label()).isEqualTo("Réponse libre");
+					assertThat(forms.get(10).sortOrder()).isEqualTo(11);
 				});
 	}
 
@@ -589,6 +597,75 @@ class TeacherQuestionServiceTest {
 				.hasMessage(TeacherQuestionService.LINK_INCOMPLETE);
 
 		verify(questions, never()).insert(eq(SUBJECT_ID), eq("liens"), eq(""), any());
+	}
+
+	@Test
+	void classificationKeepsColumnsCardsAndAllowsBlankPrompt() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("classement"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						21L,
+						SUBJECT_ID,
+						"classement",
+						"",
+						new TeacherQuestionPort.StoredClassification(
+								List.of(
+										new TeacherQuestionPort.StoredColumn(1L, "Finançable"),
+										new TeacherQuestionPort.StoredColumn(2L, "Hors aide")),
+								List.of(
+										new TeacherQuestionPort.StoredCard(10L, "Logiciel", 1L),
+										new TeacherQuestionPort.StoredCard(11L, "Voiture", 2L)))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"classement",
+				"   ",
+				new ClassificationInput(
+						List.of(new ColumnInput(" Finançable "), new ColumnInput("Hors aide")),
+						List.of(
+								new CardInput(" Logiciel ", 0),
+								new CardInput("Voiture", 1))));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formLabel()).isEqualTo("Classement");
+		assertThat(line.columns()).extracting(row -> row.label()).containsExactly("Finançable", "Hors aide");
+		assertThat(line.cards()).extracting(row -> row.label() + "/" + row.correctColumnId())
+				.containsExactly("Logiciel/1", "Voiture/2");
+		verify(questions).ensureForm(SUBJECT_ID, "classement", "Classement", 7);
+
+		ArgumentCaptor<TeacherQuestionPort.ClassificationDraft> captor =
+				ArgumentCaptor.forClass(TeacherQuestionPort.ClassificationDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("classement"), eq(""), captor.capture());
+		assertThat(captor.getValue().columns()).containsExactly(
+				new TeacherQuestionPort.ColumnDraft("Finançable"),
+				new TeacherQuestionPort.ColumnDraft("Hors aide"));
+		assertThat(captor.getValue().cards()).containsExactly(
+				new TeacherQuestionPort.CardDraft("Logiciel", 0),
+				new TeacherQuestionPort.CardDraft("Voiture", 1));
+	}
+
+	@Test
+	void classificationEmptyColumnIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"classement",
+				"",
+				new ClassificationInput(
+						List.of(
+								new ColumnInput("A"),
+								new ColumnInput("B"),
+								new ColumnInput("C")),
+						List.of(new CardInput("1", 0), new CardInput("2", 1)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.COLUMN_EMPTY);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("classement"), eq(""), any());
 	}
 
 	@Test

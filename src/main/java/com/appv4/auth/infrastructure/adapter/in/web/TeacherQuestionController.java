@@ -16,10 +16,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.CardInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClassificationInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickImageInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickPointInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickZoneInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ColumnInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.FreeTextInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapWordInput;
@@ -39,7 +42,9 @@ import com.appv4.auth.application.result.TeacherSubjectFollowersView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.CardLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ChoiceLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ColumnLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.GapWordLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ItemLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.LinkLine;
@@ -144,8 +149,8 @@ public class TeacherQuestionController {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
-						null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null,
+						null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -180,8 +185,8 @@ public class TeacherQuestionController {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
-						null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null,
+						null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -310,6 +315,9 @@ public class TeacherQuestionController {
 		}
 		if (TeacherQuestionService.LINKS.equals(code)) {
 			return new LinksInput(linkInputs(body.links()));
+		}
+		if (TeacherQuestionService.CLASSIFICATION.equals(code)) {
+			return new ClassificationInput(columnInputs(body.columns()), cardInputs(body.cards()));
 		}
 		if (TeacherQuestionService.CASE_VIDE.equals(code)) {
 			return new GapsInput(body.sentence(), wordInputs(body.answers()), wordInputs(body.decoys()));
@@ -459,6 +467,34 @@ public class TeacherQuestionController {
 		return inputs;
 	}
 
+	private static List<ColumnInput> columnInputs(List<TeacherQuestionColumnInput> columns) {
+		if (columns == null) {
+			return List.of();
+		}
+		List<ColumnInput> inputs = new ArrayList<>();
+		for (TeacherQuestionColumnInput column : columns) {
+			if (column == null) {
+				continue;
+			}
+			inputs.add(new ColumnInput(column.label()));
+		}
+		return inputs;
+	}
+
+	private static List<CardInput> cardInputs(List<TeacherQuestionCardInput> cards) {
+		if (cards == null) {
+			return List.of();
+		}
+		List<CardInput> inputs = new ArrayList<>();
+		for (TeacherQuestionCardInput card : cards) {
+			if (card == null) {
+				continue;
+			}
+			inputs.add(new CardInput(card.label(), card.columnIndex()));
+		}
+		return inputs;
+	}
+
 	private static TeacherQuestionFormsResponse forms(TeacherQuestionFormsView view) {
 		List<TeacherQuestionFormItem> items = new ArrayList<>();
 		for (FormLine form : view.forms()) {
@@ -496,6 +532,14 @@ public class TeacherQuestionController {
 		for (LinkLine link : line.links()) {
 			links.add(new TeacherQuestionLinkItem(link.id(), link.leftLabel(), link.rightLabel()));
 		}
+		List<TeacherQuestionColumnItem> columns = new ArrayList<>();
+		for (ColumnLine column : line.columns()) {
+			columns.add(new TeacherQuestionColumnItem(column.id(), column.label()));
+		}
+		List<TeacherQuestionCardItem> cards = new ArrayList<>();
+		for (CardLine card : line.cards()) {
+			cards.add(new TeacherQuestionCardItem(card.id(), card.label(), card.correctColumnId()));
+		}
 		List<TeacherQuestionGapWordItem> answers = new ArrayList<>();
 		for (GapWordLine answer : line.answers()) {
 			answers.add(new TeacherQuestionGapWordItem(answer.id(), answer.label()));
@@ -526,7 +570,7 @@ public class TeacherQuestionController {
 		}
 		return new TeacherSubjectQuestionItem(
 				line.id(), line.formCode(), line.formLabel(), line.prompt(),
-				choices, pairs, items, statements, links, line.sentence(), answers, decoys,
+				choices, pairs, items, statements, links, columns, cards, line.sentence(), answers, decoys,
 				line.expectedAnswer(), base64(line.imageWebp()), line.boardMode(),
 				base64(line.boardImageWebp()), line.requireAllCorrect(), zones, pieces, line.snapDistance());
 	}
@@ -569,6 +613,8 @@ public class TeacherQuestionController {
 			List<TeacherQuestionItem> items,
 			List<TeacherQuestionStatementItem> statements,
 			List<TeacherQuestionLinkItem> links,
+			List<TeacherQuestionColumnItem> columns,
+			List<TeacherQuestionCardItem> cards,
 			String sentence,
 			List<TeacherQuestionGapWordItem> answers,
 			List<TeacherQuestionGapWordItem> decoys,
@@ -600,6 +646,14 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionLinkItem")
 	public record TeacherQuestionLinkItem(long id, String leftLabel, String rightLabel) {
+	}
+
+	@Schema(name = "TeacherQuestionColumnItem")
+	public record TeacherQuestionColumnItem(long id, String label) {
+	}
+
+	@Schema(name = "TeacherQuestionCardItem")
+	public record TeacherQuestionCardItem(long id, String label, long correctColumnId) {
 	}
 
 	@Schema(name = "TeacherQuestionGapWordItem")
@@ -639,6 +693,8 @@ public class TeacherQuestionController {
 			List<TeacherQuestionItemInput> items,
 			List<TeacherQuestionStatementInput> statements,
 			List<TeacherQuestionLinkInput> links,
+			List<TeacherQuestionColumnInput> columns,
+			List<TeacherQuestionCardInput> cards,
 			String sentence,
 			List<TeacherQuestionGapWordInput> answers,
 			List<TeacherQuestionGapWordInput> decoys,
@@ -650,6 +706,14 @@ public class TeacherQuestionController {
 			List<TeacherQuestionZoneInput> zones,
 			List<TeacherQuestionPieceInput> pieces,
 			Double snapDistance) {
+	}
+
+	@Schema(name = "TeacherQuestionColumnInput")
+	public record TeacherQuestionColumnInput(String label) {
+	}
+
+	@Schema(name = "TeacherQuestionCardInput")
+	public record TeacherQuestionCardInput(String label, Integer columnIndex) {
 	}
 
 	@Schema(name = "TeacherQuestionPieceInput")

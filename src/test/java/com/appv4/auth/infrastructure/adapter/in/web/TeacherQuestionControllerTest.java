@@ -64,7 +64,7 @@ class TeacherQuestionControllerTest {
 	void teacherSeesMultipleChoiceMemoryOrderAndTrueFalse() throws Exception {
 		mockMvc.perform(get("/api/int/teacher/question-forms").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.forms.length()").value(10))
+				.andExpect(jsonPath("$.forms.length()").value(11))
 				.andExpect(jsonPath("$.forms[0].code").value("qcm"))
 				.andExpect(jsonPath("$.forms[0].label").value("Choix multiples"))
 				.andExpect(jsonPath("$.forms[1].code").value("memory"))
@@ -77,18 +77,21 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.forms[4].label").value("Liens"))
 				.andExpect(jsonPath("$.forms[5].code").value("case_vide"))
 				.andExpect(jsonPath("$.forms[5].label").value("Case vide"))
-				.andExpect(jsonPath("$.forms[6].code").value("image_interactive"))
-				.andExpect(jsonPath("$.forms[6].label").value("Image à cliquer"))
-				.andExpect(jsonPath("$.forms[6].sortOrder").value(8))
-				.andExpect(jsonPath("$.forms[7].code").value("reponse_libre"))
-				.andExpect(jsonPath("$.forms[7].label").value("Lettre par lettre"))
-				.andExpect(jsonPath("$.forms[7].sortOrder").value(9))
-				.andExpect(jsonPath("$.forms[8].code").value("puzzle"))
-				.andExpect(jsonPath("$.forms[8].label").value("Puzzle"))
-				.andExpect(jsonPath("$.forms[8].sortOrder").value(10))
-				.andExpect(jsonPath("$.forms[9].code").value("texte"))
-				.andExpect(jsonPath("$.forms[9].label").value("Réponse libre"))
-				.andExpect(jsonPath("$.forms[9].sortOrder").value(11));
+				.andExpect(jsonPath("$.forms[6].code").value("classement"))
+				.andExpect(jsonPath("$.forms[6].label").value("Classement"))
+				.andExpect(jsonPath("$.forms[6].sortOrder").value(7))
+				.andExpect(jsonPath("$.forms[7].code").value("image_interactive"))
+				.andExpect(jsonPath("$.forms[7].label").value("Image à cliquer"))
+				.andExpect(jsonPath("$.forms[7].sortOrder").value(8))
+				.andExpect(jsonPath("$.forms[8].code").value("reponse_libre"))
+				.andExpect(jsonPath("$.forms[8].label").value("Lettre par lettre"))
+				.andExpect(jsonPath("$.forms[8].sortOrder").value(9))
+				.andExpect(jsonPath("$.forms[9].code").value("puzzle"))
+				.andExpect(jsonPath("$.forms[9].label").value("Puzzle"))
+				.andExpect(jsonPath("$.forms[9].sortOrder").value(10))
+				.andExpect(jsonPath("$.forms[10].code").value("texte"))
+				.andExpect(jsonPath("$.forms[10].label").value("Réponse libre"))
+				.andExpect(jsonPath("$.forms[10].sortOrder").value(11));
 	}
 
 	@Test
@@ -253,6 +256,45 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.links[0].leftLabel").value("Pomme"))
 				.andExpect(jsonPath("$.links[0].rightLabel").value("Fruit"))
 				.andExpect(jsonPath("$.links[1].rightLabel").value("Animal"));
+	}
+
+	@Test
+	void createClassificationReturnsColumnsAndCards() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
+		when(questions.insert(eq(4L), eq("classement"), eq("Classe."), any()))
+				.thenReturn(new StoredQuestion(
+						21L,
+						4L,
+						"classement",
+						"Classe.",
+						new TeacherQuestionPort.StoredClassification(
+								List.of(
+										new TeacherQuestionPort.StoredColumn(1L, "Finançable"),
+										new TeacherQuestionPort.StoredColumn(2L, "Hors aide")),
+								List.of(
+										new TeacherQuestionPort.StoredCard(10L, "Logiciel", 1L),
+										new TeacherQuestionPort.StoredCard(11L, "Voiture", 2L)))));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"formCode":"classement","prompt":"Classe.","columns":[
+								  {"label":"Finançable"},{"label":"Hors aide"}
+								],"cards":[
+								  {"label":"Logiciel","columnIndex":0},
+								  {"label":"Voiture","columnIndex":1}
+								]}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(21))
+				.andExpect(jsonPath("$.formCode").value("classement"))
+				.andExpect(jsonPath("$.formLabel").value("Classement"))
+				.andExpect(jsonPath("$.columns[0].label").value("Finançable"))
+				.andExpect(jsonPath("$.cards[0].label").value("Logiciel"))
+				.andExpect(jsonPath("$.cards[0].correctColumnId").value(1))
+				.andExpect(jsonPath("$.cards[1].correctColumnId").value(2));
 	}
 
 	@Test

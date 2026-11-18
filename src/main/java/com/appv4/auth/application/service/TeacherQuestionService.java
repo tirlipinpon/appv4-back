@@ -119,6 +119,8 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String PAIR_TOO_LONG = "Un côté de paire dépasse 200 caractères.";
 	public static final String ITEMS_REQUIRED = "Il faut au moins deux éléments.";
 	public static final String ITEM_TOO_LONG = "Un élément dépasse 200 caractères.";
+	public static final String AXIS_LABEL_REQUIRED = "Chaque jalon de la ligne du temps doit avoir un libellé.";
+	public static final String AXIS_LABEL_TOO_LONG = "Un libellé de jalon dépasse 80 caractères.";
 
 	public static final String TRUE_FALSE = "vrai_faux";
 	public static final String TRUE_FALSE_LABEL = "Vrai ou faux";
@@ -486,9 +488,9 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 		if (content instanceof StoredItems items) {
 			List<ItemDraft> drafts = new ArrayList<>();
 			for (StoredItem item : items.items()) {
-				drafts.add(new ItemDraft(item.label()));
+				drafts.add(new ItemDraft(item.label(), item.axisLabel()));
 			}
-			return new ItemsDraft(drafts);
+			return new ItemsDraft(drafts, items.timelineEnabled());
 		}
 		if (content instanceof StoredStatements statements) {
 			List<StatementDraft> drafts = new ArrayList<>();

@@ -28,6 +28,12 @@ DO $$ BEGIN
    WHEN 'qcm' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_choices c WHERE c.question_id=q.id AND correct)
    WHEN 'memory' THEN (SELECT count(*) FROM back_subject_question_pairs c WHERE c.question_id=q.id)<2
    WHEN 'order' THEN (SELECT count(*) FROM back_subject_question_items c WHERE c.question_id=q.id)<2
+     OR EXISTS (
+      SELECT 1 FROM back_subject_question_order_options o
+      WHERE o.question_id=q.id AND o.timeline_enabled
+        AND EXISTS (
+          SELECT 1 FROM back_subject_question_items c
+          WHERE c.question_id=q.id AND (c.axis_label IS NULL OR btrim(c.axis_label)='')))
    WHEN 'vrai_faux' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_statements c WHERE c.question_id=q.id)
    WHEN 'liens' THEN (SELECT count(*) FROM back_subject_question_links c WHERE c.question_id=q.id)<2
    WHEN 'classement' THEN (SELECT count(*) FROM back_subject_question_columns c WHERE c.question_id=q.id)<2

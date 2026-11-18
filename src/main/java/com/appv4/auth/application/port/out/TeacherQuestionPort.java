@@ -77,8 +77,14 @@ public interface TeacherQuestionPort {
 	record PairDraft(String questionSide, String answerSide) {
 	}
 
-	/** Texte d'un élément Ordre, déjà non vide. L'ordre de la liste est l'ordre saisi. */
-	record ItemDraft(String label) {
+	/**
+	 * Texte d'un élément Ordre, déjà non vide. L'ordre de la liste est l'ordre saisi.
+	 * {@code axisLabel} est le jalon de frise (null si timeline désactivée).
+	 */
+	record ItemDraft(String label, String axisLabel) {
+		public ItemDraft(String label) {
+			this(label, null);
+		}
 	}
 
 	/** Phrase Vrai ou faux déjà non vide. {@code truthful} dit si la phrase est vraie. */
@@ -137,7 +143,10 @@ public interface TeacherQuestionPort {
 	record StoredPair(long id, String questionSide, String answerSide) {
 	}
 
-	record StoredItem(long id, String label) {
+	record StoredItem(long id, String label, String axisLabel) {
+		public StoredItem(long id, String label) {
+			this(id, label, null);
+		}
 	}
 
 	record StoredStatement(long id, String label, boolean truthful) {
@@ -174,9 +183,13 @@ public interface TeacherQuestionPort {
 		}
 	}
 
-	record ItemsDraft(List<ItemDraft> items) implements DraftContent {
+	record ItemsDraft(List<ItemDraft> items, boolean timelineEnabled) implements DraftContent {
 		public ItemsDraft {
 			items = List.copyOf(items);
+		}
+
+		public ItemsDraft(List<ItemDraft> items) {
+			this(items, false);
 		}
 	}
 
@@ -218,9 +231,13 @@ public interface TeacherQuestionPort {
 		}
 	}
 
-	record StoredItems(List<StoredItem> items) implements StoredContent {
+	record StoredItems(List<StoredItem> items, boolean timelineEnabled) implements StoredContent {
 		public StoredItems {
 			items = List.copyOf(items);
+		}
+
+		public StoredItems(List<StoredItem> items) {
+			this(items, false);
 		}
 	}
 
@@ -398,6 +415,11 @@ public interface TeacherQuestionPort {
 
 		public Boolean requireAllCorrect() {
 			return content instanceof StoredClickImage value ? value.requireAllCorrect() : null;
+		}
+
+		/** Frise Ordre active. {@code null} hors forme {@code order}. */
+		public Boolean timelineEnabled() {
+			return content instanceof StoredItems value ? value.timelineEnabled() : null;
 		}
 
 		public List<StoredClickZone> clickZones() {

@@ -2,8 +2,8 @@ DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM dev_front_demo.installation) THEN
    RAISE EXCEPTION 'Demo already installed. Use status, rollback or reset (no duplicates created).';
  END IF;
- IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '60' THEN
-   RAISE EXCEPTION 'Fixtures validated against V60. Review schema changes before updating this guard.';
+ IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '61' THEN
+   RAISE EXCEPTION 'Fixtures validated against V61. Review schema changes before updating this guard.';
  END IF;
 END $$;
 
@@ -144,9 +144,13 @@ FROM questions q CROSS JOIN LATERAL generate_series(0,1+(q.n/10)%5) i WHERE code
 INSERT INTO back_subject_question_pairs(question_id,question_side,answer_side,sort_order)
 SELECT q.id,'Mot '||i||' · '||q.n,'Définition '||i||' · '||q.n,i FROM questions q
 CROSS JOIN LATERAL generate_series(0,1+(q.n/10)%5) i WHERE code='memory';
-INSERT INTO back_subject_question_items(question_id,label,sort_order)
-SELECT q.id,'Étape '||(i+1)||' de l’activité '||q.n,i FROM questions q
+INSERT INTO back_subject_question_items(question_id,label,axis_label,sort_order)
+SELECT q.id,'Étape '||(i+1)||' de l’activité '||q.n,
+ CASE WHEN q.n%5=0 THEN (ARRAY['20 minutes','12 heures','2 semaines','1 mois','1 an','2 ans','5 ans'])[1+(i%7)] ELSE NULL END,
+ i FROM questions q
 CROSS JOIN LATERAL generate_series(0,1+(q.n/10)%6) i WHERE code='order';
+INSERT INTO back_subject_question_order_options(question_id,timeline_enabled)
+SELECT id, n%5=0 FROM questions WHERE code='order';
 INSERT INTO back_subject_question_statements(question_id,label,truthful,sort_order)
 SELECT q.id,i||' + 1 = '||(i+CASE WHEN i%2=0 THEN 1 ELSE 2 END),i%2=0,i FROM questions q
 CROSS JOIN LATERAL generate_series(0,1+(q.n/10)%4) i WHERE code='vrai_faux';

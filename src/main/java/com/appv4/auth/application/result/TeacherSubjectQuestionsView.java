@@ -55,7 +55,15 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 
 		public List<ItemLine> items() {
 			return content instanceof StoredItems value
-					? value.items().stream().map(row -> new ItemLine(row.id(), row.label())).toList() : List.of();
+					? value.items().stream()
+							.map(row -> new ItemLine(row.id(), row.label(), row.axisLabel()))
+							.toList()
+					: List.of();
+		}
+
+		/** Frise Ordre active. {@code null} hors forme {@code order}. */
+		public Boolean timelineEnabled() {
+			return content instanceof StoredItems value ? value.timelineEnabled() : null;
 		}
 
 		public List<StatementLine> statements() {
@@ -175,7 +183,10 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 	public record PairLine(long id, String questionSide, String answerSide) {
 	}
 
-	public record ItemLine(long id, String label) {
+	public record ItemLine(long id, String label, String axisLabel) {
+		public ItemLine(long id, String label) {
+			this(id, label, null);
+		}
 	}
 
 	public record StatementLine(long id, String label, boolean truthful) {

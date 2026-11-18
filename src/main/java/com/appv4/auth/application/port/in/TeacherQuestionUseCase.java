@@ -119,8 +119,22 @@ public interface TeacherQuestionUseCase {
 	record PairInput(String questionSide, String answerSide) {
 	}
 
-	/** Texte d'un élément dans une liste déjà ordonnée. */
-	record ItemInput(String label) {
+	/**
+	 * Texte d'un élément dans une liste déjà ordonnée.
+	 * {@code axisLabel} : jalon de frise (ignoré si timeline désactivée).
+	 */
+	record ItemInput(String label, String axisLabel) {
+		public ItemInput(String label) {
+			this(label, null);
+		}
+	}
+
+	/**
+	 * Contenu Ordre : étapes + option frise (BACK-46).
+	 *
+	 * <p>{@code timelineEnabled} null compte comme faux.
+	 */
+	record OrderInput(Boolean timelineEnabled, List<ItemInput> items) implements ContentInput {
 	}
 
 	/** Phrases d'un vrai ou faux. Chaque phrase non vide a un côté. */

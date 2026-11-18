@@ -65,7 +65,7 @@ SELECT nextval('back_teacher_subjects_id_seq') id,g.id school_id,g.grade,g.grade
 FROM grades g CROSS JOIN LATERAL generate_series(1,2+(g.n+g.grade_n)%4) k;
 INSERT INTO back_teacher_subjects(id,user_id,school_id,grade_label,name,name_key,active,hidden,icon_code)
 SELECT id,owner,school_id,grade,name,lower(name),true,false,
- (ARRAY['fluent-emoji:abacus','fluent-emoji:open-book','fluent-emoji:pencil','fluent-emoji:lion','fluent-emoji:speech-balloon','fluent-emoji:light-bulb','fluent-emoji:books','fluent-emoji:globe-showing-europe-africa','fluent-emoji:musical-notes','fluent-emoji:soccer-ball','fluent-emoji:artist-palette','fluent-emoji:microscope','mdi:calculator','mdi:school','math'])[1+(k-1)%15]
+ (ARRAY['icons8:13216','icons8:4210','icons8:10404','icons8:2926','icons8:10829','icons8:1656','icons8:1599','icons8:13806','icons8:4285','icons8:11441','icons8:435','icons8:10828','math','books','science'])[1+(k-1)%15]
 FROM subjects;
 INSERT INTO dev_front_demo.roots SELECT 'subject',id FROM subjects;
 INSERT INTO back_teacher_subject_access(subject_id,user_id,active)

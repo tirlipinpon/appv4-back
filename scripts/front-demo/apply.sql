@@ -2,8 +2,8 @@ DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM dev_front_demo.installation) THEN
    RAISE EXCEPTION 'Demo already installed. Use status, rollback or reset (no duplicates created).';
  END IF;
- IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '53' THEN
-   RAISE EXCEPTION 'Fixtures validated against V53. Review schema changes before updating this guard.';
+ IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '54' THEN
+   RAISE EXCEPTION 'Fixtures validated against V54. Review schema changes before updating this guard.';
  END IF;
 END $$;
 
@@ -65,7 +65,7 @@ SELECT nextval('back_teacher_subjects_id_seq') id,g.id school_id,g.grade,g.grade
 FROM grades g CROSS JOIN LATERAL generate_series(1,2+(g.n+g.grade_n)%4) k;
 INSERT INTO back_teacher_subjects(id,user_id,school_id,grade_label,name,name_key,active,hidden,icon_code)
 SELECT id,owner,school_id,grade,name,lower(name),true,false,
- (ARRAY['math','alphabet','animals','words','knowledge','opposites','books','globe','music','sport','art','science'])[1+(k-1)%12]
+ (ARRAY['icons8:13216','icons8:4210','icons8:10404','icons8:2926','icons8:10829','icons8:1656','icons8:1599','icons8:13806','icons8:4285','icons8:11441','icons8:435','icons8:10828','math','books','science'])[1+(k-1)%15]
 FROM subjects;
 INSERT INTO dev_front_demo.roots SELECT 'subject',id FROM subjects;
 INSERT INTO back_teacher_subject_access(subject_id,user_id,active)

@@ -43,6 +43,7 @@ import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
 import com.appv4.auth.application.port.in.ResumeAppleOAuthCallbackUseCase;
+import com.appv4.auth.application.port.in.LoginChildUseCase;
 import com.appv4.auth.application.port.in.LoginWithEmailUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
 import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
@@ -83,7 +84,11 @@ import com.appv4.auth.application.service.ForgotPasswordService;
 import com.appv4.auth.application.service.IssueJwtService;
 import com.appv4.auth.application.service.LoginWithAppleService;
 import com.appv4.auth.application.service.ResumeAppleOAuthCallbackService;
+import com.appv4.auth.application.port.out.ChildLoginPort;
+import com.appv4.auth.application.port.out.ChildSessionTokenPort;
+import com.appv4.auth.application.service.LoginChildService;
 import com.appv4.auth.application.service.LoginWithEmailService;
+import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtChildSessionAdapter;
 import com.appv4.auth.application.service.LoginWithFacebookService;
 import com.appv4.auth.application.service.LoginWithGoogleService;
 import com.appv4.auth.application.service.ChildSubjectService;
@@ -327,6 +332,22 @@ public class AuthConfiguration {
 			SignupRolePort signupRolePort,
 			IssueJwtUseCase issueJwtUseCase) {
 		return new CompleteRolesService(signupRolePort, issueJwtUseCase);
+	}
+
+	/**
+	 * Login enfant prénom + code (BACK-13). Le jeton n'authentifie pas {@code /api/int}.
+	 */
+	@Bean
+	ChildSessionTokenPort childSessionTokenPort(JwtProperties jwtProperties) {
+		return new JjwtChildSessionAdapter(jwtProperties);
+	}
+
+	@Bean
+	LoginChildUseCase loginChildUseCase(
+			ChildLoginPort childLoginPort,
+			PasswordEncoder passwordEncoder,
+			ChildSessionTokenPort childSessionTokenPort) {
+		return new LoginChildService(childLoginPort, passwordEncoder, childSessionTokenPort);
 	}
 
 	/**
@@ -617,7 +638,8 @@ public class AuthConfiguration {
 	 *   <li>health/info publics : pour Docker / Azure / monitoring</li>
 	 *   <li>{@code /error} public : page d'erreur Spring Boot (sinon 403 en boucle)</li>
 	 *   <li>OPTIONS publics : préflight CORS navigateur</li>
-	 *   <li>{@code /api/ext/**} public temporairement (learning)</li>
+	 *   <li>{@code /api/ext/**} public (learning). Le login enfant est limité en débit ;
+	 *       son jeton ne remplit pas le SecurityContext adulte</li>
 	 *   <li>OAuth Google / Facebook / Apple publics : authorize-url + échange code</li>
 	 *   <li>Signup email/mdp public (SCRUM-105)</li>
 	 *   <li>Login email/mdp public (SCRUM-117)</li>

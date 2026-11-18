@@ -16,8 +16,8 @@ import jakarta.servlet.http.HttpServletResponse;
 /**
  * Filtre anti-abus sur les endpoints auth publics.
  *
- * <p><b>Business :</b> sans ça, login / forgot / OAuth peuvent être martelés (bruteforce,
- * invalidation en boucle des liens reset).
+ * <p><b>Business :</b> sans ça, login / forgot / OAuth / code enfant peuvent être martelés
+ * (bruteforce, invalidation en boucle des liens reset). Le code enfant n'a que 4 chiffres.
  * <p><b>Technique :</b> {@link OncePerRequestFilter} + {@link InMemoryAuthRateLimiter} ;
  * réponse {@code 429 Too Many Requests} si plafond dépassé.
  * <p><b>Métier / flow :</b> avant JWT / controllers, sur les chemins listés uniquement.
@@ -31,7 +31,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
 			"/api/int/auth/reset-password",
 			"/api/int/auth/oauth/google",
 			"/api/int/auth/oauth/facebook",
-			"/api/int/auth/oauth/apple");
+			"/api/int/auth/oauth/apple",
+			"/api/ext/auth/login");
 
 	private final AuthRateLimitProperties properties;
 	private final InMemoryAuthRateLimiter limiter;

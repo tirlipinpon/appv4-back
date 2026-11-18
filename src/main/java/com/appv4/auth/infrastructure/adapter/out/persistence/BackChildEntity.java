@@ -16,7 +16,8 @@ import jakarta.persistence.Table;
  * <p><b>Business :</b> un parent inscrit un enfant avec une classe et un code.
  * {@code active} faux veut dire désactivé : la fiche reste, elle n'est plus proposée.
  * {@code hidden} vrai : elle disparaît de l'affichage, la ligne reste.
- * <p><b>Technique :</b> table {@code back_children}. {@code pin_hash} n'est pas un mot de passe adulte.
+ * <p><b>Technique :</b> table {@code back_children}. {@code pin_hash} ouvre la session
+ * de l'app enfant. Ce n'est pas un mot de passe adulte, et ce jeton n'ouvre pas l'admin.
  */
 @Entity
 @Table(name = "back_children")
@@ -120,6 +121,11 @@ public class BackChildEntity {
 
 	public String getFirstName() {
 		return firstName;
+	}
+
+	/** Hash du code. Lu seulement pour comparer un login enfant, jamais renvoyé au front. */
+	public String getPinHash() {
+		return pinHash;
 	}
 
 	public String getLastName() {

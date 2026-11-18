@@ -60,7 +60,9 @@ class OpenApiContractExportTest {
 				.contains("/api/int/teacher/subjects/{subjectId}/questions/delete")
 				.contains("/api/int/parent/profile")
 				.contains("/api/int/parent/children")
-				.contains("/api/int/parent/subjects");
+				.contains("/api/int/parent/subjects")
+				.contains("/api/ext/auth/login")
+				.contains("/api/ext/auth/session");
 		assertThat(body).doesNotContain("/api/ext/hello", "/api/int/hello",
 				"/api/int/parent/hello", "/api/int/teacher/hello");
 		// switch-role est authentifié — le contrat doit l'annoncer (issue #51)

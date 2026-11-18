@@ -22,6 +22,7 @@ import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.ChildDailyMissionPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
+import com.appv4.auth.application.port.out.ChildSubjectBoardPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildLoginPort;
@@ -148,6 +149,19 @@ public class TestProfileConfiguration {
 	ChildDailyMissionPort childDailyMissionPort() {
 		ChildDailyMissionPort port = mock(ChildDailyMissionPort.class, withSettings().strictness(Strictness.LENIENT));
 		when(port.findByChildAndDate(anyLong(), any())).thenReturn(Optional.empty());
+		return port;
+	}
+
+	/** Board matière (BACK-33). Pas de Postgres dans les tests web. */
+	@Bean
+	ChildSubjectBoardPort childSubjectBoardPort() {
+		ChildSubjectBoardPort port = mock(ChildSubjectBoardPort.class, withSettings().strictness(Strictness.LENIENT));
+		when(port.findMeta(anyLong())).thenReturn(Optional.empty());
+		when(port.topicsOf(anyLong())).thenReturn(List.of());
+		when(port.lessonsOfTopics(any())).thenReturn(List.of());
+		when(port.questionsOfLessons(any())).thenReturn(List.of());
+		when(port.passedQuestionIds(anyLong(), anyLong())).thenReturn(java.util.Set.of());
+		when(port.xpEarned(anyLong(), anyLong())).thenReturn(0);
 		return port;
 	}
 

@@ -48,6 +48,7 @@ import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
 import com.appv4.auth.application.port.in.ReadChildProfileUseCase;
 import com.appv4.auth.application.port.in.ReadChildProgressUseCase;
+import com.appv4.auth.application.port.in.ReadChildSubjectBoardUseCase;
 import com.appv4.auth.application.port.in.ReadChildTodayUseCase;
 import com.appv4.auth.application.port.in.LoginWithEmailUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
@@ -66,6 +67,7 @@ import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.ChildDailyMissionPort;
+import com.appv4.auth.application.port.out.ChildSubjectBoardPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
@@ -111,6 +113,7 @@ import com.appv4.auth.application.service.TeacherProfileService;
 import com.appv4.auth.application.service.TeacherStudentsService;
 import com.appv4.auth.application.service.TeacherQuestionService;
 import com.appv4.auth.application.service.ChildDailyMissionService;
+import com.appv4.auth.application.service.ReadChildSubjectBoardService;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
 import com.appv4.auth.application.service.ReadChildLearningSubjectsService;
 import com.appv4.auth.application.service.ReadChildProgressService;
@@ -415,6 +418,19 @@ public class AuthConfiguration {
 			java.time.Clock clock) {
 		return new ReadChildProgressService(
 				childLoginPort, childSessionTokenPort, childProgressPort, clock);
+	}
+
+	/**
+	 * Board matière enfant (BACK-33).
+	 */
+	@Bean
+	ReadChildSubjectBoardUseCase readChildSubjectBoardUseCase(
+			ChildLoginPort childLoginPort,
+			ChildSessionTokenPort childSessionTokenPort,
+			ChildSubjectPort childSubjectPort,
+			ChildSubjectBoardPort childSubjectBoardPort) {
+		return new ReadChildSubjectBoardService(
+				childLoginPort, childSessionTokenPort, childSubjectPort, childSubjectBoardPort);
 	}
 
 	/**

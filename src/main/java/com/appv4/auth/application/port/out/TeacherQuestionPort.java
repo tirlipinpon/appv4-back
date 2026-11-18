@@ -89,6 +89,17 @@ public interface TeacherQuestionPort {
 	record LinkDraft(String leftLabel, String rightLabel) {
 	}
 
+	/** Colonne d'un classement, déjà non vide. */
+	record ColumnDraft(String label) {
+	}
+
+	/**
+	 * Carte d'un classement, déjà non vide.
+	 * {@code columnIndex} pointe la colonne juste dans le brouillon colonnes.
+	 */
+	record CardDraft(String label, int columnIndex) {
+	}
+
 	/** Mot juste ou leurre d'une case vide, déjà non vide. */
 	record GapWordDraft(String label) {
 	}
@@ -135,6 +146,12 @@ public interface TeacherQuestionPort {
 	record StoredLink(long id, String leftLabel, String rightLabel) {
 	}
 
+	record StoredColumn(long id, String label) {
+	}
+
+	record StoredCard(long id, String label, long correctColumnId) {
+	}
+
 	record StoredGapWord(long id, String label) {
 	}
 
@@ -175,6 +192,13 @@ public interface TeacherQuestionPort {
 		}
 	}
 
+	record ClassificationDraft(List<ColumnDraft> columns, List<CardDraft> cards) implements DraftContent {
+		public ClassificationDraft {
+			columns = List.copyOf(columns);
+			cards = List.copyOf(cards);
+		}
+	}
+
 	record GapsDraft(String sentence, List<GapWordDraft> answers, List<GapWordDraft> decoys) implements DraftContent {
 		public GapsDraft {
 			answers = List.copyOf(answers);
@@ -209,6 +233,13 @@ public interface TeacherQuestionPort {
 	record StoredLinks(List<StoredLink> links) implements StoredContent {
 		public StoredLinks {
 			links = List.copyOf(links);
+		}
+	}
+
+	record StoredClassification(List<StoredColumn> columns, List<StoredCard> cards) implements StoredContent {
+		public StoredClassification {
+			columns = List.copyOf(columns);
+			cards = List.copyOf(cards);
 		}
 	}
 
@@ -329,6 +360,14 @@ public interface TeacherQuestionPort {
 
 		public List<StoredLink> links() {
 			return content instanceof StoredLinks value ? value.links() : List.of();
+		}
+
+		public List<StoredColumn> columns() {
+			return content instanceof StoredClassification value ? value.columns() : List.of();
+		}
+
+		public List<StoredCard> cards() {
+			return content instanceof StoredClassification value ? value.cards() : List.of();
 		}
 
 		public String sentence() {

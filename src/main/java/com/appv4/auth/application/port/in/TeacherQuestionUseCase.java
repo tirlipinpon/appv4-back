@@ -140,6 +140,22 @@ public interface TeacherQuestionUseCase {
 	record LinkInput(String leftLabel, String rightLabel) {
 	}
 
+	/**
+	 * Classement : colonnes nommées et cartes, chacune rattachée à une colonne
+	 * via {@code columnIndex} (index dans {@code columns}).
+	 */
+	record ClassificationInput(List<ColumnInput> columns, List<CardInput> cards) implements ContentInput {
+	}
+
+	record ColumnInput(String label) {
+	}
+
+	/**
+	 * @param columnIndex index 0-based dans la liste {@code columns} de la même requête
+	 */
+	record CardInput(String label, Integer columnIndex) {
+	}
+
 	/** Phrase à trous, mots justes dans l'ordre des ___ et leurres de la banque. */
 	record GapsInput(String sentence, List<GapWordInput> answers, List<GapWordInput> decoys) implements ContentInput {
 	}

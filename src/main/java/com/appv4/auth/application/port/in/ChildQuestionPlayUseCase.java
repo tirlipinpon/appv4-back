@@ -22,16 +22,22 @@ public interface ChildQuestionPlayUseCase {
 	record StatementAnswer(long statementId, boolean value) {
 	}
 
+	/** Placement d'une carte dans une colonne (classement). */
+	record PlacementAnswer(long cardId, long columnId) {
+	}
+
 	record AttemptAnswers(
 			List<Long> selectedChoiceIds,
 			List<StatementAnswer> statements,
 			List<Long> matchedPairIds,
-			List<Long> orderedItemIds) {
+			List<Long> orderedItemIds,
+			List<PlacementAnswer> placements) {
 		public AttemptAnswers {
 			selectedChoiceIds = selectedChoiceIds == null ? List.of() : List.copyOf(selectedChoiceIds);
 			statements = statements == null ? List.of() : List.copyOf(statements);
 			matchedPairIds = matchedPairIds == null ? List.of() : List.copyOf(matchedPairIds);
 			orderedItemIds = orderedItemIds == null ? List.of() : List.copyOf(orderedItemIds);
+			placements = placements == null ? List.of() : List.copyOf(placements);
 		}
 	}
 }

@@ -11,6 +11,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClassification;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGaps;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
 
@@ -69,6 +70,22 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 					? value.links().stream()
 							.map(row -> new LinkLine(row.id(), row.leftLabel(), row.rightLabel()))
 							.toList() : List.of();
+		}
+
+		public List<ColumnLine> columns() {
+			return content instanceof StoredClassification value
+					? value.columns().stream()
+							.map(row -> new ColumnLine(row.id(), row.label()))
+							.toList()
+					: List.of();
+		}
+
+		public List<CardLine> cards() {
+			return content instanceof StoredClassification value
+					? value.cards().stream()
+							.map(row -> new CardLine(row.id(), row.label(), row.correctColumnId()))
+							.toList()
+					: List.of();
 		}
 
 		public String sentence() {
@@ -165,6 +182,12 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 	}
 
 	public record LinkLine(long id, String leftLabel, String rightLabel) {
+	}
+
+	public record ColumnLine(long id, String label) {
+	}
+
+	public record CardLine(long id, String label, long correctColumnId) {
 	}
 
 	public record GapWordLine(long id, String label) {

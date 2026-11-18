@@ -12,7 +12,7 @@ python scripts/front-demo/demo.py reset     # Supprimer puis recréer en une tra
 
 Le script cible uniquement le service PostgreSQL du Compose de ce dépôt. Aucun
 serveur distant, aucune variable JDBC, aucun envoi d'e-mail. Le backend doit avoir
-appliqué les migrations jusqu'à V59. Une nouvelle version de schéma exige une
+appliqué les migrations jusqu'à V60. Une nouvelle version de schéma exige une
 revue du générateur avant de modifier sa garde. Ce n'est pas une migration Flyway
 ni un seed exécuté au démarrage.
 
@@ -24,8 +24,8 @@ ni un seed exécuté au démarrage.
 - 240 comptes parents et 30 professeurs également parents : 270 familles,
   chacune de 1 à 5 enfants, soit 810 enfants.
 - 654 matières actives : 2 à 5 par école/année, plus 42 archives masquées ou désactivées.
-- 196 550 questions, de 200 à 400 par matière active, réparties entre les dix
-  formes enregistrées dans le backend. Les archives sont volontairement vides.
+- Questions de 200 à 400 par matière active, réparties entre les onze
+  formes enregistrées dans le backend (dont classement). Les archives sont volontairement vides.
 - Partages entre professeurs, accès désactivés, invitations share/move/ask/handover,
   historiques acceptés/refusés/annulés et notifications ouvertes ou fermées.
 - Fratries, demi-fratries, cousins, jumeaux, écoles et années identiques ou différentes,

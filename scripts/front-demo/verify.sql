@@ -20,7 +20,7 @@ DO $$ BEGIN
  IF EXISTS (
   SELECT 1 FROM back_teacher_subjects s JOIN dev_front_demo.roots r ON r.kind='subject' AND r.id=s.id
   LEFT JOIN back_subject_questions q ON q.subject_id=s.id WHERE s.active AND NOT s.hidden
-  GROUP BY s.id HAVING count(q.id) NOT BETWEEN 200 AND 400 OR count(DISTINCT q.form_code)<>10
+  GROUP BY s.id HAVING count(q.id) NOT BETWEEN 200 AND 400 OR count(DISTINCT q.form_code)<>11
  ) THEN RAISE EXCEPTION 'Invalid question counts/forms'; END IF;
  IF EXISTS (
   SELECT 1 FROM back_subject_questions q JOIN dev_front_demo.roots r ON r.kind='subject' AND r.id=q.subject_id
@@ -30,6 +30,15 @@ DO $$ BEGIN
    WHEN 'order' THEN (SELECT count(*) FROM back_subject_question_items c WHERE c.question_id=q.id)<2
    WHEN 'vrai_faux' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_statements c WHERE c.question_id=q.id)
    WHEN 'liens' THEN (SELECT count(*) FROM back_subject_question_links c WHERE c.question_id=q.id)<2
+   WHEN 'classement' THEN (SELECT count(*) FROM back_subject_question_columns c WHERE c.question_id=q.id)<2
+     OR (SELECT count(*) FROM back_subject_question_cards c WHERE c.question_id=q.id)<2
+     OR EXISTS (
+      SELECT 1 FROM back_subject_question_columns col
+      WHERE col.question_id=q.id
+        AND NOT EXISTS (
+          SELECT 1 FROM back_subject_question_cards card
+          WHERE card.question_id=q.id AND card.correct_column_id=col.id)
+     )
    WHEN 'case_vide' THEN (SELECT count(*) FROM back_subject_question_gaps c WHERE c.question_id=q.id AND NOT decoy)<>2
    WHEN 'texte' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_texts c WHERE c.question_id=q.id)
    WHEN 'reponse_libre' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_letters c WHERE c.question_id=q.id)

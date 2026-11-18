@@ -1,8 +1,10 @@
 package com.appv4.auth.application.service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,10 +13,13 @@ import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.CardDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoicesDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClassificationDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickImageDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickZoneDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ColumnDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.DraftContent;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.FreeTextDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.GapWordDraft;
@@ -29,10 +34,13 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.PuzzleDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PuzzlePieceDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementsDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredCard;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClassification;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickZone;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredColumn;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredContent;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGapWord;
@@ -131,6 +139,18 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String CASE_VIDE = "case_vide";
 	public static final String CASE_VIDE_LABEL = "Case vide";
 	public static final int CASE_VIDE_ORDER = 6;
+
+	public static final String CLASSIFICATION = "classement";
+	public static final String CLASSIFICATION_LABEL = "Classement";
+	public static final int CLASSIFICATION_ORDER = 7;
+	public static final String COLUMNS_REQUIRED = "Il faut au moins deux colonnes.";
+	public static final String CARDS_REQUIRED = "Il faut au moins deux cartes.";
+	public static final String COLUMN_LABEL_REQUIRED = "Chaque colonne doit avoir un nom.";
+	public static final String CARD_LABEL_REQUIRED = "Chaque carte doit avoir un texte.";
+	public static final String COLUMN_LABEL_TOO_LONG = "Un nom de colonne dépasse 200 caractères.";
+	public static final String CARD_LABEL_TOO_LONG = "Un texte de carte dépasse 200 caractères.";
+	public static final String CARD_COLUMN_REQUIRED = "Chaque carte doit être rattachée à une colonne.";
+	public static final String COLUMN_EMPTY = "Chaque colonne doit contenir au moins une carte.";
 
 	public static final String GAP_REQUIRED = "La phrase doit contenir au moins un trou.";
 	public static final String GAP_WORD_REQUIRED = "Chaque trou doit avoir un mot juste.";
@@ -483,6 +503,26 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 				drafts.add(new LinkDraft(link.leftLabel(), link.rightLabel()));
 			}
 			return new LinksDraft(drafts);
+		}
+		if (content instanceof StoredClassification classification) {
+			List<ColumnDraft> columns = new ArrayList<>();
+			for (StoredColumn column : classification.columns()) {
+				columns.add(new ColumnDraft(column.label()));
+			}
+			Map<Long, Integer> columnIndexById = new HashMap<>();
+			List<StoredColumn> storedColumns = classification.columns();
+			for (int i = 0; i < storedColumns.size(); i++) {
+				columnIndexById.put(storedColumns.get(i).id(), i);
+			}
+			List<CardDraft> cards = new ArrayList<>();
+			for (StoredCard card : classification.cards()) {
+				Integer index = columnIndexById.get(card.correctColumnId());
+				if (index == null) {
+					throw new IllegalStateException("Carte sans colonne pour la copie : " + card.id());
+				}
+				cards.add(new CardDraft(card.label(), index));
+			}
+			return new ClassificationDraft(columns, cards);
 		}
 		if (content instanceof StoredGaps gaps) {
 			List<GapWordDraft> answers = new ArrayList<>();

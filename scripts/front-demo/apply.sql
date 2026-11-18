@@ -2,8 +2,8 @@ DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM dev_front_demo.installation) THEN
    RAISE EXCEPTION 'Demo already installed. Use status, rollback or reset (no duplicates created).';
  END IF;
- IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '59' THEN
-   RAISE EXCEPTION 'Fixtures validated against V59. Review schema changes before updating this guard.';
+ IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '60' THEN
+   RAISE EXCEPTION 'Fixtures validated against V60. Review schema changes before updating this guard.';
  END IF;
 END $$;
 
@@ -118,22 +118,24 @@ FROM subjects s CROSS JOIN LATERAL (
 CREATE TEMP TABLE forms(code,label,ord) ON COMMIT DROP AS VALUES
  ('qcm','Choix multiples',1),('memory','Memory',2),('order','Ordre',3),
  ('vrai_faux','Vrai ou faux',4),('liens','Liens',5),('case_vide','Case vide',6),
- ('texte','Texte',7),('image_interactive','Image à cliquer',8),('reponse_libre','Lettre par lettre',9),('puzzle','Puzzle',10);
+ ('classement','Classement',7),('image_interactive','Image à cliquer',8),
+ ('reponse_libre','Lettre par lettre',9),('puzzle','Puzzle',10),('texte','Réponse libre',11);
 INSERT INTO back_subject_question_forms(subject_id,form_code,label,sort_order)
-SELECT s.id,f.code,CASE WHEN f.code='texte' THEN 'Réponse libre' ELSE f.label END,
- CASE WHEN f.code='texte' THEN 11 ELSE f.ord END FROM subjects s CROSS JOIN forms f;
+SELECT s.id,f.code,f.label,f.ord FROM subjects s CROSS JOIN forms f;
 CREATE TEMP TABLE questions ON COMMIT DROP AS
 SELECT nextval('back_subject_questions_id_seq') id,s.id subject_id,f.code,n,s.k
 FROM subjects s CROSS JOIN LATERAL generate_series(1,200+50*((s.school_n+s.grade_n+s.k)%5)) n
-JOIN forms f ON f.ord=1+(n-1)%10;
+JOIN forms f ON f.ord=1+(n-1)%11;
 INSERT INTO back_subject_questions(id,subject_id,form_code,prompt)
 SELECT q.id,q.subject_id,q.code,
- CASE WHEN q.n%13=0 AND q.code IN ('memory','order','vrai_faux','liens','case_vide') THEN '' ELSE
+ CASE WHEN q.n%13=0 AND q.code IN ('memory','order','vrai_faux','liens','case_vide','classement') THEN '' ELSE
  s.name||' · '||s.grade||' · Activité '||q.n||' : '||
  CASE q.code WHEN 'qcm' THEN 'Sélectionne les propositions correctes.' WHEN 'order' THEN 'Replace les étapes dans l’ordre.'
  WHEN 'texte' THEN 'Écris le mot école.' WHEN 'reponse_libre' THEN 'Compose le mot école.'
  WHEN 'case_vide' THEN 'Complète la phrase.' WHEN 'image_interactive' THEN 'Clique sur la zone bleue.'
- WHEN 'puzzle' THEN 'Recompose les deux moitiés de l’image.' ELSE 'Observe puis associe les éléments.' END ||
+ WHEN 'puzzle' THEN 'Recompose les deux moitiés de l’image.'
+ WHEN 'classement' THEN 'Classe chaque carte dans la bonne colonne.'
+ ELSE 'Observe puis associe les éléments.' END ||
  CASE WHEN q.n%7=0 THEN ' Lis attentivement chaque proposition, prends le temps de comparer les réponses et vérifie ton choix avant de continuer.' ELSE '' END END
 FROM questions q JOIN subjects s ON s.id=q.subject_id;
 INSERT INTO back_subject_question_choices(question_id,label,correct,sort_order)
@@ -151,6 +153,15 @@ CROSS JOIN LATERAL generate_series(0,1+(q.n/10)%4) i WHERE code='vrai_faux';
 INSERT INTO back_subject_question_links(question_id,left_label,right_label,sort_order)
 SELECT q.id,'Notion '||i||' · '||q.n,'Exemple '||i||' · '||q.n,i FROM questions q
 CROSS JOIN LATERAL generate_series(0,1+(q.n/10)%5) i WHERE code='liens';
+INSERT INTO back_subject_question_columns(question_id,label,sort_order)
+SELECT q.id,'Colonne '||(i+1)||' · '||q.n,i FROM questions q
+CROSS JOIN LATERAL generate_series(0,1+(q.n/10)%3) i WHERE code='classement';
+-- Une carte par colonne (au moins deux colonnes → au moins deux cartes).
+INSERT INTO back_subject_question_cards(question_id,label,correct_column_id,sort_order)
+SELECT q.id,'Carte '||(col.sort_order+1)||' · '||q.n,col.id,col.sort_order
+FROM questions q
+JOIN back_subject_question_columns col ON col.question_id=q.id
+WHERE q.code='classement';
 INSERT INTO back_subject_question_gaps(question_id,sentence,word_label,decoy,sort_order)
 SELECT q.id,'Le ___ lit un ___ à l’école.',v.word,v.decoy,v.ord FROM questions q
 CROSS JOIN (VALUES ('garçon',false,0),('livre',false,1),('nuage',true,0),('rouge',true,1)) v(word,decoy,ord) WHERE code='case_vide';

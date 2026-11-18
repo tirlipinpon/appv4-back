@@ -20,11 +20,14 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.result.ChildAttemptResultView;
 import com.appv4.auth.application.result.ChildPlayQuestionView;
+import com.appv4.auth.application.result.ChildPlayQuestionView.PlayCard;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayChoice;
+import com.appv4.auth.application.result.ChildPlayQuestionView.PlayColumn;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayItem;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayPair;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayStatement;
 import com.appv4.auth.application.service.question.play.ChildAnswerGrade;
+import com.appv4.auth.application.service.question.play.ClassificationChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.MemoryChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.OrderChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.QcmChildAnswerGrader;
@@ -106,6 +109,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			case TrueFalseChildAnswerGrader.FORM -> TrueFalseChildAnswerGrader.grade(stored, answers.statements());
 			case MemoryChildAnswerGrader.FORM -> MemoryChildAnswerGrader.grade(stored, answers.matchedPairIds());
 			case OrderChildAnswerGrader.FORM -> OrderChildAnswerGrader.grade(stored, answers.orderedItemIds());
+			case ClassificationChildAnswerGrader.FORM ->
+					ClassificationChildAnswerGrader.grade(stored, answers.placements());
 			default -> throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 		};
 	}
@@ -117,7 +122,16 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					.map(c -> new PlayChoice(c.id(), c.label()))
 					.toList();
 			return new ChildPlayQuestionView(
-					stored.id(), stored.subjectId(), form, stored.prompt(), choices, List.of(), List.of(), List.of());
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					choices,
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of());
 		}
 		if (TrueFalseChildAnswerGrader.FORM.equals(form)) {
 			List<PlayStatement> statements = stored.statements().stream()
@@ -131,6 +145,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					statements,
 					List.of(),
+					List.of(),
+					List.of(),
 					List.of());
 		}
 		if (MemoryChildAnswerGrader.FORM.equals(form)) {
@@ -138,7 +154,16 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					.map(p -> new PlayPair(p.id(), p.questionSide(), p.answerSide()))
 					.toList();
 			return new ChildPlayQuestionView(
-					stored.id(), stored.subjectId(), form, stored.prompt(), List.of(), List.of(), pairs, List.of());
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					List.of(),
+					List.of(),
+					pairs,
+					List.of(),
+					List.of(),
+					List.of());
 		}
 		if (OrderChildAnswerGrader.FORM.equals(form)) {
 			List<PlayItem> items = new ArrayList<>(stored.items().stream()
@@ -146,7 +171,36 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					.toList());
 			Collections.shuffle(items);
 			return new ChildPlayQuestionView(
-					stored.id(), stored.subjectId(), form, stored.prompt(), List.of(), List.of(), List.of(), items);
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					List.of(),
+					List.of(),
+					List.of(),
+					items,
+					List.of(),
+					List.of());
+		}
+		if (ClassificationChildAnswerGrader.FORM.equals(form)) {
+			List<PlayColumn> columns = stored.columns().stream()
+					.map(c -> new PlayColumn(c.id(), c.label()))
+					.toList();
+			List<PlayCard> cards = new ArrayList<>(stored.cards().stream()
+					.map(c -> new PlayCard(c.id(), c.label()))
+					.toList());
+			Collections.shuffle(cards);
+			return new ChildPlayQuestionView(
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					columns,
+					cards);
 		}
 		throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 	}

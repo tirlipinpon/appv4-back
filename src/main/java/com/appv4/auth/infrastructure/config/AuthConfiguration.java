@@ -47,6 +47,7 @@ import com.appv4.auth.application.port.in.LoginChildUseCase;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
 import com.appv4.auth.application.port.in.ReadChildProfileUseCase;
+import com.appv4.auth.application.port.in.ReadChildProgressUseCase;
 import com.appv4.auth.application.port.in.LoginWithEmailUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
 import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
@@ -63,6 +64,7 @@ import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildPort;
@@ -108,6 +110,8 @@ import com.appv4.auth.application.service.TeacherStudentsService;
 import com.appv4.auth.application.service.TeacherQuestionService;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
 import com.appv4.auth.application.service.ReadChildLearningSubjectsService;
+import com.appv4.auth.application.service.ReadChildProgressService;
+import com.appv4.auth.application.service.UpdateChildProgressAfterAttemptService;
 import com.appv4.auth.application.service.TeacherSubjectService;
 import com.appv4.auth.infrastructure.adapter.in.web.AuthRateLimitFilter;
 import com.appv4.auth.infrastructure.adapter.in.web.InMemoryAuthRateLimiter;
@@ -381,7 +385,37 @@ public class AuthConfiguration {
 	}
 
 	/**
-	 * Jeu enfant : question sans solution + tentative / score (BACK-16).
+	 * Horloge système (tests peuvent la remplacer). Progression utilise Europe/Paris.
+	 */
+	@Bean
+	java.time.Clock clock() {
+		return java.time.Clock.systemUTC();
+	}
+
+	/**
+	 * Mise à jour XP / streak après une tentative (BACK-17).
+	 */
+	@Bean
+	UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService(
+			ChildProgressPort childProgressPort, java.time.Clock clock) {
+		return new UpdateChildProgressAfterAttemptService(childProgressPort, clock);
+	}
+
+	/**
+	 * Lecture XP / streak / palier / semaine (BACK-17).
+	 */
+	@Bean
+	ReadChildProgressUseCase readChildProgressUseCase(
+			ChildLoginPort childLoginPort,
+			ChildSessionTokenPort childSessionTokenPort,
+			ChildProgressPort childProgressPort,
+			java.time.Clock clock) {
+		return new ReadChildProgressService(
+				childLoginPort, childSessionTokenPort, childProgressPort, clock);
+	}
+
+	/**
+	 * Jeu enfant : question sans solution + tentative / score (BACK-16), puis progress (BACK-17).
 	 */
 	@Bean
 	ChildQuestionPlayUseCase childQuestionPlayUseCase(
@@ -389,13 +423,15 @@ public class AuthConfiguration {
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
-			ChildQuestionAttemptPort childQuestionAttemptPort) {
+			ChildQuestionAttemptPort childQuestionAttemptPort,
+			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService) {
 		return new ChildQuestionPlayService(
 				childLoginPort,
 				childSessionTokenPort,
 				childSubjectPort,
 				teacherQuestionPort,
-				childQuestionAttemptPort);
+				childQuestionAttemptPort,
+				updateChildProgressAfterAttemptService);
 	}
 
 	/**

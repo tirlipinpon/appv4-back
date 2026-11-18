@@ -44,6 +44,7 @@ import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
 import com.appv4.auth.application.port.in.ResumeAppleOAuthCallbackUseCase;
 import com.appv4.auth.application.port.in.LoginChildUseCase;
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
 import com.appv4.auth.application.port.in.ReadChildProfileUseCase;
 import com.appv4.auth.application.port.in.LoginWithEmailUseCase;
@@ -62,6 +63,7 @@ import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
@@ -104,6 +106,7 @@ import com.appv4.auth.application.service.ParentProfileService;
 import com.appv4.auth.application.service.TeacherProfileService;
 import com.appv4.auth.application.service.TeacherStudentsService;
 import com.appv4.auth.application.service.TeacherQuestionService;
+import com.appv4.auth.application.service.ChildQuestionPlayService;
 import com.appv4.auth.application.service.ReadChildLearningSubjectsService;
 import com.appv4.auth.application.service.TeacherSubjectService;
 import com.appv4.auth.infrastructure.adapter.in.web.AuthRateLimitFilter;
@@ -375,6 +378,24 @@ public class AuthConfiguration {
 			TeacherQuestionPort teacherQuestionPort) {
 		return new ReadChildLearningSubjectsService(
 				childLoginPort, childSessionTokenPort, childSubjectPort, teacherQuestionPort);
+	}
+
+	/**
+	 * Jeu enfant : question sans solution + tentative / score (BACK-16).
+	 */
+	@Bean
+	ChildQuestionPlayUseCase childQuestionPlayUseCase(
+			ChildLoginPort childLoginPort,
+			ChildSessionTokenPort childSessionTokenPort,
+			ChildSubjectPort childSubjectPort,
+			TeacherQuestionPort teacherQuestionPort,
+			ChildQuestionAttemptPort childQuestionAttemptPort) {
+		return new ChildQuestionPlayService(
+				childLoginPort,
+				childSessionTokenPort,
+				childSubjectPort,
+				teacherQuestionPort,
+				childQuestionAttemptPort);
 	}
 
 	/**

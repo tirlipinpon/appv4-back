@@ -23,11 +23,15 @@ public interface ChildQuestionPlayUseCase {
 	}
 
 	record AttemptAnswers(
-			List<Long> selectedChoiceIds, List<StatementAnswer> statements, List<Long> matchedPairIds) {
+			List<Long> selectedChoiceIds,
+			List<StatementAnswer> statements,
+			List<Long> matchedPairIds,
+			List<Long> orderedItemIds) {
 		public AttemptAnswers {
 			selectedChoiceIds = selectedChoiceIds == null ? List.of() : List.copyOf(selectedChoiceIds);
 			statements = statements == null ? List.of() : List.copyOf(statements);
 			matchedPairIds = matchedPairIds == null ? List.of() : List.copyOf(matchedPairIds);
+			orderedItemIds = orderedItemIds == null ? List.of() : List.copyOf(orderedItemIds);
 		}
 	}
 }

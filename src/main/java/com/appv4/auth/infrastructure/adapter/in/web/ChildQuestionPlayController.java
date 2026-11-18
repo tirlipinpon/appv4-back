@@ -90,7 +90,8 @@ public class ChildQuestionPlayController {
 		AttemptAnswers answers = new AttemptAnswers(
 				body == null || body.selectedChoiceIds() == null ? List.of() : body.selectedChoiceIds(),
 				statements,
-				body == null || body.matchedPairIds() == null ? List.of() : body.matchedPairIds());
+				body == null || body.matchedPairIds() == null ? List.of() : body.matchedPairIds(),
+				body == null || body.orderedItemIds() == null ? List.of() : body.orderedItemIds());
 		ChildAttemptResultView view =
 				childQuestionPlayUseCase.submit(bearer(authorization), subjectId, questionId, answers);
 		return ResponseEntity.status(HttpStatus.CREATED)
@@ -107,8 +108,18 @@ public class ChildQuestionPlayController {
 		List<ChildPlayPairItem> pairs = view.pairs().stream()
 				.map(p -> new ChildPlayPairItem(p.pairId(), p.questionSide(), p.answerSide()))
 				.toList();
+		List<ChildPlayItemItem> items = view.items().stream()
+				.map(i -> new ChildPlayItemItem(i.itemId(), i.label()))
+				.toList();
 		return new ChildPlayQuestionResponse(
-				view.questionId(), view.subjectId(), view.formCode(), view.prompt(), choices, statements, pairs);
+				view.questionId(),
+				view.subjectId(),
+				view.formCode(),
+				view.prompt(),
+				choices,
+				statements,
+				pairs,
+				items);
 	}
 
 	private static String bearer(String authorization) {
@@ -126,7 +137,8 @@ public class ChildQuestionPlayController {
 			String prompt,
 			List<ChildPlayChoiceItem> choices,
 			List<ChildPlayStatementItem> statements,
-			List<ChildPlayPairItem> pairs) {
+			List<ChildPlayPairItem> pairs,
+			List<ChildPlayItemItem> items) {
 	}
 
 	@Schema(name = "ChildPlayChoiceItem")
@@ -141,11 +153,16 @@ public class ChildQuestionPlayController {
 	public record ChildPlayPairItem(long pairId, String questionSide, String answerSide) {
 	}
 
+	@Schema(name = "ChildPlayItemItem")
+	public record ChildPlayItemItem(long itemId, String label) {
+	}
+
 	@Schema(name = "SubmitChildAttemptRequest")
 	public record SubmitChildAttemptRequest(
 			List<Long> selectedChoiceIds,
 			List<SubmitStatementAnswer> statements,
-			List<Long> matchedPairIds) {
+			List<Long> matchedPairIds,
+			List<Long> orderedItemIds) {
 	}
 
 	@Schema(name = "SubmitStatementAnswer")

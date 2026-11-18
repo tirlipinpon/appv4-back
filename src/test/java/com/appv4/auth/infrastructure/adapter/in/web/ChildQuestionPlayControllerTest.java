@@ -33,6 +33,8 @@ import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItem;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
@@ -158,6 +160,55 @@ class ChildQuestionPlayControllerTest {
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.attemptId").value(44))
+				.andExpect(jsonPath("$.scorePercent").value(100))
+				.andExpect(jsonPath("$.passed").value(true));
+	}
+
+	@Test
+	void getOrderReturnsItems() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 14L)).thenReturn(Optional.of(new StoredQuestion(
+				14L,
+				4L,
+				"order",
+				"",
+				new StoredItems(List.of(
+						new StoredItem(1L, "Lundi"),
+						new StoredItem(2L, "Mardi"),
+						new StoredItem(3L, "Mercredi"))))));
+
+		mockMvc.perform(get("/api/ext/subjects/4/questions/14").header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.formCode").value("order"))
+				.andExpect(jsonPath("$.items.length()").value(3))
+				.andExpect(jsonPath("$.items[?(@.itemId == 1)].label").value("Lundi"));
+	}
+
+	@Test
+	void submitOrderExactPasses() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 14L)).thenReturn(Optional.of(new StoredQuestion(
+				14L,
+				4L,
+				"order",
+				"",
+				new StoredItems(List.of(
+						new StoredItem(1L, "Lundi"),
+						new StoredItem(2L, "Mardi"),
+						new StoredItem(3L, "Mercredi"))))));
+		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
+				.thenReturn(new StoredAttempt(45L, 7L, 4L, 14L, "order", 100, true));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/14/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"orderedItemIds":[1,2,3]}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.attemptId").value(45))
 				.andExpect(jsonPath("$.scorePercent").value(100))
 				.andExpect(jsonPath("$.passed").value(true));
 	}

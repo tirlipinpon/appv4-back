@@ -33,6 +33,8 @@ import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
@@ -107,6 +109,55 @@ class ChildQuestionPlayControllerTest {
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.attemptId").value(42))
+				.andExpect(jsonPath("$.scorePercent").value(100))
+				.andExpect(jsonPath("$.passed").value(true));
+	}
+
+	@Test
+	void getMemoryReturnsPairs() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 13L)).thenReturn(Optional.of(new StoredQuestion(
+				13L,
+				4L,
+				"memory",
+				"",
+				new StoredPairs(List.of(
+						new StoredPair(1L, "Chat", "Miaou"),
+						new StoredPair(2L, "Pomme", "Fruit"))))));
+
+		mockMvc.perform(get("/api/ext/subjects/4/questions/13").header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.formCode").value("memory"))
+				.andExpect(jsonPath("$.pairs[0].pairId").value(1))
+				.andExpect(jsonPath("$.pairs[0].questionSide").value("Chat"))
+				.andExpect(jsonPath("$.pairs[0].answerSide").value("Miaou"))
+				.andExpect(jsonPath("$.pairs[1].pairId").value(2));
+	}
+
+	@Test
+	void submitMemoryAllPairsPasses() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 13L)).thenReturn(Optional.of(new StoredQuestion(
+				13L,
+				4L,
+				"memory",
+				"",
+				new StoredPairs(List.of(
+						new StoredPair(1L, "Chat", "Miaou"),
+						new StoredPair(2L, "Pomme", "Fruit"))))));
+		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
+				.thenReturn(new StoredAttempt(44L, 7L, 4L, 13L, "memory", 100, true));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/13/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"matchedPairIds":[1,2]}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.attemptId").value(44))
 				.andExpect(jsonPath("$.scorePercent").value(100))
 				.andExpect(jsonPath("$.passed").value(true));
 	}

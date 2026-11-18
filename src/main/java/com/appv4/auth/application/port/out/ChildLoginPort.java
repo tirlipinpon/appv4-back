@@ -17,9 +17,25 @@ public interface ChildLoginPort {
 
 	Optional<ChildLoginCandidate> findActiveById(long childId);
 
+	/** Profil affiché dans l'app enfant (BACK-14). Le hash du PIN n'est pas lu ici. */
+	Optional<ChildProfile> findActiveProfileById(long childId);
+
+	/** Photo binaire si la fiche active en a une. */
+	Optional<ChildPhotoBytes> findActivePhotoById(long childId);
+
 	/**
 	 * @param pinHash hash BCrypt du code à 4 chiffres, jamais le code en clair
 	 */
 	record ChildLoginCandidate(long id, String firstName, String pinHash) {
+	}
+
+	/**
+	 * @param avatarCode code d'avatar, ou {@code null} si l'enfant a une photo
+	 * @param hasPhoto   vrai si une photo est stockée
+	 */
+	record ChildProfile(long id, String firstName, String avatarCode, boolean hasPhoto) {
+	}
+
+	record ChildPhotoBytes(byte[] bytes, String contentType) {
 	}
 }

@@ -53,8 +53,8 @@ public class BackTeacherSubjectEntity {
 	@Column(nullable = false)
 	private boolean hidden;
 
-	/** Code librairie d'icônes matières ; null si le professeur n'a pas encore choisi. */
-	@Column(name = "icon_code", length = 32)
+	/** Code icône matière (legacy court ou Iconify prefix:name) ; null si absent. */
+	@Column(name = "icon_code", length = 128)
 	private String iconCode;
 
 	protected BackTeacherSubjectEntity() {

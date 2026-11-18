@@ -48,6 +48,7 @@ import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
 import com.appv4.auth.application.port.in.ReadChildProfileUseCase;
 import com.appv4.auth.application.port.in.ReadChildProgressUseCase;
+import com.appv4.auth.application.port.in.ReadChildTodayUseCase;
 import com.appv4.auth.application.port.in.LoginWithEmailUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
 import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
@@ -64,6 +65,7 @@ import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
@@ -108,6 +110,7 @@ import com.appv4.auth.application.service.ParentProfileService;
 import com.appv4.auth.application.service.TeacherProfileService;
 import com.appv4.auth.application.service.TeacherStudentsService;
 import com.appv4.auth.application.service.TeacherQuestionService;
+import com.appv4.auth.application.service.ChildDailyMissionService;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
 import com.appv4.auth.application.service.ReadChildLearningSubjectsService;
 import com.appv4.auth.application.service.ReadChildProgressService;
@@ -415,7 +418,36 @@ public class AuthConfiguration {
 	}
 
 	/**
-	 * Jeu enfant : question sans solution + tentative / score (BACK-16), puis progress (BACK-17).
+	 * Mission et plan du jour (BACK-18). Créée à la première lecture ou tentative utile.
+	 */
+	@Bean
+	ChildDailyMissionService childDailyMissionService(
+			ChildLoginPort childLoginPort,
+			ChildSessionTokenPort childSessionTokenPort,
+			ChildSubjectPort childSubjectPort,
+			TeacherQuestionPort teacherQuestionPort,
+			ChildDailyMissionPort childDailyMissionPort,
+			java.time.Clock clock) {
+		return new ChildDailyMissionService(
+				childLoginPort,
+				childSessionTokenPort,
+				childSubjectPort,
+				teacherQuestionPort,
+				childDailyMissionPort,
+				clock);
+	}
+
+	/**
+	 * Lecture HTTP de la mission du jour (BACK-18).
+	 */
+	@Bean
+	ReadChildTodayUseCase readChildTodayUseCase(ChildDailyMissionService childDailyMissionService) {
+		return childDailyMissionService;
+	}
+
+	/**
+	 * Jeu enfant : question sans solution + tentative / score (BACK-16), puis progress (BACK-17)
+	 * et mission du jour (BACK-18).
 	 */
 	@Bean
 	ChildQuestionPlayUseCase childQuestionPlayUseCase(
@@ -424,14 +456,16 @@ public class AuthConfiguration {
 			ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
 			ChildQuestionAttemptPort childQuestionAttemptPort,
-			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService) {
+			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService,
+			ChildDailyMissionService childDailyMissionService) {
 		return new ChildQuestionPlayService(
 				childLoginPort,
 				childSessionTokenPort,
 				childSubjectPort,
 				teacherQuestionPort,
 				childQuestionAttemptPort,
-				updateChildProgressAfterAttemptService);
+				updateChildProgressAfterAttemptService,
+				childDailyMissionService);
 	}
 
 	/**

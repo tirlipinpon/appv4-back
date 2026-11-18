@@ -25,11 +25,11 @@ import com.appv4.auth.application.service.question.play.QcmChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.TrueFalseChildAnswerGrader;
 
 /**
- * Lecture jouable et correction d'une tentative enfant (BACK-16 / BACK-17).
+ * Lecture jouable et correction d'une tentative enfant (BACK-16 / BACK-17 / BACK-18).
  *
  * <p><b>Business :</b> seule une matière liée est jouable ; le front ne recalcule pas le score.
- * <p><b>Technique :</b> jeton enfant → question → grader → insert attempt → mise à jour progress.
- * <p><b>Métier / flow :</b> Learn play → ce service → ports out (+ progression BACK-17).
+ * <p><b>Technique :</b> jeton enfant → question → grader → insert attempt → progress puis mission du jour.
+ * <p><b>Métier / flow :</b> Learn play → ce service → ports out (+ progression et mission).
  */
 public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 
@@ -44,6 +44,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 	private final TeacherQuestionPort teacherQuestionPort;
 	private final ChildQuestionAttemptPort childQuestionAttemptPort;
 	private final UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService;
+	private final ChildDailyMissionService childDailyMissionService;
 
 	public ChildQuestionPlayService(
 			ChildLoginPort childLoginPort,
@@ -51,13 +52,15 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
 			ChildQuestionAttemptPort childQuestionAttemptPort,
-			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService) {
+			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService,
+			ChildDailyMissionService childDailyMissionService) {
 		this.childLoginPort = childLoginPort;
 		this.childSessionTokenPort = childSessionTokenPort;
 		this.childSubjectPort = childSubjectPort;
 		this.teacherQuestionPort = teacherQuestionPort;
 		this.childQuestionAttemptPort = childQuestionAttemptPort;
 		this.updateChildProgressAfterAttemptService = updateChildProgressAfterAttemptService;
+		this.childDailyMissionService = childDailyMissionService;
 	}
 
 	@Override
@@ -86,6 +89,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 				grade.passed(),
 				grade.answers()));
 		updateChildProgressAfterAttemptService.apply(childId, saved.scorePercent());
+		childDailyMissionService.recordUsefulAttempt(
+				childId, subjectId, saved.scorePercent(), saved.passed());
 		return new ChildAttemptResultView(saved.id(), saved.scorePercent(), saved.passed());
 	}
 

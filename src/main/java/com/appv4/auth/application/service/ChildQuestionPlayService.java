@@ -25,11 +25,11 @@ import com.appv4.auth.application.service.question.play.QcmChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.TrueFalseChildAnswerGrader;
 
 /**
- * Lecture jouable et correction d'une tentative enfant (BACK-16).
+ * Lecture jouable et correction d'une tentative enfant (BACK-16 / BACK-17).
  *
  * <p><b>Business :</b> seule une matière liée est jouable ; le front ne recalcule pas le score.
- * <p><b>Technique :</b> jeton enfant → question → grader qcm / vrai_faux → insert attempt.
- * <p><b>Métier / flow :</b> Learn play → ce service → ports out.
+ * <p><b>Technique :</b> jeton enfant → question → grader → insert attempt → mise à jour progress.
+ * <p><b>Métier / flow :</b> Learn play → ce service → ports out (+ progression BACK-17).
  */
 public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 
@@ -43,18 +43,21 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 	private final ChildSubjectPort childSubjectPort;
 	private final TeacherQuestionPort teacherQuestionPort;
 	private final ChildQuestionAttemptPort childQuestionAttemptPort;
+	private final UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService;
 
 	public ChildQuestionPlayService(
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
-			ChildQuestionAttemptPort childQuestionAttemptPort) {
+			ChildQuestionAttemptPort childQuestionAttemptPort,
+			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService) {
 		this.childLoginPort = childLoginPort;
 		this.childSessionTokenPort = childSessionTokenPort;
 		this.childSubjectPort = childSubjectPort;
 		this.teacherQuestionPort = teacherQuestionPort;
 		this.childQuestionAttemptPort = childQuestionAttemptPort;
+		this.updateChildProgressAfterAttemptService = updateChildProgressAfterAttemptService;
 	}
 
 	@Override
@@ -82,6 +85,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 				grade.scorePercent(),
 				grade.passed(),
 				grade.answers()));
+		updateChildProgressAfterAttemptService.apply(childId, saved.scorePercent());
 		return new ChildAttemptResultView(saved.id(), saved.scorePercent(), saved.passed());
 	}
 

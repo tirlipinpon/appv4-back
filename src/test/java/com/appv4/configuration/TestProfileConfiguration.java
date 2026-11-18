@@ -1,5 +1,6 @@
 package com.appv4.configuration;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.withSettings;
@@ -19,6 +20,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildLoginPort;
@@ -138,6 +140,15 @@ public class TestProfileConfiguration {
 	@Bean
 	ChildQuestionAttemptPort childQuestionAttemptPort() {
 		return mock(ChildQuestionAttemptPort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	/** Progression enfant (BACK-17). Pas de Postgres dans les tests web. */
+	@Bean
+	ChildProgressPort childProgressPort() {
+		ChildProgressPort port = mock(ChildProgressPort.class, withSettings().strictness(Strictness.LENIENT));
+		when(port.findByChildId(anyLong())).thenReturn(Optional.empty());
+		when(port.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+		return port;
 	}
 
 	/**

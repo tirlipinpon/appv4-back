@@ -61,4 +61,15 @@ class JjwtTokenAdapterTest {
 
 		assertTrue(adapter.decode(tampered).isEmpty());
 	}
+
+	@Test
+	void decodeRejectsAChildSessionToken() {
+		JwtProperties properties = new JwtProperties();
+		properties.setSecret("appv4-local-dev-jwt-secret-change-me-32b");
+		properties.setIssuer("appv4-back-test");
+		properties.setExpirationMinutes(60);
+		String childToken = new JjwtChildSessionAdapter(properties).issue(7L, "Léa").token();
+
+		assertTrue(adapter.decode(childToken).isEmpty());
+	}
 }

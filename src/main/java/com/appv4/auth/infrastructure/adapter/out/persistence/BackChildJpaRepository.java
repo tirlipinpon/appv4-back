@@ -58,4 +58,30 @@ public interface BackChildJpaRepository extends JpaRepository<BackChildEntity, L
 
 	/** Fiche encore proposée, et qui a une école. Le PIN n'est pas lu par cette requête. */
 	Optional<BackChildEntity> findByIdAndHiddenFalseAndActiveTrueAndSchoolIdIsNotNull(long id);
+
+	/**
+	 * Fiches encore jouables dont le prénom, une fois coupé et mis en minuscules, est celui saisi.
+	 * Le hash sert au login enfant. Une fiche masquée ou désactivée n'est pas proposée.
+	 */
+	@Query("""
+			select c.id as id, c.firstName as firstName, c.pinHash as pinHash
+			from BackChildEntity c
+			where c.hidden = false and c.active = true
+			and lower(trim(c.firstName)) = :firstName
+			""")
+	List<ChildLoginRow> findActiveLoginByFirstName(@Param("firstName") String firstName);
+
+	/** Même lecture, par id, pour vérifier qu'une session enfant vise encore une fiche jouable. */
+	@Query("""
+			select c.id as id, c.firstName as firstName, c.pinHash as pinHash
+			from BackChildEntity c
+			where c.id = :id and c.hidden = false and c.active = true
+			""")
+	Optional<ChildLoginRow> findActiveLoginById(@Param("id") long id);
+
+	interface ChildLoginRow {
+		long getId();
+		String getFirstName();
+		String getPinHash();
+	}
 }

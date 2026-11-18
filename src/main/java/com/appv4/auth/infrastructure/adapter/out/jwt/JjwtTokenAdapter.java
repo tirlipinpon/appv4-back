@@ -99,7 +99,15 @@ public class JjwtTokenAdapter implements JwtTokenEncoder, JwtTokenDecoder {
 					.build()
 					.parseSignedClaims(rawToken)
 					.getPayload();
-			long userId = Long.parseLong(claims.getSubject());
+			// Un jeton enfant (BACK-13) est signé avec le même secret, mais ce n'est pas un adulte.
+			if ("child".equals(claims.get("kind", String.class))) {
+				return Optional.empty();
+			}
+			String subject = claims.getSubject();
+			if (subject == null || subject.startsWith("child:")) {
+				return Optional.empty();
+			}
+			long userId = Long.parseLong(subject);
 			String email = claims.get("email", String.class);
 			if (email == null || email.isBlank()) {
 				return Optional.empty();

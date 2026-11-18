@@ -5,7 +5,7 @@ CREATE TABLE back_child_progress (
     current_streak  INTEGER NOT NULL DEFAULT 0,
     last_play_date  DATE,
     week_start_date DATE,
-    week_days       CHAR(7) NOT NULL DEFAULT '0000000',
+    week_days       VARCHAR(7) NOT NULL DEFAULT '0000000',
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT ck_back_child_progress_xp CHECK (xp_total >= 0),
     CONSTRAINT ck_back_child_progress_streak CHECK (current_streak >= 0),

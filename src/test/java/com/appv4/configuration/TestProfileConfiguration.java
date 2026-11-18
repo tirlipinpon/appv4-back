@@ -20,6 +20,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
@@ -140,6 +141,14 @@ public class TestProfileConfiguration {
 	@Bean
 	ChildQuestionAttemptPort childQuestionAttemptPort() {
 		return mock(ChildQuestionAttemptPort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	/** Mission du jour (BACK-18). Pas de Postgres dans les tests web. */
+	@Bean
+	ChildDailyMissionPort childDailyMissionPort() {
+		ChildDailyMissionPort port = mock(ChildDailyMissionPort.class, withSettings().strictness(Strictness.LENIENT));
+		when(port.findByChildAndDate(anyLong(), any())).thenReturn(Optional.empty());
+		return port;
 	}
 
 	/** Progression enfant (BACK-17). Pas de Postgres dans les tests web. */

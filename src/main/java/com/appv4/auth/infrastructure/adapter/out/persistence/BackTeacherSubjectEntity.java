@@ -53,6 +53,10 @@ public class BackTeacherSubjectEntity {
 	@Column(nullable = false)
 	private boolean hidden;
 
+	/** Code librairie d'icônes matières ; null si le professeur n'a pas encore choisi. */
+	@Column(name = "icon_code", length = 32)
+	private String iconCode;
+
 	protected BackTeacherSubjectEntity() {
 	}
 
@@ -103,9 +107,18 @@ public class BackTeacherSubjectEntity {
 		return hidden;
 	}
 
+	public String getIconCode() {
+		return iconCode;
+	}
+
 	public void rename(String nextName, String nextKey) {
 		this.name = nextName;
 		this.nameKey = nextKey;
+	}
+
+	/** Met ou efface l'icône (null = aucun dessin). */
+	public void setIconCode(String nextIconCode) {
+		this.iconCode = nextIconCode;
 	}
 
 	/** Reste dans la liste du professeur, plus proposée ailleurs. */

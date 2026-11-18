@@ -311,10 +311,10 @@ class TeacherProfileServiceTest {
 				child(6L, "Masqué", "Absent", SchoolCurricula.FRANCE, "CE1", false),
 				child(7L, "Belge", "Autre", SchoolCurricula.BELGIUM_FR, "CE1", true)));
 		when(subjects.findByUser(TEACHER_ID)).thenReturn(List.of(
-				new StoredSubject(10L, TEACHER_ID, 1L, "CE1", "Mathématiques", true),
-				new StoredSubject(11L, TEACHER_ID, 1L, "CE1", "Français", true),
-				new StoredSubject(12L, TEACHER_ID, 1L, "CE2", "Calcul", true),
-				new StoredSubject(13L, TEACHER_ID, 2L, "CE1", "Autre école", true)));
+				new StoredSubject(10L, TEACHER_ID, 1L, "CE1", "Mathématiques", true, null),
+				new StoredSubject(11L, TEACHER_ID, 1L, "CE1", "Français", true, null),
+				new StoredSubject(12L, TEACHER_ID, 1L, "CE2", "Calcul", true, null),
+				new StoredSubject(13L, TEACHER_ID, 2L, "CE1", "Autre école", true, null)));
 		when(links.activeInClass(1L, "CE1")).thenReturn(List.of(
 				new FollowingChild(3L, "Noah", "Bernard"),
 				new FollowingChild(4L, "Paul", "Durand"),

@@ -142,7 +142,8 @@ public class ChildSubjectController {
 				offer.schoolName(),
 				offer.grade(),
 				offer.scolaire(),
-				offer.questionCount());
+				offer.questionCount(),
+				offer.iconCode());
 	}
 
 	@Schema(name = "ParentSubjectsResponse")
@@ -177,7 +178,9 @@ public class ChildSubjectController {
 			String grade,
 			boolean scolaire,
 			@Schema(description = "Nombre total de questions enregistrées sur cette matière.")
-			long questionCount) {
+			long questionCount,
+			@Schema(description = "Code d'icône de la librairie matières, ou null.")
+			String iconCode) {
 	}
 
 	@Schema(name = "AddChildSubjectRequest")

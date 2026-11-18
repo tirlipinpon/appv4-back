@@ -94,11 +94,34 @@ public class TeacherSubjectController {
 			@RequestBody CreateTeacherSubjectRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectRequest body = request == null
-				? new CreateTeacherSubjectRequest(null, null, null)
+				? new CreateTeacherSubjectRequest(null, null, null, null)
 				: request;
 		SubjectLine line = teacherSubjectUseCase.create(
-				user.userId(), user.activeRole(), body.schoolId(), body.grade(), body.name());
+				user.userId(), user.activeRole(), body.schoolId(), body.grade(), body.name(), body.iconCode());
 		return ResponseEntity.ok(item(line));
+	}
+
+	@PutMapping("/{subjectId}/icon")
+	@Operation(operationId = "setTeacherSubjectIcon", summary = "Choisir l'icône d'une matière")
+	@ApiResponse(responseCode = "200", description = "Icône enregistrée")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Code d'icône inconnu",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière introuvable ou pas propriétaire",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectItem> setIcon(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@RequestBody SetTeacherSubjectIconRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		SetTeacherSubjectIconRequest body = request == null
+				? new SetTeacherSubjectIconRequest(null)
+				: request;
+		return ResponseEntity.ok(item(teacherSubjectUseCase.setIcon(
+				user.userId(), user.activeRole(), subjectId, body.iconCode())));
 	}
 
 	@PostMapping("/restore")
@@ -123,7 +146,7 @@ public class TeacherSubjectController {
 			@RequestBody CreateTeacherSubjectRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectRequest body = request == null
-				? new CreateTeacherSubjectRequest(null, null, null)
+				? new CreateTeacherSubjectRequest(null, null, null, null)
 				: request;
 		SubjectLine line = teacherSubjectUseCase.restore(
 				user.userId(), user.activeRole(), body.schoolId(), body.grade(), body.name());
@@ -148,7 +171,7 @@ public class TeacherSubjectController {
 			@RequestBody CreateTeacherSubjectRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectRequest body = request == null
-				? new CreateTeacherSubjectRequest(null, null, null)
+				? new CreateTeacherSubjectRequest(null, null, null, null)
 				: request;
 		teacherSubjectUseCase.requestShare(
 				user.userId(), user.activeRole(), body.schoolId(), body.grade(), body.name());
@@ -435,7 +458,10 @@ public class TeacherSubjectController {
 												.toList()))
 								.toList()))
 				.toList();
-		return new TeacherSubjectsResponse(schools);
+		List<AvatarChoiceResponse> icons = view.iconChoices().stream()
+				.map(choice -> new AvatarChoiceResponse(choice.code(), choice.label()))
+				.toList();
+		return new TeacherSubjectsResponse(schools, icons);
 	}
 
 	private static TeacherSubjectItem item(SubjectLine subject) {
@@ -457,7 +483,8 @@ public class TeacherSubjectController {
 				shared,
 				asked,
 				owner,
-				subject.questionCount());
+				subject.questionCount(),
+				subject.iconCode());
 	}
 
 	private static TeacherSubjectAddableCourse addable(AddableCourse course) {
@@ -473,7 +500,10 @@ public class TeacherSubjectController {
 	}
 
 	@Schema(name = "TeacherSubjectsResponse")
-	public record TeacherSubjectsResponse(List<TeacherSubjectSchool> schools) {
+	public record TeacherSubjectsResponse(
+			List<TeacherSubjectSchool> schools,
+			@Schema(description = "Librairie d'icônes pour les matières.")
+			List<AvatarChoiceResponse> iconChoices) {
 	}
 
 	@Schema(name = "TeacherSubjectSchool")
@@ -531,7 +561,9 @@ public class TeacherSubjectController {
 			@Schema(description = "Propriétaire de la matière : le professeur qui peut la renommer.")
 			TeacherSubjectSharedHolder owner,
 			@Schema(description = "Nombre total de questions enregistrées sur cette matière.")
-			long questionCount) {
+			long questionCount,
+			@Schema(description = "Code d'icône de la librairie, ou null.")
+			String iconCode) {
 	}
 
 	@Schema(name = "TeacherSubjectSharedHolder")
@@ -548,7 +580,11 @@ public class TeacherSubjectController {
 	}
 
 	@Schema(name = "CreateTeacherSubjectRequest")
-	public record CreateTeacherSubjectRequest(Long schoolId, String grade, String name) {
+	public record CreateTeacherSubjectRequest(Long schoolId, String grade, String name, String iconCode) {
+	}
+
+	@Schema(name = "SetTeacherSubjectIconRequest")
+	public record SetTeacherSubjectIconRequest(String iconCode) {
 	}
 
 	@Schema(name = "RenameTeacherSubjectRequest")

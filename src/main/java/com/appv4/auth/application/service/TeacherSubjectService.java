@@ -200,7 +200,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 
 	@Override
 	@Transactional
-	public SubjectLine create(long userId, String activeRole, Long schoolId, String grade, String name) {
+	public SubjectLine create(
+			long userId, String activeRole, Long schoolId, String grade, String name, String iconCode) {
 		requireTeacher(activeRole);
 		requireAccount(userId);
 		if (schoolId == null || grade == null || grade.isBlank()) {
@@ -219,8 +220,26 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		if (near != null) {
 			throw bad(near);
 		}
-		StoredSubject saved = teacherSubjectPort.insert(userId, schoolId, grade, trimmed, key);
+		if (!SubjectIcons.isBlankOrKnown(iconCode)) {
+			throw bad("Icône inconnue.");
+		}
+		String icon = SubjectIcons.normalizeKnown(iconCode).orElse(null);
+		StoredSubject saved = teacherSubjectPort.insert(userId, schoolId, grade, trimmed, key, icon);
 		return line(userId, saved);
+	}
+
+	@Override
+	@Transactional
+	public SubjectLine setIcon(long userId, String activeRole, long subjectId, String iconCode) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		if (!SubjectIcons.isBlankOrKnown(iconCode)) {
+			throw bad("Icône inconnue.");
+		}
+		String icon = SubjectIcons.normalizeKnown(iconCode).orElse(null);
+		return teacherSubjectPort.updateIcon(userId, subjectId, icon)
+				.map(saved -> line(userId, saved))
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, SUBJECT_MISSING));
 	}
 
 	@Override
@@ -645,7 +664,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			}
 			schools.add(new SchoolGroup(link.schoolId(), schoolName(link.schoolId(), catalog), groups));
 		}
-		return new TeacherSubjectsView(schools);
+		return new TeacherSubjectsView(schools, SubjectIcons.CHOICES);
 	}
 
 	/**
@@ -680,7 +699,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 							row.asked().stream()
 									.map(TeacherSubjectService::sharedHolder).toList(),
 							new SharedHolder(row.subject().userId(), row.ownerName()),
-							questionCounts.getOrDefault(row.subject().id(), 0L));
+							questionCounts.getOrDefault(row.subject().id(), 0L),
+							row.subject().iconCode());
 				})
 				.toList();
 	}
@@ -732,7 +752,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 				shared,
 				shareAskedTo(userId, subject.id()),
 				ownerOf(subject),
-				questionCount);
+				questionCount,
+				subject.iconCode());
 	}
 
 	/** Propriétaire enregistré : le professeur qui peut renommer. */

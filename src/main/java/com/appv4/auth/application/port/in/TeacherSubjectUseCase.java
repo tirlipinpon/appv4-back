@@ -24,7 +24,11 @@ public interface TeacherSubjectUseCase {
 
 	TeacherSubjectsView list(long userId, String activeRole);
 
-	SubjectLine create(long userId, String activeRole, Long schoolId, String grade, String name);
+	SubjectLine create(
+			long userId, String activeRole, Long schoolId, String grade, String name, String iconCode);
+
+	/** Change l'icône d'une matière dont le professeur est propriétaire. */
+	SubjectLine setIcon(long userId, String activeRole, long subjectId, String iconCode);
 
 	/**
 	 * Ramène la matière retirée de cette classe, le même enregistrement.

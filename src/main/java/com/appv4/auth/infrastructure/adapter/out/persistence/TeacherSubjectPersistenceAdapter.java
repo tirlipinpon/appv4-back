@@ -148,8 +148,10 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 
 	@Override
 	@Transactional
-	public StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey) {
+	public StoredSubject insert(
+			long userId, long schoolId, String grade, String name, String nameKey, String iconCode) {
 		BackTeacherSubjectEntity entity = new BackTeacherSubjectEntity(userId, schoolId, grade, name, nameKey);
+		entity.setIconCode(iconCode);
 		try {
 			BackTeacherSubjectEntity saved = subjects.saveAndFlush(entity);
 			access.saveAndFlush(new BackTeacherSubjectAccessEntity(saved.getId(), userId));
@@ -661,6 +663,22 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 		return List.copyOf(names);
 	}
 
+	@Override
+	@Transactional
+	public Optional<StoredSubject> updateIcon(long userId, long subjectId, String iconCode) {
+		Optional<BackTeacherSubjectEntity> found = subjects.findById(subjectId);
+		if (found.isEmpty()) {
+			return Optional.empty();
+		}
+		BackTeacherSubjectEntity entity = found.get();
+		if (entity.isHidden() || entity.getUserId() != userId) {
+			return Optional.empty();
+		}
+		entity.setIconCode(iconCode);
+		subjects.saveAndFlush(entity);
+		return findOwned(userId, subjectId);
+	}
+
 	private static StoredSubject toStored(BackTeacherSubjectEntity entity, boolean active) {
 		return new StoredSubject(
 				entity.getId(),
@@ -668,7 +686,8 @@ public class TeacherSubjectPersistenceAdapter implements TeacherSubjectPort {
 				entity.getSchoolId(),
 				entity.getGradeLabel(),
 				entity.getName(),
-				active);
+				active,
+				entity.getIconCode());
 	}
 
 	private static StoredTransferRequest toTransfer(BackTeacherSubjectTransferRequestEntity entity) {

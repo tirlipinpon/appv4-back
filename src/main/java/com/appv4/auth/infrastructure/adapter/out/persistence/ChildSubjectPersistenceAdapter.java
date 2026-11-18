@@ -89,8 +89,13 @@ public class ChildSubjectPersistenceAdapter implements ChildSubjectPort {
 		Map<Long, String> teacherNames = teacherNamesBySubject(rows);
 		List<CatalogSubject> catalog = new ArrayList<>();
 		for (BackTeacherSubjectEntity row : rows) {
-			catalog.add(new CatalogSubject(row.getId(), row.getName(), teacherNames.getOrDefault(row.getId(), ""),
-					row.getSchoolId(), row.getGradeLabel()));
+			catalog.add(new CatalogSubject(
+					row.getId(),
+					row.getName(),
+					teacherNames.getOrDefault(row.getId(), ""),
+					row.getSchoolId(),
+					row.getGradeLabel(),
+					row.getIconCode()));
 		}
 		return List.copyOf(catalog);
 	}

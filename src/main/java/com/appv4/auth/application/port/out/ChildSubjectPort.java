@@ -138,7 +138,13 @@ public interface ChildSubjectPort {
 	/**
 	 * @param grade année de la matière, le libellé stocké (CE1, 3e primaire)
 	 */
-	record CatalogSubject(long id, String name, String teacherName, long schoolId, String grade) {
+	record CatalogSubject(
+			long id,
+			String name,
+			String teacherName,
+			long schoolId,
+			String grade,
+			String iconCode) {
 	}
 
 	/**

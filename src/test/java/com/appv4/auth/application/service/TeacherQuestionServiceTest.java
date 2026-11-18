@@ -665,7 +665,7 @@ class TeacherQuestionServiceTest {
 		long targetId = 8L;
 		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
 		when(subjects.findOwned(TEACHER_ID, targetId)).thenReturn(Optional.of(
-				new StoredSubject(targetId, TEACHER_ID, 1L, "CE2", "Histoire", true)));
+				new StoredSubject(targetId, TEACHER_ID, 1L, "CE2", "Histoire", true, null)));
 		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
 		when(questions.findInSubject(SUBJECT_ID, 12L)).thenReturn(Optional.of(gapsQuestion()));
 		when(questions.insert(eq(targetId), eq("qcm"), eq("Combien font 2 + 2 ?"), any()))
@@ -743,7 +743,7 @@ class TeacherQuestionServiceTest {
 	void cloneRefusesAQuestionThatIsNotOnTheSourceSubject() {
 		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
 		when(subjects.findOwned(TEACHER_ID, 8L)).thenReturn(Optional.of(
-				new StoredSubject(8L, TEACHER_ID, 1L, "CE2", "Histoire", true)));
+				new StoredSubject(8L, TEACHER_ID, 1L, "CE2", "Histoire", true, null)));
 		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
 		when(questions.findInSubject(SUBJECT_ID, 99L)).thenReturn(Optional.empty());
 
@@ -1403,7 +1403,7 @@ class TeacherQuestionServiceTest {
 	}
 
 	private static StoredSubject owned() {
-		return new StoredSubject(SUBJECT_ID, TEACHER_ID, 1L, "CE1", "Mathématiques", true);
+		return new StoredSubject(SUBJECT_ID, TEACHER_ID, 1L, "CE1", "Mathématiques", true, null);
 	}
 
 	private static StoredQuestion saved() {

@@ -78,16 +78,16 @@ class TeacherSubjectControllerTest {
 		when(profiles.findSchools(9L)).thenReturn(List.of(
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE2", "CE1"))));
 		when(subjects.findByUser(9L)).thenReturn(List.of(
-				new StoredSubject(2L, 9L, 1L, "CE1", "Mathématiques", true),
-				new StoredSubject(1L, 9L, 1L, "CE1", "Français", true)));
+				new StoredSubject(2L, 9L, 1L, "CE1", "Mathématiques", true, null),
+				new StoredSubject(1L, 9L, 1L, "CE1", "Français", true, null)));
 
 		when(subjects.findListing(org.mockito.ArgumentMatchers.eq(9L), org.mockito.ArgumentMatchers.anyList(),
 				org.mockito.ArgumentMatchers.anyList())).thenReturn(List.of(
 				new TeacherSubjectPort.SubjectListing(
-						new StoredSubject(2L, 9L, 1L, "CE1", "Mathématiques", true),
+						new StoredSubject(2L, 9L, 1L, "CE1", "Mathématiques", true, null),
 						true, List.of(), List.of(), "Martin"),
 				new TeacherSubjectPort.SubjectListing(
-						new StoredSubject(1L, 9L, 1L, "CE1", "Français", true),
+						new StoredSubject(1L, 9L, 1L, "CE1", "Français", true, null),
 						true, List.of(), List.of(), "Martin")));
 		when(subjects.findReusable()).thenReturn(List.of(
 				new TeacherSubjectPort.ReusableSubject(1L, 1L, "CE1", "Français", false),
@@ -116,7 +116,7 @@ class TeacherSubjectControllerTest {
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
 		when(subjects.findByUser(9L)).thenReturn(List.of());
 		when(subjects.findVisibleInClass(1L, "CE1")).thenReturn(List.of(
-				new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true)));
+				new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true, null)));
 		when(subjects.hasAccess(4L, 9L)).thenReturn(false);
 		when(subjects.otherAccessHolders(4L, 9L)).thenReturn(List.of(
 				new TeacherSubjectPort.AccessHolder(10L, "Camille")));
@@ -124,7 +124,7 @@ class TeacherSubjectControllerTest {
 		when(subjects.findListing(org.mockito.ArgumentMatchers.eq(9L), org.mockito.ArgumentMatchers.anyList(),
 				org.mockito.ArgumentMatchers.anyList())).thenReturn(List.of(
 				new TeacherSubjectPort.SubjectListing(
-						new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true), false,
+						new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true, null), false,
 						List.of(new TeacherSubjectPort.AccessHolder(10L, "Camille")), List.of(), "Camille")));
 
 		mockMvc.perform(get("/api/int/teacher/subjects").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
@@ -141,7 +141,7 @@ class TeacherSubjectControllerTest {
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
 		when(subjects.findByUser(9L)).thenReturn(List.of());
 		when(subjects.findVisibleInClass(1L, "CE1")).thenReturn(List.of(
-				new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true)));
+				new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true, null)));
 		when(subjects.hasAccess(4L, 9L)).thenReturn(false);
 		when(subjects.otherAccessHolders(4L, 9L)).thenReturn(List.of(
 				new TeacherSubjectPort.AccessHolder(10L, "Camille")));
@@ -152,7 +152,7 @@ class TeacherSubjectControllerTest {
 		when(subjects.findListing(org.mockito.ArgumentMatchers.eq(9L), org.mockito.ArgumentMatchers.anyList(),
 				org.mockito.ArgumentMatchers.anyList())).thenReturn(List.of(
 				new TeacherSubjectPort.SubjectListing(
-						new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true), false,
+						new StoredSubject(4L, 10L, 1L, "CE1", "Mathématiques", true, null), false,
 						List.of(new TeacherSubjectPort.AccessHolder(10L, "Camille")),
 						List.of(new TeacherSubjectPort.AccessHolder(10L, "Camille")), "Camille")));
 
@@ -167,8 +167,8 @@ class TeacherSubjectControllerTest {
 		when(profiles.findSchools(9L)).thenReturn(List.of(
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
 		when(subjects.nameTaken(1L, "CE1", "mathématiques", null)).thenReturn(false);
-		when(subjects.insert(9L, 1L, "CE1", "Mathématiques", "mathématiques"))
-				.thenReturn(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", true));
+		when(subjects.insert(9L, 1L, "CE1", "Mathématiques", "mathématiques", null))
+				.thenReturn(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", true, null));
 
 		mockMvc.perform(post("/api/int/teacher/subjects")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -214,6 +214,7 @@ class TeacherSubjectControllerTest {
 				org.mockito.ArgumentMatchers.anyLong(),
 				org.mockito.ArgumentMatchers.any(),
 				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(),
 				org.mockito.ArgumentMatchers.any());
 	}
 
@@ -222,7 +223,7 @@ class TeacherSubjectControllerTest {
 		when(profiles.findSchools(9L)).thenReturn(List.of(
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
 		when(subjects.findRemovedByName(1L, "CE1", "mathématiques"))
-				.thenReturn(Optional.of(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", false)));
+				.thenReturn(Optional.of(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", false, null)));
 		when(subjects.nameTaken(1L, "CE1", "mathématiques", 5L)).thenReturn(false);
 
 		mockMvc.perform(post("/api/int/teacher/subjects")
@@ -234,7 +235,7 @@ class TeacherSubjectControllerTest {
 				.andExpect(jsonPath("$.code").value("SUBJECT_RESTORABLE"));
 
 		when(subjects.restore(9L, 5L))
-				.thenReturn(Optional.of(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 
 		mockMvc.perform(post("/api/int/teacher/subjects/restore")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -250,6 +251,7 @@ class TeacherSubjectControllerTest {
 				org.mockito.ArgumentMatchers.anyLong(),
 				org.mockito.ArgumentMatchers.any(),
 				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(),
 				org.mockito.ArgumentMatchers.any());
 	}
 
@@ -259,7 +261,7 @@ class TeacherSubjectControllerTest {
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
 		when(subjects.nameTaken(1L, "CE1", "mathématiques", null)).thenReturn(true);
 		when(subjects.findVisibleByName(1L, "CE1", "mathématiques"))
-				.thenReturn(Optional.of(new StoredSubject(5L, 4L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(5L, 4L, 1L, "CE1", "Mathématiques", true, null)));
 		when(subjects.hasAccess(5L, 9L)).thenReturn(false);
 		when(subjects.hasAccess(5L, 4L)).thenReturn(true);
 		when(profiles.findAccount(4L)).thenReturn(Optional.of(new TeacherAccount("anne@example.com", "Anne")));
@@ -295,6 +297,7 @@ class TeacherSubjectControllerTest {
 				org.mockito.ArgumentMatchers.anyLong(),
 				org.mockito.ArgumentMatchers.any(),
 				org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.any(),
 				org.mockito.ArgumentMatchers.any());
 	}
 
@@ -302,10 +305,10 @@ class TeacherSubjectControllerTest {
 	void renameAndDeleteStayOnTheOwnedSubject() throws Exception {
 		when(profiles.findSchools(9L)).thenReturn(List.of(
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
-		when(subjects.findOwned(9L, 4L)).thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Français", true)));
+		when(subjects.findOwned(9L, 4L)).thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Français", true, null)));
 		when(subjects.nameTaken(1L, "CE1", "lecture", 4L)).thenReturn(false);
 		when(subjects.rename(9L, 4L, "Lecture", "lecture"))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Lecture", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Lecture", true, null)));
 		when(subjects.hide(9L, 4L)).thenReturn(true);
 
 		mockMvc.perform(put("/api/int/teacher/subjects/4")
@@ -323,7 +326,7 @@ class TeacherSubjectControllerTest {
 	@Test
 	void sharedColleagueCannotRename() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 3L, 1L, "CE1", "Français", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 3L, 1L, "CE1", "Français", true, null)));
 
 		mockMvc.perform(put("/api/int/teacher/subjects/4")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -359,7 +362,7 @@ class TeacherSubjectControllerTest {
 	@Test
 	void deactivateLeavesTheSubjectForTheTeacher() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Français", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Français", true, null)));
 		when(subjects.accessUserIds(4L)).thenReturn(List.of(9L));
 		when(subjects.deactivateAccesses(
 						org.mockito.ArgumentMatchers.eq(9L),
@@ -399,7 +402,7 @@ class TeacherSubjectControllerTest {
 		when(profiles.findSchools(9L)).thenReturn(List.of(
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 
 		mockMvc.perform(post("/api/int/teacher/subjects/4/transfer")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))

@@ -94,7 +94,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void createReturnsTheSavedQuestion() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.insert(eq(4L), eq("qcm"), eq("Combien font 2 + 2 ?"), any()))
 				.thenReturn(new StoredQuestion(
 						7L,
@@ -127,7 +127,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void createMemoryReturnsThePairs() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.insert(eq(4L), eq("memory"), eq(""), any()))
 				.thenReturn(new StoredQuestion(
 						8L,
@@ -159,7 +159,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void createOrderReturnsTheItems() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.insert(eq(4L), eq("order"), eq(""), any()))
 				.thenReturn(new StoredQuestion(
 						9L,
@@ -193,7 +193,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void createTrueFalseReturnsEachSide() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.insert(eq(4L), eq("vrai_faux"), eq(""), any()))
 				.thenReturn(new StoredQuestion(
 						10L,
@@ -225,7 +225,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void createLinksReturnsEachCouple() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.insert(eq(4L), eq("liens"), eq("Relie."), any()))
 				.thenReturn(new StoredQuestion(
 						11L,
@@ -258,7 +258,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void createGapsReturnsTheSentenceTheAnswerAndTheDecoy() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.insert(eq(4L), eq("case_vide"), eq("Complète."), any()))
 				.thenReturn(new StoredQuestion(
 						12L,
@@ -297,7 +297,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void createFreeTextReturnsThePromptAndTheExpectedAnswer() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.insert(eq(4L), eq("texte"), eq("Capitale de la France"), any()))
 				.thenReturn(new StoredQuestion(
 						13L,
@@ -327,7 +327,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void createFreeTextRefusesAnEmptyAnswer() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 
 		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -345,7 +345,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void createLetterByLetterReturnsThePromptAndTheExpectedWord() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.insert(eq(4L), eq("reponse_libre"), eq("Capitale de la France"), any()))
 				.thenReturn(new StoredQuestion(
 						15L,
@@ -375,7 +375,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void letterAttemptAcceptsUpperCaseAndRefusesAnAccent() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.findInSubject(4L, 15L)).thenReturn(Optional.of(new StoredQuestion(
 				15L, 4L, "reponse_libre", "Capitale de la France",
 				new TeacherQuestionPort.StoredFreeText("Paris"))));
@@ -405,7 +405,7 @@ class TeacherQuestionControllerTest {
 	void createClickImageReturnsTheZonesAndTheRule() throws Exception {
 		byte[] webp = Base64.getDecoder().decode("UklGRiQAAABXRUJQVlA4IBgAAAA=");
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.insert(eq(4L), eq("image_interactive"), eq(""), any()))
 				.thenReturn(new StoredQuestion(
 						14L,
@@ -457,7 +457,7 @@ class TeacherQuestionControllerTest {
 	void createPuzzleReturnsThePiecesWithoutACorrectSide() throws Exception {
 		byte[] webp = Base64.getDecoder().decode("UklGRiQAAABXRUJQVlA4IBgAAAA=");
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.insert(eq(4L), eq("puzzle"), eq(""), any()))
 				.thenReturn(new StoredQuestion(
 						15L,
@@ -523,7 +523,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void updateReturnsTheCorrectedQuestion() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.findInSubject(4L, 7L))
 				.thenReturn(Optional.of(new StoredQuestion(
 						7L,
@@ -563,7 +563,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void missingQuestionIsNotFound() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.findInSubject(4L, 8L)).thenReturn(Optional.empty());
 
 		mockMvc.perform(put("/api/int/teacher/subjects/4/questions/8")
@@ -582,7 +582,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void blankPromptIsRejected() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 
 		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -600,9 +600,9 @@ class TeacherQuestionControllerTest {
 	@Test
 	void cloneReturnsTheCopiesAndKeepsTheSourcePath() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(subjects.findOwned(9L, 8L))
-				.thenReturn(Optional.of(new StoredSubject(8L, 9L, 1L, "CE2", "Histoire", true)));
+				.thenReturn(Optional.of(new StoredSubject(8L, 9L, 1L, "CE2", "Histoire", true, null)));
 		when(questions.findInSubject(4L, 7L)).thenReturn(Optional.of(new StoredQuestion(
 				7L,
 				4L,
@@ -650,7 +650,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void followersReturnsTheCountTheWarningAndTheNames() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(children.activeInClass(1L, "CE1")).thenReturn(List.of(new FollowingChild(3L, "Léa", "Martin")));
 		when(children.linksOfSubject(4L)).thenReturn(List.of());
 
@@ -665,7 +665,7 @@ class TeacherQuestionControllerTest {
 	@Test
 	void deleteReturnsTheRemovedIds() throws Exception {
 		when(subjects.findOwned(9L, 4L))
-				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true)));
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
 		when(questions.findInSubject(4L, 7L)).thenReturn(Optional.of(new StoredQuestion(
 				7L, 4L, "qcm", "2 + 2",
 				List.of(new StoredChoice(1L, "4", true)), List.of(), List.of())));

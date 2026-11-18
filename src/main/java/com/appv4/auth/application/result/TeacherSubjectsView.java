@@ -2,6 +2,7 @@ package com.appv4.auth.application.result;
 
 import java.util.List;
 
+
 /**
  * Matières du professeur, regroupées comme son profil (SCRUM-161, SCRUM-172).
  *
@@ -21,10 +22,11 @@ import java.util.List;
  * <p><b>Technique :</b> pas d'exercice, pas de forme de question, pas d'élève.
  * <p><b>Métier / flow :</b> résultat de {@code GET /api/int/teacher/subjects}.
  */
-public record TeacherSubjectsView(List<SchoolGroup> schools) {
+public record TeacherSubjectsView(List<SchoolGroup> schools, List<AvatarChoice> iconChoices) {
 
 	public TeacherSubjectsView {
 		schools = schools == null ? List.of() : List.copyOf(schools);
+		iconChoices = iconChoices == null ? List.of() : List.copyOf(iconChoices);
 	}
 
 	/**
@@ -107,7 +109,8 @@ public record TeacherSubjectsView(List<SchoolGroup> schools) {
 			List<SharedHolder> sharedWith,
 			List<SharedHolder> shareAskedTo,
 			SharedHolder owner,
-			long questionCount) {
+			long questionCount,
+			String iconCode) {
 
 		public SubjectLine {
 			sharedWith = sharedWith == null ? List.of() : List.copyOf(sharedWith);

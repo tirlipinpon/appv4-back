@@ -44,6 +44,7 @@ import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
 import com.appv4.auth.application.port.in.ResumeAppleOAuthCallbackUseCase;
 import com.appv4.auth.application.port.in.LoginChildUseCase;
+import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
 import com.appv4.auth.application.port.in.ReadChildProfileUseCase;
 import com.appv4.auth.application.port.in.LoginWithEmailUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
@@ -103,6 +104,7 @@ import com.appv4.auth.application.service.ParentProfileService;
 import com.appv4.auth.application.service.TeacherProfileService;
 import com.appv4.auth.application.service.TeacherStudentsService;
 import com.appv4.auth.application.service.TeacherQuestionService;
+import com.appv4.auth.application.service.ReadChildLearningSubjectsService;
 import com.appv4.auth.application.service.TeacherSubjectService;
 import com.appv4.auth.infrastructure.adapter.in.web.AuthRateLimitFilter;
 import com.appv4.auth.infrastructure.adapter.in.web.InMemoryAuthRateLimiter;
@@ -360,6 +362,19 @@ public class AuthConfiguration {
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort) {
 		return new ReadChildProfileService(childLoginPort, childSessionTokenPort);
+	}
+
+	/**
+	 * Matières et questions de l'enfant connecté (BACK-15).
+	 */
+	@Bean
+	ReadChildLearningSubjectsUseCase readChildLearningSubjectsUseCase(
+			ChildLoginPort childLoginPort,
+			ChildSessionTokenPort childSessionTokenPort,
+			ChildSubjectPort childSubjectPort,
+			TeacherQuestionPort teacherQuestionPort) {
+		return new ReadChildLearningSubjectsService(
+				childLoginPort, childSessionTokenPort, childSubjectPort, teacherQuestionPort);
 	}
 
 	/**

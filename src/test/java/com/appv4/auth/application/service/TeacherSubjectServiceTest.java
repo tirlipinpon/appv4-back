@@ -89,16 +89,16 @@ class TeacherSubjectServiceTest {
 		TeacherSubjectsView view = service.list(TEACHER_ID, "teacher");
 
 		assertThat(view.schools()).isEmpty();
-		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Français"))
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Français", null))
 				.hasMessage(TeacherSubjectService.CLASS_NOT_ON_PROFILE);
 		assertThat(subjects.all()).isEmpty();
 	}
 
 	@Test
 	void createsTwoSubjectsInOneGradeAndTheSameNameInAnother() {
-		SubjectLine french = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "  Français  ");
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
-		SubjectLine mathsCe2 = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
+		SubjectLine french = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "  Français  ", null);
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
+		SubjectLine mathsCe2 = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques", null);
 
 		TeacherSubjectsView view = service.list(TEACHER_ID, "teacher");
 
@@ -124,10 +124,10 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void doesNotOfferASubjectFromAnotherYear() {
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Français");
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
-		service.create(TEACHER_ID, "teacher", BELGIAN_SCHOOL, "3e primaire", "Éveil");
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Français", null);
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques", null);
+		service.create(TEACHER_ID, "teacher", BELGIAN_SCHOOL, "3e primaire", "Éveil", null);
 
 		TeacherSubjectsView view = service.list(TEACHER_ID, "teacher");
 		GradeGroup ce1 = view.schools().get(0).grades().get(0);
@@ -141,7 +141,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void removedSubjectCanBeAddedBackBecauseTheRowIsStillInTheDatabase() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.remove(TEACHER_ID, "teacher", maths.id());
 		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of(maths.id(), 7L));
 
@@ -159,21 +159,21 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void sameNameIsAllowedInAnotherSchoolButNotTwiceInTheSameClass() {
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Lecture");
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Lecture", null);
 
-		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "   "))
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "   ", null))
 				.hasMessage(TeacherSubjectService.NAME_REQUIRED);
-		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "x".repeat(101)))
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "x".repeat(101), null))
 				.hasMessage(TeacherSubjectService.NAME_TOO_LONG);
-		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "lecture"))
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "lecture", null))
 				.hasMessage(TeacherSubjectService.NAME_TAKEN);
 
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Éveil");
-		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "éveil"))
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Éveil", null);
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "éveil", null))
 				.hasMessage(TeacherSubjectService.NAME_TAKEN);
 
-		SubjectLine otherClass = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Lecture");
-		SubjectLine otherSchool = service.create(TEACHER_ID, "teacher", BELGIAN_SCHOOL, "3e primaire", "Lecture");
+		SubjectLine otherClass = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Lecture", null);
+		SubjectLine otherSchool = service.create(TEACHER_ID, "teacher", BELGIAN_SCHOOL, "3e primaire", "Lecture", null);
 
 		assertThat(otherClass.name()).isEqualTo("Lecture");
 		assertThat(otherSchool.name()).isEqualTo("Lecture");
@@ -182,8 +182,8 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void renameStaysInTheSameClass() {
-		SubjectLine french = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Français");
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
+		SubjectLine french = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Français", null);
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques", null);
 
 		SubjectLine renamed = service.rename(TEACHER_ID, "teacher", french.id(), "  Lecture  ");
 
@@ -197,8 +197,8 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void renameRefusesANameAlreadyUsedInTheSameClass() {
-		SubjectLine french = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Français");
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Lecture");
+		SubjectLine french = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Français", null);
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Lecture", null);
 
 		assertThatThrownBy(() -> service.rename(TEACHER_ID, "teacher", french.id(), "lecture"))
 				.hasMessage(TeacherSubjectService.NAME_TAKEN);
@@ -207,9 +207,9 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void removeDeletesOnlyThatSubject() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Lecture");
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Lecture", null);
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques", null);
 
 		service.remove(TEACHER_ID, "teacher", maths.id());
 
@@ -221,7 +221,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void subjectComesBackWhenTheYearIsCheckedAgain() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques", null);
 
 		profiles.put(TEACHER_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
@@ -239,7 +239,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void subjectRemovedWithTheButtonStaysHiddenWhenTheYearComesBack() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques", null);
 		service.remove(TEACHER_ID, "teacher", maths.id());
 
 		profiles.put(TEACHER_ID, List.of(
@@ -254,13 +254,13 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void deactivateStaysListedAndRemovingOffersTheSameSubjectBack() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 
 		service.deactivate(TEACHER_ID, "teacher", maths.id(), List.of());
 		assertThat(service.list(TEACHER_ID, "teacher").schools().get(0).grades().get(0).subjects())
 				.extracting(SubjectLine::name, SubjectLine::active, SubjectLine::ownedByMe)
 				.containsExactly(org.assertj.core.groups.Tuple.tuple("Mathématiques", false, true));
-		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques", null))
 				.hasMessage(TeacherSubjectService.NAME_TAKEN);
 
 		service.reactivate(TEACHER_ID, "teacher", maths.id());
@@ -271,7 +271,7 @@ class TeacherSubjectServiceTest {
 		assertThat(names(FRENCH_SCHOOL, "CE1")).isEmpty();
 		assertThat(subjects.stored(maths.id())).isTrue();
 		assertThat(subjects.hidden(maths.id())).isTrue();
-		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques", null))
 				.hasMessage(TeacherSubjectService.REMOVED_RESTORABLE);
 
 		SubjectLine again = service.restore(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "  Mathématiques  ");
@@ -284,7 +284,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void anotherTeacherSeesTheSubjectAndWhoFollowsItButCannotChangeIt() {
-		SubjectLine lecture = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Lecture");
+		SubjectLine lecture = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Lecture", null);
 
 		TeacherSubjectsView other = service.list(OTHER_ID, "teacher");
 		assertThat(other.schools()).hasSize(1);
@@ -295,7 +295,7 @@ class TeacherSubjectServiceTest {
 		assertThat(seen.ownedByMe()).isFalse();
 		assertThat(seen.sharedWith()).extracting(SharedHolder::displayName).containsExactly("Anne");
 
-		SubjectLine calcul = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Calcul");
+		SubjectLine calcul = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Calcul", null);
 
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Calcul", "Lecture");
 		assertThat(lineOf(TEACHER_ID, lecture.id()).followedByMe()).isTrue();
@@ -317,14 +317,14 @@ class TeacherSubjectServiceTest {
 		assertThat(lineOf(TEACHER_ID, lecture.id()).name()).isEqualTo("Lecture");
 		assertThat(lineOf(TEACHER_ID, lecture.id()).followedByMe()).isTrue();
 
-		SubjectLine geography = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Géographie");
+		SubjectLine geography = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Géographie", null);
 		assertThat(lineOf(TEACHER_ID, geography.id()).followedByMe()).isTrue();
 		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE2")).isEmpty();
 	}
 
 	@Test
 	void aSubjectNobodyFollowsStaysOffTheColleagueList() {
-		SubjectLine orphan = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Orpheline");
+		SubjectLine orphan = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Orpheline", null);
 		subjects.dropAccessButKeepVisible(orphan.id());
 
 		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).doesNotContain("Orpheline");
@@ -333,19 +333,19 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void anotherTeacherCannotCreateTheSameNameInTheSameClass() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		profiles.put(OTHER_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1", "CE2"))));
 
-		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques", null))
 				.hasMessage(TeacherSubjectService.nameCanAsk("Anne"));
 		assertThat(namesOf(OTHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
 		assertThat(lineOf(OTHER_ID, maths.id()).followedByMe()).isFalse();
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
 		assertThat(lineOf(TEACHER_ID, maths.id()).followedByMe()).isTrue();
 
-		SubjectLine sciences = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Sciences");
-		SubjectLine otherYear = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques");
+		SubjectLine sciences = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Sciences", null);
+		SubjectLine otherYear = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE2", "Mathématiques", null);
 
 		assertThat(sciences.name()).isEqualTo("Sciences");
 		assertThat(sciences.followedByMe()).isTrue();
@@ -360,16 +360,16 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void askingTheCreatorToShareGrantsAccessOnlyAfterAccept() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 
-		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques"))
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "mathématiques", null))
 				.hasMessage(TeacherSubjectService.nameCanAsk("Anne"));
 
 		service.requestShare(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "  Mathématiques  ");
 		assertThat(lineOf(OTHER_ID, maths.id()).shareAskedTo())
 				.extracting(SharedHolder::displayName)
 				.containsExactly("Anne");
-		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques"))
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null))
 				.hasMessage(TeacherSubjectService.ASK_PENDING);
 		assertThatThrownBy(() -> service.requestShare(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques"))
 				.hasMessage(TeacherSubjectService.ASK_PENDING);
@@ -401,7 +401,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void pendingShareAsksNameEveryRecipient() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		subjects.insertTransferRequest(maths.id(), OTHER_ID, TEACHER_ID, TeacherSubjectService.MODE_ASK);
 		subjects.insertTransferRequest(maths.id(), OTHER_ID, THIRD_ID, TeacherSubjectService.MODE_ASK);
 		subjects.insertTransferRequest(maths.id(), OTHER_ID, TEACHER_ID, TeacherSubjectService.MODE_SHARE);
@@ -413,12 +413,12 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void aVeryCloseNameAsksTheCreatorWhoStillHasItAndDoesNotCreateAnother() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
-		SubjectLine eveil = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Éveil");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
+		SubjectLine eveil = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Éveil", null);
 
-		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Maths"))
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Maths", null))
 				.hasMessage(TeacherSubjectService.nameSimilarCanAsk("Mathématiques", "Anne"));
-		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "eveil"))
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "eveil", null))
 				.hasMessage(TeacherSubjectService.nameSimilarCanAsk("Éveil", "Anne"));
 
 		service.requestShare(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Maths");
@@ -436,28 +436,28 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void aCloseNameOfOnesOwnSubjectIsRefusedWithoutAShareRequest() {
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 
-		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Maths"))
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Maths", null))
 				.hasMessage(TeacherSubjectService.similarOwn("Mathématiques"));
 		assertThat(namesOf(TEACHER_ID, FRENCH_SCHOOL, "CE1")).containsExactly("Mathématiques");
 	}
 
 	@Test
 	void aDifferentNameIsStillCreatedAndARemovedNameStaysARestore() {
-		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
-		SubjectLine history = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Histoire");
+		service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
+		SubjectLine history = service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Histoire", null);
 		assertThat(history.name()).isEqualTo("Histoire");
 
-		SubjectLine calcul = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Calcul");
+		SubjectLine calcul = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Calcul", null);
 		service.remove(TEACHER_ID, "teacher", calcul.id());
-		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Calcul"))
+		assertThatThrownBy(() -> service.create(OTHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Calcul", null))
 				.hasMessage(TeacherSubjectService.REMOVED_RESTORABLE);
 	}
 
 	@Test
 	void anotherTeacherCanBringBackARemovedSubject() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.remove(TEACHER_ID, "teacher", maths.id());
 		profiles.put(OTHER_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1", "CE2"))));
@@ -473,13 +473,13 @@ class TeacherSubjectServiceTest {
 		assertThat(lineOf(TEACHER_ID, maths.id()).sharedWith())
 				.extracting(SharedHolder::displayName)
 				.containsExactly("Camille");
-		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques"))
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null))
 				.hasMessage(TeacherSubjectService.nameCanAsk("Camille"));
 	}
 
 	@Test
 	void ownerCannotRemoveWhileOthersFollowWithoutHandover() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		service.acceptTransfer(
 				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -504,7 +504,7 @@ class TeacherSubjectServiceTest {
 	void aColleagueWhoAlreadyRefusedHandoverKeepsThatActionName() {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		service.acceptTransfer(
 				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -528,7 +528,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void aPastHandoverRefusalIsForgottenOnceNobodyHoldsTheSubject() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		service.acceptTransfer(OTHER_ID, "teacher",
 				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -556,7 +556,7 @@ class TeacherSubjectServiceTest {
 	void aHandoverRefusalStaysWhileSomeoneStillHoldsTheSubject() {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		service.acceptTransfer(OTHER_ID, "teacher",
 				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -578,7 +578,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void handoverRejectedThenAllGoneRemovesSubject() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		service.acceptTransfer(
 				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -597,7 +597,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void shareInviteNeedsAcceptBeforeAccessChanges() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 
 		assertThat(service.listColleagues(TEACHER_ID, "teacher", maths.id()).colleagues())
 				.extracting(c -> c.userId(), c -> c.displayName())
@@ -636,7 +636,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void sharedColleagueCannotRenameAndDeactivatesOnlyForSelf() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
 		service.acceptTransfer(OTHER_ID, "teacher", inviteId);
@@ -662,7 +662,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void recipientCanRenameAfterAMoveWhenAlone() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
 		service.acceptTransfer(
 				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -679,7 +679,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void afterMoveAndShareOnlyTheNewOwnerCanRename() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
 		service.acceptTransfer(
 				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -701,7 +701,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void ownerCanDeactivateSelfAndChosenColleagueWithNotice() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		service.acceptTransfer(
 				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -721,7 +721,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void ownerDeactivateSelfOnlyStillNotifiesColleague() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		service.acceptTransfer(
 				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -737,7 +737,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void rejectKeepsAccessUnchanged() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
 		service.rejectTransfer(OTHER_ID, "teacher", inviteId);
@@ -759,7 +759,7 @@ class TeacherSubjectServiceTest {
 	void leavingHolderReassignsOwnershipWhenOwnerHadNoAccess() {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		service.acceptTransfer(
 				OTHER_ID, "teacher", service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -782,7 +782,7 @@ class TeacherSubjectServiceTest {
 	void moveByTheOwnerKeepsColleaguesWhoAlreadyFollow() {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
 		service.acceptTransfer(THIRD_ID, "teacher",
 				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
@@ -808,7 +808,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void moveInviteGivesSoleAccessAfterAccept() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
 		long inviteId = service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id();
 		service.acceptTransfer(OTHER_ID, "teacher", inviteId);
@@ -827,7 +827,7 @@ class TeacherSubjectServiceTest {
 	void aRefusedMoveStaysBlockedWhileSomeoneStillHoldsTheSubject() {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "move");
 		service.rejectTransfer(OTHER_ID, "teacher",
 				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -859,7 +859,7 @@ class TeacherSubjectServiceTest {
 	void aFollowerCanShareButCannotMove() {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		service.acceptTransfer(OTHER_ID, "teacher",
 				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -876,7 +876,7 @@ class TeacherSubjectServiceTest {
 	void moveToAColleagueWhoAlreadyFollowsIsRefused() {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), OTHER_ID, "share");
 		service.acceptTransfer(OTHER_ID, "teacher",
 				service.listTransferInvites(OTHER_ID, "teacher").invites().get(0).id());
@@ -894,7 +894,7 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void transferValidatesColleagueAndPending() {
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 
 		assertThatThrownBy(() -> service.requestTransfer(TEACHER_ID, "teacher", maths.id(), null, "share"))
 				.hasMessage(TeacherSubjectService.COLLEAGUE_REQUIRED);
@@ -922,7 +922,7 @@ class TeacherSubjectServiceTest {
 	void ownerCanMoveToAColleagueWhoAlreadyFollows() {
 		profiles.put(THIRD_ID, List.of(
 				new TeacherSchoolLink(FRENCH_SCHOOL, SchoolCurricula.FRANCE, List.of("CE1"))));
-		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques");
+		SubjectLine maths = service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CE1", "Mathématiques", null);
 		service.requestTransfer(TEACHER_ID, "teacher", maths.id(), THIRD_ID, "share");
 		service.acceptTransfer(THIRD_ID, "teacher",
 				service.listTransferInvites(THIRD_ID, "teacher").invites().get(0).id());
@@ -957,9 +957,9 @@ class TeacherSubjectServiceTest {
 
 	@Test
 	void gradeMissingFromTheProfileIsRefused() {
-		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CM1", "Sciences"))
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", FRENCH_SCHOOL, "CM1", "Sciences", null))
 				.hasMessage(TeacherSubjectService.CLASS_NOT_ON_PROFILE);
-		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", 99L, "CE1", "Sciences"))
+		assertThatThrownBy(() -> service.create(TEACHER_ID, "teacher", 99L, "CE1", "Sciences", null))
 				.hasMessage(TeacherSubjectService.CLASS_NOT_ON_PROFILE);
 		assertThat(subjects.all()).isEmpty();
 	}
@@ -968,7 +968,7 @@ class TeacherSubjectServiceTest {
 	void parentCannotOpenThePage() {
 		assertThatThrownBy(() -> service.list(TEACHER_ID, "parent"))
 				.hasMessage(SpaceAccess.DENIED);
-		assertThatThrownBy(() -> service.create(TEACHER_ID, null, FRENCH_SCHOOL, "CE1", "Français"))
+		assertThatThrownBy(() -> service.create(TEACHER_ID, null, FRENCH_SCHOOL, "CE1", "Français", null))
 				.hasMessage(SpaceAccess.DENIED);
 		assertThat(subjects.all()).isEmpty();
 	}
@@ -1208,12 +1208,32 @@ class TeacherSubjectServiceTest {
 		}
 
 		@Override
-		public StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey) {
-			StoredSubject saved = new StoredSubject(nextId++, userId, schoolId, grade, name, true);
+		public StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey, String iconCode) {
+			StoredSubject saved = new StoredSubject(nextId++, userId, schoolId, grade, name, true, iconCode);
 			rows.add(saved);
 			accessBySubject.put(saved.id(), new HashSet<>(Set.of(userId)));
 			accessActive.put(saved.id(), new HashMap<>(Map.of(userId, true)));
 			return saved;
+		}
+
+		@Override
+		public Optional<StoredSubject> updateIcon(long userId, long subjectId, String iconCode) {
+			for (int index = 0; index < rows.size(); index++) {
+				StoredSubject row = rows.get(index);
+				if (row.id() == subjectId && row.userId() == userId && !hidden.contains(row.id())) {
+					StoredSubject updated = new StoredSubject(
+							row.id(),
+							row.userId(),
+							row.schoolId(),
+							row.grade(),
+							row.name(),
+							row.active(),
+							iconCode);
+					rows.set(index, updated);
+					return Optional.of(withAccessActive(updated, userId));
+				}
+			}
+			return Optional.empty();
 		}
 
 		@Override
@@ -1236,7 +1256,13 @@ class TeacherSubjectServiceTest {
 						&& !hidden.contains(row.id())
 						&& accessBySubject.getOrDefault(row.id(), Set.of()).contains(userId)) {
 					StoredSubject renamed = new StoredSubject(
-							row.id(), row.userId(), row.schoolId(), row.grade(), name, row.active());
+							row.id(),
+							row.userId(),
+							row.schoolId(),
+							row.grade(),
+							name,
+							row.active(),
+							row.iconCode());
 					rows.set(index, renamed);
 					return Optional.of(withAccessActive(renamed, userId));
 				}
@@ -1327,7 +1353,7 @@ class TeacherSubjectServiceTest {
 				}
 				hidden.remove(row.id());
 				StoredSubject restored = new StoredSubject(
-						row.id(), userId, row.schoolId(), row.grade(), row.name(), true);
+						row.id(), userId, row.schoolId(), row.grade(), row.name(), true, row.iconCode());
 				rows.set(index, restored);
 				accessBySubject.computeIfAbsent(row.id(), key -> new HashSet<>()).add(userId);
 				accessActive.computeIfAbsent(row.id(), key -> new HashMap<>()).put(userId, true);
@@ -1362,7 +1388,8 @@ class TeacherSubjectServiceTest {
 										row.schoolId(),
 										row.grade(),
 										row.name(),
-										row.active()));
+										row.active(),
+										row.iconCode()));
 						break;
 					}
 				}
@@ -1420,7 +1447,13 @@ class TeacherSubjectServiceTest {
 				StoredSubject row = rows.get(index);
 				if (row.id() == subjectId) {
 					rows.set(index, new StoredSubject(
-							row.id(), soleUserId, row.schoolId(), row.grade(), row.name(), true));
+							row.id(),
+							soleUserId,
+							row.schoolId(),
+							row.grade(),
+							row.name(),
+							true,
+							row.iconCode()));
 					return;
 				}
 			}
@@ -1432,7 +1465,8 @@ class TeacherSubjectServiceTest {
 				StoredSubject row = rows.get(index);
 				if (row.id() == subjectId) {
 					rows.set(index, new StoredSubject(
-							row.id(), newOwnerUserId, row.schoolId(), row.grade(), row.name(), row.active()));
+							row.id(), newOwnerUserId, row.schoolId(), row.grade(), row.name(), row.active(),
+							row.iconCode()));
 					return;
 				}
 			}
@@ -1635,8 +1669,7 @@ class TeacherSubjectServiceTest {
 			boolean active = accessActive
 					.getOrDefault(row.id(), Map.of())
 					.getOrDefault(userId, true);
-			return new StoredSubject(
-					row.id(), row.userId(), row.schoolId(), row.grade(), row.name(), active);
+			return new StoredSubject(row.id(), row.userId(), row.schoolId(), row.grade(), row.name(), active, row.iconCode());
 		}
 
 		private void syncGlobalActive(long subjectId) {
@@ -1651,7 +1684,13 @@ class TeacherSubjectServiceTest {
 				StoredSubject row = rows.get(index);
 				if (row.id() == subjectId) {
 					rows.set(index, new StoredSubject(
-							row.id(), row.userId(), row.schoolId(), row.grade(), row.name(), any));
+							row.id(),
+							row.userId(),
+							row.schoolId(),
+							row.grade(),
+							row.name(),
+							any,
+							row.iconCode()));
 					return;
 				}
 			}

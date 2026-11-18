@@ -31,6 +31,7 @@ import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinkInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinksInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LegacyInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.OrderInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzleInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzlePieceInput;
@@ -150,7 +151,7 @@ public class TeacherQuestionController {
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
 						null, null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -186,7 +187,7 @@ public class TeacherQuestionController {
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
 						null, null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -336,6 +337,9 @@ public class TeacherQuestionController {
 					body.snapDistance(),
 					pieceInputs(body.pieces()));
 		}
+		if (TeacherQuestionService.ORDER.equals(code)) {
+			return new OrderInput(body.timelineEnabled(), itemInputs(body.items()));
+		}
 		return new LegacyInput(inputs(body.choices()), pairInputs(body.pairs()), itemInputs(body.items()));
 	}
 
@@ -376,7 +380,7 @@ public class TeacherQuestionController {
 			if (item == null) {
 				continue;
 			}
-			inputs.add(new ItemInput(item.label()));
+			inputs.add(new ItemInput(item.label(), item.axisLabel()));
 		}
 		return inputs;
 	}
@@ -522,7 +526,7 @@ public class TeacherQuestionController {
 		}
 		List<TeacherQuestionItem> items = new ArrayList<>();
 		for (ItemLine orderItem : line.items()) {
-			items.add(new TeacherQuestionItem(orderItem.id(), orderItem.label()));
+			items.add(new TeacherQuestionItem(orderItem.id(), orderItem.label(), orderItem.axisLabel()));
 		}
 		List<TeacherQuestionStatementItem> statements = new ArrayList<>();
 		for (StatementLine statement : line.statements()) {
@@ -572,7 +576,8 @@ public class TeacherQuestionController {
 				line.id(), line.formCode(), line.formLabel(), line.prompt(),
 				choices, pairs, items, statements, links, columns, cards, line.sentence(), answers, decoys,
 				line.expectedAnswer(), base64(line.imageWebp()), line.boardMode(),
-				base64(line.boardImageWebp()), line.requireAllCorrect(), zones, pieces, line.snapDistance());
+				base64(line.boardImageWebp()), line.requireAllCorrect(), zones, pieces, line.snapDistance(),
+				line.timelineEnabled());
 	}
 
 	private static List<TeacherQuestionPointItem> pointItems(List<ClickPoint> points) {
@@ -625,7 +630,8 @@ public class TeacherQuestionController {
 			Boolean requireAllCorrect,
 			List<TeacherQuestionZoneItem> zones,
 			List<TeacherQuestionPieceItem> pieces,
-			Double snapDistance) {
+			Double snapDistance,
+			Boolean timelineEnabled) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
@@ -637,7 +643,7 @@ public class TeacherQuestionController {
 	}
 
 	@Schema(name = "TeacherQuestionItem")
-	public record TeacherQuestionItem(long id, String label) {
+	public record TeacherQuestionItem(long id, String label, String axisLabel) {
 	}
 
 	@Schema(name = "TeacherQuestionStatementItem")
@@ -705,7 +711,8 @@ public class TeacherQuestionController {
 			Boolean requireAllCorrect,
 			List<TeacherQuestionZoneInput> zones,
 			List<TeacherQuestionPieceInput> pieces,
-			Double snapDistance) {
+			Double snapDistance,
+			Boolean timelineEnabled) {
 	}
 
 	@Schema(name = "TeacherQuestionColumnInput")
@@ -771,7 +778,7 @@ public class TeacherQuestionController {
 	}
 
 	@Schema(name = "TeacherQuestionItemInput")
-	public record TeacherQuestionItemInput(String label) {
+	public record TeacherQuestionItemInput(String label, String axisLabel) {
 	}
 
 	@Schema(name = "TeacherQuestionStatementInput")

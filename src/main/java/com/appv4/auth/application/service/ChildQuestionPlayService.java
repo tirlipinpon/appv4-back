@@ -131,7 +131,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of(),
 					List.of(),
-					List.of());
+					List.of(),
+					null);
 		}
 		if (TrueFalseChildAnswerGrader.FORM.equals(form)) {
 			List<PlayStatement> statements = stored.statements().stream()
@@ -147,7 +148,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of(),
 					List.of(),
-					List.of());
+					List.of(),
+					null);
 		}
 		if (MemoryChildAnswerGrader.FORM.equals(form)) {
 			List<PlayPair> pairs = stored.pairs().stream()
@@ -163,11 +165,13 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					pairs,
 					List.of(),
 					List.of(),
-					List.of());
+					List.of(),
+					null);
 		}
 		if (OrderChildAnswerGrader.FORM.equals(form)) {
+			boolean timeline = Boolean.TRUE.equals(stored.timelineEnabled());
 			List<PlayItem> items = new ArrayList<>(stored.items().stream()
-					.map(i -> new PlayItem(i.id(), i.label()))
+					.map(i -> new PlayItem(i.id(), i.label(), timeline ? i.axisLabel() : null))
 					.toList());
 			Collections.shuffle(items);
 			return new ChildPlayQuestionView(
@@ -180,7 +184,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					items,
 					List.of(),
-					List.of());
+					List.of(),
+					timeline);
 		}
 		if (ClassificationChildAnswerGrader.FORM.equals(form)) {
 			List<PlayColumn> columns = stored.columns().stream()
@@ -200,7 +205,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of(),
 					columns,
-					cards);
+					cards,
+					null);
 		}
 		throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 	}

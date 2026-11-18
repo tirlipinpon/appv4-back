@@ -116,7 +116,7 @@ public class ChildQuestionPlayController {
 				.map(p -> new ChildPlayPairItem(p.pairId(), p.questionSide(), p.answerSide()))
 				.toList();
 		List<ChildPlayItemItem> items = view.items().stream()
-				.map(i -> new ChildPlayItemItem(i.itemId(), i.label()))
+				.map(i -> new ChildPlayItemItem(i.itemId(), i.label(), i.axisLabel()))
 				.toList();
 		List<ChildPlayColumnItem> columns = view.columns().stream()
 				.map(c -> new ChildPlayColumnItem(c.columnId(), c.label()))
@@ -134,7 +134,8 @@ public class ChildQuestionPlayController {
 				pairs,
 				items,
 				columns,
-				cards);
+				cards,
+				view.timelineEnabled());
 	}
 
 	private static String bearer(String authorization) {
@@ -155,7 +156,8 @@ public class ChildQuestionPlayController {
 			List<ChildPlayPairItem> pairs,
 			List<ChildPlayItemItem> items,
 			List<ChildPlayColumnItem> columns,
-			List<ChildPlayCardItem> cards) {
+			List<ChildPlayCardItem> cards,
+			Boolean timelineEnabled) {
 	}
 
 	@Schema(name = "ChildPlayChoiceItem")
@@ -171,7 +173,7 @@ public class ChildQuestionPlayController {
 	}
 
 	@Schema(name = "ChildPlayItemItem")
-	public record ChildPlayItemItem(long itemId, String label) {
+	public record ChildPlayItemItem(long itemId, String label, String axisLabel) {
 	}
 
 	@Schema(name = "ChildPlayColumnItem")

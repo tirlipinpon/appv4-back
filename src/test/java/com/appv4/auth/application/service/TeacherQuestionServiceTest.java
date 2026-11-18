@@ -37,6 +37,7 @@ import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ColumnInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapWordInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapsInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.OrderInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinkInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinksInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
@@ -463,6 +464,64 @@ class TeacherQuestionServiceTest {
 				List.of(new ItemInput("Lundi"), new ItemInput(" "))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.ITEMS_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("order"), eq(""), any());
+	}
+
+	@Test
+	void orderTimelineRequiresAxisLabelsAndPersistsThem() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("order"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						11L,
+						SUBJECT_ID,
+						"order",
+						"",
+						new TeacherQuestionPort.StoredItems(
+								List.of(
+										new TeacherQuestionPort.StoredItem(
+												1L, "Circulation", "20 minutes"),
+										new TeacherQuestionPort.StoredItem(
+												2L, "Monoxyde", "12 heures")),
+								true)));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"order",
+				"",
+				new OrderInput(
+						true,
+						List.of(
+								new ItemInput(" Circulation ", " 20 minutes "),
+								new ItemInput("Monoxyde", "12 heures"))));
+
+		assertThat(line.timelineEnabled()).isTrue();
+		assertThat(line.items()).extracting(item -> item.axisLabel())
+				.containsExactly("20 minutes", "12 heures");
+
+		ArgumentCaptor<TeacherQuestionPort.ItemsDraft> captor = ArgumentCaptor.forClass(TeacherQuestionPort.ItemsDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("order"), eq(""), captor.capture());
+		assertThat(captor.getValue().timelineEnabled()).isTrue();
+		assertThat(captor.getValue().items()).containsExactly(
+				new TeacherQuestionPort.ItemDraft("Circulation", "20 minutes"),
+				new TeacherQuestionPort.ItemDraft("Monoxyde", "12 heures"));
+	}
+
+	@Test
+	void orderTimelineWithoutAxisLabelIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"order",
+				"",
+				new OrderInput(true, List.of(new ItemInput("A", "ok"), new ItemInput("B", " ")))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.AXIS_LABEL_REQUIRED);
 
 		verify(questions, never()).insert(eq(SUBJECT_ID), eq("order"), eq(""), any());
 	}

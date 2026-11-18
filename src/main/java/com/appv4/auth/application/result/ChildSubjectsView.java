@@ -43,6 +43,7 @@ public record ChildSubjectsView(
 			String schoolName,
 			String grade,
 			boolean scolaire,
-			long questionCount) {
+			long questionCount,
+			String iconCode) {
 	}
 }

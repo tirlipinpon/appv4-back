@@ -58,8 +58,8 @@ class ChildSubjectControllerTest {
 		when(children.findByParent(9L)).thenReturn(List.of(LEA));
 		when(children.findOwned(9L, 3L)).thenReturn(Optional.of(LEA));
 		when(subjects.visibleSubjects()).thenReturn(List.of(
-				new CatalogSubject(10L, "Français", "Prof A", 1L, "CE1"),
-				new CatalogSubject(12L, "Mathématiques", "Prof A", 1L, "CE2")));
+				new CatalogSubject(10L, "Français", "Prof A", 1L, "CE1", null),
+				new CatalogSubject(12L, "Mathématiques", "Prof A", 1L, "CE2", null)));
 		when(subjects.linksOf(3L)).thenReturn(List.of(new StoredLink(10L, false)));
 		when(subjects.linksForParent(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyList()))
 				.thenAnswer(call -> {
@@ -74,13 +74,13 @@ class ChildSubjectControllerTest {
 				});
 		when(subjects.findLink(3L, 10L)).thenReturn(Optional.of(new StoredLink(10L, false)));
 		when(subjects.visibleInClass(1L, "CE1")).thenReturn(List.of(
-				new CatalogSubject(10L, "Français", "Prof A", 1L, "CE1")));
+				new CatalogSubject(10L, "Français", "Prof A", 1L, "CE1", null)));
 		when(subjects.visibleByIds(org.mockito.ArgumentMatchers.anyList())).thenAnswer(call -> {
 			List<Long> ids = call.getArgument(0);
 			return subjects.visibleSubjects().stream().filter(item -> ids.contains(item.id())).toList();
 		});
 		when(subjects.searchOffers(3L, "", 0L, "", 1L, "CE1", 0L, 41)).thenReturn(List.of(
-				new CatalogSubject(12L, "Mathématiques", "Prof A", 1L, "CE2")));
+				new CatalogSubject(12L, "Mathématiques", "Prof A", 1L, "CE2", null)));
 
 	}
 

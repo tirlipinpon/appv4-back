@@ -379,7 +379,8 @@ public class ChildSubjectService implements ChildSubjectUseCase {
 				schoolName(subject.schoolId(), schools),
 				subject.grade(),
 				scolaire,
-				questionCounts.getOrDefault(subject.id(), 0L));
+				questionCounts.getOrDefault(subject.id(), 0L),
+				subject.iconCode());
 	}
 
 	static boolean sameClass(ChildSaved child, long schoolId, String grade) {

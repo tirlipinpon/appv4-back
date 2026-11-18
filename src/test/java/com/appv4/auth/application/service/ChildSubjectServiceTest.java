@@ -44,10 +44,10 @@ class ChildSubjectServiceTest {
 		children.add(saved(3L, 1L, "Léa", 1L, "CE1"));
 		children.add(saved(4L, 1L, "Tom", null, "CE1"));
 		children.add(saved(8L, 2L, "Nina", 1L, "CE1"));
-		subjects.visible.add(new CatalogSubject(10L, "Français", "Prof A", 1L, "CE1"));
-		subjects.visible.add(new CatalogSubject(11L, "Mathématiques", "Prof A", 1L, "CE1"));
-		subjects.visible.add(new CatalogSubject(12L, "Mathématiques", "Prof A", 1L, "CE2"));
-		subjects.visible.add(new CatalogSubject(13L, "Sciences", "Prof B", 1L, "CE1"));
+		subjects.visible.add(new CatalogSubject(10L, "Français", "Prof A", 1L, "CE1", null));
+		subjects.visible.add(new CatalogSubject(11L, "Mathématiques", "Prof A", 1L, "CE1", null));
+		subjects.visible.add(new CatalogSubject(12L, "Mathématiques", "Prof A", 1L, "CE2", null));
+		subjects.visible.add(new CatalogSubject(13L, "Sciences", "Prof B", 1L, "CE1", null));
 		TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
 		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
 		service = new ChildSubjectService(children, subjects, () -> List.of(
@@ -169,7 +169,7 @@ class ChildSubjectServiceTest {
 	@Test
 	void thousandSubjectCatalogueProducesBoundedSearchAndMutationJson() throws Exception {
 		for (long id = 100; id < 1100; id++) {
-			subjects.visible.add(new CatalogSubject(id, "Course " + id, "Teacher", 1L, "CE2"));
+			subjects.visible.add(new CatalogSubject(id, "Course " + id, "Teacher", 1L, "CE2", null));
 		}
 		var page = service.searchOffers(1L, "parent", 4L, "course", 0, "", 0, 1000);
 		assertThat(page.offers()).hasSize(40);

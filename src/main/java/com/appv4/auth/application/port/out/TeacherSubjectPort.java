@@ -48,7 +48,7 @@ public interface TeacherSubjectPort {
 			List<AccessHolder> asked, String ownerName) {
 	}
 
-	StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey);
+	StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey, String iconCode);
 
 	/**
 	 * Matière visible à laquelle ce professeur a encore accès. {@code active} = accès du viewer.
@@ -59,6 +59,9 @@ public interface TeacherSubjectPort {
 	Optional<StoredSubject> findVisible(long subjectId);
 
 	Optional<StoredSubject> rename(long userId, long subjectId, String name, String nameKey);
+
+	/** Met à jour l'icône d'une matière encore visible pour ce professeur propriétaire. */
+	Optional<StoredSubject> updateIcon(long userId, long subjectId, String iconCode);
 
 	/**
 	 * Désactive les accès indiqués (le caller doit en faire partie) et resynchronise
@@ -227,7 +230,14 @@ public interface TeacherSubjectPort {
 	 * @param active pour {@link #findByUser}/{@link #findOwned} : accès du viewer ;
 	 *               pour {@link #findVisible} : flag global matière
 	 */
-	record StoredSubject(long id, long userId, long schoolId, String grade, String name, boolean active) {
+	record StoredSubject(
+			long id,
+			long userId,
+			long schoolId,
+			String grade,
+			String name,
+			boolean active,
+			String iconCode) {
 	}
 
 	record AccessHolder(long userId, String displayName) {

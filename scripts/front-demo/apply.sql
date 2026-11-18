@@ -2,8 +2,8 @@ DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM dev_front_demo.installation) THEN
    RAISE EXCEPTION 'Demo already installed. Use status, rollback or reset (no duplicates created).';
  END IF;
- IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '52' THEN
-   RAISE EXCEPTION 'Fixtures validated against V52. Review schema changes before updating this guard.';
+ IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '53' THEN
+   RAISE EXCEPTION 'Fixtures validated against V53. Review schema changes before updating this guard.';
  END IF;
 END $$;
 
@@ -63,8 +63,10 @@ SELECT nextval('back_teacher_subjects_id_seq') id,g.id school_id,g.grade,g.grade
   WHERE a.school_id=g.id AND ag.grade_label=g.grade ORDER BY (a.n+k)%360,a.n LIMIT 1) owner,
  (ARRAY['Mathématiques','Français – lecture et expression','Sciences et découverte du monde','Histoire & géographie','Langues : néerlandais et anglais'])[k] name
 FROM grades g CROSS JOIN LATERAL generate_series(1,2+(g.n+g.grade_n)%4) k;
-INSERT INTO back_teacher_subjects(id,user_id,school_id,grade_label,name,name_key,active,hidden)
-SELECT id,owner,school_id,grade,name,lower(name),true,false FROM subjects;
+INSERT INTO back_teacher_subjects(id,user_id,school_id,grade_label,name,name_key,active,hidden,icon_code)
+SELECT id,owner,school_id,grade,name,lower(name),true,false,
+ (ARRAY['math','alphabet','animals','words','knowledge','opposites','books','globe','music','sport','art','science'])[1+(k-1)%12]
+FROM subjects;
 INSERT INTO dev_front_demo.roots SELECT 'subject',id FROM subjects;
 INSERT INTO back_teacher_subject_access(subject_id,user_id,active)
 SELECT id,owner,true FROM subjects;

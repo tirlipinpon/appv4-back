@@ -44,6 +44,7 @@ import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
 import com.appv4.auth.application.port.in.ResumeAppleOAuthCallbackUseCase;
 import com.appv4.auth.application.port.in.LoginChildUseCase;
+import com.appv4.auth.application.port.in.ReadChildProfileUseCase;
 import com.appv4.auth.application.port.in.LoginWithEmailUseCase;
 import com.appv4.auth.application.port.in.LoginWithFacebookUseCase;
 import com.appv4.auth.application.port.in.LoginWithGoogleUseCase;
@@ -87,6 +88,7 @@ import com.appv4.auth.application.service.ResumeAppleOAuthCallbackService;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.service.LoginChildService;
+import com.appv4.auth.application.service.ReadChildProfileService;
 import com.appv4.auth.application.service.LoginWithEmailService;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtChildSessionAdapter;
 import com.appv4.auth.application.service.LoginWithFacebookService;
@@ -348,6 +350,16 @@ public class AuthConfiguration {
 			PasswordEncoder passwordEncoder,
 			ChildSessionTokenPort childSessionTokenPort) {
 		return new LoginChildService(childLoginPort, passwordEncoder, childSessionTokenPort);
+	}
+
+	/**
+	 * Profil enfant pour l'accueil learning (BACK-14).
+	 */
+	@Bean
+	ReadChildProfileUseCase readChildProfileUseCase(
+			ChildLoginPort childLoginPort,
+			ChildSessionTokenPort childSessionTokenPort) {
+		return new ReadChildProfileService(childLoginPort, childSessionTokenPort);
 	}
 
 	/**

@@ -79,9 +79,24 @@ public interface BackChildJpaRepository extends JpaRepository<BackChildEntity, L
 			""")
 	Optional<ChildLoginRow> findActiveLoginById(@Param("id") long id);
 
+	@Query("""
+			select c.id as id, c.firstName as firstName, c.avatarCode as avatarCode,
+			(case when c.photo is null then false else true end) as hasPhoto
+			from BackChildEntity c
+			where c.id = :id and c.hidden = false and c.active = true
+			""")
+	Optional<ChildProfileRow> findActiveProfileById(@Param("id") long id);
+
 	interface ChildLoginRow {
 		long getId();
 		String getFirstName();
 		String getPinHash();
+	}
+
+	interface ChildProfileRow {
+		long getId();
+		String getFirstName();
+		String getAvatarCode();
+		boolean getHasPhoto();
 	}
 }

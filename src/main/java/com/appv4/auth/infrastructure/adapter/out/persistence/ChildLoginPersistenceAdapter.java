@@ -38,6 +38,24 @@ public class ChildLoginPersistenceAdapter implements ChildLoginPort {
 		return childRepository.findActiveLoginById(childId).map(ChildLoginPersistenceAdapter::candidate);
 	}
 
+	@Override
+	public Optional<ChildProfile> findActiveProfileById(long childId) {
+		return childRepository.findActiveProfileById(childId)
+				.map(row -> new ChildProfile(
+						row.getId(),
+						row.getFirstName(),
+						row.getAvatarCode(),
+						row.getHasPhoto()));
+	}
+
+	@Override
+	public Optional<ChildPhotoBytes> findActivePhotoById(long childId) {
+		return childRepository.findById(childId)
+				.filter(child -> !child.isHidden() && child.isActive())
+				.filter(child -> child.getPhoto() != null)
+				.map(child -> new ChildPhotoBytes(child.getPhoto(), child.getPhotoContentType()));
+	}
+
 	private static ChildLoginCandidate candidate(ChildLoginRow row) {
 		return new ChildLoginCandidate(row.getId(), row.getFirstName(), row.getPinHash());
 	}

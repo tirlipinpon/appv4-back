@@ -13,7 +13,9 @@ import jakarta.persistence.Table;
  * Tentative enfant sur une question (BACK-16).
  *
  * <p><b>Business :</b> trace d'une partie pour score et lectures futures.
- * <p><b>Technique :</b> table {@code back_child_attempts}.
+ * <p><b>Technique :</b> table {@code back_child_attempts}. Le score est un {@code SMALLINT}
+ * (0–100), comme l'âge sur {@link BackChildEntity} : un {@code int} Java ferait échouer
+ * {@code ddl-auto: validate} (Hibernate attendrait un {@code INTEGER}).
  * <p><b>Métier / flow :</b> adapter out du port attempts.
  */
 @Entity
@@ -37,7 +39,7 @@ public class BackChildAttemptEntity {
 	private String formCode;
 
 	@Column(name = "score_percent", nullable = false)
-	private int scorePercent;
+	private short scorePercent;
 
 	@Column(nullable = false)
 	private boolean passed;
@@ -54,7 +56,7 @@ public class BackChildAttemptEntity {
 		this.subjectId = subjectId;
 		this.questionId = questionId;
 		this.formCode = formCode;
-		this.scorePercent = scorePercent;
+		this.scorePercent = (short) scorePercent;
 		this.passed = passed;
 	}
 

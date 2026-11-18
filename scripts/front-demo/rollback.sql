@@ -40,7 +40,11 @@ DO $$ BEGIN
  OR EXISTS(SELECT 1 FROM back_child_daily_tasks task
    JOIN back_child_daily_missions mission ON mission.id = task.mission_id
    WHERE (task.subject_id IN (SELECT id FROM demo_subjects))
-      <> (mission.child_id IN (SELECT id FROM demo_children))) THEN
+      <> (mission.child_id IN (SELECT id FROM demo_children)))
+ OR EXISTS(SELECT 1 FROM back_subject_board b
+   WHERE (b.subject_id IN (SELECT id FROM demo_subjects)) = false)
+ OR EXISTS(SELECT 1 FROM back_subject_topics t
+   WHERE (t.subject_id IN (SELECT id FROM demo_subjects)) = false) THEN
    RAISE EXCEPTION 'Real/demo cross-links detected. Unlink them in the app before rollback; nothing deleted.';
  END IF;
 END $$;

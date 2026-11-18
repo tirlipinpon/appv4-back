@@ -7,6 +7,7 @@ import java.util.List;
  *
  * <p><b>Business :</b> l'enfant répond sans voir le vrai/faux ni les bons choix.
  * Memory : les deux faces d'une paire sont le contenu jouable (pas une solution cachée).
+ * Ordre : les items sont renvoyés mélangés ; l'ordre professeur reste côté serveur.
  * <p><b>Technique :</b> payload GET play.
  * <p><b>Métier / flow :</b> use case play → controller /api/ext.
  */
@@ -17,12 +18,14 @@ public record ChildPlayQuestionView(
 		String prompt,
 		List<PlayChoice> choices,
 		List<PlayStatement> statements,
-		List<PlayPair> pairs) {
+		List<PlayPair> pairs,
+		List<PlayItem> items) {
 
 	public ChildPlayQuestionView {
 		choices = choices == null ? List.of() : List.copyOf(choices);
 		statements = statements == null ? List.of() : List.copyOf(statements);
 		pairs = pairs == null ? List.of() : List.copyOf(pairs);
+		items = items == null ? List.of() : List.copyOf(items);
 		prompt = prompt == null ? "" : prompt;
 	}
 
@@ -33,5 +36,8 @@ public record ChildPlayQuestionView(
 	}
 
 	public record PlayPair(long pairId, String questionSide, String answerSide) {
+	}
+
+	public record PlayItem(long itemId, String label) {
 	}
 }

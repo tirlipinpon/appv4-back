@@ -25,6 +25,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.result.ChildTodayView;
 import com.appv4.auth.application.service.question.play.MemoryChildAnswerGrader;
+import com.appv4.auth.application.service.question.play.OrderChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.QcmChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.TrueFalseChildAnswerGrader;
 
@@ -150,7 +151,8 @@ public class ChildDailyMissionService implements ReadChildTodayUseCase {
 		return teacherQuestionPort.findBySubject(subjectId, 0L, 50).stream()
 				.filter(question -> QcmChildAnswerGrader.FORM.equals(question.formCode())
 						|| TrueFalseChildAnswerGrader.FORM.equals(question.formCode())
-						|| MemoryChildAnswerGrader.FORM.equals(question.formCode()))
+						|| MemoryChildAnswerGrader.FORM.equals(question.formCode())
+						|| OrderChildAnswerGrader.FORM.equals(question.formCode()))
 				.findFirst();
 	}
 

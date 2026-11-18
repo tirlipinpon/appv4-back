@@ -1,5 +1,7 @@
 package com.appv4.auth.application.service;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -19,10 +21,12 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.result.ChildAttemptResultView;
 import com.appv4.auth.application.result.ChildPlayQuestionView;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayChoice;
+import com.appv4.auth.application.result.ChildPlayQuestionView.PlayItem;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayPair;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayStatement;
 import com.appv4.auth.application.service.question.play.ChildAnswerGrade;
 import com.appv4.auth.application.service.question.play.MemoryChildAnswerGrader;
+import com.appv4.auth.application.service.question.play.OrderChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.QcmChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.TrueFalseChildAnswerGrader;
 
@@ -101,6 +105,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			case QcmChildAnswerGrader.FORM -> QcmChildAnswerGrader.grade(stored, answers.selectedChoiceIds());
 			case TrueFalseChildAnswerGrader.FORM -> TrueFalseChildAnswerGrader.grade(stored, answers.statements());
 			case MemoryChildAnswerGrader.FORM -> MemoryChildAnswerGrader.grade(stored, answers.matchedPairIds());
+			case OrderChildAnswerGrader.FORM -> OrderChildAnswerGrader.grade(stored, answers.orderedItemIds());
 			default -> throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 		};
 	}
@@ -112,21 +117,36 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					.map(c -> new PlayChoice(c.id(), c.label()))
 					.toList();
 			return new ChildPlayQuestionView(
-					stored.id(), stored.subjectId(), form, stored.prompt(), choices, List.of(), List.of());
+					stored.id(), stored.subjectId(), form, stored.prompt(), choices, List.of(), List.of(), List.of());
 		}
 		if (TrueFalseChildAnswerGrader.FORM.equals(form)) {
 			List<PlayStatement> statements = stored.statements().stream()
 					.map(s -> new PlayStatement(s.id(), s.label()))
 					.toList();
 			return new ChildPlayQuestionView(
-					stored.id(), stored.subjectId(), form, stored.prompt(), List.of(), statements, List.of());
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					List.of(),
+					statements,
+					List.of(),
+					List.of());
 		}
 		if (MemoryChildAnswerGrader.FORM.equals(form)) {
 			List<PlayPair> pairs = stored.pairs().stream()
 					.map(p -> new PlayPair(p.id(), p.questionSide(), p.answerSide()))
 					.toList();
 			return new ChildPlayQuestionView(
-					stored.id(), stored.subjectId(), form, stored.prompt(), List.of(), List.of(), pairs);
+					stored.id(), stored.subjectId(), form, stored.prompt(), List.of(), List.of(), pairs, List.of());
+		}
+		if (OrderChildAnswerGrader.FORM.equals(form)) {
+			List<PlayItem> items = new ArrayList<>(stored.items().stream()
+					.map(i -> new PlayItem(i.id(), i.label()))
+					.toList());
+			Collections.shuffle(items);
+			return new ChildPlayQuestionView(
+					stored.id(), stored.subjectId(), form, stored.prompt(), List.of(), List.of(), List.of(), items);
 		}
 		throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 	}

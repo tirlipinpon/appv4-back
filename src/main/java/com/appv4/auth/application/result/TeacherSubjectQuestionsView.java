@@ -6,6 +6,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredContent;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzle;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimon;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
@@ -20,7 +21,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
  *
  * <p><b>Business :</b> le professeur revoit l'énoncé, les propositions d'un
  * choix multiple, les paires d'un Memory, les éléments d'un Ordre,
- * ou les phrases d'un Vrai ou faux.
+ * les phrases d'un Vrai ou faux, ou le genre, les éléments et la suite d'un Simon.
  * L'ordre enregistré est celui saisi.
  * <p><b>Technique :</b> {@code formCode} est le code choisi dans la liste des formes.
  * <p><b>Métier / flow :</b> résultat de {@code GET/POST /api/int/teacher/subjects/{id}/questions}
@@ -181,6 +182,24 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 		public Double snapDistance() {
 			return content instanceof StoredPuzzle value ? value.snapDistance() : null;
 		}
+
+		/** Genre des éléments Simon. {@code null} hors forme {@code simon}. */
+		public String elementType() {
+			return content instanceof StoredSimon value ? value.elementType() : null;
+		}
+
+		public List<SimonElementLine> elements() {
+			return content instanceof StoredSimon value
+					? value.elements().stream()
+							.map(row -> new SimonElementLine(row.id(), row.label(), row.color()))
+							.toList()
+					: List.of();
+		}
+
+		/** Suite Simon : position 0-based de l'élément de chaque pas. Vide hors Simon. */
+		public List<Integer> sequence() {
+			return content instanceof StoredSimon value ? value.sequence() : List.of();
+		}
 	}
 
 	public record ChoiceLine(long id, String label, boolean correct) {
@@ -231,5 +250,9 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 			Double slotX,
 			Double slotY,
 			Double slotWidth) {
+	}
+
+	/** Élément d'un Simon. {@code color} : code {@code #rrggbb} du genre couleurs, sinon null. */
+	public record SimonElementLine(long id, String label, String color) {
 	}
 }

@@ -13,6 +13,7 @@ import java.util.Optional;
  * {@code back_subject_question_pairs}, {@code back_subject_question_items},
  * {@code back_subject_question_statements}, {@code back_subject_question_texts},
  * {@code back_subject_question_click_images}, {@code back_subject_question_click_zones},
+ * {@code back_subject_question_simon_options}, {@code _simon_elements}, {@code _simon_steps},
  * et une ligne {@code back_subject_question_forms} à la première question de cette forme.
  * <p><b>Métier / flow :</b> port out de {@code /api/int/teacher/subjects/{id}/questions}.
  */
@@ -370,6 +371,38 @@ public interface TeacherQuestionPort {
 		}
 	}
 
+	/**
+	 * Élément d'un Simon, déjà nommé et du genre choisi.
+	 * {@code color} est un code {@code #rrggbb} en minuscules pour le genre couleurs, sinon null.
+	 */
+	record SimonElementDraft(String label, String color) {
+	}
+
+	/**
+	 * Genre des éléments, éléments dans l'ordre saisi, et suite à refaire.
+	 * Chaque pas de {@code sequence} est la position 0-based d'un élément de {@code elements}.
+	 */
+	record SimonDraft(String elementType, List<SimonElementDraft> elements, List<Integer> sequence)
+			implements DraftContent {
+		public SimonDraft {
+			elements = List.copyOf(elements);
+			sequence = List.copyOf(sequence);
+		}
+	}
+
+	/** Élément de Simon relu, avec l'id de la ligne. */
+	record StoredSimonElement(long id, String label, String color) {
+	}
+
+	/** Genre, éléments et suite tels que le professeur les a enregistrés. */
+	record StoredSimon(String elementType, List<StoredSimonElement> elements, List<Integer> sequence)
+			implements StoredContent {
+		public StoredSimon {
+			elements = List.copyOf(elements);
+			sequence = List.copyOf(sequence);
+		}
+	}
+
 	record StoredQuestion(
 			long id,
 			long subjectId,
@@ -479,6 +512,20 @@ public interface TeacherQuestionPort {
 
 		public List<StoredPuzzlePiece> puzzlePieces() {
 			return content instanceof StoredPuzzle value ? value.pieces() : List.of();
+		}
+
+		/** Genre des éléments Simon. {@code null} hors forme {@code simon}. */
+		public String simonElementType() {
+			return content instanceof StoredSimon value ? value.elementType() : null;
+		}
+
+		public List<StoredSimonElement> simonElements() {
+			return content instanceof StoredSimon value ? value.elements() : List.of();
+		}
+
+		/** Suite Simon : positions des éléments, dans l'ordre des pas. Vide hors Simon. */
+		public List<Integer> simonSequence() {
+			return content instanceof StoredSimon value ? value.sequence() : List.of();
 		}
 	}
 }

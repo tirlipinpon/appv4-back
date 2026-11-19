@@ -38,6 +38,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.LinkDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.LinksDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairsDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.SimonDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.SimonElementDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
@@ -55,7 +57,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 		StatementQuestionContentStore.class, LinkQuestionContentStore.class,
 		ClassificationQuestionContentStore.class,
 		CaseVideQuestionContentStore.class, TexteQuestionContentStore.class,
-		LetterQuestionContentStore.class})
+		LetterQuestionContentStore.class, SimonQuestionContentStore.class})
 @EnabledIfEnvironmentVariable(named = "APPV4_PERSISTENCE_TEST_URL", matches = ".+")
 class TeacherQuestionPersistenceTest {
 
@@ -293,6 +295,52 @@ class TeacherQuestionPersistenceTest {
 	}
 
 	@Test
+	void simonReplacementKeepsTheTypeTheElementsAndTheSequence() {
+		adapter.ensureForm(subjectId, "simon", "Simon", 7);
+		StoredQuestion saved = adapter.insert(subjectId, "simon", "", new SimonDraft("couleurs", List.of(
+				new SimonElementDraft("rouge", "#ff0000"),
+				new SimonElementDraft("bleu", "#0000ff"),
+				new SimonElementDraft("vert", "#00ff00")),
+				List.of(0, 1, 2, 0)));
+		assertThat(saved.simonSequence()).containsExactly(0, 1, 2, 0);
+		// Charge la question en session comme le use case update (find puis replace).
+		assertThat(adapter.findInSubject(subjectId, saved.id()).orElseThrow().simonElementType()).isEqualTo("couleurs");
+		adapter.replace(saved.id(), "Refais la suite.", new SimonDraft("lettres", List.of(
+				new SimonElementDraft("A", null),
+				new SimonElementDraft("B", null)),
+				List.of(1, 1, 0)));
+		entityManager.flush();
+		entityManager.clear();
+
+		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
+		assertThat(loaded.prompt()).isEqualTo("Refais la suite.");
+		assertThat(loaded.simonElementType()).isEqualTo("lettres");
+		assertThat(loaded.simonElements()).extracting(row -> row.label() + ":" + row.color())
+				.containsExactly("A:null", "B:null");
+		assertThat(loaded.simonElements()).extracting(row -> row.id())
+				.doesNotContainAnyElementsOf(saved.simonElements().stream().map(row -> row.id()).toList());
+		assertThat(loaded.simonSequence()).containsExactly(1, 1, 0);
+	}
+
+	@Test
+	void databaseRejectsASimonStepWithoutItsElement() {
+		StoredQuestion saved = insertSimonNumbers();
+		assertThatThrownBy(() -> jdbc.update("""
+				insert into back_subject_question_simon_steps (question_id, element_index, sort_order)
+				values (?, 2, 2)
+				""", saved.id())).isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
+	void databaseRejectsASimonColorOutsideLowerCaseHex() {
+		StoredQuestion saved = insertSimonNumbers();
+		assertThatThrownBy(() -> jdbc.update("""
+				insert into back_subject_question_simon_elements (question_id, label, color, sort_order)
+				values (?, '3', '#FF0000', 2)
+				""", saved.id())).isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
 	void databaseRejectsMissingSubjectForm() {
 		assertThatThrownBy(() -> jdbc.update("""
 				insert into back_subject_questions (subject_id, form_code, prompt) values (?, 'unknown', 'X')
@@ -308,6 +356,14 @@ class TeacherQuestionPersistenceTest {
 			default -> adapter.insert(subjectId, "order", "", new ItemsDraft(List.of(
 					new ItemDraft("Début"), new ItemDraft("Fin"))));
 		};
+	}
+
+	private StoredQuestion insertSimonNumbers() {
+		adapter.ensureForm(subjectId, "simon", "Simon", 7);
+		return adapter.insert(subjectId, "simon", "", new SimonDraft("nombres", List.of(
+				new SimonElementDraft("1", null),
+				new SimonElementDraft("2", null)),
+				List.of(0, 1)));
 	}
 
 	private Statistics resetStatistics() {

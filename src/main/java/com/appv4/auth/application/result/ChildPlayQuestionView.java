@@ -19,6 +19,10 @@ import java.util.List;
  * ({@code #} = lettre, espace = saut), sans le mot attendu.
  * Puzzle : image de découpe, mode de plateau, fond optionnel, magnétisme et géométrie
  * des pièces (y compris slots blancs) ; l'enfant replace les pièces, le serveur note.
+ * Simon : le genre, les éléments (avec leur couleur pour le genre couleurs) et la suite.
+ * La suite est le contenu jouable : l'enfant la regarde s'allumer, puis la refait ;
+ * le serveur note la reprise. Les éléments ne sont pas mélangés : la suite les désigne
+ * par leur position.
  * <p><b>Technique :</b> payload GET play.
  * <p><b>Métier / flow :</b> use case play → controller /api/ext.
  */
@@ -46,7 +50,10 @@ public record ChildPlayQuestionView(
 		String boardMode,
 		String boardImageWebp,
 		Double snapDistance,
-		List<PlayPuzzlePiece> puzzlePieces) {
+		List<PlayPuzzlePiece> puzzlePieces,
+		String elementType,
+		List<PlaySimonElement> elements,
+		List<Integer> sequence) {
 
 	public ChildPlayQuestionView(
 			long questionId,
@@ -65,7 +72,7 @@ public record ChildPlayQuestionView(
 			List<PlayGapWord> words) {
 		this(questionId, subjectId, formCode, prompt, choices, statements, pairs, items, columns, cards,
 				timelineEnabled, links, sentence, words, "", null, List.of(), List.of(), null, null,
-				null, "", null, List.of());
+				null, "", null, List.of(), null, List.of(), List.of());
 	}
 
 	public ChildPlayQuestionView(
@@ -89,7 +96,7 @@ public record ChildPlayQuestionView(
 			List<PlayClickStep> clickSteps) {
 		this(questionId, subjectId, formCode, prompt, choices, statements, pairs, items, columns, cards,
 				timelineEnabled, links, sentence, words, imageWebp, clicksOrdered, clickZones, clickSteps,
-				null, null, null, "", null, List.of());
+				null, null, null, "", null, List.of(), null, List.of(), List.of());
 	}
 
 	public ChildPlayQuestionView(
@@ -115,7 +122,7 @@ public record ChildPlayQuestionView(
 			String letterMask) {
 		this(questionId, subjectId, formCode, prompt, choices, statements, pairs, items, columns, cards,
 				timelineEnabled, links, sentence, words, imageWebp, clicksOrdered, clickZones, clickSteps,
-				letterCount, letterMask, null, "", null, List.of());
+				letterCount, letterMask, null, "", null, List.of(), null, List.of(), List.of());
 	}
 
 	public ChildPlayQuestionView {
@@ -130,6 +137,8 @@ public record ChildPlayQuestionView(
 		clickZones = clickZones == null ? List.of() : List.copyOf(clickZones);
 		clickSteps = clickSteps == null ? List.of() : List.copyOf(clickSteps);
 		puzzlePieces = puzzlePieces == null ? List.of() : List.copyOf(puzzlePieces);
+		elements = elements == null ? List.of() : List.copyOf(elements);
+		sequence = sequence == null ? List.of() : List.copyOf(sequence);
 		prompt = prompt == null ? "" : prompt;
 		sentence = sentence == null ? "" : sentence;
 		imageWebp = imageWebp == null ? "" : imageWebp;
@@ -199,5 +208,12 @@ public record ChildPlayQuestionView(
 			label = label == null ? "" : label;
 			shape = shape == null ? "" : shape;
 		}
+	}
+
+	/**
+	 * Élément de Simon. Sa position dans {@code elements} est celle que la suite désigne
+	 * et que l'enfant renvoie. {@code color} : code {@code #rrggbb} du genre couleurs, sinon null.
+	 */
+	public record PlaySimonElement(String label, String color) {
 	}
 }

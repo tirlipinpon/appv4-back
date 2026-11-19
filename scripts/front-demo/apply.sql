@@ -2,8 +2,8 @@ DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM dev_front_demo.installation) THEN
    RAISE EXCEPTION 'Demo already installed. Use status, rollback or reset (no duplicates created).';
  END IF;
- IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '64' THEN
-   RAISE EXCEPTION 'Fixtures validated against V64. Review schema changes before updating this guard.';
+ IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '65' THEN
+   RAISE EXCEPTION 'Fixtures validated against V65. Review schema changes before updating this guard.';
  END IF;
 END $$;
 
@@ -115,26 +115,28 @@ FROM subjects s CROSS JOIN LATERAL (
  ORDER BY a.n LIMIT 1
 ) candidate WHERE s.grade_n%3=0 AND s.k<=4;
 
-CREATE TEMP TABLE forms(code,label,ord) ON COMMIT DROP AS VALUES
- ('qcm','Choix multiples',1),('memory','Memory',2),('order','Ordre',3),
- ('vrai_faux','Vrai ou faux',4),('liens','Liens',5),('case_vide','Case vide',6),
- ('classement','Classement',7),('image_interactive','Image à cliquer',8),
- ('reponse_libre','Lettre par lettre',9),('puzzle','Puzzle',10),('texte','Réponse libre',11);
+-- ord = rang du catalogue (classement et simon partagent 7) ; slot = part de la répartition.
+CREATE TEMP TABLE forms(code,label,ord,slot) ON COMMIT DROP AS VALUES
+ ('qcm','Choix multiples',1,1),('memory','Memory',2,2),('order','Ordre',3,3),
+ ('vrai_faux','Vrai ou faux',4,4),('liens','Liens',5,5),('case_vide','Case vide',6,6),
+ ('classement','Classement',7,7),('simon','Simon',7,8),('image_interactive','Image à cliquer',8,9),
+ ('reponse_libre','Lettre par lettre',9,10),('puzzle','Puzzle',10,11),('texte','Réponse libre',11,12);
 INSERT INTO back_subject_question_forms(subject_id,form_code,label,sort_order)
 SELECT s.id,f.code,f.label,f.ord FROM subjects s CROSS JOIN forms f;
 CREATE TEMP TABLE questions ON COMMIT DROP AS
 SELECT nextval('back_subject_questions_id_seq') id,s.id subject_id,f.code,n,s.k
 FROM subjects s CROSS JOIN LATERAL generate_series(1,200+50*((s.school_n+s.grade_n+s.k)%5)) n
-JOIN forms f ON f.ord=1+(n-1)%11;
+JOIN forms f ON f.slot=1+(n-1)%12;
 INSERT INTO back_subject_questions(id,subject_id,form_code,prompt)
 SELECT q.id,q.subject_id,q.code,
- CASE WHEN q.n%13=0 AND q.code IN ('memory','order','vrai_faux','liens','case_vide','classement') THEN '' ELSE
+ CASE WHEN q.n%13=0 AND q.code IN ('memory','order','vrai_faux','liens','case_vide','classement','simon') THEN '' ELSE
  s.name||' · '||s.grade||' · Activité '||q.n||' : '||
  CASE q.code WHEN 'qcm' THEN 'Sélectionne les propositions correctes.' WHEN 'order' THEN 'Replace les étapes dans l’ordre.'
  WHEN 'texte' THEN 'Écris le mot école.' WHEN 'reponse_libre' THEN 'Compose le mot école.'
  WHEN 'case_vide' THEN 'Complète la phrase.' WHEN 'image_interactive' THEN 'Clique sur la zone bleue.'
  WHEN 'puzzle' THEN 'Recompose les deux moitiés de l’image.'
  WHEN 'classement' THEN 'Classe chaque carte dans la bonne colonne.'
+ WHEN 'simon' THEN 'Regarde la suite, puis refais-la.'
  ELSE 'Observe puis associe les éléments.' END ||
  CASE WHEN q.n%7=0 THEN ' Lis attentivement chaque proposition, prends le temps de comparer les réponses et vérifie ton choix avant de continuer.' ELSE '' END END
 FROM questions q JOIN subjects s ON s.id=q.subject_id;
@@ -184,6 +186,23 @@ SELECT id,decode(:'demo_image','hex'),'trous',NULL,0.04+0.02*(n%5) FROM question
 INSERT INTO back_subject_question_puzzle_pieces(question_id,label,shape,points,sort_order)
 SELECT q.id,v.label,'rect',v.points,v.ord FROM questions q CROSS JOIN
  (VALUES ('Moitié gauche','0,0;0.5,1',0),('Moitié droite','0.5,0;1,1',1)) v(label,points,ord) WHERE code='puzzle';
+-- Simon : un genre par question, quatre éléments de ce genre (code couleur pour les couleurs seulement),
+-- puis une suite de 2 à 6 pas qui commence par rouge, bleu, vert, rouge.
+INSERT INTO back_subject_question_simon_options(question_id,element_type)
+SELECT id,(ARRAY['couleurs','nombres','lettres','formes'])[1+(n/12)%4] FROM questions WHERE code='simon';
+INSERT INTO back_subject_question_simon_elements(question_id,label,color,sort_order)
+SELECT q.id,v.label,v.color,v.ord FROM questions q
+JOIN back_subject_question_simon_options o ON o.question_id=q.id
+JOIN (VALUES
+ ('couleurs','rouge','#ff0000',0),('couleurs','bleu','#0000ff',1),('couleurs','vert','#00ff00',2),('couleurs','jaune','#ffff00',3),
+ ('nombres','1',NULL,0),('nombres','2',NULL,1),('nombres','3',NULL,2),('nombres','4',NULL,3),
+ ('lettres','A',NULL,0),('lettres','B',NULL,1),('lettres','C',NULL,2),('lettres','D',NULL,3),
+ ('formes','cercle',NULL,0),('formes','carré',NULL,1),('formes','triangle',NULL,2),('formes','étoile',NULL,3)
+) v(kind,label,color,ord) ON v.kind=o.element_type
+WHERE q.code='simon';
+INSERT INTO back_subject_question_simon_steps(question_id,element_index,sort_order)
+SELECT q.id,(ARRAY[0,1,2,0,3,1])[1+i],i FROM questions q
+CROSS JOIN LATERAL generate_series(0,1+(q.n/10)%5) i WHERE code='simon';
 
 -- Separate archived copies keep 2..5 visible, active subjects in every class.
 WITH added AS (

@@ -32,6 +32,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PuzzleDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PuzzlePieceDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.SimonDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.SimonElementDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StatementsDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredCard;
@@ -54,6 +56,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzle;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzlePiece;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimon;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimonElement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
@@ -87,6 +91,8 @@ import com.appv4.auth.application.service.question.QuestionFormRegistry;
  * La saisie lettre par lettre (SCRUM-182) exige aussi un énoncé et un mot.
  * L'élève a une case par lettre. Valider ignore les majuscules et les espaces
  * au bord, et refuse un accent différent.
+ * Le Simon (ADMIN-25, BACK-54) exige un genre d'éléments, deux éléments de ce genre
+ * et une suite d'au moins deux pas ; son énoncé peut rester vide.
  * <p><b>Technique :</b> registre de validateurs indépendants par forme.
  * Les énoncés passent par {@link TeacherQuestionPort}. L'accès matière passe par
  * {@link TeacherSubjectPort#findOwned}. Les enfants passent par {@link ChildSubjectPort}.
@@ -222,6 +228,31 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final double SNAP_MAX = 0.25;
 	public static final String SNAP_RANGE =
 			"Le magnétisme doit rester entre 0 et 25 % de la largeur de l'image.";
+
+	public static final String SIMON = "simon";
+	public static final String SIMON_LABEL = "Simon";
+	/** Même rang que le classement : le catalogue départage par code. */
+	public static final int SIMON_ORDER = 7;
+	public static final String SIMON_COLORS = "couleurs";
+	public static final String SIMON_NUMBERS = "nombres";
+	public static final String SIMON_LETTERS = "lettres";
+	public static final String SIMON_SHAPES = "formes";
+	public static final String SIMON_TYPE_INVALID =
+			"Choisis un genre d'éléments : couleurs, nombres, lettres ou formes.";
+	public static final String SIMON_ELEMENTS_REQUIRED = "Il faut au moins deux éléments.";
+	public static final String SIMON_ELEMENT_NAME_REQUIRED = "Chaque élément doit avoir un nom.";
+	public static final String SIMON_ELEMENT_NAME_TOO_LONG = "Un nom d'élément dépasse 200 caractères.";
+	public static final String SIMON_ELEMENT_DUPLICATE = "Deux éléments portent le même nom.";
+	public static final String SIMON_NUMBER_REQUIRED =
+			"Avec le genre nombres, chaque élément doit être un nombre.";
+	public static final String SIMON_LETTER_REQUIRED =
+			"Avec le genre lettres, chaque élément doit être une seule lettre.";
+	public static final String SIMON_COLOR_REQUIRED =
+			"Avec le genre couleurs, chaque élément doit avoir un code couleur comme #ff0000.";
+	public static final String SIMON_COLOR_FORBIDDEN = "Seul le genre couleurs accepte un code couleur.";
+	public static final String SIMON_COLOR_DUPLICATE = "Deux éléments ont le même code couleur.";
+	public static final String SIMON_SEQUENCE_REQUIRED = "La suite doit avoir au moins deux pas.";
+	public static final String SIMON_STEP_UNKNOWN = "Chaque pas de la suite doit désigner un élément de la liste.";
 
 	public static final String CLONE_TARGET = "Choisis une matière.";
 	public static final String CLONE_REQUIRED = "Choisis au moins une question.";
@@ -570,6 +601,13 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 					puzzle.boardImageWebp(),
 					puzzle.snapDistance(),
 					pieces);
+		}
+		if (content instanceof StoredSimon simon) {
+			List<SimonElementDraft> elements = new ArrayList<>();
+			for (StoredSimonElement element : simon.elements()) {
+				elements.add(new SimonElementDraft(element.label(), element.color()));
+			}
+			return new SimonDraft(simon.elementType(), elements, simon.sequence());
 		}
 		throw new IllegalStateException("Copie non prévue pour la forme : " + source.formCode());
 	}

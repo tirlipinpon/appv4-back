@@ -20,7 +20,7 @@ DO $$ BEGIN
  IF EXISTS (
   SELECT 1 FROM back_teacher_subjects s JOIN dev_front_demo.roots r ON r.kind='subject' AND r.id=s.id
   LEFT JOIN back_subject_questions q ON q.subject_id=s.id WHERE s.active AND NOT s.hidden
-  GROUP BY s.id HAVING count(q.id) NOT BETWEEN 200 AND 400 OR count(DISTINCT q.form_code)<>11
+  GROUP BY s.id HAVING count(q.id) NOT BETWEEN 200 AND 400 OR count(DISTINCT q.form_code)<>12
  ) THEN RAISE EXCEPTION 'Invalid question counts/forms'; END IF;
  IF EXISTS (
   SELECT 1 FROM back_subject_questions q JOIN dev_front_demo.roots r ON r.kind='subject' AND r.id=q.subject_id
@@ -64,6 +64,14 @@ DO $$ BEGIN
           OR (NOT img.clicks_ordered AND bool_or(z.click_order IS NOT NULL))
      )
    WHEN 'puzzle' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_puzzle_images c WHERE c.question_id=q.id)
+   -- Simon : un genre, deux éléments au moins, deux pas au moins, code couleur seulement pour les couleurs.
+   WHEN 'simon' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_simon_options o WHERE o.question_id=q.id)
+     OR (SELECT count(*) FROM back_subject_question_simon_elements e WHERE e.question_id=q.id)<2
+     OR (SELECT count(*) FROM back_subject_question_simon_steps st WHERE st.question_id=q.id)<2
+     OR EXISTS (
+      SELECT 1 FROM back_subject_question_simon_elements e
+      JOIN back_subject_question_simon_options o ON o.question_id=e.question_id
+      WHERE e.question_id=q.id AND (e.color IS NULL) = (o.element_type='couleurs'))
    ELSE true END
  ) THEN RAISE EXCEPTION 'Missing question content'; END IF;
 END $$;

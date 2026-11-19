@@ -8,6 +8,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -43,12 +46,14 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimon;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimonElement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
+import com.appv4.auth.application.service.question.play.FreeTextChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.SimonChildAnswerGrader;
 import com.jayway.jsonpath.JsonPath;
 
@@ -445,6 +450,84 @@ class ChildQuestionPlayControllerTest {
 	}
 
 	@Test
+	void getFreeTextHidesExpectedAnswer() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 19L)).thenReturn(Optional.of(freeTextQuestion()));
+
+		mockMvc.perform(get("/api/ext/subjects/4/questions/19").header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.formCode").value("texte"))
+				.andExpect(jsonPath("$.prompt").value("Capitale de la France"))
+				.andExpect(jsonPath("$.expectedAnswer").doesNotExist())
+				.andExpect(content().string(not(containsString("Paris"))));
+	}
+
+	@Test
+	void submitFreeTextAcceptsAccentAndCase() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 19L)).thenReturn(Optional.of(freeTextQuestion()));
+		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
+				.thenReturn(new StoredAttempt(49L, 7L, 4L, 19L, "texte", 100, true));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/19/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"attempt":"  Pâris  "}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.attemptId").value(49))
+				.andExpect(jsonPath("$.scorePercent").value(100))
+				.andExpect(jsonPath("$.passed").value(true));
+
+		ArgumentCaptor<NewAttempt> attempt = ArgumentCaptor.forClass(NewAttempt.class);
+		verify(childQuestionAttemptPort).insert(attempt.capture());
+		assertThat(attempt.getValue().formCode()).isEqualTo("texte");
+		assertThat(attempt.getValue().passed()).isTrue();
+		assertThat(attempt.getValue().answers()).hasSize(1);
+		assertThat(attempt.getValue().answers().get(0).targetKind()).isEqualTo("texte");
+	}
+
+	@Test
+	void submitFreeTextWrongAnswerIsNotPassed() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 19L)).thenReturn(Optional.of(freeTextQuestion()));
+		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
+				.thenReturn(new StoredAttempt(50L, 7L, 4L, 19L, "texte", 0, false));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/19/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"attempt":"Lyon"}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.scorePercent").value(0))
+				.andExpect(jsonPath("$.passed").value(false));
+	}
+
+	@Test
+	void submitBlankFreeTextIsRefused() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 19L)).thenReturn(Optional.of(freeTextQuestion()));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/19/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"attempt":"   "}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(FreeTextChildAnswerGrader.BAD_ANSWER));
+
+		verify(childQuestionAttemptPort, never()).insert(any(NewAttempt.class));
+	}
+
+	@Test
 	void unlinkedSubjectIsNotFound() throws Exception {
 		String token = loginAsLea();
 		when(childLoginPort.findActiveById(7L))
@@ -454,6 +537,10 @@ class ChildQuestionPlayControllerTest {
 		mockMvc.perform(get("/api/ext/subjects/4/questions/11").header("Authorization", "Bearer " + token))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.message").value(ChildQuestionPlayService.SUBJECT_MISSING));
+	}
+
+	private static StoredQuestion freeTextQuestion() {
+		return new StoredQuestion(19L, 4L, "texte", "Capitale de la France", new StoredFreeText("Paris"));
 	}
 
 	/** Rouge, bleu, vert, jaune ; suite rouge, bleu, vert, rouge. */

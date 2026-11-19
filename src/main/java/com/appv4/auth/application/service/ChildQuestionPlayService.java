@@ -43,6 +43,7 @@ import com.appv4.auth.application.service.question.LetterByLetterMatch;
 import com.appv4.auth.application.service.question.play.ChildAnswerGrade;
 import com.appv4.auth.application.service.question.play.ClassificationChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.ClickChildAnswerGrader;
+import com.appv4.auth.application.service.question.play.FreeTextChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.GapChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.LetterChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.LinkChildAnswerGrader;
@@ -169,6 +170,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			case GapChildAnswerGrader.FORM -> GapChildAnswerGrader.grade(stored, answers.gapFills());
 			case ClickChildAnswerGrader.FORM -> ClickChildAnswerGrader.grade(stored, answers.zoneClicks());
 			case LetterChildAnswerGrader.FORM -> LetterChildAnswerGrader.grade(stored, answers.attempt());
+			case FreeTextChildAnswerGrader.FORM -> FreeTextChildAnswerGrader.grade(stored, answers.attempt());
 			case PuzzleChildAnswerGrader.FORM -> PuzzleChildAnswerGrader.grade(stored, answers.puzzlePlacements());
 			case SimonChildAnswerGrader.FORM -> SimonChildAnswerGrader.grade(
 					stored,
@@ -381,6 +383,27 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					ordered,
 					zones,
 					steps);
+		}
+		if (FreeTextChildAnswerGrader.FORM.equals(form)) {
+			String expected = stored.expectedAnswer();
+			if (expected == null || expected.isBlank()) {
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
+			}
+			return new ChildPlayQuestionView(
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					null,
+					List.of(),
+					"",
+					List.of());
 		}
 		if (LetterChildAnswerGrader.FORM.equals(form)) {
 			String expected = stored.expectedAnswer();

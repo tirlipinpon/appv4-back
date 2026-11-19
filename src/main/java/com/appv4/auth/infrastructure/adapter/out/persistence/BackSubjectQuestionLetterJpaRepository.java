@@ -12,8 +12,12 @@ public interface BackSubjectQuestionLetterJpaRepository extends JpaRepository<Ba
 
 	List<BackSubjectQuestionLetterEntity> findByQuestionIdIn(List<Long> questionIds);
 
-	/** L'ancien mot part avant d'écrire la correction. */
-	@Modifying(flushAutomatically = true)
+	/**
+	 * L'ancien mot part avant d'écrire la correction.
+	 * {@code clearAutomatically} évite qu'Hibernate garde la ligne en session
+	 * (sinon réécriture du même {@code question_id} → 500).
+	 */
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("delete from BackSubjectQuestionLetterEntity row where row.questionId = :questionId")
 	void deleteByQuestionId(@Param("questionId") long questionId);
 }

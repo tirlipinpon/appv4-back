@@ -280,13 +280,16 @@ class TeacherQuestionPersistenceTest {
 		adapter.ensureForm(subjectId, "reponse_libre", "Lettre par lettre", 9);
 		StoredQuestion saved = adapter.insert(
 				subjectId, "reponse_libre", "Capitale de la France", new FreeTextDraft("Paris"));
-		adapter.replace(saved.id(), "Capitale de la France", new FreeTextDraft("Lyon"));
+		// Charge la ligne en session comme le use case update (find puis replace).
+		assertThat(adapter.findInSubject(subjectId, saved.id()).orElseThrow().expectedAnswer()).isEqualTo("Paris");
+		adapter.replace(saved.id(), "ouvrir bouteille de vin", new FreeTextDraft("tire bouchon"));
 		StoredQuestion loaded = adapter.findInSubject(subjectId, saved.id()).orElseThrow();
 		assertThat(loaded.formCode()).isEqualTo("reponse_libre");
-		assertThat(loaded.expectedAnswer()).isEqualTo("Lyon");
+		assertThat(loaded.prompt()).isEqualTo("ouvrir bouteille de vin");
+		assertThat(loaded.expectedAnswer()).isEqualTo("tire bouchon");
 		assertThat(jdbc.queryForObject("""
 				select expected_answer from back_subject_question_letters where question_id = ?
-				""", String.class, saved.id())).isEqualTo("Lyon");
+				""", String.class, saved.id())).isEqualTo("tire bouchon");
 	}
 
 	@Test

@@ -21,6 +21,7 @@ import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.PlacementAnsw
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.StatementAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.ZoneClickAnswer;
 import com.appv4.auth.application.result.ChildAttemptResultView;
+import com.appv4.auth.application.result.ChildLetterLocksView;
 import com.appv4.auth.application.result.ChildPlayQuestionView;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -127,6 +128,36 @@ public class ChildQuestionPlayController {
 				.body(new ChildAttemptResultResponse(view.attemptId(), view.scorePercent(), view.passed()));
 	}
 
+	@PostMapping("/letter-locks")
+	@Operation(
+			operationId = "checkChildLetterLocks",
+			summary = "Verrouiller les lettres déjà justes (sans enregistrer)")
+	@ApiResponse(responseCode = "200", description = "Verrous par case")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Forme non lettre par lettre",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "401",
+			description = "Badge absent, adulte, expiré, ou fiche arrêtée",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière ou question absente / non liée",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<ChildLetterLocksResponse> letterLocks(
+			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+			@PathVariable long subjectId,
+			@PathVariable long questionId,
+			@RequestBody ChildLetterLocksRequest body) {
+		ChildLetterLocksView view = childQuestionPlayUseCase.letterLocks(
+				bearer(authorization),
+				subjectId,
+				questionId,
+				body == null ? "" : body.attempt());
+		return ResponseEntity.ok(new ChildLetterLocksResponse(view.locks()));
+	}
+
 	private static ChildPlayQuestionResponse toResponse(ChildPlayQuestionView view) {
 		List<ChildPlayChoiceItem> choices = view.choices().stream()
 				.map(c -> new ChildPlayChoiceItem(c.choiceId(), c.label()))
@@ -182,7 +213,8 @@ public class ChildQuestionPlayController {
 				view.clicksOrdered(),
 				clickZones,
 				clickSteps,
-				view.letterCount());
+				view.letterCount(),
+				view.letterMask());
 	}
 
 	private static String bearer(String authorization) {
@@ -212,7 +244,16 @@ public class ChildQuestionPlayController {
 			Boolean clicksOrdered,
 			List<ChildPlayClickZoneItem> clickZones,
 			List<ChildPlayClickStepItem> clickSteps,
-			Integer letterCount) {
+			Integer letterCount,
+			String letterMask) {
+	}
+
+	@Schema(name = "ChildLetterLocksRequest")
+	public record ChildLetterLocksRequest(String attempt) {
+	}
+
+	@Schema(name = "ChildLetterLocksResponse")
+	public record ChildLetterLocksResponse(List<Boolean> locks) {
 	}
 
 	@Schema(name = "ChildPlayChoiceItem")

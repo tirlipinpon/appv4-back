@@ -34,6 +34,8 @@ import com.appv4.auth.application.result.ChildPlayQuestionView.PlayItem;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayLink;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayPair;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayStatement;
+import com.appv4.auth.application.result.ChildLetterLocksView;
+import com.appv4.auth.application.service.question.LetterByLetterMatch;
 import com.appv4.auth.application.service.question.play.ChildAnswerGrade;
 import com.appv4.auth.application.service.question.play.ClassificationChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.ClickChildAnswerGrader;
@@ -113,6 +115,25 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		childDailyMissionService.recordUsefulAttempt(
 				childId, subjectId, saved.scorePercent(), saved.passed());
 		return new ChildAttemptResultView(saved.id(), saved.scorePercent(), saved.passed());
+	}
+
+	/**
+	 * Verrous case par case pendant la saisie (sans enregistrer de tentative).
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public ChildLetterLocksView letterLocks(String rawToken, long subjectId, long questionId, String attempt) {
+		requireActiveChild(rawToken);
+		requireLinkedSubject(rawToken, subjectId);
+		StoredQuestion stored = requireQuestion(subjectId, questionId);
+		if (!LetterChildAnswerGrader.FORM.equals(stored.formCode())) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
+		}
+		String expected = stored.expectedAnswer();
+		if (expected == null || expected.isBlank()) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
+		}
+		return new ChildLetterLocksView(LetterByLetterMatch.positionLocks(expected, attempt));
 	}
 
 	private ChildAnswerGrade grade(StoredQuestion stored, AttemptAnswers answers) {
@@ -348,7 +369,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					null,
 					List.of(),
 					List.of(),
-					expected.length());
+					expected.length(),
+					LetterByLetterMatch.mask(expected));
 		}
 		throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 	}

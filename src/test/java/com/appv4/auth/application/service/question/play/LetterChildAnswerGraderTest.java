@@ -15,6 +15,10 @@ class LetterChildAnswerGraderTest {
 		return new StoredQuestion(1L, 2L, "reponse_libre", "Écris le mot.", new StoredFreeText("école"));
 	}
 
+	private static StoredQuestion twoWords() {
+		return new StoredQuestion(1L, 2L, "reponse_libre", "Ouvre la bouteille.", new StoredFreeText("tire bouchon"));
+	}
+
 	@Test
 	void matchingWordPassesIgnoringCase() {
 		ChildAnswerGrade grade = LetterChildAnswerGrader.grade(question(), "ÉCOLE");
@@ -23,9 +27,17 @@ class LetterChildAnswerGraderTest {
 	}
 
 	@Test
-	void missingAccentFails() {
+	void missingAccentScoresPartialLetters() {
+		// e c o l e vs é c o l e → 4 / 5
 		ChildAnswerGrade grade = LetterChildAnswerGrader.grade(question(), "ecole");
-		assertThat(grade.scorePercent()).isEqualTo(0);
+		assertThat(grade.scorePercent()).isEqualTo(80);
+		assertThat(grade.passed()).isFalse();
+	}
+
+	@Test
+	void oneWrongLetterInTwoWordsScoresTenOverEleven() {
+		ChildAnswerGrade grade = LetterChildAnswerGrader.grade(twoWords(), "tirx bouchon");
+		assertThat(grade.scorePercent()).isEqualTo(91);
 		assertThat(grade.passed()).isFalse();
 	}
 

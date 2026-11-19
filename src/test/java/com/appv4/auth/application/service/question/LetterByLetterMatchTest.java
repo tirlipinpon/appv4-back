@@ -35,4 +35,33 @@ class LetterByLetterMatchTest {
 		assertThat(LetterByLetterMatch.accepted("Paris", "   ")).isFalse();
 		assertThat(LetterByLetterMatch.accepted("Paris", null)).isFalse();
 	}
+
+	@Test
+	void maskKeepsSpacesWithoutRevealingLetters() {
+		assertThat(LetterByLetterMatch.mask("tire bouchon")).isEqualTo("#### #######");
+		assertThat(LetterByLetterMatch.mask("Paris")).isEqualTo("#####");
+	}
+
+	@Test
+	void positionLocksFreezeCorrectLettersAndSpaces() {
+		String expected = "tire bouchon";
+		String attempt = "tir" + LetterByLetterMatch.EMPTY_SLOT + " b"
+				+ String.valueOf(LetterByLetterMatch.EMPTY_SLOT).repeat(6);
+		assertThat(LetterByLetterMatch.positionLocks(expected, attempt)).containsExactly(
+				true, true, true, false, true, true, false, false, false, false, false, false);
+	}
+
+	@Test
+	void twoWordAnswerIsAcceptedWithItsSpace() {
+		assertThat(LetterByLetterMatch.accepted("tire bouchon", "tire bouchon")).isTrue();
+		assertThat(LetterByLetterMatch.accepted("tire bouchon", "TIRE BOUCHON")).isTrue();
+		assertThat(LetterByLetterMatch.accepted("tire bouchon", "tirebouchon")).isFalse();
+	}
+
+	@Test
+	void scorePercentCountsOnlyLetterSlots() {
+		assertThat(LetterByLetterMatch.scorePercent("tire bouchon", "tire bouchon")).isEqualTo(100);
+		assertThat(LetterByLetterMatch.scorePercent("tire bouchon", "tirx bouchon")).isEqualTo(91);
+		assertThat(LetterByLetterMatch.scorePercent("école", "ecole")).isEqualTo(80);
+	}
 }

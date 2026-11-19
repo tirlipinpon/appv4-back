@@ -11,9 +11,9 @@ import com.appv4.auth.application.service.question.LetterByLetterMatch;
 /**
  * Note une saisie lettre par lettre.
  *
- * <p><b>Business :</b> le mot assemblé doit coller au mot du professeur
- * (casse ignorée, accents gardés). Réussi seulement à 100 %.
- * <p><b>Technique :</b> réutilise {@link LetterByLetterMatch} ; une ligne
+ * <p><b>Business :</b> chaque lettre juste compte dans le score (les espaces
+ * ne comptent pas). Réussi seulement quand toutes les lettres sont justes.
+ * <p><b>Technique :</b> {@link LetterByLetterMatch#scorePercent} ; une ligne
  * {@code target_kind = letter} sans bool ni choice.
  * <p><b>Métier / flow :</b> POST attempts → {@link com.appv4.auth.application.service.ChildQuestionPlayService}.
  */
@@ -36,8 +36,8 @@ public final class LetterChildAnswerGrader {
 		if (attempt.length() != expected.length()) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, BAD_ANSWER);
 		}
-		boolean passed = LetterByLetterMatch.accepted(expected, attempt);
-		int score = passed ? 100 : 0;
+		int score = LetterByLetterMatch.scorePercent(expected, attempt);
+		boolean passed = score == 100;
 		List<AnswerLine> lines = List.of(new AnswerLine("letter", question.id(), null, null, passed));
 		return new ChildAnswerGrade(score, passed, lines);
 	}

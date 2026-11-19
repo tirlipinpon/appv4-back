@@ -15,7 +15,8 @@ import java.util.List;
  * quel mot va dans quel trou est noté à la tentative. Les mots sont mélangés.
  * Image à cliquer : l'image et la géométrie des zones, sans dire lesquelles sont justes.
  * Si les clics sont ordonnés, chaque étape porte la consigne (le nom de la zone).
- * Lettre par lettre : {@code letterCount} cases, sans le mot attendu.
+ * Lettre par lettre : {@code letterCount} cases et {@code letterMask}
+ * ({@code #} = lettre, espace = saut), sans le mot attendu.
  * <p><b>Technique :</b> payload GET play.
  * <p><b>Métier / flow :</b> use case play → controller /api/ext.
  */
@@ -38,7 +39,8 @@ public record ChildPlayQuestionView(
 		Boolean clicksOrdered,
 		List<PlayClickZone> clickZones,
 		List<PlayClickStep> clickSteps,
-		Integer letterCount) {
+		Integer letterCount,
+		String letterMask) {
 
 	public ChildPlayQuestionView(
 			long questionId,
@@ -56,7 +58,7 @@ public record ChildPlayQuestionView(
 			String sentence,
 			List<PlayGapWord> words) {
 		this(questionId, subjectId, formCode, prompt, choices, statements, pairs, items, columns, cards,
-				timelineEnabled, links, sentence, words, "", null, List.of(), List.of(), null);
+				timelineEnabled, links, sentence, words, "", null, List.of(), List.of(), null, null);
 	}
 
 	public ChildPlayQuestionView(
@@ -79,7 +81,7 @@ public record ChildPlayQuestionView(
 			List<PlayClickZone> clickZones,
 			List<PlayClickStep> clickSteps) {
 		this(questionId, subjectId, formCode, prompt, choices, statements, pairs, items, columns, cards,
-				timelineEnabled, links, sentence, words, imageWebp, clicksOrdered, clickZones, clickSteps, null);
+				timelineEnabled, links, sentence, words, imageWebp, clicksOrdered, clickZones, clickSteps, null, null);
 	}
 
 	public ChildPlayQuestionView {
@@ -96,6 +98,7 @@ public record ChildPlayQuestionView(
 		prompt = prompt == null ? "" : prompt;
 		sentence = sentence == null ? "" : sentence;
 		imageWebp = imageWebp == null ? "" : imageWebp;
+		letterMask = letterMask == null ? "" : letterMask;
 	}
 
 	public record PlayChoice(long choiceId, String label) {

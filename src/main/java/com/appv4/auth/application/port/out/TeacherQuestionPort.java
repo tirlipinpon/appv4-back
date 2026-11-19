@@ -128,9 +128,17 @@ public interface TeacherQuestionPort {
 		}
 	}
 
-	/** Image WebP déjà allégée, et les zones qui restent collées à ce dessin. */
-	record ClickImageDraft(byte[] imageWebp, boolean requireAllCorrect, List<ClickZoneDraft> zones)
+	/**
+	 * Image WebP déjà allégée, et les zones qui restent collées à ce dessin.
+	 * {@code clicksOrdered} true : les zones justes portent un rang. false : aucun rang.
+	 */
+	record ClickImageDraft(
+			byte[] imageWebp, boolean requireAllCorrect, boolean clicksOrdered, List<ClickZoneDraft> zones)
 			implements DraftContent {
+		public ClickImageDraft(byte[] imageWebp, boolean requireAllCorrect, List<ClickZoneDraft> zones) {
+			this(imageWebp, requireAllCorrect, true, zones);
+		}
+
 		public ClickImageDraft {
 			imageWebp = imageWebp.clone();
 			zones = List.copyOf(zones);
@@ -281,8 +289,13 @@ public interface TeacherQuestionPort {
 	}
 
 	/** Image et zones telles que le professeur les a enregistrées. */
-	record StoredClickImage(byte[] imageWebp, boolean requireAllCorrect, List<StoredClickZone> zones)
+	record StoredClickImage(
+			byte[] imageWebp, boolean requireAllCorrect, boolean clicksOrdered, List<StoredClickZone> zones)
 			implements StoredContent {
+		public StoredClickImage(byte[] imageWebp, boolean requireAllCorrect, List<StoredClickZone> zones) {
+			this(imageWebp, requireAllCorrect, true, zones);
+		}
+
 		public StoredClickImage {
 			imageWebp = imageWebp.clone();
 			zones = List.copyOf(zones);
@@ -415,6 +428,11 @@ public interface TeacherQuestionPort {
 
 		public Boolean requireAllCorrect() {
 			return content instanceof StoredClickImage value ? value.requireAllCorrect() : null;
+		}
+
+		/** Clics ordonnés. {@code null} hors image à cliquer. */
+		public Boolean clicksOrdered() {
+			return content instanceof StoredClickImage value ? value.clicksOrdered() : null;
 		}
 
 		/** Frise Ordre active. {@code null} hors forme {@code order}. */

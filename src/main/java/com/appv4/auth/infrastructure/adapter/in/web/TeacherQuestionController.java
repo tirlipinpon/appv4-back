@@ -151,7 +151,7 @@ public class TeacherQuestionController {
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
 						null, null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -187,7 +187,7 @@ public class TeacherQuestionController {
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
 						null, null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -327,7 +327,8 @@ public class TeacherQuestionController {
 			return new FreeTextInput(body.expectedAnswer());
 		}
 		if (TeacherQuestionService.IMAGE_CLICK.equals(code)) {
-			return new ClickImageInput(body.imageWebp(), body.requireAllCorrect(), zoneInputs(body.zones()));
+			return new ClickImageInput(
+					body.imageWebp(), body.requireAllCorrect(), body.clicksOrdered(), zoneInputs(body.zones()));
 		}
 		if (TeacherQuestionService.PUZZLE.equals(code)) {
 			return new PuzzleInput(
@@ -577,7 +578,7 @@ public class TeacherQuestionController {
 				choices, pairs, items, statements, links, columns, cards, line.sentence(), answers, decoys,
 				line.expectedAnswer(), base64(line.imageWebp()), line.boardMode(),
 				base64(line.boardImageWebp()), line.requireAllCorrect(), zones, pieces, line.snapDistance(),
-				line.timelineEnabled());
+				line.timelineEnabled(), line.clicksOrdered());
 	}
 
 	private static List<TeacherQuestionPointItem> pointItems(List<ClickPoint> points) {
@@ -631,7 +632,36 @@ public class TeacherQuestionController {
 			List<TeacherQuestionZoneItem> zones,
 			List<TeacherQuestionPieceItem> pieces,
 			Double snapDistance,
-			Boolean timelineEnabled) {
+			Boolean timelineEnabled,
+			Boolean clicksOrdered) {
+		public TeacherSubjectQuestionItem(
+				long id,
+				String formCode,
+				String formLabel,
+				String prompt,
+				List<TeacherQuestionChoiceItem> choices,
+				List<TeacherQuestionPairItem> pairs,
+				List<TeacherQuestionItem> items,
+				List<TeacherQuestionStatementItem> statements,
+				List<TeacherQuestionLinkItem> links,
+				List<TeacherQuestionColumnItem> columns,
+				List<TeacherQuestionCardItem> cards,
+				String sentence,
+				List<TeacherQuestionGapWordItem> answers,
+				List<TeacherQuestionGapWordItem> decoys,
+				String expectedAnswer,
+				String imageWebp,
+				String boardMode,
+				String boardImageWebp,
+				Boolean requireAllCorrect,
+				List<TeacherQuestionZoneItem> zones,
+				List<TeacherQuestionPieceItem> pieces,
+				Double snapDistance,
+				Boolean timelineEnabled) {
+			this(id, formCode, formLabel, prompt, choices, pairs, items, statements, links, columns, cards, sentence,
+					answers, decoys, expectedAnswer, imageWebp, boardMode, boardImageWebp, requireAllCorrect, zones,
+					pieces, snapDistance, timelineEnabled, null);
+		}
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
@@ -712,7 +742,8 @@ public class TeacherQuestionController {
 			List<TeacherQuestionZoneInput> zones,
 			List<TeacherQuestionPieceInput> pieces,
 			Double snapDistance,
-			Boolean timelineEnabled) {
+			Boolean timelineEnabled,
+			Boolean clicksOrdered) {
 	}
 
 	@Schema(name = "TeacherQuestionColumnInput")

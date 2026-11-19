@@ -184,9 +184,14 @@ public interface TeacherQuestionUseCase {
 	/**
 	 * Image à cliquer. {@code imageWebp} est le fichier déjà allégé, en base64.
 	 * {@code requireAllCorrect} dit si toutes les zones justes sont obligatoires.
+	 * {@code clicksOrdered} null ou true : les zones justes ont un rang. false : aucun rang.
 	 */
-	record ClickImageInput(String imageWebp, Boolean requireAllCorrect, List<ClickZoneInput> zones)
+	record ClickImageInput(
+			String imageWebp, Boolean requireAllCorrect, Boolean clicksOrdered, List<ClickZoneInput> zones)
 			implements ContentInput {
+		public ClickImageInput(String imageWebp, Boolean requireAllCorrect, List<ClickZoneInput> zones) {
+			this(imageWebp, requireAllCorrect, null, zones);
+		}
 	}
 
 	/**

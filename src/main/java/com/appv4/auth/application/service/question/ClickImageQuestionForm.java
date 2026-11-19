@@ -26,12 +26,13 @@ import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
  * Règles de saisie d'une image à cliquer (SCRUM-181).
  *
  * <p><b>Business :</b> le professeur pose une image, nomme chaque zone, et dit si elle est
- * juste. Sur les zones justes, il donne l'ordre des clics (1, puis 2, puis 3).
+ * juste. S'il choisit un ordre, les zones justes portent les rangs 1, 2, 3
+ * et chaque nom devient la consigne de l'étape. Sans ordre, aucune zone n'a de rang.
  * Il dit aussi s'il faut cliquer toutes les zones justes. L'énoncé peut rester vide.
  * <p><b>Technique :</b> code {@code image_interactive}, ordre 8. L'image et les points
- * passent par {@link DrawnImageRules}.
+ * passent par {@link DrawnImageRules}. {@code clicksOrdered} null suit l'ordre.
  * <p><b>Métier / flow :</b> le registre appelle {@link #prepare} avant l'enregistrement.
- * L'élève ne joue pas encore.
+ * L'élève joue ensuite cette image, zone par zone ou en vrac.
  */
 public final class ClickImageQuestionForm implements QuestionFormHandler {
 
@@ -50,15 +51,17 @@ public final class ClickImageQuestionForm implements QuestionFormHandler {
 		if (image.requireAllCorrect() == null) {
 			throw bad(ZONE_RULE_REQUIRED);
 		}
+		boolean ordered = image.clicksOrdered() == null || image.clicksOrdered();
 		return new Prepared(
 				QuestionValidation.optionalPrompt(prompt),
 				new ClickImageDraft(
 						DrawnImageRules.requireWebp(image.imageWebp()),
 						image.requireAllCorrect(),
-						requireZones(image.zones())));
+						ordered,
+						requireZones(image.zones(), ordered)));
 	}
 
-	private static List<ClickZoneDraft> requireZones(List<ClickZoneInput> zones) {
+	private static List<ClickZoneDraft> requireZones(List<ClickZoneInput> zones, boolean ordered) {
 		if (zones == null || zones.isEmpty()) {
 			throw bad(ZONES_REQUIRED);
 		}
@@ -72,9 +75,11 @@ public final class ClickImageQuestionForm implements QuestionFormHandler {
 					requireSide(zone.correct()),
 					DrawnImageRules.shape(zone.shape()),
 					DrawnImageRules.points(zone.shape(), zone.points()),
-					zone.clickOrder()));
+					ordered ? zone.clickOrder() : null));
 		}
-		requireClickOrder(drafts);
+		if (ordered) {
+			requireClickOrder(drafts);
+		}
 		return List.copyOf(drafts);
 	}
 

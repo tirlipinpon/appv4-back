@@ -12,7 +12,7 @@ import jakarta.persistence.Table;
  * pas le fichier d'origine.
  * <p><b>Technique :</b> table {@code back_subject_question_click_images}. Une ligne par question.
  * {@code imageWebp} est le fichier déjà réduit. {@code requireAllCorrect} dit si chaque
- * zone juste devra être cliquée.
+ * zone juste devra être cliquée. {@code clicksOrdered} dit si les clics suivent un rang.
  * <p><b>Métier / flow :</b> écrite avec la question dont la forme est {@code image_interactive}.
  * Les zones sont dans {@link BackSubjectQuestionClickZoneEntity}.
  */
@@ -30,13 +30,22 @@ public class BackSubjectQuestionClickImageEntity {
 	@Column(name = "require_all_correct", nullable = false)
 	private boolean requireAllCorrect;
 
+	@Column(name = "clicks_ordered", nullable = false)
+	private boolean clicksOrdered;
+
 	protected BackSubjectQuestionClickImageEntity() {
 	}
 
 	public BackSubjectQuestionClickImageEntity(long questionId, byte[] imageWebp, boolean requireAllCorrect) {
+		this(questionId, imageWebp, requireAllCorrect, true);
+	}
+
+	public BackSubjectQuestionClickImageEntity(
+			long questionId, byte[] imageWebp, boolean requireAllCorrect, boolean clicksOrdered) {
 		this.questionId = questionId;
 		this.imageWebp = imageWebp.clone();
 		this.requireAllCorrect = requireAllCorrect;
+		this.clicksOrdered = clicksOrdered;
 	}
 
 	public Long getQuestionId() {
@@ -49,5 +58,9 @@ public class BackSubjectQuestionClickImageEntity {
 
 	public boolean isRequireAllCorrect() {
 		return requireAllCorrect;
+	}
+
+	public boolean isClicksOrdered() {
+		return clicksOrdered;
 	}
 }

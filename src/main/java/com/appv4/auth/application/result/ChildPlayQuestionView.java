@@ -13,6 +13,8 @@ import java.util.List;
  * Liens : les deux libellés d'un lien sont le contenu jouable ; l'association est notée à la tentative.
  * Case vide : la phrase et la banque (mots justes + leurres) sont le contenu jouable ;
  * quel mot va dans quel trou est noté à la tentative. Les mots sont mélangés.
+ * Image à cliquer : l'image et la géométrie des zones, sans dire lesquelles sont justes.
+ * Si les clics sont ordonnés, chaque étape porte la consigne (le nom de la zone).
  * <p><b>Technique :</b> payload GET play.
  * <p><b>Métier / flow :</b> use case play → controller /api/ext.
  */
@@ -30,7 +32,30 @@ public record ChildPlayQuestionView(
 		Boolean timelineEnabled,
 		List<PlayLink> links,
 		String sentence,
-		List<PlayGapWord> words) {
+		List<PlayGapWord> words,
+		String imageWebp,
+		Boolean clicksOrdered,
+		List<PlayClickZone> clickZones,
+		List<PlayClickStep> clickSteps) {
+
+	public ChildPlayQuestionView(
+			long questionId,
+			long subjectId,
+			String formCode,
+			String prompt,
+			List<PlayChoice> choices,
+			List<PlayStatement> statements,
+			List<PlayPair> pairs,
+			List<PlayItem> items,
+			List<PlayColumn> columns,
+			List<PlayCard> cards,
+			Boolean timelineEnabled,
+			List<PlayLink> links,
+			String sentence,
+			List<PlayGapWord> words) {
+		this(questionId, subjectId, formCode, prompt, choices, statements, pairs, items, columns, cards,
+				timelineEnabled, links, sentence, words, "", null, List.of(), List.of());
+	}
 
 	public ChildPlayQuestionView {
 		choices = choices == null ? List.of() : List.copyOf(choices);
@@ -41,8 +66,11 @@ public record ChildPlayQuestionView(
 		cards = cards == null ? List.of() : List.copyOf(cards);
 		links = links == null ? List.of() : List.copyOf(links);
 		words = words == null ? List.of() : List.copyOf(words);
+		clickZones = clickZones == null ? List.of() : List.copyOf(clickZones);
+		clickSteps = clickSteps == null ? List.of() : List.copyOf(clickSteps);
 		prompt = prompt == null ? "" : prompt;
 		sentence = sentence == null ? "" : sentence;
+		imageWebp = imageWebp == null ? "" : imageWebp;
 	}
 
 	public record PlayChoice(long choiceId, String label) {
@@ -72,5 +100,19 @@ public record ChildPlayQuestionView(
 
 	/** Mot de la banque Case vide. L'id ne dit pas si le mot est un leurre. */
 	public record PlayGapWord(long wordId, String label) {
+	}
+
+	/** Géométrie d'une zone, sans dire si elle est juste. Les points sont entre 0 et 1. */
+	public record PlayClickZone(long zoneId, String shape, List<PlayClickPoint> points) {
+		public PlayClickZone {
+			points = points == null ? List.of() : List.copyOf(points);
+		}
+	}
+
+	public record PlayClickPoint(double x, double y) {
+	}
+
+	/** Consigne d'une étape, dans l'ordre, quand les clics sont ordonnés. */
+	public record PlayClickStep(long zoneId, String prompt) {
 	}
 }

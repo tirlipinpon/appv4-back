@@ -43,6 +43,13 @@ public interface ChildQuestionPlayUseCase {
 	record ZoneClickAnswer(long zoneId) {
 	}
 
+	/**
+	 * Position du coin haut-gauche d'une pièce sur le plateau (0–1).
+	 * Une ligne par pièce ; toutes les pièces doivent être placées.
+	 */
+	record PuzzlePiecePlacementAnswer(long pieceId, double x, double y) {
+	}
+
 	record AttemptAnswers(
 			List<Long> selectedChoiceIds,
 			List<StatementAnswer> statements,
@@ -52,6 +59,7 @@ public interface ChildQuestionPlayUseCase {
 			List<LinkMatchAnswer> linkMatches,
 			List<GapFillAnswer> gapFills,
 			List<ZoneClickAnswer> zoneClicks,
+			List<PuzzlePiecePlacementAnswer> puzzlePlacements,
 			String attempt) {
 		public AttemptAnswers(
 				List<Long> selectedChoiceIds,
@@ -62,7 +70,7 @@ public interface ChildQuestionPlayUseCase {
 				List<LinkMatchAnswer> linkMatches,
 				List<GapFillAnswer> gapFills) {
 			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
-					List.of(), null);
+					List.of(), List.of(), null);
 		}
 
 		public AttemptAnswers(
@@ -75,7 +83,21 @@ public interface ChildQuestionPlayUseCase {
 				List<GapFillAnswer> gapFills,
 				List<ZoneClickAnswer> zoneClicks) {
 			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
-					zoneClicks, null);
+					zoneClicks, List.of(), null);
+		}
+
+		public AttemptAnswers(
+				List<Long> selectedChoiceIds,
+				List<StatementAnswer> statements,
+				List<Long> matchedPairIds,
+				List<Long> orderedItemIds,
+				List<PlacementAnswer> placements,
+				List<LinkMatchAnswer> linkMatches,
+				List<GapFillAnswer> gapFills,
+				List<ZoneClickAnswer> zoneClicks,
+				String attempt) {
+			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
+					zoneClicks, List.of(), attempt);
 		}
 
 		public AttemptAnswers {
@@ -87,6 +109,7 @@ public interface ChildQuestionPlayUseCase {
 			linkMatches = linkMatches == null ? List.of() : List.copyOf(linkMatches);
 			gapFills = gapFills == null ? List.of() : List.copyOf(gapFills);
 			zoneClicks = zoneClicks == null ? List.of() : List.copyOf(zoneClicks);
+			puzzlePlacements = puzzlePlacements == null ? List.of() : List.copyOf(puzzlePlacements);
 			attempt = attempt == null ? "" : attempt;
 		}
 	}

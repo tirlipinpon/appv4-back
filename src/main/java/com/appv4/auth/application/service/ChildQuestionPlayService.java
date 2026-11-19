@@ -33,6 +33,7 @@ import com.appv4.auth.application.result.ChildPlayQuestionView.PlayGapWord;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayItem;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayLink;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayPair;
+import com.appv4.auth.application.result.ChildPlayQuestionView.PlayPuzzlePiece;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayStatement;
 import com.appv4.auth.application.result.ChildLetterLocksView;
 import com.appv4.auth.application.service.question.LetterByLetterMatch;
@@ -44,6 +45,7 @@ import com.appv4.auth.application.service.question.play.LetterChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.LinkChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.MemoryChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.OrderChildAnswerGrader;
+import com.appv4.auth.application.service.question.play.PuzzleChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.QcmChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.TrueFalseChildAnswerGrader;
 
@@ -148,6 +150,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			case GapChildAnswerGrader.FORM -> GapChildAnswerGrader.grade(stored, answers.gapFills());
 			case ClickChildAnswerGrader.FORM -> ClickChildAnswerGrader.grade(stored, answers.zoneClicks());
 			case LetterChildAnswerGrader.FORM -> LetterChildAnswerGrader.grade(stored, answers.attempt());
+			case PuzzleChildAnswerGrader.FORM -> PuzzleChildAnswerGrader.grade(stored, answers.puzzlePlacements());
 			default -> throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 		};
 	}
@@ -371,6 +374,52 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					expected.length(),
 					LetterByLetterMatch.mask(expected));
+		}
+		if (PuzzleChildAnswerGrader.FORM.equals(form)) {
+			byte[] cutBytes = stored.imageWebp();
+			if (cutBytes.length == 0 || stored.puzzlePieces().isEmpty() || stored.snapDistance() == null) {
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
+			}
+			String cutImage = Base64.getEncoder().encodeToString(cutBytes);
+			byte[] boardBytes = stored.boardImageWebp();
+			String boardImage = boardBytes.length == 0 ? "" : Base64.getEncoder().encodeToString(boardBytes);
+			List<PlayPuzzlePiece> pieces = new ArrayList<>(stored.puzzlePieces().stream()
+					.map(piece -> new PlayPuzzlePiece(
+							piece.id(),
+							piece.label(),
+							piece.shape(),
+							piece.points().stream()
+									.map(point -> new PlayClickPoint(point.x(), point.y()))
+									.toList(),
+							piece.slotX(),
+							piece.slotY()))
+					.toList());
+			Collections.shuffle(pieces);
+			return new ChildPlayQuestionView(
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					null,
+					List.of(),
+					"",
+					List.of(),
+					cutImage,
+					null,
+					List.of(),
+					List.of(),
+					null,
+					null,
+					stored.boardMode(),
+					boardImage,
+					stored.snapDistance(),
+					pieces);
 		}
 		throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 	}

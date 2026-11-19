@@ -73,12 +73,16 @@ public class ReadChildSubjectBoardService implements ReadChildSubjectBoardUseCas
 		int minutesLeft = 0;
 		ContinueLesson continueLesson = null;
 		Map<Long, int[]> topicProgress = new HashMap<>();
-		for (StoredTopic topic : topics) {
+		Map<Long, Integer> topicRanks = new HashMap<>();
+		for (int rank = 0; rank < topics.size(); rank++) {
+			StoredTopic topic = topics.get(rank);
+			topicRanks.put(topic.id(), rank);
 			topicProgress.put(topic.id(), new int[] {0, 0});
 		}
 		List<StoredLesson> ordered = lessons.stream()
 				.sorted(Comparator
-						.comparingInt((StoredLesson lesson) -> topicSort(topics, lesson.topicId()))
+						.comparingInt((StoredLesson lesson) ->
+								topicRanks.getOrDefault(lesson.topicId(), Integer.MAX_VALUE))
 						.thenComparingInt(StoredLesson::sortOrder)
 						.thenComparingLong(StoredLesson::id))
 				.toList();
@@ -183,15 +187,6 @@ public class ReadChildSubjectBoardService implements ReadChildSubjectBoardUseCas
 			byLesson.computeIfAbsent(row.lessonId(), id -> new ArrayList<>()).add(row.questionId());
 		}
 		return byLesson;
-	}
-
-	private static int topicSort(List<StoredTopic> topics, long topicId) {
-		for (int i = 0; i < topics.size(); i++) {
-			if (topics.get(i).id() == topicId) {
-				return i;
-			}
-		}
-		return Integer.MAX_VALUE;
 	}
 
 	private CatalogSubject requireLinkedSubject(long childId, long subjectId) {

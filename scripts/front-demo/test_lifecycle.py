@@ -27,6 +27,13 @@ def fingerprint():
 
 
 action('rollback')
+# Shadow Flyway history inside a transaction, leaving the real history intact.
+apply_sql = (HERE / 'apply.sql').read_text(encoding='utf-8')
+for history in ('', "INSERT INTO flyway_schema_history VALUES (1, '0', true);"):
+    query = """BEGIN;
+CREATE TEMP TABLE flyway_schema_history (installed_rank int, version text, success boolean);
+""" + history + '\n' + apply_sql
+    assert 'Fixtures validated against' in sql(query, success=False)
 before = fingerprint()
 action('apply')
 action('verify')

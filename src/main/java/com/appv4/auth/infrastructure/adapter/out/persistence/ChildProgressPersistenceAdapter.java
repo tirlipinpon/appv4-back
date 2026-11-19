@@ -20,8 +20,10 @@ import com.appv4.auth.application.port.out.ChildProgressPort;
 public class ChildProgressPersistenceAdapter implements ChildProgressPort {
 
 	private final BackChildProgressJpaRepository repository;
+	private final BackChildJpaRepository children;
 
-	public ChildProgressPersistenceAdapter(BackChildProgressJpaRepository repository) {
+	public ChildProgressPersistenceAdapter(BackChildProgressJpaRepository repository, BackChildJpaRepository children) {
+		this.children = children;
 		this.repository = repository;
 	}
 
@@ -29,6 +31,13 @@ public class ChildProgressPersistenceAdapter implements ChildProgressPort {
 	@Transactional(readOnly = true)
 	public Optional<StoredProgress> findByChildId(long childId) {
 		return repository.findById(childId).map(this::toStored);
+	}
+
+	@Override
+	@Transactional
+	public Optional<StoredProgress> findForUpdate(long childId) {
+		children.lockForProgressUpdate(childId);
+		return findByChildId(childId);
 	}
 
 	@Override

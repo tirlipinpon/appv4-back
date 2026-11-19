@@ -14,6 +14,9 @@ public interface ChildProgressPort {
 
 	Optional<StoredProgress> findByChildId(long childId);
 
+	/** Lock the child's progress until commit, even when its first progress row is still absent. */
+	Optional<StoredProgress> findForUpdate(long childId);
+
 	StoredProgress save(StoredProgress progress);
 
 	record StoredProgress(

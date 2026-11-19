@@ -48,13 +48,12 @@ public class ItemQuestionContentStore implements QuestionContentStore {
 		for (long id : questionIds) {
 			grouped.put(id, new ArrayList<>());
 		}
-		for (BackSubjectQuestionItemEntity row : repository.findByQuestionIdInOrderByQuestionIdAscSortOrderAsc(questionIds)) {
-			grouped.get(row.getQuestionId())
-					.add(new StoredItem(row.getId(), row.getLabel(), row.getAxisLabel()));
-		}
 		Set<Long> timelineOn = new HashSet<>();
-		for (BackSubjectQuestionOrderOptionsEntity row : options.findByQuestionIdIn(questionIds)) {
-			if (row.isTimelineEnabled()) {
+		for (var row : repository.findItemsWithOptions(questionIds)) {
+			if (row.getItemId() != null) {
+				grouped.get(row.getQuestionId()).add(new StoredItem(row.getItemId(), row.getLabel(), row.getAxisLabel()));
+			}
+			if (row.getTimelineEnabled()) {
 				timelineOn.add(row.getQuestionId());
 			}
 		}

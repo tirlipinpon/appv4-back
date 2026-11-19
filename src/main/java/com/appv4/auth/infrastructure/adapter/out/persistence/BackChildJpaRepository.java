@@ -13,6 +13,10 @@ import org.springframework.data.repository.query.Param;
  */
 public interface BackChildJpaRepository extends JpaRepository<BackChildEntity, Long> {
 
+	/** Serialize progress writers while allowing foreign-key references from concurrent attempts. */
+	@Query(value = "select id from back_children where id = :childId for no key update", nativeQuery = true)
+	long lockForProgressUpdate(@Param("childId") long childId);
+
 	interface StudentSummary {
 		Long getId();
 		String getFirstName();

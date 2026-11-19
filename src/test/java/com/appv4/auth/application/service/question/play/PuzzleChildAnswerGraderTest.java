@@ -46,6 +46,21 @@ class PuzzleChildAnswerGraderTest {
 						List.of(piece(10L, "A", 0.1, 0.2, 0.3, 0.4, 0.55, 0.6))));
 	}
 
+	/** Planche d'organes + poupée : la découpe (en haut à gauche) n'est pas la place sur le fond. */
+	private static StoredQuestion fondQuestion(Double slotX, Double slotY) {
+		return new StoredQuestion(
+				1L,
+				2L,
+				"puzzle",
+				"Replace.",
+				new StoredPuzzle(
+						new byte[]{1, 2},
+						"fond",
+						new byte[]{3, 4},
+						0.08,
+						List.of(piece(10L, "cerveau", 0.08, 0.01, 0.64, 0.16, slotX, slotY))));
+	}
+
 	private static StoredPuzzlePiece piece(
 			long id,
 			String label,
@@ -61,7 +76,8 @@ class PuzzleChildAnswerGraderTest {
 				"rect",
 				List.of(new ClickPoint(x1, y1), new ClickPoint(x2, y2)),
 				slotX,
-				slotY);
+				slotY,
+				null);
 	}
 
 	@Test
@@ -102,6 +118,33 @@ class PuzzleChildAnswerGraderTest {
 				List.of(new PuzzlePiecePlacementAnswer(10L, 0.1, 0.2)));
 		assertThat(grade.scorePercent()).isEqualTo(0);
 		assertThat(grade.passed()).isFalse();
+	}
+
+	@Test
+	void fondUsesTeacherPlaceNotCutFrame() {
+		ChildAnswerGrade grade = PuzzleChildAnswerGrader.grade(
+				fondQuestion(0.33, 0.05),
+				List.of(new PuzzlePiecePlacementAnswer(10L, 0.33, 0.05)));
+		assertThat(grade.scorePercent()).isEqualTo(100);
+		assertThat(grade.passed()).isTrue();
+	}
+
+	@Test
+	void fondWrongIfPlacedOnCutInsteadOfPlace() {
+		ChildAnswerGrade grade = PuzzleChildAnswerGrader.grade(
+				fondQuestion(0.33, 0.05),
+				List.of(new PuzzlePiecePlacementAnswer(10L, 0.08, 0.01)));
+		assertThat(grade.scorePercent()).isEqualTo(0);
+		assertThat(grade.passed()).isFalse();
+	}
+
+	@Test
+	void fondWithoutPlaceKeepsTheCutFrame() {
+		ChildAnswerGrade grade = PuzzleChildAnswerGrader.grade(
+				fondQuestion(null, null),
+				List.of(new PuzzlePiecePlacementAnswer(10L, 0.08, 0.01)));
+		assertThat(grade.scorePercent()).isEqualTo(100);
+		assertThat(grade.passed()).isTrue();
 	}
 
 	@Test

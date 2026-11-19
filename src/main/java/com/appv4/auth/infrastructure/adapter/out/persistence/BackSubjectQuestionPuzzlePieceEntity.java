@@ -11,9 +11,12 @@ import jakarta.persistence.Table;
  * Pièce d'un puzzle (SCRUM-183).
  *
  * <p><b>Business :</b> un nom et la forme que le professeur a ajustée. Pas de vert ni de rouge.
- * En mode blanc, {@code slotX}/{@code slotY} fixent l'emplacement cible sur le plateau.
+ * En mode blanc et en mode fond, {@code slotX}/{@code slotY} fixent l'emplacement cible sur le
+ * plateau ; en mode fond, {@code slotWidth} garde aussi la taille choisie par le professeur
+ * (ex. un organe réduit pour entrer dans la cavité de la poupée).
  * <p><b>Technique :</b> table {@code back_subject_question_puzzle_pieces}. {@code points}
  * garde des coordonnées entre 0 et 1, pour que la pièce suive l'image si l'écran change.
+ * {@code slot_width} est une proportion de la largeur du plateau (V64).
  * <p><b>Métier / flow :</b> plusieurs lignes pour une question de forme {@code puzzle}.
  * Le codage des points est celui de {@link ClickZonePoints}, déjà utilisé pour le clic.
  */
@@ -43,6 +46,9 @@ public class BackSubjectQuestionPuzzlePieceEntity {
 	@Column(name = "slot_y")
 	private Double slotY;
 
+	@Column(name = "slot_width")
+	private Double slotWidth;
+
 	@Column(name = "sort_order", nullable = false)
 	private int sortOrder;
 
@@ -56,6 +62,7 @@ public class BackSubjectQuestionPuzzlePieceEntity {
 			String points,
 			Double slotX,
 			Double slotY,
+			Double slotWidth,
 			int sortOrder) {
 		this.questionId = questionId;
 		this.label = label;
@@ -63,6 +70,7 @@ public class BackSubjectQuestionPuzzlePieceEntity {
 		this.points = points;
 		this.slotX = slotX;
 		this.slotY = slotY;
+		this.slotWidth = slotWidth;
 		this.sortOrder = sortOrder;
 	}
 
@@ -92,5 +100,9 @@ public class BackSubjectQuestionPuzzlePieceEntity {
 
 	public Double getSlotY() {
 		return slotY;
+	}
+
+	public Double getSlotWidth() {
+		return slotWidth;
 	}
 }

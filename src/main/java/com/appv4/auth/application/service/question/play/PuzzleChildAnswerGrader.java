@@ -18,8 +18,9 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 /**
  * Note un puzzle (pièces replacées).
  *
- * <p><b>Business :</b> chaque pièce doit être assez près de son emplacement d'origine
- * (découpe, ou slot en mode blanc). Score = pièces justes / total ; réussi à 100 %.
+ * <p><b>Business :</b> chaque pièce doit être assez près de son emplacement : la place posée
+ * par le professeur (cadre blanc, fond dédié), sinon sa place sur la découpe (trous, anciens
+ * fonds sans place). Score = pièces justes / total ; réussi à 100 %.
  * <p><b>Technique :</b> même rayon que le magnétisme front (fraction de largeur +
  * plancher 4 px sur une base 1000). Trace {@code target_kind = piece} avec
  * {@code answer_choice_id = pieceId} pour rester dans la contrainte des tentatives.
@@ -30,6 +31,7 @@ public final class PuzzleChildAnswerGrader {
 	public static final String FORM = "puzzle";
 	public static final String BAD_ANSWER = "Réponse invalide pour cette question.";
 	public static final String BOARD_MODE_BLANC = "blanc";
+	public static final String BOARD_MODE_FOND = "fond";
 
 	/** Même plancher pixel que le front ({@code MAGNET_FLOOR_PX}). */
 	private static final double MAGNET_FLOOR_PX = 4;
@@ -78,10 +80,12 @@ public final class PuzzleChildAnswerGrader {
 	}
 
 	/**
-	 * Emplacement cible du coin haut-gauche : slot blanc, sinon cadre de la découpe.
+	 * Emplacement cible du coin haut-gauche : place posée par le professeur (blanc, fond),
+	 * sinon cadre de la découpe.
 	 */
 	static double[] homeTopLeft(StoredPuzzlePiece piece, String boardMode) {
-		if (BOARD_MODE_BLANC.equals(boardMode) && piece.slotX() != null && piece.slotY() != null) {
+		boolean placedByTeacher = BOARD_MODE_BLANC.equals(boardMode) || BOARD_MODE_FOND.equals(boardMode);
+		if (placedByTeacher && piece.slotX() != null && piece.slotY() != null) {
 			return new double[]{piece.slotX(), piece.slotY()};
 		}
 		return frameTopLeft(piece.shape(), piece.points());

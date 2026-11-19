@@ -210,7 +210,8 @@ public interface TeacherQuestionUseCase {
 	 * Puzzle. {@code imageWebp} sert à découper. {@code boardMode} dit le plateau :
 	 * {@code fond} (image dédiée), {@code blanc} (cadre vide), {@code trous} (découpe trouée).
 	 * {@code boardImageWebp} n'est requis qu'en mode fond. {@code snapDistance} est le magnétisme.
-	 * En mode blanc, chaque pièce porte {@code slotX}/{@code slotY} (emplacement cible).
+	 * En mode blanc et en mode fond, chaque pièce porte {@code slotX}/{@code slotY} (emplacement
+	 * cible posé par le professeur) ; en mode fond, {@code slotWidth} donne en plus sa taille.
 	 */
 	record PuzzleInput(
 			String imageWebp,
@@ -223,9 +224,15 @@ public interface TeacherQuestionUseCase {
 
 	/**
 	 * Une pièce : nom, forme, points entre 0 et 1.
-	 * {@code slotX}/{@code slotY} : coin haut-gauche de l'emplacement sur le plateau (mode blanc).
+	 * {@code slotX}/{@code slotY} : coin haut-gauche de l'emplacement sur le plateau (blanc, fond).
+	 * {@code slotWidth} : largeur de la pièce sur le fond, en proportion du plateau (fond seulement).
 	 */
 	record PuzzlePieceInput(
-			String label, String shape, List<ClickPointInput> points, Double slotX, Double slotY) {
+			String label,
+			String shape,
+			List<ClickPointInput> points,
+			Double slotX,
+			Double slotY,
+			Double slotWidth) {
 	}
 }

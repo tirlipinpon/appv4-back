@@ -304,10 +304,16 @@ public interface TeacherQuestionPort {
 
 	/**
 	 * Pièce déjà nommée, sans côté juste ou faux.
-	 * {@code slotX}/{@code slotY} : emplacement cible sur le plateau (mode blanc), sinon null.
+	 * {@code slotX}/{@code slotY} : emplacement cible sur le plateau (modes blanc et fond), sinon null.
+	 * {@code slotWidth} : largeur sur le fond (mode fond), null = taille de la découpe.
 	 */
 	record PuzzlePieceDraft(
-			String label, String shape, List<ClickPoint> points, Double slotX, Double slotY) {
+			String label,
+			String shape,
+			List<ClickPoint> points,
+			Double slotX,
+			Double slotY,
+			Double slotWidth) {
 		public PuzzlePieceDraft {
 			points = List.copyOf(points);
 		}
@@ -332,9 +338,18 @@ public interface TeacherQuestionPort {
 		}
 	}
 
-	/** Pièce relue, avec l'id de la ligne. Slots null hors mode blanc. */
+	/**
+	 * Pièce relue, avec l'id de la ligne. Slots null en mode trous, et sur les anciens fonds
+	 * enregistrés avant la pose sur le fond (la cible reste alors la découpe).
+	 */
 	record StoredPuzzlePiece(
-			long id, String label, String shape, List<ClickPoint> points, Double slotX, Double slotY) {
+			long id,
+			String label,
+			String shape,
+			List<ClickPoint> points,
+			Double slotX,
+			Double slotY,
+			Double slotWidth) {
 		public StoredPuzzlePiece {
 			points = List.copyOf(points);
 		}

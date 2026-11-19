@@ -208,6 +208,10 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String PIECE_POINTS = "Les points de la pièce ne restent pas sur l'image.";
 	public static final String PIECE_SLOT_REQUIRED =
 			"Sur le cadre blanc, pose chaque pièce pour fixer son emplacement.";
+	public static final String PIECE_SLOT_REQUIRED_FOND =
+			"Sur le fond, pose chaque pièce à sa place pour fixer son emplacement.";
+	public static final String PIECE_SLOT_WIDTH_RANGE =
+			"La taille d'une pièce sur le fond doit rester entre 2 et 100 % de la largeur du plateau.";
 	public static final String PIECE_SLOT_RANGE =
 			"L'emplacement d'une pièce dépasse trop le plateau.";
 	public static final String PIECE_SLOT_OFF_BOARD =
@@ -553,7 +557,12 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 			List<PuzzlePieceDraft> pieces = new ArrayList<>();
 			for (StoredPuzzlePiece piece : puzzle.pieces()) {
 				pieces.add(new PuzzlePieceDraft(
-						piece.label(), piece.shape(), piece.points(), piece.slotX(), piece.slotY()));
+						piece.label(),
+						piece.shape(),
+						piece.points(),
+						piece.slotX(),
+						piece.slotY(),
+						piece.slotWidth()));
 			}
 			return new PuzzleDraft(
 					puzzle.imageWebp(),

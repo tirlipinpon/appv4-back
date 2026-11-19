@@ -392,7 +392,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 									.map(point -> new PlayClickPoint(point.x(), point.y()))
 									.toList(),
 							piece.slotX(),
-							piece.slotY()))
+							piece.slotY(),
+							piece.slotWidth()))
 					.toList());
 			Collections.shuffle(pieces);
 			return new ChildPlayQuestionView(

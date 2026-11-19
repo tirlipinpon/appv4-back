@@ -1345,14 +1345,16 @@ class TeacherQuestionServiceTest {
 										"le ciel",
 										"rect",
 										List.of(new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5)),
-										null,
-										null),
+										0.3,
+										0.05,
+										0.4),
 								new StoredPuzzlePiece(
 										2L,
 										"le sol",
 										"rect",
 										List.of(new ClickPoint(0.0, 0.5), new ClickPoint(1.0, 1.0)),
-										null,
+										0.2,
+										0.6,
 										null)))));
 
 		String encoded = Base64.getEncoder().encodeToString(webp);
@@ -1363,13 +1365,15 @@ class TeacherQuestionServiceTest {
 								" le ciel ",
 								"rect",
 								List.of(new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5)),
-								null,
-								null),
+								0.3,
+								0.05,
+								0.4),
 						new PuzzlePieceInput(
 								"le sol",
 								"ellipse",
 								List.of(new ClickPointInput(0.5, 0.75), new ClickPointInput(0.7, 0.9)),
-								null,
+								0.2,
+								0.6,
 								null))));
 
 		assertThat(line.prompt()).isEmpty();
@@ -1382,6 +1386,9 @@ class TeacherQuestionServiceTest {
 		assertThat(line.boardImageWebp()).containsExactly(webp);
 		assertThat(line.pieces()).hasSize(2);
 		assertThat(line.pieces().get(0).label()).isEqualTo("le ciel");
+		assertThat(line.pieces().get(0).slotX()).isEqualTo(0.3);
+		assertThat(line.pieces().get(0).slotWidth()).isEqualTo(0.4);
+		assertThat(line.pieces().get(1).slotWidth()).isNull();
 		assertThat(line.snapDistance()).isEqualTo(0.12);
 
 		ArgumentCaptor<PuzzleDraft> captor = ArgumentCaptor.forClass(PuzzleDraft.class);
@@ -1391,7 +1398,11 @@ class TeacherQuestionServiceTest {
 		assertThat(captor.getValue().boardImageWebp()).containsExactly(webp);
 		assertThat(captor.getValue().pieces()).hasSize(2);
 		assertThat(captor.getValue().pieces().get(0).label()).isEqualTo("le ciel");
+		assertThat(captor.getValue().pieces().get(0).slotX()).isEqualTo(0.3);
+		assertThat(captor.getValue().pieces().get(0).slotY()).isEqualTo(0.05);
+		assertThat(captor.getValue().pieces().get(0).slotWidth()).isEqualTo(0.4);
 		assertThat(captor.getValue().pieces().get(1).shape()).isEqualTo("ellipse");
+		assertThat(captor.getValue().pieces().get(1).slotWidth()).isNull();
 		assertThat(captor.getValue().snapDistance()).isEqualTo(0.12);
 		verify(questions).ensureForm(SUBJECT_ID, "puzzle", "Puzzle", 10);
 	}
@@ -1402,9 +1413,9 @@ class TeacherQuestionServiceTest {
 		byte[] webp = tinyWebp();
 		String encoded = Base64.getEncoder().encodeToString(webp);
 		PuzzlePieceInput sky = new PuzzlePieceInput("le ciel", "rect", List.of(
-				new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5)), null, null);
+				new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5)), null, null, null);
 		PuzzlePieceInput ground = new PuzzlePieceInput("le sol", "rect", List.of(
-				new ClickPointInput(0.0, 0.5), new ClickPointInput(1.0, 1.0)), null, null);
+				new ClickPointInput(0.0, 0.5), new ClickPointInput(1.0, 1.0)), null, null, null);
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
 				new PuzzleInput("  ", "fond", encoded, null, List.of(sky, ground))))
@@ -1437,8 +1448,8 @@ class TeacherQuestionServiceTest {
 						null,
 						null,
 						List.of(
-								new PuzzlePieceInput("le ciel", "rect", sky.points(), 0.1, 0.1),
-								new PuzzlePieceInput("  ", "rect", ground.points(), 0.2, 0.6)))))
+								new PuzzlePieceInput("le ciel", "rect", sky.points(), 0.1, 0.1, null),
+								new PuzzlePieceInput("  ", "rect", ground.points(), 0.2, 0.6, null)))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.PIECE_NAME_REQUIRED);
 
@@ -1450,12 +1461,29 @@ class TeacherQuestionServiceTest {
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, "fond", encoded, null, List.of(sky, ground))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PIECE_SLOT_REQUIRED_FOND);
+
+		for (double width : new double[] {0.01, 1.5, Double.NaN}) {
+			List<PuzzlePieceInput> sized = List.of(
+					new PuzzlePieceInput("le ciel", "rect", sky.points(), 0.1, 0.1, width),
+					new PuzzlePieceInput("le sol", "rect", ground.points(), 0.2, 0.6, null));
+			assertThatThrownBy(() -> service.create(
+					TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+					new PuzzleInput(encoded, "fond", encoded, null, sized)))
+					.isInstanceOf(AuthDomainException.class)
+					.hasMessage(TeacherQuestionService.PIECE_SLOT_WIDTH_RANGE);
+		}
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
 				new PuzzleInput(
 						encoded,
 						"trous",
 						null,
 						null,
-						List.of(sky, new PuzzlePieceInput("le sol", "star", ground.points(), null, null)))))
+						List.of(sky, new PuzzlePieceInput("le sol", "star", ground.points(), null, null, null)))))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.PIECE_SHAPE);
 
@@ -1485,14 +1513,16 @@ class TeacherQuestionServiceTest {
 										"rect",
 										List.of(new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5)),
 										0.1,
-										0.2),
+										0.2,
+										null),
 								new StoredPuzzlePiece(
 										2L,
 										"le sol",
 										"rect",
 										List.of(new ClickPoint(0.0, 0.5), new ClickPoint(1.0, 1.0)),
 										0.15,
-										0.55)))));
+										0.55,
+										null)))));
 
 		String encoded = Base64.getEncoder().encodeToString(webp);
 		QuestionLine line = service.create(
@@ -1503,13 +1533,15 @@ class TeacherQuestionServiceTest {
 								"rect",
 								List.of(new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5)),
 								0.1,
-								0.2),
+								0.2,
+								0.5),
 						new PuzzlePieceInput(
 								"le sol",
 								"rect",
 								List.of(new ClickPointInput(0.0, 0.5), new ClickPointInput(1.0, 1.0)),
 								0.15,
-								0.55))));
+								0.55,
+								null))));
 
 		assertThat(line.boardMode()).isEqualTo("blanc");
 		assertThat(line.pieces().get(0).slotX()).isEqualTo(0.1);
@@ -1520,6 +1552,8 @@ class TeacherQuestionServiceTest {
 		assertThat(captor.getValue().boardMode()).isEqualTo("blanc");
 		assertThat(captor.getValue().pieces().get(0).slotX()).isEqualTo(0.1);
 		assertThat(captor.getValue().pieces().get(1).slotY()).isEqualTo(0.55);
+		// Cadre blanc : même ratio que la découpe, une taille envoyée est ignorée.
+		assertThat(captor.getValue().pieces().get(0).slotWidth()).isNull();
 	}
 
 	private static byte[] tinyWebp() {

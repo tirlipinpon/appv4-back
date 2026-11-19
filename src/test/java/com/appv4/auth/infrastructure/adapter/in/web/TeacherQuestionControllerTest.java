@@ -512,14 +512,16 @@ class TeacherQuestionControllerTest {
 										"le ciel",
 										"rect",
 										List.of(new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5)),
-										null,
-										null),
+										0.3,
+										0.05,
+										0.4),
 								new StoredPuzzlePiece(
 										2L,
 										"le sol",
 										"rect",
 										List.of(new ClickPoint(0.0, 0.5), new ClickPoint(1.0, 1.0)),
-										null,
+										0.2,
+										0.6,
 										null)))));
 
 		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
@@ -537,12 +539,17 @@ class TeacherQuestionControllerTest {
 								    {
 								      "label":"le ciel",
 								      "shape":"rect",
-								      "points":[{"x":0.0,"y":0.0},{"x":1.0,"y":0.5}]
+								      "points":[{"x":0.0,"y":0.0},{"x":1.0,"y":0.5}],
+								      "slotX":0.3,
+								      "slotY":0.05,
+								      "slotWidth":0.4
 								    },
 								    {
 								      "label":"le sol",
 								      "shape":"rect",
-								      "points":[{"x":0.0,"y":0.5},{"x":1.0,"y":1.0}]
+								      "points":[{"x":0.0,"y":0.5},{"x":1.0,"y":1.0}],
+								      "slotX":0.2,
+								      "slotY":0.6
 								    }
 								  ]
 								}
@@ -558,6 +565,8 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.pieces[0].label").value("le ciel"))
 				.andExpect(jsonPath("$.pieces[0].shape").value("rect"))
 				.andExpect(jsonPath("$.pieces[0].correct").doesNotExist())
+				.andExpect(jsonPath("$.pieces[0].slotX").value(0.3))
+				.andExpect(jsonPath("$.pieces[0].slotWidth").value(0.4))
 				.andExpect(jsonPath("$.pieces[1].label").value("le sol"))
 				.andExpect(jsonPath("$.snapDistance").value(0.12));
 	}

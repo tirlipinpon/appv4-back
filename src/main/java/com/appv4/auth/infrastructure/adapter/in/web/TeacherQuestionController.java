@@ -439,7 +439,12 @@ public class TeacherQuestionController {
 				continue;
 			}
 			inputs.add(new PuzzlePieceInput(
-					piece.label(), piece.shape(), pointInputs(piece.points()), piece.slotX(), piece.slotY()));
+					piece.label(),
+					piece.shape(),
+					pointInputs(piece.points()),
+					piece.slotX(),
+					piece.slotY(),
+					piece.slotWidth()));
 		}
 		return inputs;
 	}
@@ -571,7 +576,8 @@ public class TeacherQuestionController {
 					piece.shape(),
 					pointItems(piece.points()),
 					piece.slotX(),
-					piece.slotY()));
+					piece.slotY(),
+					piece.slotWidth()));
 		}
 		return new TeacherSubjectQuestionItem(
 				line.id(), line.formCode(), line.formLabel(), line.prompt(),
@@ -760,7 +766,10 @@ public class TeacherQuestionController {
 			String shape,
 			List<TeacherQuestionPointInput> points,
 			Double slotX,
-			Double slotY) {
+			Double slotY,
+			@Schema(description = "Fond dédié seulement : largeur de la pièce sur le fond "
+					+ "(0,02 à 1 de la largeur du plateau). Absente : taille de la découpe.")
+			Double slotWidth) {
 	}
 
 	@Schema(name = "TeacherQuestionZoneInput")
@@ -793,7 +802,10 @@ public class TeacherQuestionController {
 			String shape,
 			List<TeacherQuestionPointItem> points,
 			Double slotX,
-			Double slotY) {
+			Double slotY,
+			@Schema(description = "Largeur de la pièce sur le fond dédié (0–1 de la largeur du plateau). "
+					+ "Absente : taille de la découpe.")
+			Double slotWidth) {
 	}
 
 	@Schema(name = "TeacherQuestionPointItem")

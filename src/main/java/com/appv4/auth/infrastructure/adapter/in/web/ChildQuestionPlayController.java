@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.AttemptAnswers;
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.GapFillAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.LinkMatchAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.PlacementAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.StatementAnswer;
@@ -99,13 +100,19 @@ public class ChildQuestionPlayController {
 				: body.linkMatches().stream()
 						.map(m -> new LinkMatchAnswer(m.leftId(), m.rightId()))
 						.toList();
+		List<GapFillAnswer> gapFills = body == null || body.gapFills() == null
+				? List.of()
+				: body.gapFills().stream()
+						.map(fill -> new GapFillAnswer(fill.holeIndex(), fill.wordId()))
+						.toList();
 		AttemptAnswers answers = new AttemptAnswers(
 				body == null || body.selectedChoiceIds() == null ? List.of() : body.selectedChoiceIds(),
 				statements,
 				body == null || body.matchedPairIds() == null ? List.of() : body.matchedPairIds(),
 				body == null || body.orderedItemIds() == null ? List.of() : body.orderedItemIds(),
 				placements,
-				linkMatches);
+				linkMatches,
+				gapFills);
 		ChildAttemptResultView view =
 				childQuestionPlayUseCase.submit(bearer(authorization), subjectId, questionId, answers);
 		return ResponseEntity.status(HttpStatus.CREATED)
@@ -134,6 +141,9 @@ public class ChildQuestionPlayController {
 		List<ChildPlayLinkItem> links = view.links().stream()
 				.map(link -> new ChildPlayLinkItem(link.linkId(), link.leftLabel(), link.rightLabel()))
 				.toList();
+		List<ChildPlayGapWordItem> words = view.words().stream()
+				.map(word -> new ChildPlayGapWordItem(word.wordId(), word.label()))
+				.toList();
 		return new ChildPlayQuestionResponse(
 				view.questionId(),
 				view.subjectId(),
@@ -146,7 +156,9 @@ public class ChildQuestionPlayController {
 				columns,
 				cards,
 				view.timelineEnabled(),
-				links);
+				links,
+				view.sentence(),
+				words);
 	}
 
 	private static String bearer(String authorization) {
@@ -169,7 +181,9 @@ public class ChildQuestionPlayController {
 			List<ChildPlayColumnItem> columns,
 			List<ChildPlayCardItem> cards,
 			Boolean timelineEnabled,
-			List<ChildPlayLinkItem> links) {
+			List<ChildPlayLinkItem> links,
+			String sentence,
+			List<ChildPlayGapWordItem> words) {
 	}
 
 	@Schema(name = "ChildPlayChoiceItem")
@@ -200,6 +214,10 @@ public class ChildQuestionPlayController {
 	public record ChildPlayLinkItem(long linkId, String leftLabel, String rightLabel) {
 	}
 
+	@Schema(name = "ChildPlayGapWordItem")
+	public record ChildPlayGapWordItem(long wordId, String label) {
+	}
+
 	@Schema(name = "SubmitChildAttemptRequest")
 	public record SubmitChildAttemptRequest(
 			List<Long> selectedChoiceIds,
@@ -207,7 +225,8 @@ public class ChildQuestionPlayController {
 			List<Long> matchedPairIds,
 			List<Long> orderedItemIds,
 			List<SubmitPlacementAnswer> placements,
-			List<SubmitLinkMatchAnswer> linkMatches) {
+			List<SubmitLinkMatchAnswer> linkMatches,
+			List<SubmitGapFillAnswer> gapFills) {
 	}
 
 	@Schema(name = "SubmitStatementAnswer")
@@ -220,6 +239,10 @@ public class ChildQuestionPlayController {
 
 	@Schema(name = "SubmitLinkMatchAnswer")
 	public record SubmitLinkMatchAnswer(long leftId, long rightId) {
+	}
+
+	@Schema(name = "SubmitGapFillAnswer")
+	public record SubmitGapFillAnswer(int holeIndex, long wordId) {
 	}
 
 	@Schema(name = "ChildAttemptResultResponse")

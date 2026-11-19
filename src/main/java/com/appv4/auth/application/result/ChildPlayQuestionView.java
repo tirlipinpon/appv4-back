@@ -10,6 +10,7 @@ import java.util.List;
  * Ordre : les items sont renvoyés mélangés ; l'ordre professeur reste côté serveur.
  * Si {@code timelineEnabled}, chaque item porte son {@code axisLabel} de jalon.
  * Classement : colonnes et cartes sans la colonne juste.
+ * Liens : les deux libellés d'un lien sont le contenu jouable ; l'association est notée à la tentative.
  * <p><b>Technique :</b> payload GET play.
  * <p><b>Métier / flow :</b> use case play → controller /api/ext.
  */
@@ -24,7 +25,8 @@ public record ChildPlayQuestionView(
 		List<PlayItem> items,
 		List<PlayColumn> columns,
 		List<PlayCard> cards,
-		Boolean timelineEnabled) {
+		Boolean timelineEnabled,
+		List<PlayLink> links) {
 
 	public ChildPlayQuestionView {
 		choices = choices == null ? List.of() : List.copyOf(choices);
@@ -33,6 +35,7 @@ public record ChildPlayQuestionView(
 		items = items == null ? List.of() : List.copyOf(items);
 		columns = columns == null ? List.of() : List.copyOf(columns);
 		cards = cards == null ? List.of() : List.copyOf(cards);
+		links = links == null ? List.of() : List.copyOf(links);
 		prompt = prompt == null ? "" : prompt;
 	}
 
@@ -55,5 +58,9 @@ public record ChildPlayQuestionView(
 	}
 
 	public record PlayCard(long cardId, String label) {
+	}
+
+	/** Deux côtés d'un lien. {@code linkId} est le même pour le mot et sa réponse. */
+	public record PlayLink(long linkId, String leftLabel, String rightLabel) {
 	}
 }

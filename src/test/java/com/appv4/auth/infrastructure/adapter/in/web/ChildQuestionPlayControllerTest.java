@@ -34,6 +34,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItem;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
@@ -209,6 +210,55 @@ class ChildQuestionPlayControllerTest {
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.attemptId").value(45))
+				.andExpect(jsonPath("$.scorePercent").value(100))
+				.andExpect(jsonPath("$.passed").value(true));
+	}
+
+	@Test
+	void getLinksReturnsBothSides() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 15L)).thenReturn(Optional.of(new StoredQuestion(
+				15L,
+				4L,
+				"liens",
+				"Relie.",
+				new StoredLinks(List.of(
+						new TeacherQuestionPort.StoredLink(1L, "Pomme", "Fruit"),
+						new TeacherQuestionPort.StoredLink(2L, "Chien", "Animal"))))));
+
+		mockMvc.perform(get("/api/ext/subjects/4/questions/15").header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.formCode").value("liens"))
+				.andExpect(jsonPath("$.links.length()").value(2))
+				.andExpect(jsonPath("$.links[0].leftLabel").value("Pomme"))
+				.andExpect(jsonPath("$.links[0].rightLabel").value("Fruit"))
+				.andExpect(jsonPath("$.links[1].linkId").value(2));
+	}
+
+	@Test
+	void submitLinksAllCorrectPasses() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 15L)).thenReturn(Optional.of(new StoredQuestion(
+				15L,
+				4L,
+				"liens",
+				"Relie.",
+				new StoredLinks(List.of(
+						new TeacherQuestionPort.StoredLink(1L, "Pomme", "Fruit"),
+						new TeacherQuestionPort.StoredLink(2L, "Chien", "Animal"))))));
+		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
+				.thenReturn(new StoredAttempt(46L, 7L, 4L, 15L, "liens", 100, true));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/15/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"linkMatches":[{"leftId":1,"rightId":1},{"leftId":2,"rightId":2}]}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.attemptId").value(46))
 				.andExpect(jsonPath("$.scorePercent").value(100))
 				.andExpect(jsonPath("$.passed").value(true));
 	}

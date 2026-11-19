@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.AttemptAnswers;
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.LinkMatchAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.PlacementAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.StatementAnswer;
 import com.appv4.auth.application.result.ChildAttemptResultView;
@@ -93,12 +94,18 @@ public class ChildQuestionPlayController {
 				: body.placements().stream()
 						.map(p -> new PlacementAnswer(p.cardId(), p.columnId()))
 						.toList();
+		List<LinkMatchAnswer> linkMatches = body == null || body.linkMatches() == null
+				? List.of()
+				: body.linkMatches().stream()
+						.map(m -> new LinkMatchAnswer(m.leftId(), m.rightId()))
+						.toList();
 		AttemptAnswers answers = new AttemptAnswers(
 				body == null || body.selectedChoiceIds() == null ? List.of() : body.selectedChoiceIds(),
 				statements,
 				body == null || body.matchedPairIds() == null ? List.of() : body.matchedPairIds(),
 				body == null || body.orderedItemIds() == null ? List.of() : body.orderedItemIds(),
-				placements);
+				placements,
+				linkMatches);
 		ChildAttemptResultView view =
 				childQuestionPlayUseCase.submit(bearer(authorization), subjectId, questionId, answers);
 		return ResponseEntity.status(HttpStatus.CREATED)
@@ -124,6 +131,9 @@ public class ChildQuestionPlayController {
 		List<ChildPlayCardItem> cards = view.cards().stream()
 				.map(c -> new ChildPlayCardItem(c.cardId(), c.label()))
 				.toList();
+		List<ChildPlayLinkItem> links = view.links().stream()
+				.map(link -> new ChildPlayLinkItem(link.linkId(), link.leftLabel(), link.rightLabel()))
+				.toList();
 		return new ChildPlayQuestionResponse(
 				view.questionId(),
 				view.subjectId(),
@@ -135,7 +145,8 @@ public class ChildQuestionPlayController {
 				items,
 				columns,
 				cards,
-				view.timelineEnabled());
+				view.timelineEnabled(),
+				links);
 	}
 
 	private static String bearer(String authorization) {
@@ -157,7 +168,8 @@ public class ChildQuestionPlayController {
 			List<ChildPlayItemItem> items,
 			List<ChildPlayColumnItem> columns,
 			List<ChildPlayCardItem> cards,
-			Boolean timelineEnabled) {
+			Boolean timelineEnabled,
+			List<ChildPlayLinkItem> links) {
 	}
 
 	@Schema(name = "ChildPlayChoiceItem")
@@ -184,13 +196,18 @@ public class ChildQuestionPlayController {
 	public record ChildPlayCardItem(long cardId, String label) {
 	}
 
+	@Schema(name = "ChildPlayLinkItem")
+	public record ChildPlayLinkItem(long linkId, String leftLabel, String rightLabel) {
+	}
+
 	@Schema(name = "SubmitChildAttemptRequest")
 	public record SubmitChildAttemptRequest(
 			List<Long> selectedChoiceIds,
 			List<SubmitStatementAnswer> statements,
 			List<Long> matchedPairIds,
 			List<Long> orderedItemIds,
-			List<SubmitPlacementAnswer> placements) {
+			List<SubmitPlacementAnswer> placements,
+			List<SubmitLinkMatchAnswer> linkMatches) {
 	}
 
 	@Schema(name = "SubmitStatementAnswer")
@@ -199,6 +216,10 @@ public class ChildQuestionPlayController {
 
 	@Schema(name = "SubmitPlacementAnswer")
 	public record SubmitPlacementAnswer(long cardId, long columnId) {
+	}
+
+	@Schema(name = "SubmitLinkMatchAnswer")
+	public record SubmitLinkMatchAnswer(long leftId, long rightId) {
 	}
 
 	@Schema(name = "ChildAttemptResultResponse")

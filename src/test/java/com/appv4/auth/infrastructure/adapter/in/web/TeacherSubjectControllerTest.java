@@ -167,8 +167,8 @@ class TeacherSubjectControllerTest {
 		when(profiles.findSchools(9L)).thenReturn(List.of(
 				new TeacherSchoolLink(1L, "FRANCE", List.of("CE1"))));
 		when(subjects.nameTaken(1L, "CE1", "mathématiques", null)).thenReturn(false);
-		when(subjects.insert(9L, 1L, "CE1", "Mathématiques", "mathématiques", null))
-				.thenReturn(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", true, null));
+		when(subjects.insert(9L, 1L, "CE1", "Mathématiques", "mathématiques", "icons8:13216"))
+				.thenReturn(new StoredSubject(5L, 9L, 1L, "CE1", "Mathématiques", true, "icons8:13216"));
 
 		mockMvc.perform(post("/api/int/teacher/subjects")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -179,7 +179,9 @@ class TeacherSubjectControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.id").value(5))
 				.andExpect(jsonPath("$.name").value("Mathématiques"))
-				.andExpect(jsonPath("$.active").value(true));
+				.andExpect(jsonPath("$.active").value(true))
+				.andExpect(jsonPath("$.iconCode").value("icons8:13216"))
+				.andExpect(jsonPath("$.accentColor").value("#3949ab"));
 	}
 
 	@Test

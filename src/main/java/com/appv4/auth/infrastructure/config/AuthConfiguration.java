@@ -388,9 +388,10 @@ public class AuthConfiguration {
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildSubjectPort childSubjectPort,
-			TeacherQuestionPort teacherQuestionPort) {
+			TeacherQuestionPort teacherQuestionPort,
+			QuestionFormRegistry questionFormRegistry) {
 		return new ReadChildLearningSubjectsService(
-				childLoginPort, childSessionTokenPort, childSubjectPort, teacherQuestionPort);
+				childLoginPort, childSessionTokenPort, childSubjectPort, teacherQuestionPort, questionFormRegistry);
 	}
 
 	/**
@@ -703,13 +704,18 @@ public class AuthConfiguration {
 	}
 
 	@Bean
+	QuestionFormRegistry questionFormRegistry(List<QuestionFormHandler> handlers) {
+		return new QuestionFormRegistry(handlers);
+	}
+
+	@Bean
 	TeacherQuestionUseCase teacherQuestionUseCase(
 			TeacherSubjectPort teacherSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
 			ChildSubjectPort childSubjectPort,
-			List<QuestionFormHandler> handlers) {
+			QuestionFormRegistry questionFormRegistry) {
 		return new TeacherQuestionService(
-				teacherSubjectPort, teacherQuestionPort, childSubjectPort, new QuestionFormRegistry(handlers));
+				teacherSubjectPort, teacherQuestionPort, childSubjectPort, questionFormRegistry);
 	}
 
 	/**

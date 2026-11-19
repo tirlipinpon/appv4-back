@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ReadChildSubjectBoardUseCase;
+import com.appv4.auth.application.service.SubjectIcons;
 import com.appv4.auth.application.result.ChildSubjectBoardView;
 import com.appv4.auth.application.result.ChildSubjectBoardView.ContinueLesson;
 import com.appv4.auth.application.result.ChildSubjectBoardView.TopicCard;
@@ -69,6 +70,8 @@ public class ChildSubjectBoardController {
 			long subjectId,
 			String name,
 			String iconCode,
+			@Schema(description = "Teinte #rrggbb de l'icône, ou null.", nullable = true)
+			String accentColor,
 			String grade,
 			@Schema(nullable = true) String description,
 			@Schema(nullable = true) String tagline,
@@ -88,6 +91,7 @@ public class ChildSubjectBoardController {
 					view.subjectId(),
 					view.name(),
 					view.iconCode(),
+					SubjectIcons.accentOf(view.iconCode()),
 					view.grade(),
 					view.description(),
 					view.tagline(),

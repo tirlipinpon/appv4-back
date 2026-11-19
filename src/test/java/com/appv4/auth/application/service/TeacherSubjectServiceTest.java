@@ -112,6 +112,10 @@ class TeacherSubjectServiceTest {
 				.extracting(SubjectLine::name)
 				.containsExactly("Mathématiques");
 		assertThat(view.schools().get(1).grades().get(0).subjects()).isEmpty();
+		assertThat(french.iconCode()).isEqualTo("icons8:13216");
+		assertThat(maths.iconCode()).isEqualTo("icons8:4210");
+		assertThat(mathsCe2.iconCode()).isEqualTo("icons8:13216");
+		assertThat(french.iconCode()).isNotEqualTo(maths.iconCode());
 		assertThat(french.name()).isEqualTo("Français");
 		assertThat(french.followedByMe()).isTrue();
 		assertThat(french.sharedWith()).isEmpty();

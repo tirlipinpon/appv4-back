@@ -44,6 +44,7 @@ import com.appv4.auth.application.result.LetterAttemptView;
 import com.appv4.auth.application.result.TeacherSubjectFollowersView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
+import com.appv4.auth.application.service.question.QuestionFormLooks;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.CardLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ChoiceLine;
@@ -530,7 +531,13 @@ public class TeacherQuestionController {
 	private static TeacherQuestionFormsResponse forms(TeacherQuestionFormsView view) {
 		List<TeacherQuestionFormItem> items = new ArrayList<>();
 		for (FormLine form : view.forms()) {
-			items.add(new TeacherQuestionFormItem(form.code(), form.label(), form.sortOrder()));
+			QuestionFormLooks.Look look = QuestionFormLooks.of(form.code());
+			items.add(new TeacherQuestionFormItem(
+					form.code(),
+					form.label(),
+					form.sortOrder(),
+					look == null ? null : look.iconCode(),
+					look == null ? null : look.color()));
 		}
 		return new TeacherQuestionFormsResponse(items);
 	}
@@ -633,7 +640,14 @@ public class TeacherQuestionController {
 	}
 
 	@Schema(name = "TeacherQuestionFormItem")
-	public record TeacherQuestionFormItem(String code, String label, int sortOrder) {
+	public record TeacherQuestionFormItem(
+			String code,
+			String label,
+			int sortOrder,
+			@Schema(description = "Dessin de la forme. Null sans identité visuelle.", nullable = true)
+			String iconCode,
+			@Schema(description = "Couleur #rrggbb unique de la forme. Null sans identité.", nullable = true)
+			String color) {
 	}
 
 	@Schema(name = "TeacherSubjectQuestionsResponse")

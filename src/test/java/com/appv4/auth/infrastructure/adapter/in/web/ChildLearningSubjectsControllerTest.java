@@ -66,7 +66,8 @@ class ChildLearningSubjectsControllerTest {
 				.andExpect(jsonPath("$.subjects[0].name").value("Mathématiques"))
 				.andExpect(jsonPath("$.subjects[0].grade").value("CE1"))
 				.andExpect(jsonPath("$.subjects[0].questionCount").value(3))
-				.andExpect(jsonPath("$.subjects[0].iconCode").value("math"));
+				.andExpect(jsonPath("$.subjects[0].iconCode").value("math"))
+				.andExpect(jsonPath("$.subjects[0].accentColor").value("#7e57c2"));
 	}
 
 	@Test
@@ -98,7 +99,10 @@ class ChildLearningSubjectsControllerTest {
 				.andExpect(jsonPath("$.subjectName").value("Mathématiques"))
 				.andExpect(jsonPath("$.questions[0].questionId").value(11))
 				.andExpect(jsonPath("$.questions[0].formCode").value("qcm"))
-				.andExpect(jsonPath("$.questions[0].prompt").value("Combien font 2+2 ?"));
+				.andExpect(jsonPath("$.questions[0].prompt").value("Combien font 2+2 ?"))
+				.andExpect(jsonPath("$.questions[0].formLabel").value("Choix multiples"))
+				.andExpect(jsonPath("$.questions[0].iconCode").value("checklist"))
+				.andExpect(jsonPath("$.questions[0].color").value("#4c6fff"));
 	}
 
 	@Test

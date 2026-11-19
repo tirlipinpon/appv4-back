@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ChildSubjectUseCase;
+import com.appv4.auth.application.service.SubjectIcons;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.auth.application.result.ChildSubjectsView;
 import com.appv4.auth.application.result.ChildSubjectsView.SubjectOffer;
@@ -143,7 +144,8 @@ public class ChildSubjectController {
 				offer.grade(),
 				offer.scolaire(),
 				offer.questionCount(),
-				offer.iconCode());
+				offer.iconCode(),
+				SubjectIcons.accentOf(offer.iconCode()));
 	}
 
 	@Schema(name = "ParentSubjectsResponse")
@@ -180,7 +182,9 @@ public class ChildSubjectController {
 			@Schema(description = "Nombre total de questions enregistrées sur cette matière.")
 			long questionCount,
 			@Schema(description = "Code d'icône de la librairie matières, ou null.")
-			String iconCode) {
+			String iconCode,
+			@Schema(description = "Teinte #rrggbb de l'icône, ou null.", nullable = true)
+			String accentColor) {
 	}
 
 	@Schema(name = "AddChildSubjectRequest")

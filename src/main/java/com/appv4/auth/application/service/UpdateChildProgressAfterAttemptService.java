@@ -27,9 +27,9 @@ public class UpdateChildProgressAfterAttemptService {
 
 	@Transactional
 	public StoredProgress apply(long childId, int scorePercent) {
-		LocalDate today = LocalDate.now(clock.withZone(ReadChildProgressService.PROGRESS_ZONE));
-		StoredProgress current = childProgressPort.findByChildId(childId)
+		StoredProgress current = childProgressPort.findForUpdate(childId)
 				.orElseGet(() -> ChildProgressRules.empty(childId));
+		LocalDate today = LocalDate.now(clock.withZone(ReadChildProgressService.PROGRESS_ZONE));
 		StoredProgress next = ChildProgressRules.afterAttempt(current, scorePercent, today);
 		return childProgressPort.save(next);
 	}

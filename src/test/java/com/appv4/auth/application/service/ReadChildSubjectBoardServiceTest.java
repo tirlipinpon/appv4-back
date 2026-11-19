@@ -55,10 +55,12 @@ class ReadChildSubjectBoardServiceTest {
 				new StoredTopic(10L, 5L, "Nombres", "math", 0),
 				new StoredTopic(11L, 5L, "Formes", "art", 1)));
 		when(boardPort.lessonsOfTopics(any())).thenReturn(List.of(
-				new StoredLesson(20L, 10L, "Compter jusqu'à 10", 0, 5, 50),
+				new StoredLesson(22L, 11L, "Triangles", 0, 4, 40),
+				new StoredLesson(23L, 10L, "Plus tard", 1, 2, 20),
 				new StoredLesson(21L, 10L, "Compter jusqu'à 20", 1, 3, 50),
-				new StoredLesson(22L, 11L, "Triangles", 0, 4, 40)));
+				new StoredLesson(20L, 10L, "Compter jusqu'à 10", 0, 5, 50)));
 		when(boardPort.questionsOfLessons(any())).thenReturn(List.of(
+				new LessonQuestion(23L, 104L, 0),
 				new LessonQuestion(20L, 100L, 0),
 				new LessonQuestion(21L, 101L, 0),
 				new LessonQuestion(21L, 102L, 1),
@@ -71,8 +73,8 @@ class ReadChildSubjectBoardServiceTest {
 		assertThat(view.name()).isEqualTo("Maths");
 		assertThat(view.worldLabel()).isEqualTo("MONDE MATHS");
 		assertThat(view.lessonsCompleted()).isEqualTo(1);
-		assertThat(view.lessonsTotal()).isEqualTo(3);
-		assertThat(view.minutesLeft()).isEqualTo(7);
+		assertThat(view.lessonsTotal()).isEqualTo(4);
+		assertThat(view.minutesLeft()).isEqualTo(9);
 		assertThat(view.xpEarned()).isEqualTo(120);
 		assertThat(view.continueLesson()).isNotNull();
 		assertThat(view.continueLesson().title()).isEqualTo("Compter jusqu'à 20");
@@ -80,7 +82,7 @@ class ReadChildSubjectBoardServiceTest {
 		assertThat(view.continueLesson().playQuestionId()).isEqualTo(102L);
 		assertThat(view.topics()).hasSize(2);
 		assertThat(view.topics().get(0).lessonsCompleted()).isEqualTo(1);
-		assertThat(view.topics().get(0).lessonsTotal()).isEqualTo(2);
+		assertThat(view.topics().get(0).lessonsTotal()).isEqualTo(3);
 		assertThat(view.topics().get(1).lessonsCompleted()).isZero();
 	}
 

@@ -35,6 +35,8 @@ import com.appv4.auth.application.port.in.TeacherQuestionUseCase.OrderInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzleInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzlePieceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.SimonElementInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.SimonInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementsInput;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
@@ -52,6 +54,7 @@ import com.appv4.auth.application.result.TeacherSubjectQuestionsView.LinkLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.PairLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.PieceLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.SimonElementLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.StatementLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ZoneLine;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
@@ -77,7 +80,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * combien d'enfants suivent le cours et la liste de leurs noms.
  * L'élève ne joue pas les autres formes ici. La réponse libre (SCRUM-198)
  * ajoute l'énoncé et la réponse attendue. La saisie lettre par lettre
- * (SCRUM-182) ajoute le mot, puis Valider compare les cases.
+ * (SCRUM-182) ajoute le mot, puis Valider compare les cases. Le Simon
+ * (ADMIN-25) ajoute le genre des éléments, les éléments et la suite à refaire.
  * <p><b>Technique :</b> {@code /api/int/teacher/question-forms} et
  * {@code /api/int/teacher/subjects/{id}/questions}. JWT obligatoire, espace {@code teacher}.
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link TeacherQuestionUseCase}.
@@ -150,8 +154,8 @@ public class TeacherQuestionController {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
-						null, null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null, null,
+						null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -186,8 +190,8 @@ public class TeacherQuestionController {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
-						null, null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null, null,
+						null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -341,7 +345,25 @@ public class TeacherQuestionController {
 		if (TeacherQuestionService.ORDER.equals(code)) {
 			return new OrderInput(body.timelineEnabled(), itemInputs(body.items()));
 		}
+		if (TeacherQuestionService.SIMON.equals(code)) {
+			return new SimonInput(body.elementType(), simonElementInputs(body.elements()), body.sequence());
+		}
 		return new LegacyInput(inputs(body.choices()), pairInputs(body.pairs()), itemInputs(body.items()));
+	}
+
+	/**
+	 * Un élément null reste à sa place (le formulaire le refuse) : la suite désigne
+	 * les éléments par leur position, qui ne doit pas glisser.
+	 */
+	private static List<SimonElementInput> simonElementInputs(List<TeacherQuestionSimonElementInput> elements) {
+		if (elements == null) {
+			return List.of();
+		}
+		List<SimonElementInput> inputs = new ArrayList<>();
+		for (TeacherQuestionSimonElementInput element : elements) {
+			inputs.add(element == null ? null : new SimonElementInput(element.label(), element.color()));
+		}
+		return inputs;
 	}
 
 	private static List<ChoiceInput> inputs(List<TeacherQuestionChoiceInput> choices) {
@@ -579,12 +601,16 @@ public class TeacherQuestionController {
 					piece.slotY(),
 					piece.slotWidth()));
 		}
+		List<TeacherQuestionSimonElementItem> elements = new ArrayList<>();
+		for (SimonElementLine element : line.elements()) {
+			elements.add(new TeacherQuestionSimonElementItem(element.id(), element.label(), element.color()));
+		}
 		return new TeacherSubjectQuestionItem(
 				line.id(), line.formCode(), line.formLabel(), line.prompt(),
 				choices, pairs, items, statements, links, columns, cards, line.sentence(), answers, decoys,
 				line.expectedAnswer(), base64(line.imageWebp()), line.boardMode(),
 				base64(line.boardImageWebp()), line.requireAllCorrect(), zones, pieces, line.snapDistance(),
-				line.timelineEnabled(), line.clicksOrdered());
+				line.timelineEnabled(), line.clicksOrdered(), line.elementType(), elements, line.sequence());
 	}
 
 	private static List<TeacherQuestionPointItem> pointItems(List<ClickPoint> points) {
@@ -639,7 +665,15 @@ public class TeacherQuestionController {
 			List<TeacherQuestionPieceItem> pieces,
 			Double snapDistance,
 			Boolean timelineEnabled,
-			Boolean clicksOrdered) {
+			Boolean clicksOrdered,
+			@Schema(description = "Simon seulement : couleurs, nombres, lettres ou formes.")
+			String elementType,
+			@Schema(description = "Simon seulement : éléments dans l'ordre saisi. "
+					+ "Leur position (0, 1, 2…) est celle que la suite désigne.")
+			List<TeacherQuestionSimonElementItem> elements,
+			@Schema(description = "Simon seulement : la suite à refaire, "
+					+ "chaque pas étant la position 0-based d'un élément de elements.")
+			List<Integer> sequence) {
 		public TeacherSubjectQuestionItem(
 				long id,
 				String formCode,
@@ -666,7 +700,7 @@ public class TeacherQuestionController {
 				Boolean timelineEnabled) {
 			this(id, formCode, formLabel, prompt, choices, pairs, items, statements, links, columns, cards, sentence,
 					answers, decoys, expectedAnswer, imageWebp, boardMode, boardImageWebp, requireAllCorrect, zones,
-					pieces, snapDistance, timelineEnabled, null);
+					pieces, snapDistance, timelineEnabled, null, null, List.of(), List.of());
 		}
 	}
 
@@ -749,7 +783,31 @@ public class TeacherQuestionController {
 			List<TeacherQuestionPieceInput> pieces,
 			Double snapDistance,
 			Boolean timelineEnabled,
-			Boolean clicksOrdered) {
+			Boolean clicksOrdered,
+			@Schema(description = "Simon seulement : couleurs, nombres, lettres ou formes.")
+			String elementType,
+			@Schema(description = "Simon seulement : au moins deux éléments du genre choisi, dans l'ordre voulu.")
+			List<TeacherQuestionSimonElementInput> elements,
+			@Schema(description = "Simon seulement : la suite à refaire, au moins deux pas. "
+					+ "Chaque pas est la position 0-based d'un élément de elements.")
+			List<Integer> sequence) {
+	}
+
+	@Schema(name = "TeacherQuestionSimonElementInput")
+	public record TeacherQuestionSimonElementInput(
+			@Schema(description = "Nom affiché : rouge, 7, B, cercle. Nombres : un nombre. Lettres : une seule lettre.")
+			String label,
+			@Schema(description = "Genre couleurs seulement, obligatoire : code #rrggbb. "
+					+ "Absent pour les autres genres.")
+			String color) {
+	}
+
+	@Schema(name = "TeacherQuestionSimonElementItem")
+	public record TeacherQuestionSimonElementItem(
+			long id,
+			String label,
+			@Schema(description = "Code #rrggbb en minuscules pour le genre couleurs. Absent pour les autres genres.")
+			String color) {
 	}
 
 	@Schema(name = "TeacherQuestionColumnInput")

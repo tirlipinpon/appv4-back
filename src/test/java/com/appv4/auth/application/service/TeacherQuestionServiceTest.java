@@ -3,6 +3,7 @@ package com.appv4.auth.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -43,6 +44,8 @@ import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinksInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzleInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzlePieceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.SimonElementInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.SimonInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementsInput;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
@@ -54,12 +57,16 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickImageDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.PuzzleDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.SimonDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.SimonElementDraft;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickZone;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzle;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzlePiece;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimon;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimonElement;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.service.question.QuestionFormRegistry;
 import com.appv4.auth.application.service.question.QcmQuestionForm;
@@ -70,6 +77,7 @@ import com.appv4.auth.application.service.question.ClassificationQuestionForm;
 import com.appv4.auth.application.service.question.ClickImageQuestionForm;
 import com.appv4.auth.application.service.question.PuzzleQuestionForm;
 import com.appv4.auth.application.service.question.ReponseLibreQuestionForm;
+import com.appv4.auth.application.service.question.SimonQuestionForm;
 import com.appv4.auth.application.service.question.TexteQuestionForm;
 import com.appv4.auth.application.service.question.LinkQuestionForm;
 import com.appv4.auth.application.service.question.OrderQuestionForm;
@@ -139,14 +147,14 @@ class TeacherQuestionServiceTest {
 				new TrueFalseQuestionForm(), new LinkQuestionForm(), new CaseVideQuestionForm(),
 				new ClassificationQuestionForm(),
 				new ClickImageQuestionForm(), new ReponseLibreQuestionForm(),
-				new PuzzleQuestionForm(), new TexteQuestionForm())));
+				new PuzzleQuestionForm(), new TexteQuestionForm(), new SimonQuestionForm())));
 	}
 
 	@Test
 	void offeredFormsAreMultipleChoiceThenMemoryThenOrderThenTrueFalse() {
 		assertThat(service.listForms(TEACHER_ID, "teacher").forms())
 				.satisfies(forms -> {
-					assertThat(forms).hasSize(11);
+					assertThat(forms).hasSize(12);
 					assertThat(forms.get(0).code()).isEqualTo("qcm");
 					assertThat(forms.get(0).label()).isEqualTo("Choix multiples");
 					assertThat(forms.get(0).sortOrder()).isEqualTo(1);
@@ -168,18 +176,21 @@ class TeacherQuestionServiceTest {
 					assertThat(forms.get(6).code()).isEqualTo("classement");
 					assertThat(forms.get(6).label()).isEqualTo("Classement");
 					assertThat(forms.get(6).sortOrder()).isEqualTo(7);
-					assertThat(forms.get(7).code()).isEqualTo("image_interactive");
-					assertThat(forms.get(7).label()).isEqualTo("Image à cliquer");
-					assertThat(forms.get(7).sortOrder()).isEqualTo(8);
-					assertThat(forms.get(8).code()).isEqualTo("reponse_libre");
-					assertThat(forms.get(8).label()).isEqualTo("Lettre par lettre");
-					assertThat(forms.get(8).sortOrder()).isEqualTo(9);
-					assertThat(forms.get(9).code()).isEqualTo("puzzle");
-					assertThat(forms.get(9).label()).isEqualTo("Puzzle");
-					assertThat(forms.get(9).sortOrder()).isEqualTo(10);
-					assertThat(forms.get(10).code()).isEqualTo("texte");
-					assertThat(forms.get(10).label()).isEqualTo("Réponse libre");
-					assertThat(forms.get(10).sortOrder()).isEqualTo(11);
+					assertThat(forms.get(7).code()).isEqualTo("simon");
+					assertThat(forms.get(7).label()).isEqualTo("Simon");
+					assertThat(forms.get(7).sortOrder()).isEqualTo(7);
+					assertThat(forms.get(8).code()).isEqualTo("image_interactive");
+					assertThat(forms.get(8).label()).isEqualTo("Image à cliquer");
+					assertThat(forms.get(8).sortOrder()).isEqualTo(8);
+					assertThat(forms.get(9).code()).isEqualTo("reponse_libre");
+					assertThat(forms.get(9).label()).isEqualTo("Lettre par lettre");
+					assertThat(forms.get(9).sortOrder()).isEqualTo(9);
+					assertThat(forms.get(10).code()).isEqualTo("puzzle");
+					assertThat(forms.get(10).label()).isEqualTo("Puzzle");
+					assertThat(forms.get(10).sortOrder()).isEqualTo(10);
+					assertThat(forms.get(11).code()).isEqualTo("texte");
+					assertThat(forms.get(11).label()).isEqualTo("Réponse libre");
+					assertThat(forms.get(11).sortOrder()).isEqualTo(11);
 				});
 	}
 
@@ -266,13 +277,13 @@ class TeacherQuestionServiceTest {
 		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
 
 		assertThatThrownBy(() -> service.create(
-				TEACHER_ID, "teacher", SUBJECT_ID, "simon", "Paires",
+				TEACHER_ID, "teacher", SUBJECT_ID, "dessin", "Paires",
 				List.of(new ChoiceInput("2", false), new ChoiceInput("4", true)),
 				List.of(), List.of()))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(TeacherQuestionService.FORM_UNKNOWN);
 
-		verify(questions, never()).ensureForm(SUBJECT_ID, "simon", "Simon", 2);
+		verify(questions, never()).ensureForm(eq(SUBJECT_ID), eq("dessin"), any(), anyInt());
 	}
 
 	@Test
@@ -1554,6 +1565,113 @@ class TeacherQuestionServiceTest {
 		assertThat(captor.getValue().pieces().get(1).slotY()).isEqualTo(0.55);
 		// Cadre blanc : même ratio que la découpe, une taille envoyée est ignorée.
 		assertThat(captor.getValue().pieces().get(0).slotWidth()).isNull();
+	}
+
+	@Test
+	void simonKeepsTheTypeTheElementsAndTheSequence() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("simon"), eq(""), any())).thenReturn(simonQuestion(17L));
+
+		QuestionLine line = service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "simon", "  ",
+				new SimonInput("couleurs", List.of(
+						new SimonElementInput(" rouge ", "#FF0000"),
+						new SimonElementInput("bleu", "#0000ff"),
+						new SimonElementInput("vert", "#00ff00")),
+						List.of(0, 1, 2, 0)));
+
+		assertThat(line.formLabel()).isEqualTo("Simon");
+		assertThat(line.elementType()).isEqualTo("couleurs");
+		assertThat(line.elements()).extracting(row -> row.label() + ":" + row.color())
+				.containsExactly("rouge:#ff0000", "bleu:#0000ff", "vert:#00ff00");
+		assertThat(line.sequence()).containsExactly(0, 1, 2, 0);
+		verify(questions).ensureForm(SUBJECT_ID, "simon", "Simon", 7);
+
+		ArgumentCaptor<SimonDraft> captor = ArgumentCaptor.forClass(SimonDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("simon"), eq(""), captor.capture());
+		assertThat(captor.getValue()).isEqualTo(simonDraft());
+	}
+
+	@Test
+	void simonRefusesAOneStepSequenceAndAColorAmongNumbers() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "simon", "",
+				new SimonInput("couleurs", List.of(
+						new SimonElementInput("rouge", "#ff0000"),
+						new SimonElementInput("bleu", "#0000ff")),
+						List.of(0))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.SIMON_SEQUENCE_REQUIRED);
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "simon", "",
+				new SimonInput("nombres", List.of(
+						new SimonElementInput("1", null),
+						new SimonElementInput("rouge", "#ff0000")),
+						List.of(0, 1))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.SIMON_NUMBER_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("simon"), any(), any());
+	}
+
+	@Test
+	void simonUpdateReplacesTheContentAndKeepsTheForm() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 17L)).thenReturn(Optional.of(simonQuestion(17L)));
+		when(questions.replace(eq(17L), eq(""), any())).thenReturn(simonQuestion(17L));
+
+		service.update(
+				TEACHER_ID, "teacher", SUBJECT_ID, 17L, "simon", "",
+				new SimonInput("lettres", List.of(
+						new SimonElementInput("A", null),
+						new SimonElementInput("B", null)),
+						List.of(1, 0, 1)));
+
+		ArgumentCaptor<SimonDraft> captor = ArgumentCaptor.forClass(SimonDraft.class);
+		verify(questions).replace(eq(17L), eq(""), captor.capture());
+		assertThat(captor.getValue()).isEqualTo(new SimonDraft("lettres", List.of(
+				new SimonElementDraft("A", null),
+				new SimonElementDraft("B", null)),
+				List.of(1, 0, 1)));
+		verify(questions, never()).ensureForm(eq(SUBJECT_ID), eq("simon"), any(), anyInt());
+	}
+
+	@Test
+	void cloneCopiesASimonWithItsElementsAndSequence() {
+		long targetId = 8L;
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(subjects.findOwned(TEACHER_ID, targetId)).thenReturn(Optional.of(
+				new StoredSubject(targetId, TEACHER_ID, 1L, "CE2", "Histoire", true, null)));
+		when(questions.findInSubject(SUBJECT_ID, 17L)).thenReturn(Optional.of(simonQuestion(17L)));
+		when(questions.insert(eq(targetId), eq("simon"), eq(""), any())).thenReturn(simonQuestion(30L));
+
+		TeacherSubjectQuestionsView view = service.cloneQuestions(
+				TEACHER_ID, "teacher", SUBJECT_ID, targetId, List.of(17L));
+
+		assertThat(view.questions()).extracting(QuestionLine::id).containsExactly(30L);
+		verify(questions).ensureForm(targetId, "simon", "Simon", 7);
+		ArgumentCaptor<SimonDraft> captor = ArgumentCaptor.forClass(SimonDraft.class);
+		verify(questions).insert(eq(targetId), eq("simon"), eq(""), captor.capture());
+		assertThat(captor.getValue()).isEqualTo(simonDraft());
+	}
+
+	/** Rouge, bleu, vert ; suite rouge, bleu, vert, rouge. */
+	private static SimonDraft simonDraft() {
+		return new SimonDraft("couleurs", List.of(
+				new SimonElementDraft("rouge", "#ff0000"),
+				new SimonElementDraft("bleu", "#0000ff"),
+				new SimonElementDraft("vert", "#00ff00")),
+				List.of(0, 1, 2, 0));
+	}
+
+	private static StoredQuestion simonQuestion(long id) {
+		return new StoredQuestion(id, SUBJECT_ID, "simon", "", new StoredSimon("couleurs", List.of(
+				new StoredSimonElement(1L, "rouge", "#ff0000"),
+				new StoredSimonElement(2L, "bleu", "#0000ff"),
+				new StoredSimonElement(3L, "vert", "#00ff00")),
+				List.of(0, 1, 2, 0)));
 	}
 
 	private static byte[] tinyWebp() {

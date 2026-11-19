@@ -11,6 +11,7 @@ import com.appv4.auth.application.service.question.ClickImageQuestionForm;
 import com.appv4.auth.application.service.question.PuzzleQuestionForm;
 import com.appv4.auth.application.service.question.LinkQuestionForm;
 import com.appv4.auth.application.service.question.ReponseLibreQuestionForm;
+import com.appv4.auth.application.service.question.SimonQuestionForm;
 import com.appv4.auth.application.service.question.TexteQuestionForm;
 import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
 import java.util.List;
@@ -687,6 +688,15 @@ public class AuthConfiguration {
 	@Bean
 	QuestionFormHandler puzzleQuestionForm() {
 		return new PuzzleQuestionForm();
+	}
+
+	/**
+	 * Simon dans une matière (ADMIN-25, BACK-54). Le professeur pose les éléments d'un genre
+	 * et la suite ; l'élève la regarde, la refait, et le serveur la note.
+	 */
+	@Bean
+	QuestionFormHandler simonQuestionForm() {
+		return new SimonQuestionForm();
 	}
 
 	@Bean

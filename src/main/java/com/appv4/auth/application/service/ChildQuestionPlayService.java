@@ -34,6 +34,7 @@ import com.appv4.auth.application.result.ChildPlayQuestionView.PlayItem;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayLink;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayPair;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayPuzzlePiece;
+import com.appv4.auth.application.result.ChildPlayQuestionView.PlaySimonElement;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayStatement;
 import com.appv4.auth.application.result.ChildLetterLocksView;
 import com.appv4.auth.application.service.question.LetterByLetterMatch;
@@ -47,10 +48,11 @@ import com.appv4.auth.application.service.question.play.MemoryChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.OrderChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.PuzzleChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.QcmChildAnswerGrader;
+import com.appv4.auth.application.service.question.play.SimonChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.TrueFalseChildAnswerGrader;
 
 /**
- * Lecture jouable et correction d'une tentative enfant (BACK-16 / BACK-17 / BACK-18 / BACK-49).
+ * Lecture jouable et correction d'une tentative enfant (BACK-16 / BACK-17 / BACK-18 / BACK-49 / BACK-54).
  *
  * <p><b>Business :</b> seule une matière liée est jouable ; le front ne recalcule pas le score.
  * <p><b>Technique :</b> jeton enfant → question → grader → insert attempt → progress puis mission du jour.
@@ -151,6 +153,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			case ClickChildAnswerGrader.FORM -> ClickChildAnswerGrader.grade(stored, answers.zoneClicks());
 			case LetterChildAnswerGrader.FORM -> LetterChildAnswerGrader.grade(stored, answers.attempt());
 			case PuzzleChildAnswerGrader.FORM -> PuzzleChildAnswerGrader.grade(stored, answers.puzzlePlacements());
+			case SimonChildAnswerGrader.FORM -> SimonChildAnswerGrader.grade(stored, answers.simonSequence());
 			default -> throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 		};
 	}
@@ -420,7 +423,46 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					stored.boardMode(),
 					boardImage,
 					stored.snapDistance(),
-					pieces);
+					pieces,
+					null,
+					List.of(),
+					List.of());
+		}
+		if (SimonChildAnswerGrader.FORM.equals(form)) {
+			if (stored.simonElements().isEmpty() || stored.simonSequence().isEmpty()) {
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
+			}
+			List<PlaySimonElement> elements = stored.simonElements().stream()
+					.map(element -> new PlaySimonElement(element.label(), element.color()))
+					.toList();
+			return new ChildPlayQuestionView(
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					null,
+					List.of(),
+					"",
+					List.of(),
+					"",
+					null,
+					List.of(),
+					List.of(),
+					null,
+					null,
+					null,
+					"",
+					null,
+					List.of(),
+					stored.simonElementType(),
+					elements,
+					stored.simonSequence());
 		}
 		throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 	}

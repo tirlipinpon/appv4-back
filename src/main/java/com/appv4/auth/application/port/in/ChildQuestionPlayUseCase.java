@@ -1,5 +1,7 @@
 package com.appv4.auth.application.port.in;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import com.appv4.auth.application.result.ChildAttemptResultView;
@@ -50,6 +52,10 @@ public interface ChildQuestionPlayUseCase {
 	record PuzzlePiecePlacementAnswer(long pieceId, double x, double y) {
 	}
 
+	/**
+	 * Réponses envoyées par l'enfant ; seule la liste de la forme jouée est lue.
+	 * {@code simonSequence} : positions 0-based des éléments touchés, dans l'ordre.
+	 */
 	record AttemptAnswers(
 			List<Long> selectedChoiceIds,
 			List<StatementAnswer> statements,
@@ -60,7 +66,8 @@ public interface ChildQuestionPlayUseCase {
 			List<GapFillAnswer> gapFills,
 			List<ZoneClickAnswer> zoneClicks,
 			List<PuzzlePiecePlacementAnswer> puzzlePlacements,
-			String attempt) {
+			String attempt,
+			List<Integer> simonSequence) {
 		public AttemptAnswers(
 				List<Long> selectedChoiceIds,
 				List<StatementAnswer> statements,
@@ -70,7 +77,7 @@ public interface ChildQuestionPlayUseCase {
 				List<LinkMatchAnswer> linkMatches,
 				List<GapFillAnswer> gapFills) {
 			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
-					List.of(), List.of(), null);
+					List.of(), List.of(), null, List.of());
 		}
 
 		public AttemptAnswers(
@@ -83,7 +90,7 @@ public interface ChildQuestionPlayUseCase {
 				List<GapFillAnswer> gapFills,
 				List<ZoneClickAnswer> zoneClicks) {
 			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
-					zoneClicks, List.of(), null);
+					zoneClicks, List.of(), null, List.of());
 		}
 
 		public AttemptAnswers(
@@ -97,7 +104,7 @@ public interface ChildQuestionPlayUseCase {
 				List<ZoneClickAnswer> zoneClicks,
 				String attempt) {
 			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
-					zoneClicks, List.of(), attempt);
+					zoneClicks, List.of(), attempt, List.of());
 		}
 
 		public AttemptAnswers {
@@ -111,6 +118,10 @@ public interface ChildQuestionPlayUseCase {
 			zoneClicks = zoneClicks == null ? List.of() : List.copyOf(zoneClicks);
 			puzzlePlacements = puzzlePlacements == null ? List.of() : List.copyOf(puzzlePlacements);
 			attempt = attempt == null ? "" : attempt;
+			// Un pas null reste dans la liste : le correcteur le refuse en 400 (List.copyOf lèverait une NPE).
+			simonSequence = simonSequence == null
+					? List.of()
+					: Collections.unmodifiableList(new ArrayList<>(simonSequence));
 		}
 	}
 }

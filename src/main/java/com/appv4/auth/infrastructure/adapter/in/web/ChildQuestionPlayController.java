@@ -128,7 +128,8 @@ public class ChildQuestionPlayController {
 				gapFills,
 				zoneClicks,
 				puzzlePlacements,
-				body == null ? null : body.attempt());
+				body == null ? null : body.attempt(),
+				body == null ? null : body.simonSequence());
 		ChildAttemptResultView view =
 				childQuestionPlayUseCase.submit(bearer(authorization), subjectId, questionId, answers);
 		return ResponseEntity.status(HttpStatus.CREATED)
@@ -213,6 +214,9 @@ public class ChildQuestionPlayController {
 						piece.slotY(),
 						piece.slotWidth()))
 				.toList();
+		List<ChildPlaySimonElementItem> elements = view.elements().stream()
+				.map(element -> new ChildPlaySimonElementItem(element.label(), element.color()))
+				.toList();
 		return new ChildPlayQuestionResponse(
 				view.questionId(),
 				view.subjectId(),
@@ -237,7 +241,10 @@ public class ChildQuestionPlayController {
 				view.boardMode(),
 				view.boardImageWebp(),
 				view.snapDistance(),
-				puzzlePieces);
+				puzzlePieces,
+				view.elementType(),
+				elements,
+				view.sequence());
 	}
 
 	private static String bearer(String authorization) {
@@ -272,7 +279,22 @@ public class ChildQuestionPlayController {
 			String boardMode,
 			String boardImageWebp,
 			Double snapDistance,
-			List<ChildPlayPuzzlePieceItem> puzzlePieces) {
+			List<ChildPlayPuzzlePieceItem> puzzlePieces,
+			@Schema(description = "Simon seulement : couleurs, nombres, lettres ou formes.")
+			String elementType,
+			@Schema(description = "Simon seulement : éléments à afficher, non mélangés. "
+					+ "Leur position (0, 1, 2…) est celle que sequence désigne et que simonSequence renvoie.")
+			List<ChildPlaySimonElementItem> elements,
+			@Schema(description = "Simon seulement : la suite à montrer, dans l'ordre où les éléments s'allument "
+					+ "(positions 0-based dans elements).")
+			List<Integer> sequence) {
+	}
+
+	@Schema(name = "ChildPlaySimonElementItem")
+	public record ChildPlaySimonElementItem(
+			String label,
+			@Schema(description = "Code #rrggbb pour le genre couleurs. Absent pour les autres genres.")
+			String color) {
 	}
 
 	@Schema(name = "ChildLetterLocksRequest")
@@ -351,7 +373,10 @@ public class ChildQuestionPlayController {
 			List<SubmitGapFillAnswer> gapFills,
 			List<SubmitZoneClickAnswer> zoneClicks,
 			List<SubmitPuzzlePiecePlacement> puzzlePlacements,
-			String attempt) {
+			String attempt,
+			@Schema(description = "Simon seulement : positions 0-based des éléments touchés, dans l'ordre, "
+					+ "une par pas de la suite (même longueur).")
+			List<Integer> simonSequence) {
 	}
 
 	@Schema(name = "SubmitStatementAnswer")

@@ -1,7 +1,10 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,9 +43,12 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimon;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimonElement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
+import com.appv4.auth.application.service.question.play.SimonChildAnswerGrader;
 import com.jayway.jsonpath.JsonPath;
 
 @SpringBootTest
@@ -345,6 +352,94 @@ class ChildQuestionPlayControllerTest {
 	}
 
 	@Test
+	void getSimonReturnsTheElementsInOrderAndTheSequenceToShow() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 18L)).thenReturn(Optional.of(simonQuestion()));
+
+		mockMvc.perform(get("/api/ext/subjects/4/questions/18").header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.formCode").value("simon"))
+				.andExpect(jsonPath("$.elementType").value("couleurs"))
+				.andExpect(jsonPath("$.elements.length()").value(4))
+				.andExpect(jsonPath("$.elements[0].label").value("rouge"))
+				.andExpect(jsonPath("$.elements[0].color").value("#ff0000"))
+				.andExpect(jsonPath("$.elements[3].label").value("jaune"))
+				.andExpect(jsonPath("$.sequence.length()").value(4))
+				.andExpect(jsonPath("$.sequence[1]").value(1))
+				.andExpect(jsonPath("$.sequence[3]").value(0));
+	}
+
+	@Test
+	void submitSimonSameSequencePassesAndStoresOneLinePerStep() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 18L)).thenReturn(Optional.of(simonQuestion()));
+		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
+				.thenReturn(new StoredAttempt(48L, 7L, 4L, 18L, "simon", 100, true));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/18/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"simonSequence":[0,1,2,0]}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.attemptId").value(48))
+				.andExpect(jsonPath("$.scorePercent").value(100))
+				.andExpect(jsonPath("$.passed").value(true));
+
+		ArgumentCaptor<NewAttempt> attempt = ArgumentCaptor.forClass(NewAttempt.class);
+		verify(childQuestionAttemptPort).insert(attempt.capture());
+		assertThat(attempt.getValue().formCode()).isEqualTo("simon");
+		assertThat(attempt.getValue().scorePercent()).isEqualTo(100);
+		assertThat(attempt.getValue().answers()).hasSize(4)
+				.allMatch(line -> "simon_step".equals(line.targetKind()) && line.correct());
+	}
+
+	@Test
+	void submitSimonInAnotherOrderIsZero() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 18L)).thenReturn(Optional.of(simonQuestion()));
+		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
+				.thenReturn(new StoredAttempt(49L, 7L, 4L, 18L, "simon", 0, false));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/18/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"simonSequence":[0,2,1,0]}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.scorePercent").value(0))
+				.andExpect(jsonPath("$.passed").value(false));
+
+		ArgumentCaptor<NewAttempt> attempt = ArgumentCaptor.forClass(NewAttempt.class);
+		verify(childQuestionAttemptPort).insert(attempt.capture());
+		assertThat(attempt.getValue().scorePercent()).isZero();
+		assertThat(attempt.getValue().passed()).isFalse();
+	}
+
+	@Test
+	void submitSimonWithAMissingStepIsRefused() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 18L)).thenReturn(Optional.of(simonQuestion()));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/18/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"simonSequence":[0,null,2,0]}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(SimonChildAnswerGrader.BAD_ANSWER));
+
+		verify(childQuestionAttemptPort, never()).insert(any(NewAttempt.class));
+	}
+
+	@Test
 	void unlinkedSubjectIsNotFound() throws Exception {
 		String token = loginAsLea();
 		when(childLoginPort.findActiveById(7L))
@@ -354,6 +449,16 @@ class ChildQuestionPlayControllerTest {
 		mockMvc.perform(get("/api/ext/subjects/4/questions/11").header("Authorization", "Bearer " + token))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.message").value(ChildQuestionPlayService.SUBJECT_MISSING));
+	}
+
+	/** Rouge, bleu, vert, jaune ; suite rouge, bleu, vert, rouge. */
+	private static StoredQuestion simonQuestion() {
+		return new StoredQuestion(18L, 4L, "simon", "", new StoredSimon("couleurs", List.of(
+				new StoredSimonElement(1L, "rouge", "#ff0000"),
+				new StoredSimonElement(2L, "bleu", "#0000ff"),
+				new StoredSimonElement(3L, "vert", "#00ff00"),
+				new StoredSimonElement(4L, "jaune", "#ffff00")),
+				List.of(0, 1, 2, 0)));
 	}
 
 	private void stubLinkedChild() {

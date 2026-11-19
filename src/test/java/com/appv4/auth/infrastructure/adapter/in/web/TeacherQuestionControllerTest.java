@@ -33,6 +33,8 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzle;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzlePiece;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimon;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimonElement;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.service.SpaceAccess;
@@ -64,7 +66,7 @@ class TeacherQuestionControllerTest {
 	void teacherSeesMultipleChoiceMemoryOrderAndTrueFalse() throws Exception {
 		mockMvc.perform(get("/api/int/teacher/question-forms").header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.forms.length()").value(11))
+				.andExpect(jsonPath("$.forms.length()").value(12))
 				.andExpect(jsonPath("$.forms[0].code").value("qcm"))
 				.andExpect(jsonPath("$.forms[0].label").value("Choix multiples"))
 				.andExpect(jsonPath("$.forms[1].code").value("memory"))
@@ -80,18 +82,21 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.forms[6].code").value("classement"))
 				.andExpect(jsonPath("$.forms[6].label").value("Classement"))
 				.andExpect(jsonPath("$.forms[6].sortOrder").value(7))
-				.andExpect(jsonPath("$.forms[7].code").value("image_interactive"))
-				.andExpect(jsonPath("$.forms[7].label").value("Image à cliquer"))
-				.andExpect(jsonPath("$.forms[7].sortOrder").value(8))
-				.andExpect(jsonPath("$.forms[8].code").value("reponse_libre"))
-				.andExpect(jsonPath("$.forms[8].label").value("Lettre par lettre"))
-				.andExpect(jsonPath("$.forms[8].sortOrder").value(9))
-				.andExpect(jsonPath("$.forms[9].code").value("puzzle"))
-				.andExpect(jsonPath("$.forms[9].label").value("Puzzle"))
-				.andExpect(jsonPath("$.forms[9].sortOrder").value(10))
-				.andExpect(jsonPath("$.forms[10].code").value("texte"))
-				.andExpect(jsonPath("$.forms[10].label").value("Réponse libre"))
-				.andExpect(jsonPath("$.forms[10].sortOrder").value(11));
+				.andExpect(jsonPath("$.forms[7].code").value("simon"))
+				.andExpect(jsonPath("$.forms[7].label").value("Simon"))
+				.andExpect(jsonPath("$.forms[7].sortOrder").value(7))
+				.andExpect(jsonPath("$.forms[8].code").value("image_interactive"))
+				.andExpect(jsonPath("$.forms[8].label").value("Image à cliquer"))
+				.andExpect(jsonPath("$.forms[8].sortOrder").value(8))
+				.andExpect(jsonPath("$.forms[9].code").value("reponse_libre"))
+				.andExpect(jsonPath("$.forms[9].label").value("Lettre par lettre"))
+				.andExpect(jsonPath("$.forms[9].sortOrder").value(9))
+				.andExpect(jsonPath("$.forms[10].code").value("puzzle"))
+				.andExpect(jsonPath("$.forms[10].label").value("Puzzle"))
+				.andExpect(jsonPath("$.forms[10].sortOrder").value(10))
+				.andExpect(jsonPath("$.forms[11].code").value("texte"))
+				.andExpect(jsonPath("$.forms[11].label").value("Réponse libre"))
+				.andExpect(jsonPath("$.forms[11].sortOrder").value(11));
 	}
 
 	@Test
@@ -569,6 +574,66 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.pieces[0].slotWidth").value(0.4))
 				.andExpect(jsonPath("$.pieces[1].label").value("le sol"))
 				.andExpect(jsonPath("$.snapDistance").value(0.12));
+	}
+
+	@Test
+	void createSimonReturnsTheTypeTheElementsAndTheSequence() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
+		when(questions.insert(eq(4L), eq("simon"), eq(""), any()))
+				.thenReturn(new StoredQuestion(16L, 4L, "simon", "", new StoredSimon("couleurs", List.of(
+						new StoredSimonElement(1L, "rouge", "#ff0000"),
+						new StoredSimonElement(2L, "bleu", "#0000ff"),
+						new StoredSimonElement(3L, "vert", "#00ff00")),
+						List.of(0, 1, 2, 0))));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "formCode":"simon",
+								  "prompt":"",
+								  "elementType":"couleurs",
+								  "elements":[
+								    {"label":"rouge","color":"#FF0000"},
+								    {"label":"bleu","color":"#0000ff"},
+								    {"label":"vert","color":"#00ff00"}
+								  ],
+								  "sequence":[0,1,2,0]
+								}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.formCode").value("simon"))
+				.andExpect(jsonPath("$.formLabel").value("Simon"))
+				.andExpect(jsonPath("$.elementType").value("couleurs"))
+				.andExpect(jsonPath("$.elements.length()").value(3))
+				.andExpect(jsonPath("$.elements[0].id").value(1))
+				.andExpect(jsonPath("$.elements[0].label").value("rouge"))
+				.andExpect(jsonPath("$.elements[0].color").value("#ff0000"))
+				.andExpect(jsonPath("$.sequence[0]").value(0))
+				.andExpect(jsonPath("$.sequence[3]").value(0))
+				.andExpect(jsonPath("$.sequence.length()").value(4));
+	}
+
+	@Test
+	void simonWithANullElementIsRefusedInsteadOfShiftingTheSequence() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "formCode":"simon",
+								  "elementType":"nombres",
+								  "elements":[{"label":"1"},null,{"label":"3"}],
+								  "sequence":[0,2]
+								}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(TeacherQuestionService.SIMON_ELEMENT_NAME_REQUIRED));
 	}
 
 	@Test

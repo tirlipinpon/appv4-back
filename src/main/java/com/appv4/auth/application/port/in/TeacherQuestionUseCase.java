@@ -235,4 +235,19 @@ public interface TeacherQuestionUseCase {
 			Double slotY,
 			Double slotWidth) {
 	}
+
+	/**
+	 * Simon (ADMIN-25). {@code elementType} : {@code couleurs}, {@code nombres}, {@code lettres}
+	 * ou {@code formes}. {@code sequence} : la suite à refaire, chaque pas étant la position
+	 * 0-based d'un élément de {@code elements}. Un même élément peut revenir.
+	 */
+	record SimonInput(String elementType, List<SimonElementInput> elements, List<Integer> sequence)
+			implements ContentInput {
+	}
+
+	/**
+	 * Un élément : son nom affiché, et pour le genre couleurs son code {@code #rrggbb}.
+	 */
+	record SimonElementInput(String label, String color) {
+	}
 }

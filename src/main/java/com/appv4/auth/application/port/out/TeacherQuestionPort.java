@@ -443,5 +443,27 @@ public interface TeacherQuestionPort {
 		public List<StoredClickZone> clickZones() {
 			return content instanceof StoredClickImage value ? value.zones() : List.of();
 		}
+
+		/** Mode de plateau puzzle. {@code null} hors forme {@code puzzle}. */
+		public String boardMode() {
+			return content instanceof StoredPuzzle value ? value.boardMode() : null;
+		}
+
+		/** Fond dédié (mode fond). Vide hors puzzle fond. */
+		public byte[] boardImageWebp() {
+			if (!(content instanceof StoredPuzzle puzzle) || puzzle.boardImageWebp() == null) {
+				return new byte[0];
+			}
+			return puzzle.boardImageWebp();
+		}
+
+		/** Magnétisme puzzle (fraction de largeur). {@code null} hors puzzle. */
+		public Double snapDistance() {
+			return content instanceof StoredPuzzle value ? value.snapDistance() : null;
+		}
+
+		public List<StoredPuzzlePiece> puzzlePieces() {
+			return content instanceof StoredPuzzle value ? value.pieces() : List.of();
+		}
 	}
 }

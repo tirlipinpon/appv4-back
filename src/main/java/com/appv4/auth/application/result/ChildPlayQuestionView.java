@@ -17,6 +17,8 @@ import java.util.List;
  * Si les clics sont ordonnés, chaque étape porte la consigne (le nom de la zone).
  * Lettre par lettre : {@code letterCount} cases et {@code letterMask}
  * ({@code #} = lettre, espace = saut), sans le mot attendu.
+ * Puzzle : image de découpe, mode de plateau, fond optionnel, magnétisme et géométrie
+ * des pièces (y compris slots blancs) ; l'enfant replace les pièces, le serveur note.
  * <p><b>Technique :</b> payload GET play.
  * <p><b>Métier / flow :</b> use case play → controller /api/ext.
  */
@@ -40,7 +42,11 @@ public record ChildPlayQuestionView(
 		List<PlayClickZone> clickZones,
 		List<PlayClickStep> clickSteps,
 		Integer letterCount,
-		String letterMask) {
+		String letterMask,
+		String boardMode,
+		String boardImageWebp,
+		Double snapDistance,
+		List<PlayPuzzlePiece> puzzlePieces) {
 
 	public ChildPlayQuestionView(
 			long questionId,
@@ -58,7 +64,8 @@ public record ChildPlayQuestionView(
 			String sentence,
 			List<PlayGapWord> words) {
 		this(questionId, subjectId, formCode, prompt, choices, statements, pairs, items, columns, cards,
-				timelineEnabled, links, sentence, words, "", null, List.of(), List.of(), null, null);
+				timelineEnabled, links, sentence, words, "", null, List.of(), List.of(), null, null,
+				null, "", null, List.of());
 	}
 
 	public ChildPlayQuestionView(
@@ -81,7 +88,34 @@ public record ChildPlayQuestionView(
 			List<PlayClickZone> clickZones,
 			List<PlayClickStep> clickSteps) {
 		this(questionId, subjectId, formCode, prompt, choices, statements, pairs, items, columns, cards,
-				timelineEnabled, links, sentence, words, imageWebp, clicksOrdered, clickZones, clickSteps, null, null);
+				timelineEnabled, links, sentence, words, imageWebp, clicksOrdered, clickZones, clickSteps,
+				null, null, null, "", null, List.of());
+	}
+
+	public ChildPlayQuestionView(
+			long questionId,
+			long subjectId,
+			String formCode,
+			String prompt,
+			List<PlayChoice> choices,
+			List<PlayStatement> statements,
+			List<PlayPair> pairs,
+			List<PlayItem> items,
+			List<PlayColumn> columns,
+			List<PlayCard> cards,
+			Boolean timelineEnabled,
+			List<PlayLink> links,
+			String sentence,
+			List<PlayGapWord> words,
+			String imageWebp,
+			Boolean clicksOrdered,
+			List<PlayClickZone> clickZones,
+			List<PlayClickStep> clickSteps,
+			Integer letterCount,
+			String letterMask) {
+		this(questionId, subjectId, formCode, prompt, choices, statements, pairs, items, columns, cards,
+				timelineEnabled, links, sentence, words, imageWebp, clicksOrdered, clickZones, clickSteps,
+				letterCount, letterMask, null, "", null, List.of());
 	}
 
 	public ChildPlayQuestionView {
@@ -95,10 +129,12 @@ public record ChildPlayQuestionView(
 		words = words == null ? List.of() : List.copyOf(words);
 		clickZones = clickZones == null ? List.of() : List.copyOf(clickZones);
 		clickSteps = clickSteps == null ? List.of() : List.copyOf(clickSteps);
+		puzzlePieces = puzzlePieces == null ? List.of() : List.copyOf(puzzlePieces);
 		prompt = prompt == null ? "" : prompt;
 		sentence = sentence == null ? "" : sentence;
 		imageWebp = imageWebp == null ? "" : imageWebp;
 		letterMask = letterMask == null ? "" : letterMask;
+		boardImageWebp = boardImageWebp == null ? "" : boardImageWebp;
 	}
 
 	public record PlayChoice(long choiceId, String label) {
@@ -142,5 +178,23 @@ public record ChildPlayQuestionView(
 
 	/** Consigne d'une étape, dans l'ordre, quand les clics sont ordonnés. */
 	public record PlayClickStep(long zoneId, String prompt) {
+	}
+
+	/**
+	 * Pièce jouable. {@code slotX}/{@code slotY} : cible en mode blanc, sinon null.
+	 * Les points décrivent la découpe (cadre d'origine hors mode blanc).
+	 */
+	public record PlayPuzzlePiece(
+			long pieceId,
+			String label,
+			String shape,
+			List<PlayClickPoint> points,
+			Double slotX,
+			Double slotY) {
+		public PlayPuzzlePiece {
+			points = points == null ? List.of() : List.copyOf(points);
+			label = label == null ? "" : label;
+			shape = shape == null ? "" : shape;
+		}
 	}
 }

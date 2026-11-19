@@ -18,6 +18,7 @@ import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.AttemptAnswer
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.GapFillAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.LinkMatchAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.PlacementAnswer;
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.PuzzlePiecePlacementAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.StatementAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.ZoneClickAnswer;
 import com.appv4.auth.application.result.ChildAttemptResultView;
@@ -112,6 +113,11 @@ public class ChildQuestionPlayController {
 				: body.zoneClicks().stream()
 						.map(click -> new ZoneClickAnswer(click.zoneId()))
 						.toList();
+		List<PuzzlePiecePlacementAnswer> puzzlePlacements = body == null || body.puzzlePlacements() == null
+				? List.of()
+				: body.puzzlePlacements().stream()
+						.map(p -> new PuzzlePiecePlacementAnswer(p.pieceId(), p.x(), p.y()))
+						.toList();
 		AttemptAnswers answers = new AttemptAnswers(
 				body == null || body.selectedChoiceIds() == null ? List.of() : body.selectedChoiceIds(),
 				statements,
@@ -121,6 +127,7 @@ public class ChildQuestionPlayController {
 				linkMatches,
 				gapFills,
 				zoneClicks,
+				puzzlePlacements,
 				body == null ? null : body.attempt());
 		ChildAttemptResultView view =
 				childQuestionPlayUseCase.submit(bearer(authorization), subjectId, questionId, answers);
@@ -194,6 +201,17 @@ public class ChildQuestionPlayController {
 		List<ChildPlayClickStepItem> clickSteps = view.clickSteps().stream()
 				.map(step -> new ChildPlayClickStepItem(step.zoneId(), step.prompt()))
 				.toList();
+		List<ChildPlayPuzzlePieceItem> puzzlePieces = view.puzzlePieces().stream()
+				.map(piece -> new ChildPlayPuzzlePieceItem(
+						piece.pieceId(),
+						piece.label(),
+						piece.shape(),
+						piece.points().stream()
+								.map(point -> new ChildPlayClickPointItem(point.x(), point.y()))
+								.toList(),
+						piece.slotX(),
+						piece.slotY()))
+				.toList();
 		return new ChildPlayQuestionResponse(
 				view.questionId(),
 				view.subjectId(),
@@ -214,7 +232,11 @@ public class ChildQuestionPlayController {
 				clickZones,
 				clickSteps,
 				view.letterCount(),
-				view.letterMask());
+				view.letterMask(),
+				view.boardMode(),
+				view.boardImageWebp(),
+				view.snapDistance(),
+				puzzlePieces);
 	}
 
 	private static String bearer(String authorization) {
@@ -245,7 +267,11 @@ public class ChildQuestionPlayController {
 			List<ChildPlayClickZoneItem> clickZones,
 			List<ChildPlayClickStepItem> clickSteps,
 			Integer letterCount,
-			String letterMask) {
+			String letterMask,
+			String boardMode,
+			String boardImageWebp,
+			Double snapDistance,
+			List<ChildPlayPuzzlePieceItem> puzzlePieces) {
 	}
 
 	@Schema(name = "ChildLetterLocksRequest")
@@ -300,6 +326,16 @@ public class ChildQuestionPlayController {
 	public record ChildPlayClickStepItem(long zoneId, String prompt) {
 	}
 
+	@Schema(name = "ChildPlayPuzzlePieceItem")
+	public record ChildPlayPuzzlePieceItem(
+			long pieceId,
+			String label,
+			String shape,
+			List<ChildPlayClickPointItem> points,
+			Double slotX,
+			Double slotY) {
+	}
+
 	@Schema(name = "SubmitChildAttemptRequest")
 	public record SubmitChildAttemptRequest(
 			List<Long> selectedChoiceIds,
@@ -310,6 +346,7 @@ public class ChildQuestionPlayController {
 			List<SubmitLinkMatchAnswer> linkMatches,
 			List<SubmitGapFillAnswer> gapFills,
 			List<SubmitZoneClickAnswer> zoneClicks,
+			List<SubmitPuzzlePiecePlacement> puzzlePlacements,
 			String attempt) {
 	}
 
@@ -331,6 +368,10 @@ public class ChildQuestionPlayController {
 
 	@Schema(name = "SubmitZoneClickAnswer")
 	public record SubmitZoneClickAnswer(long zoneId) {
+	}
+
+	@Schema(name = "SubmitPuzzlePiecePlacement")
+	public record SubmitPuzzlePiecePlacement(long pieceId, double x, double y) {
 	}
 
 	@Schema(name = "ChildAttemptResultResponse")

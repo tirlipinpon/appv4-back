@@ -24,6 +24,8 @@ import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.ZoneClickAnsw
 import com.appv4.auth.application.result.ChildAttemptResultView;
 import com.appv4.auth.application.result.ChildLetterLocksView;
 import com.appv4.auth.application.result.ChildPlayQuestionView;
+import com.appv4.auth.application.service.question.QuestionFormLooks;
+import com.appv4.auth.application.service.question.QuestionFormRegistry;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -44,9 +46,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class ChildQuestionPlayController {
 
 	private final ChildQuestionPlayUseCase childQuestionPlayUseCase;
+	private final QuestionFormRegistry questionFormRegistry;
 
-	public ChildQuestionPlayController(ChildQuestionPlayUseCase childQuestionPlayUseCase) {
+	public ChildQuestionPlayController(
+			ChildQuestionPlayUseCase childQuestionPlayUseCase,
+			QuestionFormRegistry questionFormRegistry) {
 		this.childQuestionPlayUseCase = childQuestionPlayUseCase;
+		this.questionFormRegistry = questionFormRegistry;
 	}
 
 	@GetMapping
@@ -166,7 +172,7 @@ public class ChildQuestionPlayController {
 		return ResponseEntity.ok(new ChildLetterLocksResponse(view.locks()));
 	}
 
-	private static ChildPlayQuestionResponse toResponse(ChildPlayQuestionView view) {
+	private ChildPlayQuestionResponse toResponse(ChildPlayQuestionView view) {
 		List<ChildPlayChoiceItem> choices = view.choices().stream()
 				.map(c -> new ChildPlayChoiceItem(c.choiceId(), c.label()))
 				.toList();
@@ -217,6 +223,7 @@ public class ChildQuestionPlayController {
 		List<ChildPlaySimonElementItem> elements = view.elements().stream()
 				.map(element -> new ChildPlaySimonElementItem(element.label(), element.color()))
 				.toList();
+		QuestionFormLooks.Look look = QuestionFormLooks.of(view.formCode());
 		return new ChildPlayQuestionResponse(
 				view.questionId(),
 				view.subjectId(),
@@ -244,7 +251,10 @@ public class ChildQuestionPlayController {
 				puzzlePieces,
 				view.elementType(),
 				elements,
-				view.sequence());
+				view.sequence(),
+				questionFormRegistry.knownLabel(view.formCode()),
+				look == null ? null : look.iconCode(),
+				look == null ? null : look.color());
 	}
 
 	private static String bearer(String authorization) {
@@ -287,7 +297,13 @@ public class ChildQuestionPlayController {
 			List<ChildPlaySimonElementItem> elements,
 			@Schema(description = "Simon seulement : la suite à montrer, dans l'ordre où les éléments s'allument "
 					+ "(positions 0-based dans elements).")
-			List<Integer> sequence) {
+			List<Integer> sequence,
+			@Schema(description = "Libellé de la forme, ou null.", nullable = true)
+			String formLabel,
+			@Schema(description = "Dessin de la forme, ou null.", nullable = true)
+			String iconCode,
+			@Schema(description = "Couleur #rrggbb de la forme, ou null.", nullable = true)
+			String color) {
 	}
 
 	@Schema(name = "ChildPlaySimonElementItem")

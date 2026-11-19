@@ -38,4 +38,10 @@ public final class QuestionFormRegistry {
 		QuestionFormHandler handler = handlers.get(formCode);
 		return handler == null ? formCode : handler.form().label();
 	}
+
+	/** Libellé catalogue, ou null si cette forme n'existe pas. */
+	public String knownLabel(String formCode) {
+		QuestionFormHandler handler = handlers.get(formCode == null ? "" : formCode);
+		return handler == null ? null : handler.form().label();
+	}
 }

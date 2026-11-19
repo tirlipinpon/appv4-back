@@ -584,8 +584,7 @@ class TeacherQuestionControllerTest {
 				.thenReturn(new StoredQuestion(16L, 4L, "simon", "", new StoredSimon("couleurs", List.of(
 						new StoredSimonElement(1L, "rouge", "#ff0000"),
 						new StoredSimonElement(2L, "bleu", "#0000ff"),
-						new StoredSimonElement(3L, "vert", "#00ff00")),
-						List.of(0, 1, 2, 0))));
+						new StoredSimonElement(3L, "vert", "#00ff00")))));
 
 		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
 						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
@@ -611,9 +610,7 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.elements[0].id").value(1))
 				.andExpect(jsonPath("$.elements[0].label").value("rouge"))
 				.andExpect(jsonPath("$.elements[0].color").value("#ff0000"))
-				.andExpect(jsonPath("$.sequence[0]").value(0))
-				.andExpect(jsonPath("$.sequence[3]").value(0))
-				.andExpect(jsonPath("$.sequence.length()").value(4));
+				.andExpect(jsonPath("$.sequence").isEmpty());
 	}
 
 	@Test

@@ -1584,7 +1584,7 @@ class TeacherQuestionServiceTest {
 		assertThat(line.elementType()).isEqualTo("couleurs");
 		assertThat(line.elements()).extracting(row -> row.label() + ":" + row.color())
 				.containsExactly("rouge:#ff0000", "bleu:#0000ff", "vert:#00ff00");
-		assertThat(line.sequence()).containsExactly(0, 1, 2, 0);
+		assertThat(line.sequence()).isEmpty();
 		verify(questions).ensureForm(SUBJECT_ID, "simon", "Simon", 7);
 
 		ArgumentCaptor<SimonDraft> captor = ArgumentCaptor.forClass(SimonDraft.class);
@@ -1593,17 +1593,9 @@ class TeacherQuestionServiceTest {
 	}
 
 	@Test
-	void simonRefusesAOneStepSequenceAndAColorAmongNumbers() {
+	void simonRefusesAColorAmongNumbers() {
 		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
 
-		assertThatThrownBy(() -> service.create(
-				TEACHER_ID, "teacher", SUBJECT_ID, "simon", "",
-				new SimonInput("couleurs", List.of(
-						new SimonElementInput("rouge", "#ff0000"),
-						new SimonElementInput("bleu", "#0000ff")),
-						List.of(0))))
-				.isInstanceOf(AuthDomainException.class)
-				.hasMessage(TeacherQuestionService.SIMON_SEQUENCE_REQUIRED);
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "simon", "",
 				new SimonInput("nombres", List.of(
@@ -1633,8 +1625,7 @@ class TeacherQuestionServiceTest {
 		verify(questions).replace(eq(17L), eq(""), captor.capture());
 		assertThat(captor.getValue()).isEqualTo(new SimonDraft("lettres", List.of(
 				new SimonElementDraft("A", null),
-				new SimonElementDraft("B", null)),
-				List.of(1, 0, 1)));
+				new SimonElementDraft("B", null))));
 		verify(questions, never()).ensureForm(eq(SUBJECT_ID), eq("simon"), any(), anyInt());
 	}
 
@@ -1662,16 +1653,14 @@ class TeacherQuestionServiceTest {
 		return new SimonDraft("couleurs", List.of(
 				new SimonElementDraft("rouge", "#ff0000"),
 				new SimonElementDraft("bleu", "#0000ff"),
-				new SimonElementDraft("vert", "#00ff00")),
-				List.of(0, 1, 2, 0));
+				new SimonElementDraft("vert", "#00ff00")));
 	}
 
 	private static StoredQuestion simonQuestion(long id) {
 		return new StoredQuestion(id, SUBJECT_ID, "simon", "", new StoredSimon("couleurs", List.of(
 				new StoredSimonElement(1L, "rouge", "#ff0000"),
 				new StoredSimonElement(2L, "bleu", "#0000ff"),
-				new StoredSimonElement(3L, "vert", "#00ff00")),
-				List.of(0, 1, 2, 0)));
+				new StoredSimonElement(3L, "vert", "#00ff00"))));
 	}
 
 	private static byte[] tinyWebp() {

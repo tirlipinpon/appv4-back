@@ -295,20 +295,18 @@ class TeacherQuestionPersistenceTest {
 	}
 
 	@Test
-	void simonReplacementKeepsTheTypeTheElementsAndTheSequence() {
+	void simonReplacementKeepsTheTypeAndTheElements() {
 		adapter.ensureForm(subjectId, "simon", "Simon", 7);
 		StoredQuestion saved = adapter.insert(subjectId, "simon", "", new SimonDraft("couleurs", List.of(
 				new SimonElementDraft("rouge", "#ff0000"),
 				new SimonElementDraft("bleu", "#0000ff"),
-				new SimonElementDraft("vert", "#00ff00")),
-				List.of(0, 1, 2, 0)));
-		assertThat(saved.simonSequence()).containsExactly(0, 1, 2, 0);
+				new SimonElementDraft("vert", "#00ff00"))));
+		assertThat(saved.simonSequence()).isEmpty();
 		// Charge la question en session comme le use case update (find puis replace).
 		assertThat(adapter.findInSubject(subjectId, saved.id()).orElseThrow().simonElementType()).isEqualTo("couleurs");
 		adapter.replace(saved.id(), "Refais la suite.", new SimonDraft("lettres", List.of(
 				new SimonElementDraft("A", null),
-				new SimonElementDraft("B", null)),
-				List.of(1, 1, 0)));
+				new SimonElementDraft("B", null))));
 		entityManager.flush();
 		entityManager.clear();
 
@@ -319,16 +317,7 @@ class TeacherQuestionPersistenceTest {
 				.containsExactly("A:null", "B:null");
 		assertThat(loaded.simonElements()).extracting(row -> row.id())
 				.doesNotContainAnyElementsOf(saved.simonElements().stream().map(row -> row.id()).toList());
-		assertThat(loaded.simonSequence()).containsExactly(1, 1, 0);
-	}
-
-	@Test
-	void databaseRejectsASimonStepWithoutItsElement() {
-		StoredQuestion saved = insertSimonNumbers();
-		assertThatThrownBy(() -> jdbc.update("""
-				insert into back_subject_question_simon_steps (question_id, element_index, sort_order)
-				values (?, 2, 2)
-				""", saved.id())).isInstanceOf(DataIntegrityViolationException.class);
+		assertThat(loaded.simonSequence()).isEmpty();
 	}
 
 	@Test
@@ -362,8 +351,7 @@ class TeacherQuestionPersistenceTest {
 		adapter.ensureForm(subjectId, "simon", "Simon", 7);
 		return adapter.insert(subjectId, "simon", "", new SimonDraft("nombres", List.of(
 				new SimonElementDraft("1", null),
-				new SimonElementDraft("2", null)),
-				List.of(0, 1)));
+				new SimonElementDraft("2", null))));
 	}
 
 	private Statistics resetStatistics() {

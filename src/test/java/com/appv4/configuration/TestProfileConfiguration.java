@@ -24,6 +24,7 @@ import com.appv4.auth.application.port.out.ChildDailyMissionPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildSubjectBoardPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
+import com.appv4.auth.application.port.out.ChildSimonChallengePort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildPort;
@@ -142,6 +143,12 @@ public class TestProfileConfiguration {
 	@Bean
 	ChildQuestionAttemptPort childQuestionAttemptPort() {
 		return mock(ChildQuestionAttemptPort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	/** Suite Simon tirée (BACK-55). Pas de Postgres dans les tests web. */
+	@Bean
+	ChildSimonChallengePort childSimonChallengePort() {
+		return mock(ChildSimonChallengePort.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
 	/** Mission du jour (BACK-18). Pas de Postgres dans les tests web. */

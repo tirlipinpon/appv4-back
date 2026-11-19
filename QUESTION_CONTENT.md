@@ -38,7 +38,7 @@ de formats encore non implémentés.
 | Vrai/Faux | Phrases et côté vrai ou faux | Implémenté : `statements` |
 | Liens | Mot de gauche et réponse de droite | Implémenté : `links` |
 | Case vide | Phrase avec `___`, mot juste de chaque trou, leurres | Implémenté : `sentence`, `answers`, `decoys` |
-| Simon | Genre, éléments, suite d'index | Implémenté : `elementType`, `elements`, `sequence` |
+| Simon | Genre et éléments. La suite est tirée à la partie (1, puis 2 depuis le début, puis 3…) | Implémenté : `elementType`, `elements`. `sequence` seulement dans le jeu enfant |
 | Image interactive | Référence de média, zones, réponses | Structure spécifique |
 | Réponse libre | Réponses admises et règles de comparaison | Structure spécifique |
 | Puzzle | Référence de média, découpage, configuration | Structure spécifique |
@@ -63,7 +63,7 @@ Ces futures tables de jeux ne sont pas créées prématurément par cette optimi
 5. Ajouter le DTO HTTP et le formulaire adaptés à la nouvelle structure. Les
    formes déjà publiées gardent leur contrat `choices` / `pairs` / `items`.
    Vrai ou faux ajoute `statements`, Liens ajoute `links`, Case vide ajoute
-   `sentence`, `answers` et `decoys`, Simon ajoute `elementType`, `elements` et `sequence`.
+   `sentence`, `answers` et `decoys`, Simon ajoute `elementType` et `elements`.
    Les surcharges prenant `ContentInput` permettent aux nouveaux adaptateurs
    d'appeler le même service avec une structure différente.
 6. Tester validation, droits, aller-retour en base et nombre de requêtes avant

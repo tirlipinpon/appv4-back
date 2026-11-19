@@ -607,7 +607,7 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 			for (StoredSimonElement element : simon.elements()) {
 				elements.add(new SimonElementDraft(element.label(), element.color()));
 			}
-			return new SimonDraft(simon.elementType(), elements, simon.sequence());
+			return new SimonDraft(simon.elementType(), elements);
 		}
 		throw new IllegalStateException("Copie non prévue pour la forme : " + source.formCode());
 	}

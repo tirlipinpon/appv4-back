@@ -197,8 +197,9 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 		}
 
 		/** Suite Simon : position 0-based de l'élément de chaque pas. Vide hors Simon. */
+		/** Vide : la suite d'un Simon est tirée à la partie, pas enregistrée par le professeur. */
 		public List<Integer> sequence() {
-			return content instanceof StoredSimon value ? value.sequence() : List.of();
+			return List.of();
 		}
 	}
 

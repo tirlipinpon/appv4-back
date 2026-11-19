@@ -10,49 +10,62 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimonElement;
 
 /**
- * Note un Simon enfant : la suite refaite doit être exactement celle du professeur.
+ * Note un Simon enfant : la reprise doit être exactement la suite tirée pour lui (BACK-54, BACK-55).
  *
- * <p><b>Business :</b> l'élève regarde la suite s'allumer, puis la refait. Il n'y a pas de
- * bouton Valider : l'écran envoie la reprise quand tous les pas sont joués. Même suite :
- * 100 et réussi. Un seul pas différent (autre élément, autre ordre) : 0, pas de score partiel.
+ * <p><b>Business :</b> à l'ouverture, le serveur tire une suite au hasard parmi les éléments du
+ * professeur. L'écran montre d'abord 1 pas, puis 2 depuis le début, puis 3, jusqu'à la suite
+ * tirée. Même suite jusqu'au bout : 100 et réussi. Une erreur au milieu : score = pas justes
+ * depuis le début / longueur de la suite, pas réussi.
  * <p><b>Technique :</b> compare {@code simonSequence} (positions 0-based dans les éléments) à la
- * suite enregistrée. Une longueur différente ou une position inconnue est une réponse invalide
- * (400). Une ligne par pas : {@code target_kind = simon_step}, {@code target_id} = élément attendu,
- * {@code answer_choice_id} = élément touché, pour rester dans la contrainte des tentatives.
- * <p><b>Métier / flow :</b> POST attempts → {@link com.appv4.auth.application.service.ChildQuestionPlayService}.
+ * suite gardée pour cet enfant. Pas de suite gardée, ou une suite qui ne tombe plus dans les
+ * éléments (question corrigée entre-temps) : {@link #SEQUENCE_MISSING} (400). Une reprise de
+ * longueur différente ou avec une position inconnue : {@link #BAD_ANSWER} (400). Une ligne par pas :
+ * {@code target_kind = simon_step}, {@code target_id} = élément attendu, {@code answer_choice_id} =
+ * élément touché, pour rester dans la contrainte des tentatives.
+ * <p><b>Métier / flow :</b> POST attempts → {@link com.appv4.auth.application.service.ChildQuestionPlayService}
+ * relit la suite gardée par {@code ChildSimonChallengePort} → ce correcteur.
  */
 public final class SimonChildAnswerGrader {
 
 	public static final String FORM = "simon";
 	public static final String BAD_ANSWER = "Réponse invalide pour cette question.";
+	public static final String SEQUENCE_MISSING = "Rouvre la question pour voir une nouvelle suite.";
 	public static final String TARGET_KIND = "simon_step";
 
 	private SimonChildAnswerGrader() {
 	}
 
-	public static ChildAnswerGrade grade(StoredQuestion question, List<Integer> replayed) {
+	/**
+	 * @param issued suite tirée à la dernière ouverture de l'enfant, vide s'il n'y en a pas
+	 * @param replayed positions touchées par l'enfant, dans l'ordre
+	 */
+	public static ChildAnswerGrade grade(StoredQuestion question, List<Integer> issued, List<Integer> replayed) {
 		List<StoredSimonElement> elements = question.simonElements();
-		List<Integer> expected = question.simonSequence();
-		if (elements.isEmpty() || expected.isEmpty()) {
-			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, BAD_ANSWER);
+		List<Integer> expected = issued == null ? List.of() : issued;
+		if (expected.isEmpty() || !allWithin(expected, elements.size())) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, SEQUENCE_MISSING);
 		}
 		List<Integer> submitted = replayed == null ? List.of() : replayed;
-		if (submitted.size() != expected.size()) {
+		if (submitted.isEmpty() || submitted.size() > expected.size() || !allWithin(submitted, elements.size())) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, BAD_ANSWER);
 		}
-		boolean exact = true;
-		List<AnswerLine> lines = new ArrayList<>();
-		for (int step = 0; step < expected.size(); step++) {
-			Integer chosen = submitted.get(step);
-			if (chosen == null || chosen < 0 || chosen >= elements.size()) {
-				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, BAD_ANSWER);
-			}
-			int wanted = expected.get(step);
-			boolean correct = chosen == wanted;
-			exact = exact && correct;
-			lines.add(new AnswerLine(
-					TARGET_KIND, elements.get(wanted).id(), null, elements.get(chosen).id(), correct));
+		int matched = 0;
+		while (matched < submitted.size() && submitted.get(matched).intValue() == expected.get(matched)) {
+			matched++;
 		}
-		return new ChildAnswerGrade(exact ? 100 : 0, exact, lines);
+		boolean exact = matched == expected.size();
+		List<AnswerLine> lines = new ArrayList<>();
+		for (int step = 0; step < submitted.size(); step++) {
+			int wanted = expected.get(step);
+			int chosen = submitted.get(step);
+			lines.add(new AnswerLine(
+					TARGET_KIND, elements.get(wanted).id(), null, elements.get(chosen).id(), step < matched));
+		}
+		int score = (int) Math.round(100.0 * matched / expected.size());
+		return new ChildAnswerGrade(score, exact, lines);
+	}
+
+	private static boolean allWithin(List<Integer> positions, int elementCount) {
+		return positions.stream().allMatch(index -> index != null && index >= 0 && index < elementCount);
 	}
 }

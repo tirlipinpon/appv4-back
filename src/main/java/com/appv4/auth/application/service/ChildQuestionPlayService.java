@@ -23,12 +23,14 @@ import com.appv4.auth.application.result.ChildPlayQuestionView;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayCard;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayChoice;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayColumn;
+import com.appv4.auth.application.result.ChildPlayQuestionView.PlayGapWord;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayItem;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayLink;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayPair;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayStatement;
 import com.appv4.auth.application.service.question.play.ChildAnswerGrade;
 import com.appv4.auth.application.service.question.play.ClassificationChildAnswerGrader;
+import com.appv4.auth.application.service.question.play.GapChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.LinkChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.MemoryChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.OrderChildAnswerGrader;
@@ -36,7 +38,7 @@ import com.appv4.auth.application.service.question.play.QcmChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.TrueFalseChildAnswerGrader;
 
 /**
- * Lecture jouable et correction d'une tentative enfant (BACK-16 / BACK-17 / BACK-18).
+ * Lecture jouable et correction d'une tentative enfant (BACK-16 / BACK-17 / BACK-18 / BACK-49).
  *
  * <p><b>Business :</b> seule une matière liée est jouable ; le front ne recalcule pas le score.
  * <p><b>Technique :</b> jeton enfant → question → grader → insert attempt → progress puis mission du jour.
@@ -114,6 +116,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			case ClassificationChildAnswerGrader.FORM ->
 					ClassificationChildAnswerGrader.grade(stored, answers.placements());
 			case LinkChildAnswerGrader.FORM -> LinkChildAnswerGrader.grade(stored, answers.linkMatches());
+			case GapChildAnswerGrader.FORM -> GapChildAnswerGrader.grade(stored, answers.gapFills());
 			default -> throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 		};
 	}
@@ -136,6 +139,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of(),
 					null,
+					List.of(),
+					"",
 					List.of());
 		}
 		if (TrueFalseChildAnswerGrader.FORM.equals(form)) {
@@ -154,6 +159,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of(),
 					null,
+					List.of(),
+					"",
 					List.of());
 		}
 		if (MemoryChildAnswerGrader.FORM.equals(form)) {
@@ -172,6 +179,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of(),
 					null,
+					List.of(),
+					"",
 					List.of());
 		}
 		if (OrderChildAnswerGrader.FORM.equals(form)) {
@@ -192,6 +201,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of(),
 					timeline,
+					List.of(),
+					"",
 					List.of());
 		}
 		if (ClassificationChildAnswerGrader.FORM.equals(form)) {
@@ -214,6 +225,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					columns,
 					cards,
 					null,
+					List.of(),
+					"",
 					List.of());
 		}
 		if (LinkChildAnswerGrader.FORM.equals(form)) {
@@ -232,7 +245,30 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of(),
 					null,
-					links);
+					links,
+					"",
+					List.of());
+		}
+		if (GapChildAnswerGrader.FORM.equals(form)) {
+			List<PlayGapWord> words = new ArrayList<>();
+			stored.answers().forEach(word -> words.add(new PlayGapWord(word.id(), word.label())));
+			stored.decoys().forEach(word -> words.add(new PlayGapWord(word.id(), word.label())));
+			Collections.shuffle(words);
+			return new ChildPlayQuestionView(
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					null,
+					List.of(),
+					stored.sentence(),
+					words);
 		}
 		throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 	}

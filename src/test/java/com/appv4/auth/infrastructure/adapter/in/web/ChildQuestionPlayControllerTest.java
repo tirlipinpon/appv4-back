@@ -290,6 +290,61 @@ class ChildQuestionPlayControllerTest {
 	}
 
 	@Test
+	void getGapsReturnsSentenceAndBank() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 16L)).thenReturn(Optional.of(new StoredQuestion(
+				16L,
+				4L,
+				"case_vide",
+				"Complète.",
+				new TeacherQuestionPort.StoredGaps(
+						"Le ___ mange une ___.",
+						List.of(
+								new TeacherQuestionPort.StoredGapWord(10L, "chat"),
+								new TeacherQuestionPort.StoredGapWord(11L, "pomme")),
+						List.of(new TeacherQuestionPort.StoredGapWord(12L, "voiture"))))));
+
+		mockMvc.perform(get("/api/ext/subjects/4/questions/16").header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.formCode").value("case_vide"))
+				.andExpect(jsonPath("$.sentence").value("Le ___ mange une ___."))
+				.andExpect(jsonPath("$.words.length()").value(3))
+				.andExpect(jsonPath("$.words[?(@.wordId == 10)].label").value("chat"))
+				.andExpect(jsonPath("$.words[?(@.wordId == 12)].label").value("voiture"));
+	}
+
+	@Test
+	void submitGapsAllCorrectPasses() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 16L)).thenReturn(Optional.of(new StoredQuestion(
+				16L,
+				4L,
+				"case_vide",
+				"Complète.",
+				new TeacherQuestionPort.StoredGaps(
+						"Le ___ mange une ___.",
+						List.of(
+								new TeacherQuestionPort.StoredGapWord(10L, "chat"),
+								new TeacherQuestionPort.StoredGapWord(11L, "pomme")),
+						List.of(new TeacherQuestionPort.StoredGapWord(12L, "voiture"))))));
+		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
+				.thenReturn(new StoredAttempt(47L, 7L, 4L, 16L, "case_vide", 100, true));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/16/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"gapFills":[{"holeIndex":0,"wordId":10},{"holeIndex":1,"wordId":11}]}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.attemptId").value(47))
+				.andExpect(jsonPath("$.scorePercent").value(100))
+				.andExpect(jsonPath("$.passed").value(true));
+	}
+
+	@Test
 	void unlinkedSubjectIsNotFound() throws Exception {
 		String token = loginAsLea();
 		when(childLoginPort.findActiveById(7L))

@@ -30,13 +30,18 @@ public interface ChildQuestionPlayUseCase {
 	record LinkMatchAnswer(long leftId, long rightId) {
 	}
 
+	/** Mot placé dans un trou. {@code holeIndex} suit les {@code ___} de gauche à droite. */
+	record GapFillAnswer(int holeIndex, long wordId) {
+	}
+
 	record AttemptAnswers(
 			List<Long> selectedChoiceIds,
 			List<StatementAnswer> statements,
 			List<Long> matchedPairIds,
 			List<Long> orderedItemIds,
 			List<PlacementAnswer> placements,
-			List<LinkMatchAnswer> linkMatches) {
+			List<LinkMatchAnswer> linkMatches,
+			List<GapFillAnswer> gapFills) {
 		public AttemptAnswers {
 			selectedChoiceIds = selectedChoiceIds == null ? List.of() : List.copyOf(selectedChoiceIds);
 			statements = statements == null ? List.of() : List.copyOf(statements);
@@ -44,6 +49,7 @@ public interface ChildQuestionPlayUseCase {
 			orderedItemIds = orderedItemIds == null ? List.of() : List.copyOf(orderedItemIds);
 			placements = placements == null ? List.of() : List.copyOf(placements);
 			linkMatches = linkMatches == null ? List.of() : List.copyOf(linkMatches);
+			gapFills = gapFills == null ? List.of() : List.copyOf(gapFills);
 		}
 	}
 }

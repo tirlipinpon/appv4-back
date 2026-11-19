@@ -11,6 +11,8 @@ import java.util.List;
  * Si {@code timelineEnabled}, chaque item porte son {@code axisLabel} de jalon.
  * Classement : colonnes et cartes sans la colonne juste.
  * Liens : les deux libellés d'un lien sont le contenu jouable ; l'association est notée à la tentative.
+ * Case vide : la phrase et la banque (mots justes + leurres) sont le contenu jouable ;
+ * quel mot va dans quel trou est noté à la tentative. Les mots sont mélangés.
  * <p><b>Technique :</b> payload GET play.
  * <p><b>Métier / flow :</b> use case play → controller /api/ext.
  */
@@ -26,7 +28,9 @@ public record ChildPlayQuestionView(
 		List<PlayColumn> columns,
 		List<PlayCard> cards,
 		Boolean timelineEnabled,
-		List<PlayLink> links) {
+		List<PlayLink> links,
+		String sentence,
+		List<PlayGapWord> words) {
 
 	public ChildPlayQuestionView {
 		choices = choices == null ? List.of() : List.copyOf(choices);
@@ -36,7 +40,9 @@ public record ChildPlayQuestionView(
 		columns = columns == null ? List.of() : List.copyOf(columns);
 		cards = cards == null ? List.of() : List.copyOf(cards);
 		links = links == null ? List.of() : List.copyOf(links);
+		words = words == null ? List.of() : List.copyOf(words);
 		prompt = prompt == null ? "" : prompt;
+		sentence = sentence == null ? "" : sentence;
 	}
 
 	public record PlayChoice(long choiceId, String label) {
@@ -62,5 +68,9 @@ public record ChildPlayQuestionView(
 
 	/** Deux côtés d'un lien. {@code linkId} est le même pour le mot et sa réponse. */
 	public record PlayLink(long linkId, String leftLabel, String rightLabel) {
+	}
+
+	/** Mot de la banque Case vide. L'id ne dit pas si le mot est un leurre. */
+	public record PlayGapWord(long wordId, String label) {
 	}
 }

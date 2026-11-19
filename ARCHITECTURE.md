@@ -62,6 +62,14 @@ Une feature ne contient que ce dont elle a besoin. Pas de dossiers vides “pour
 
 > Le sous-package s’appelle `intapi` car `int` est un mot réservé Java. Les URLs restent `/api/int/**`.
 
+## Contrat des erreurs HTTP
+
+Dans les parcours auth, Learning et Teacher gérés par `AuthExceptionHandler`, les erreurs
+métier exposent `AuthErrorBody` avec les champs `message` et `code`. Le front affiche
+`message` et utilise notamment `code` pour les actions de restauration et de partage.
+Une évolution vers `ProblemDetail` doit préserver ces usages et être vérifiée avec le
+contrat OpenAPI et les deux clients Angular.
+
 ## Persistance
 
 - **JPA** (`spring-boot-starter-data-jpa`) + **Flyway** (autorité du schéma).

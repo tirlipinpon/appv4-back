@@ -120,6 +120,11 @@ $env:APPV4_PERSISTENCE_TEST_URL = 'jdbc:postgresql://localhost:5432/appv4_questi
 .\mvnw.cmd verify
 ```
 
+La CI fournit l’URL du service PostgreSQL éphémère à cette même commande.
+Le profil Maven `postgres-integration` active Failsafe pour les classes `*IT`,
+dont `ChildProgressConcurrencyIT`, qui vérifie deux écritures simultanées d’XP.
+Les suites de persistance existantes en `*Test` passent dans la phase Surefire.
+
 `TeacherQuestionPersistenceTest` mesure les lectures SQL et vérifie les mises à
 jour et contraintes. `QuestionMigrationTest` crée des contenus en V32, migre en
 V33 et vérifie les identifiants, contenus et suppressions en cascade.

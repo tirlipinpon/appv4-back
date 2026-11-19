@@ -47,9 +47,7 @@ Workflow : `.github/workflows/ci-develop.yml`
 Triggers : `push` / `pull_request` vers **`develop`**, et `pull_request` vers **`release`** / **`release/**`.
 
 Obligatoire (CI rouge = **pas de merge**) :
-1. **Lint** — Checkstyle (`./mvnw checkstyle:check`)
-2. **Tests** — `./mvnw test`
-3. **Package** — `./mvnw package`
+Le job exécute `./mvnw -B verify` avec son service PostgreSQL éphémère. Maven contrôle le style, exécute les tests Surefire, produit le JAR puis vérifie les tests d’intégration Failsafe. La commande locale équivalente est décrite dans [QUESTION_CONTENT.md](./QUESTION_CONTENT.md#vérification).
 
 > En Java, le « linter » standard côté Maven est **Checkstyle** (style / imports / naming). SpotBugs / PMD existent aussi pour la qualité, hors scope actuel.
 

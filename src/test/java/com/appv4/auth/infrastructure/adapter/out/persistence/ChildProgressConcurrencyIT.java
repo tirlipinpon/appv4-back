@@ -10,7 +10,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -30,9 +29,8 @@ import com.appv4.auth.application.service.UpdateChildProgressAfterAttemptService
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("persistence-test")
 @Import(ChildProgressPersistenceAdapter.class)
-@EnabledIfEnvironmentVariable(named = "APPV4_PERSISTENCE_TEST_URL", matches = ".+")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class ChildProgressConcurrencyTest {
+class ChildProgressConcurrencyIT {
 	@Autowired
 	private JdbcTemplate jdbc;
 	@Autowired
@@ -48,7 +46,7 @@ class ChildProgressConcurrencyTest {
 	}
 
 	@Test
-	void concurrentAttemptsAccumulateXpOnFirstAndSubsequentPlays() throws Exception {
+	void apply_accumulatesXp_whenAttemptsCommitConcurrently() throws Exception {
 		long user = jdbc.queryForObject("insert into back_users (email, display_name) values (?, 'Test') returning id",
 				Long.class, UUID.randomUUID() + "@example.test");
 		try {

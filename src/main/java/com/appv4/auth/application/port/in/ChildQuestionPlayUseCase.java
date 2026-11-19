@@ -26,18 +26,24 @@ public interface ChildQuestionPlayUseCase {
 	record PlacementAnswer(long cardId, long columnId) {
 	}
 
+	/** Association choisie par l'enfant : mot de gauche vers réponse de droite. */
+	record LinkMatchAnswer(long leftId, long rightId) {
+	}
+
 	record AttemptAnswers(
 			List<Long> selectedChoiceIds,
 			List<StatementAnswer> statements,
 			List<Long> matchedPairIds,
 			List<Long> orderedItemIds,
-			List<PlacementAnswer> placements) {
+			List<PlacementAnswer> placements,
+			List<LinkMatchAnswer> linkMatches) {
 		public AttemptAnswers {
 			selectedChoiceIds = selectedChoiceIds == null ? List.of() : List.copyOf(selectedChoiceIds);
 			statements = statements == null ? List.of() : List.copyOf(statements);
 			matchedPairIds = matchedPairIds == null ? List.of() : List.copyOf(matchedPairIds);
 			orderedItemIds = orderedItemIds == null ? List.of() : List.copyOf(orderedItemIds);
 			placements = placements == null ? List.of() : List.copyOf(placements);
+			linkMatches = linkMatches == null ? List.of() : List.copyOf(linkMatches);
 		}
 	}
 }

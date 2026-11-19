@@ -24,10 +24,12 @@ import com.appv4.auth.application.result.ChildPlayQuestionView.PlayCard;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayChoice;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayColumn;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayItem;
+import com.appv4.auth.application.result.ChildPlayQuestionView.PlayLink;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayPair;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayStatement;
 import com.appv4.auth.application.service.question.play.ChildAnswerGrade;
 import com.appv4.auth.application.service.question.play.ClassificationChildAnswerGrader;
+import com.appv4.auth.application.service.question.play.LinkChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.MemoryChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.OrderChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.QcmChildAnswerGrader;
@@ -111,6 +113,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			case OrderChildAnswerGrader.FORM -> OrderChildAnswerGrader.grade(stored, answers.orderedItemIds());
 			case ClassificationChildAnswerGrader.FORM ->
 					ClassificationChildAnswerGrader.grade(stored, answers.placements());
+			case LinkChildAnswerGrader.FORM -> LinkChildAnswerGrader.grade(stored, answers.linkMatches());
 			default -> throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 		};
 	}
@@ -132,7 +135,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of(),
 					List.of(),
-					null);
+					null,
+					List.of());
 		}
 		if (TrueFalseChildAnswerGrader.FORM.equals(form)) {
 			List<PlayStatement> statements = stored.statements().stream()
@@ -149,7 +153,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of(),
 					List.of(),
-					null);
+					null,
+					List.of());
 		}
 		if (MemoryChildAnswerGrader.FORM.equals(form)) {
 			List<PlayPair> pairs = stored.pairs().stream()
@@ -166,7 +171,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of(),
 					List.of(),
-					null);
+					null,
+					List.of());
 		}
 		if (OrderChildAnswerGrader.FORM.equals(form)) {
 			boolean timeline = Boolean.TRUE.equals(stored.timelineEnabled());
@@ -185,7 +191,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					items,
 					List.of(),
 					List.of(),
-					timeline);
+					timeline,
+					List.of());
 		}
 		if (ClassificationChildAnswerGrader.FORM.equals(form)) {
 			List<PlayColumn> columns = stored.columns().stream()
@@ -206,7 +213,26 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					columns,
 					cards,
-					null);
+					null,
+					List.of());
+		}
+		if (LinkChildAnswerGrader.FORM.equals(form)) {
+			List<PlayLink> links = stored.links().stream()
+					.map(link -> new PlayLink(link.id(), link.leftLabel(), link.rightLabel()))
+					.toList();
+			return new ChildPlayQuestionView(
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					null,
+					links);
 		}
 		throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 	}

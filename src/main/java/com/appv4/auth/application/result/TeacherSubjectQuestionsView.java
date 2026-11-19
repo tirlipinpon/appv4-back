@@ -171,7 +171,8 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 									row.shape(),
 									row.points(),
 									row.slotX(),
-									row.slotY()))
+									row.slotY(),
+									row.slotWidth()))
 							.toList()
 					: List.of();
 		}
@@ -219,9 +220,16 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 
 	/**
 	 * Pièce d'un puzzle. Les points sont en proportion de l'image. Pas de côté juste ou faux.
-	 * {@code slotX}/{@code slotY} : emplacement cible (mode blanc), sinon null.
+	 * {@code slotX}/{@code slotY} : emplacement cible (cadre blanc, fond dédié), sinon null.
+	 * {@code slotWidth} : largeur sur le fond dédié, null = taille de la découpe.
 	 */
 	public record PieceLine(
-			long id, String label, String shape, List<ClickPoint> points, Double slotX, Double slotY) {
+			long id,
+			String label,
+			String shape,
+			List<ClickPoint> points,
+			Double slotX,
+			Double slotY,
+			Double slotWidth) {
 	}
 }

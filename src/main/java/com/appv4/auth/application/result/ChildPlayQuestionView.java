@@ -181,8 +181,10 @@ public record ChildPlayQuestionView(
 	}
 
 	/**
-	 * Pièce jouable. {@code slotX}/{@code slotY} : cible en mode blanc, sinon null.
-	 * Les points décrivent la découpe (cadre d'origine hors mode blanc).
+	 * Pièce jouable. {@code slotX}/{@code slotY} : cible posée par le professeur (cadre blanc,
+	 * fond dédié), sinon null. {@code slotWidth} : largeur de la pièce sur le fond (proportion du
+	 * plateau), null = taille de la découpe. Les points décrivent la découpe (cadre d'origine
+	 * quand il n'y a pas de place posée).
 	 */
 	public record PlayPuzzlePiece(
 			long pieceId,
@@ -190,7 +192,8 @@ public record ChildPlayQuestionView(
 			String shape,
 			List<PlayClickPoint> points,
 			Double slotX,
-			Double slotY) {
+			Double slotY,
+			Double slotWidth) {
 		public PlayPuzzlePiece {
 			points = points == null ? List.of() : List.copyOf(points);
 			label = label == null ? "" : label;

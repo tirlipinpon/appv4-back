@@ -60,7 +60,8 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 					row.getShape(),
 					ClickZonePoints.decode(row.getPoints()),
 					row.getSlotX(),
-					row.getSlotY()));
+					row.getSlotY(),
+					row.getSlotWidth()));
 		}
 		Map<Long, StoredContent> contents = new HashMap<>();
 		for (long id : questionIds) {
@@ -95,6 +96,7 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 					ClickZonePoints.encode(piece.points()),
 					piece.slotX(),
 					piece.slotY(),
+					piece.slotWidth(),
 					rows.size()));
 		}
 		List<StoredPuzzlePiece> stored = storedPieces(pieces.saveAllAndFlush(rows));
@@ -124,7 +126,8 @@ public class PuzzleQuestionContentStore implements QuestionContentStore {
 					row.getShape(),
 					ClickZonePoints.decode(row.getPoints()),
 					row.getSlotX(),
-					row.getSlotY()));
+					row.getSlotY(),
+					row.getSlotWidth()));
 		}
 		return List.copyOf(stored);
 	}

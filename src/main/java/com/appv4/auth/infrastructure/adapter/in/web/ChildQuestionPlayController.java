@@ -210,7 +210,8 @@ public class ChildQuestionPlayController {
 								.map(point -> new ChildPlayClickPointItem(point.x(), point.y()))
 								.toList(),
 						piece.slotX(),
-						piece.slotY()))
+						piece.slotY(),
+						piece.slotWidth()))
 				.toList();
 		return new ChildPlayQuestionResponse(
 				view.questionId(),
@@ -333,7 +334,10 @@ public class ChildQuestionPlayController {
 			String shape,
 			List<ChildPlayClickPointItem> points,
 			Double slotX,
-			Double slotY) {
+			Double slotY,
+			@Schema(description = "Largeur de la pièce sur le fond dédié (0–1 de la largeur du plateau). "
+					+ "Absente : taille de la découpe.")
+			Double slotWidth) {
 	}
 
 	@Schema(name = "SubmitChildAttemptRequest")

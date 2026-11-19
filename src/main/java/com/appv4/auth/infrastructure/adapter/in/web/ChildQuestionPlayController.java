@@ -119,7 +119,8 @@ public class ChildQuestionPlayController {
 				placements,
 				linkMatches,
 				gapFills,
-				zoneClicks);
+				zoneClicks,
+				body == null ? null : body.attempt());
 		ChildAttemptResultView view =
 				childQuestionPlayUseCase.submit(bearer(authorization), subjectId, questionId, answers);
 		return ResponseEntity.status(HttpStatus.CREATED)
@@ -180,7 +181,8 @@ public class ChildQuestionPlayController {
 				view.imageWebp(),
 				view.clicksOrdered(),
 				clickZones,
-				clickSteps);
+				clickSteps,
+				view.letterCount());
 	}
 
 	private static String bearer(String authorization) {
@@ -209,7 +211,8 @@ public class ChildQuestionPlayController {
 			String imageWebp,
 			Boolean clicksOrdered,
 			List<ChildPlayClickZoneItem> clickZones,
-			List<ChildPlayClickStepItem> clickSteps) {
+			List<ChildPlayClickStepItem> clickSteps,
+			Integer letterCount) {
 	}
 
 	@Schema(name = "ChildPlayChoiceItem")
@@ -265,7 +268,8 @@ public class ChildQuestionPlayController {
 			List<SubmitPlacementAnswer> placements,
 			List<SubmitLinkMatchAnswer> linkMatches,
 			List<SubmitGapFillAnswer> gapFills,
-			List<SubmitZoneClickAnswer> zoneClicks) {
+			List<SubmitZoneClickAnswer> zoneClicks,
+			String attempt) {
 	}
 
 	@Schema(name = "SubmitStatementAnswer")

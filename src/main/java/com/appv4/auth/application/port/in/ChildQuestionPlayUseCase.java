@@ -46,7 +46,8 @@ public interface ChildQuestionPlayUseCase {
 			List<PlacementAnswer> placements,
 			List<LinkMatchAnswer> linkMatches,
 			List<GapFillAnswer> gapFills,
-			List<ZoneClickAnswer> zoneClicks) {
+			List<ZoneClickAnswer> zoneClicks,
+			String attempt) {
 		public AttemptAnswers(
 				List<Long> selectedChoiceIds,
 				List<StatementAnswer> statements,
@@ -56,7 +57,20 @@ public interface ChildQuestionPlayUseCase {
 				List<LinkMatchAnswer> linkMatches,
 				List<GapFillAnswer> gapFills) {
 			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
-					List.of());
+					List.of(), null);
+		}
+
+		public AttemptAnswers(
+				List<Long> selectedChoiceIds,
+				List<StatementAnswer> statements,
+				List<Long> matchedPairIds,
+				List<Long> orderedItemIds,
+				List<PlacementAnswer> placements,
+				List<LinkMatchAnswer> linkMatches,
+				List<GapFillAnswer> gapFills,
+				List<ZoneClickAnswer> zoneClicks) {
+			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
+					zoneClicks, null);
 		}
 
 		public AttemptAnswers {
@@ -68,6 +82,7 @@ public interface ChildQuestionPlayUseCase {
 			linkMatches = linkMatches == null ? List.of() : List.copyOf(linkMatches);
 			gapFills = gapFills == null ? List.of() : List.copyOf(gapFills);
 			zoneClicks = zoneClicks == null ? List.of() : List.copyOf(zoneClicks);
+			attempt = attempt == null ? "" : attempt;
 		}
 	}
 }

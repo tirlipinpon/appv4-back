@@ -546,7 +546,8 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 				zones.add(new ClickZoneDraft(
 						zone.label(), zone.correct(), zone.shape(), zone.points(), zone.clickOrder()));
 			}
-			return new ClickImageDraft(image.imageWebp(), image.requireAllCorrect(), zones);
+			return new ClickImageDraft(
+					image.imageWebp(), image.requireAllCorrect(), image.clicksOrdered(), zones);
 		}
 		if (content instanceof StoredPuzzle puzzle) {
 			List<PuzzlePieceDraft> pieces = new ArrayList<>();

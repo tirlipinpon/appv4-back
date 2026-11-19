@@ -50,12 +50,18 @@ DO $$ BEGIN
    WHEN 'reponse_libre' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_letters c WHERE c.question_id=q.id)
    WHEN 'image_interactive' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_click_images c WHERE c.question_id=q.id)
      OR EXISTS (
-      SELECT 1 FROM back_subject_question_click_zones z WHERE z.question_id=q.id
-      GROUP BY z.question_id
-      HAVING bool_or(z.correct AND z.click_order IS NULL)
-          OR bool_or(NOT z.correct AND z.click_order IS NOT NULL)
-          OR count(*) FILTER (WHERE z.correct) <> count(DISTINCT z.click_order) FILTER (WHERE z.correct)
-          OR coalesce(max(z.click_order) FILTER (WHERE z.correct), 0) <> count(*) FILTER (WHERE z.correct)
+      SELECT 1
+      FROM back_subject_question_click_zones z
+      JOIN back_subject_question_click_images img ON img.question_id = z.question_id
+      WHERE z.question_id = q.id
+      GROUP BY z.question_id, img.clicks_ordered
+      HAVING bool_or(NOT z.correct AND z.click_order IS NOT NULL)
+          OR (img.clicks_ordered AND (
+               bool_or(z.correct AND z.click_order IS NULL)
+               OR count(*) FILTER (WHERE z.correct) <> count(DISTINCT z.click_order) FILTER (WHERE z.correct)
+               OR coalesce(max(z.click_order) FILTER (WHERE z.correct), 0) <> count(*) FILTER (WHERE z.correct)
+             ))
+          OR (NOT img.clicks_ordered AND bool_or(z.click_order IS NOT NULL))
      )
    WHEN 'puzzle' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_puzzle_images c WHERE c.question_id=q.id)
    ELSE true END

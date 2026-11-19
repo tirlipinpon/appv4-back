@@ -34,6 +34,10 @@ public interface ChildQuestionPlayUseCase {
 	record GapFillAnswer(int holeIndex, long wordId) {
 	}
 
+	/** Zone touchée. L'ordre de la liste est l'ordre des clics. */
+	record ZoneClickAnswer(long zoneId) {
+	}
+
 	record AttemptAnswers(
 			List<Long> selectedChoiceIds,
 			List<StatementAnswer> statements,
@@ -41,7 +45,20 @@ public interface ChildQuestionPlayUseCase {
 			List<Long> orderedItemIds,
 			List<PlacementAnswer> placements,
 			List<LinkMatchAnswer> linkMatches,
-			List<GapFillAnswer> gapFills) {
+			List<GapFillAnswer> gapFills,
+			List<ZoneClickAnswer> zoneClicks) {
+		public AttemptAnswers(
+				List<Long> selectedChoiceIds,
+				List<StatementAnswer> statements,
+				List<Long> matchedPairIds,
+				List<Long> orderedItemIds,
+				List<PlacementAnswer> placements,
+				List<LinkMatchAnswer> linkMatches,
+				List<GapFillAnswer> gapFills) {
+			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
+					List.of());
+		}
+
 		public AttemptAnswers {
 			selectedChoiceIds = selectedChoiceIds == null ? List.of() : List.copyOf(selectedChoiceIds);
 			statements = statements == null ? List.of() : List.copyOf(statements);
@@ -50,6 +67,7 @@ public interface ChildQuestionPlayUseCase {
 			placements = placements == null ? List.of() : List.copyOf(placements);
 			linkMatches = linkMatches == null ? List.of() : List.copyOf(linkMatches);
 			gapFills = gapFills == null ? List.of() : List.copyOf(gapFills);
+			zoneClicks = zoneClicks == null ? List.of() : List.copyOf(zoneClicks);
 		}
 	}
 }

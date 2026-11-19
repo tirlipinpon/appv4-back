@@ -65,10 +65,13 @@ public class ClickImageQuestionContentStore implements QuestionContentStore {
 		for (long id : questionIds) {
 			BackSubjectQuestionClickImageEntity image = imagesById.get(id);
 			if (image == null) {
-				contents.put(id, new StoredClickImage(new byte[0], false, zonesById.get(id)));
+				contents.put(id, new StoredClickImage(new byte[0], false, true, zonesById.get(id)));
 			} else {
 				contents.put(id, new StoredClickImage(
-						image.getImageWebp(), image.isRequireAllCorrect(), zonesById.get(id)));
+						image.getImageWebp(),
+						image.isRequireAllCorrect(),
+						image.isClicksOrdered(),
+						zonesById.get(id)));
 			}
 		}
 		return contents;
@@ -80,7 +83,7 @@ public class ClickImageQuestionContentStore implements QuestionContentStore {
 			throw new IllegalArgumentException("Contenu incompatible avec l'image à cliquer");
 		}
 		BackSubjectQuestionClickImageEntity image = images.saveAndFlush(new BackSubjectQuestionClickImageEntity(
-				questionId, draft.imageWebp(), draft.requireAllCorrect()));
+				questionId, draft.imageWebp(), draft.requireAllCorrect(), draft.clicksOrdered()));
 		List<BackSubjectQuestionClickZoneEntity> rows = new ArrayList<>();
 		for (ClickZoneDraft zone : draft.zones()) {
 			rows.add(new BackSubjectQuestionClickZoneEntity(
@@ -93,7 +96,8 @@ public class ClickImageQuestionContentStore implements QuestionContentStore {
 					zone.clickOrder()));
 		}
 		List<StoredClickZone> stored = imagesZones(zones.saveAllAndFlush(rows));
-		return new StoredClickImage(image.getImageWebp(), image.isRequireAllCorrect(), stored);
+		return new StoredClickImage(
+				image.getImageWebp(), image.isRequireAllCorrect(), image.isClicksOrdered(), stored);
 	}
 
 	@Override

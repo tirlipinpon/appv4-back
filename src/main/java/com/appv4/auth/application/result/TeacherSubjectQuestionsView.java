@@ -143,6 +143,11 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 			return content instanceof StoredClickImage value ? value.requireAllCorrect() : null;
 		}
 
+		/** Clics ordonnés. {@code null} hors image à cliquer. */
+		public Boolean clicksOrdered() {
+			return content instanceof StoredClickImage value ? value.clicksOrdered() : null;
+		}
+
 		public List<ZoneLine> zones() {
 			return content instanceof StoredClickImage value
 					? value.zones().stream()

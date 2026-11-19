@@ -19,6 +19,7 @@ import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.GapFillAnswer
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.LinkMatchAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.PlacementAnswer;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.StatementAnswer;
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.ZoneClickAnswer;
 import com.appv4.auth.application.result.ChildAttemptResultView;
 import com.appv4.auth.application.result.ChildPlayQuestionView;
 
@@ -105,6 +106,11 @@ public class ChildQuestionPlayController {
 				: body.gapFills().stream()
 						.map(fill -> new GapFillAnswer(fill.holeIndex(), fill.wordId()))
 						.toList();
+		List<ZoneClickAnswer> zoneClicks = body == null || body.zoneClicks() == null
+				? List.of()
+				: body.zoneClicks().stream()
+						.map(click -> new ZoneClickAnswer(click.zoneId()))
+						.toList();
 		AttemptAnswers answers = new AttemptAnswers(
 				body == null || body.selectedChoiceIds() == null ? List.of() : body.selectedChoiceIds(),
 				statements,
@@ -112,7 +118,8 @@ public class ChildQuestionPlayController {
 				body == null || body.orderedItemIds() == null ? List.of() : body.orderedItemIds(),
 				placements,
 				linkMatches,
-				gapFills);
+				gapFills,
+				zoneClicks);
 		ChildAttemptResultView view =
 				childQuestionPlayUseCase.submit(bearer(authorization), subjectId, questionId, answers);
 		return ResponseEntity.status(HttpStatus.CREATED)
@@ -144,6 +151,17 @@ public class ChildQuestionPlayController {
 		List<ChildPlayGapWordItem> words = view.words().stream()
 				.map(word -> new ChildPlayGapWordItem(word.wordId(), word.label()))
 				.toList();
+		List<ChildPlayClickZoneItem> clickZones = view.clickZones().stream()
+				.map(zone -> new ChildPlayClickZoneItem(
+						zone.zoneId(),
+						zone.shape(),
+						zone.points().stream()
+								.map(point -> new ChildPlayClickPointItem(point.x(), point.y()))
+								.toList()))
+				.toList();
+		List<ChildPlayClickStepItem> clickSteps = view.clickSteps().stream()
+				.map(step -> new ChildPlayClickStepItem(step.zoneId(), step.prompt()))
+				.toList();
 		return new ChildPlayQuestionResponse(
 				view.questionId(),
 				view.subjectId(),
@@ -158,7 +176,11 @@ public class ChildQuestionPlayController {
 				view.timelineEnabled(),
 				links,
 				view.sentence(),
-				words);
+				words,
+				view.imageWebp(),
+				view.clicksOrdered(),
+				clickZones,
+				clickSteps);
 	}
 
 	private static String bearer(String authorization) {
@@ -183,7 +205,11 @@ public class ChildQuestionPlayController {
 			Boolean timelineEnabled,
 			List<ChildPlayLinkItem> links,
 			String sentence,
-			List<ChildPlayGapWordItem> words) {
+			List<ChildPlayGapWordItem> words,
+			String imageWebp,
+			Boolean clicksOrdered,
+			List<ChildPlayClickZoneItem> clickZones,
+			List<ChildPlayClickStepItem> clickSteps) {
 	}
 
 	@Schema(name = "ChildPlayChoiceItem")
@@ -218,6 +244,18 @@ public class ChildQuestionPlayController {
 	public record ChildPlayGapWordItem(long wordId, String label) {
 	}
 
+	@Schema(name = "ChildPlayClickZoneItem")
+	public record ChildPlayClickZoneItem(long zoneId, String shape, List<ChildPlayClickPointItem> points) {
+	}
+
+	@Schema(name = "ChildPlayClickPointItem")
+	public record ChildPlayClickPointItem(double x, double y) {
+	}
+
+	@Schema(name = "ChildPlayClickStepItem")
+	public record ChildPlayClickStepItem(long zoneId, String prompt) {
+	}
+
 	@Schema(name = "SubmitChildAttemptRequest")
 	public record SubmitChildAttemptRequest(
 			List<Long> selectedChoiceIds,
@@ -226,7 +264,8 @@ public class ChildQuestionPlayController {
 			List<Long> orderedItemIds,
 			List<SubmitPlacementAnswer> placements,
 			List<SubmitLinkMatchAnswer> linkMatches,
-			List<SubmitGapFillAnswer> gapFills) {
+			List<SubmitGapFillAnswer> gapFills,
+			List<SubmitZoneClickAnswer> zoneClicks) {
 	}
 
 	@Schema(name = "SubmitStatementAnswer")
@@ -243,6 +282,10 @@ public class ChildQuestionPlayController {
 
 	@Schema(name = "SubmitGapFillAnswer")
 	public record SubmitGapFillAnswer(int holeIndex, long wordId) {
+	}
+
+	@Schema(name = "SubmitZoneClickAnswer")
+	public record SubmitZoneClickAnswer(long zoneId) {
 	}
 
 	@Schema(name = "ChildAttemptResultResponse")

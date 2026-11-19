@@ -1,7 +1,9 @@
 package com.appv4.auth.application.service;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -17,11 +19,15 @@ import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickZone;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.result.ChildAttemptResultView;
 import com.appv4.auth.application.result.ChildPlayQuestionView;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayCard;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayChoice;
+import com.appv4.auth.application.result.ChildPlayQuestionView.PlayClickPoint;
+import com.appv4.auth.application.result.ChildPlayQuestionView.PlayClickStep;
+import com.appv4.auth.application.result.ChildPlayQuestionView.PlayClickZone;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayColumn;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayGapWord;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayItem;
@@ -30,6 +36,7 @@ import com.appv4.auth.application.result.ChildPlayQuestionView.PlayPair;
 import com.appv4.auth.application.result.ChildPlayQuestionView.PlayStatement;
 import com.appv4.auth.application.service.question.play.ChildAnswerGrade;
 import com.appv4.auth.application.service.question.play.ClassificationChildAnswerGrader;
+import com.appv4.auth.application.service.question.play.ClickChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.GapChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.LinkChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.MemoryChildAnswerGrader;
@@ -117,6 +124,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					ClassificationChildAnswerGrader.grade(stored, answers.placements());
 			case LinkChildAnswerGrader.FORM -> LinkChildAnswerGrader.grade(stored, answers.linkMatches());
 			case GapChildAnswerGrader.FORM -> GapChildAnswerGrader.grade(stored, answers.gapFills());
+			case ClickChildAnswerGrader.FORM -> ClickChildAnswerGrader.grade(stored, answers.zoneClicks());
 			default -> throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 		};
 	}
@@ -269,6 +277,50 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					stored.sentence(),
 					words);
+		}
+		if (ClickChildAnswerGrader.FORM.equals(form)) {
+			byte[] bytes = stored.imageWebp();
+			String image = bytes.length == 0 ? "" : Base64.getEncoder().encodeToString(bytes);
+			List<PlayClickZone> zones = stored.clickZones().stream()
+					.map(zone -> new PlayClickZone(
+							zone.id(),
+							zone.shape(),
+							zone.points().stream()
+									.map(point -> new PlayClickPoint(point.x(), point.y()))
+									.toList()))
+					.toList();
+			boolean ordered = stored.clicksOrdered() == null || stored.clicksOrdered();
+			// Les noms des zones justes disent quoi chercher. Avec ordre : une consigne à la fois.
+			// Sans ordre : la liste complète, sans révéler où elles sont sur l'image.
+			List<PlayClickStep> steps = stored.clickZones().stream()
+					.filter(StoredClickZone::correct)
+					.sorted(Comparator.comparing(zone -> {
+						if (ordered) {
+							return zone.clickOrder() == null ? Integer.MAX_VALUE : zone.clickOrder();
+						}
+						return (int) Math.min(zone.id(), Integer.MAX_VALUE);
+					}))
+					.map(zone -> new PlayClickStep(zone.id(), zone.label()))
+					.toList();
+			return new ChildPlayQuestionView(
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					null,
+					List.of(),
+					"",
+					List.of(),
+					image,
+					ordered,
+					zones,
+					steps);
 		}
 		throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 	}

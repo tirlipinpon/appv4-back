@@ -2,8 +2,8 @@ DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM dev_front_demo.installation) THEN
    RAISE EXCEPTION 'Demo already installed. Use status, rollback or reset (no duplicates created).';
  END IF;
- IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '61' THEN
-   RAISE EXCEPTION 'Fixtures validated against V61. Review schema changes before updating this guard.';
+ IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '62' THEN
+   RAISE EXCEPTION 'Fixtures validated against V62. Review schema changes before updating this guard.';
  END IF;
 END $$;
 
@@ -172,8 +172,8 @@ CROSS JOIN (VALUES ('garçon',false,0),('livre',false,1),('nuage',true,0),('roug
 INSERT INTO back_subject_question_texts SELECT id,'école' FROM questions WHERE code='texte';
 INSERT INTO back_subject_question_letters SELECT id,'école' FROM questions WHERE code='reponse_libre';
 -- A small, valid WebP illustration is stored once in the script and reused.
-INSERT INTO back_subject_question_click_images(question_id,image_webp,require_all_correct)
-SELECT id,decode(:'demo_image','hex'),n%3=0 FROM questions WHERE code='image_interactive';
+INSERT INTO back_subject_question_click_images(question_id,image_webp,require_all_correct,clicks_ordered)
+SELECT id,decode(:'demo_image','hex'),n%3=0,true FROM questions WHERE code='image_interactive';
 INSERT INTO back_subject_question_click_zones(question_id,label,correct,shape,points,sort_order,click_order)
 SELECT q.id,v.label,v.correct,v.shape,v.points,v.ord,v.click_order FROM questions q CROSS JOIN
  (VALUES ('Bleu',true,'rect','0,0;0.5,1',0,1),('Orange',false,'rect','0.5,0;1,1',1,NULL::integer))

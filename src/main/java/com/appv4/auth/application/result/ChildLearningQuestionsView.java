@@ -13,6 +13,17 @@ public record ChildLearningQuestionsView(long subjectId, String subjectName, Lis
 		questions = questions == null ? List.of() : List.copyOf(questions);
 	}
 
-	public record QuestionCard(long questionId, String formCode, String prompt) {
+	/**
+	 * @param formLabel libellé de la forme, celui du catalogue
+	 * @param iconCode  dessin de la forme, ou null
+	 * @param color     teinte #rrggbb de la forme, ou null
+	 */
+	public record QuestionCard(
+			long questionId,
+			String formCode,
+			String prompt,
+			String formLabel,
+			String iconCode,
+			String color) {
 	}
 }

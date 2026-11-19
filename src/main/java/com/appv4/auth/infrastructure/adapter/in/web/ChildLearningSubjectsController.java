@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
+import com.appv4.auth.application.service.SubjectIcons;
 import com.appv4.auth.application.result.ChildLearningQuestionsView;
 import com.appv4.auth.application.result.ChildLearningSubjectsView;
 
@@ -50,7 +51,8 @@ public class ChildLearningSubjectsController {
 		ChildLearningSubjectsView view = readChildLearningSubjectsUseCase.list(bearer(authorization));
 		List<ChildLearningSubjectItem> items = view.subjects().stream()
 				.map(s -> new ChildLearningSubjectItem(
-						s.subjectId(), s.name(), s.grade(), s.questionCount(), s.iconCode()))
+						s.subjectId(), s.name(), s.grade(), s.questionCount(), s.iconCode(),
+						SubjectIcons.accentOf(s.iconCode())))
 				.toList();
 		return ResponseEntity.ok(new ChildLearningSubjectsResponse(items));
 	}
@@ -71,7 +73,8 @@ public class ChildLearningSubjectsController {
 			@PathVariable long subjectId) {
 		ChildLearningQuestionsView view = readChildLearningSubjectsUseCase.questions(bearer(authorization), subjectId);
 		List<ChildLearningQuestionItem> items = view.questions().stream()
-				.map(q -> new ChildLearningQuestionItem(q.questionId(), q.formCode(), q.prompt()))
+				.map(q -> new ChildLearningQuestionItem(
+						q.questionId(), q.formCode(), q.prompt(), q.formLabel(), q.iconCode(), q.color()))
 				.toList();
 		return ResponseEntity.ok(new ChildLearningQuestionsResponse(view.subjectId(), view.subjectName(), items));
 	}
@@ -93,7 +96,9 @@ public class ChildLearningSubjectsController {
 			String name,
 			String grade,
 			long questionCount,
-			String iconCode) {
+			String iconCode,
+			@Schema(description = "Teinte #rrggbb de l'icône, ou null.", nullable = true)
+			String accentColor) {
 	}
 
 	@Schema(name = "ChildLearningQuestionsResponse")
@@ -104,6 +109,15 @@ public class ChildLearningSubjectsController {
 	}
 
 	@Schema(name = "ChildLearningQuestionItem")
-	public record ChildLearningQuestionItem(long questionId, String formCode, String prompt) {
+	public record ChildLearningQuestionItem(
+			long questionId,
+			String formCode,
+			String prompt,
+			@Schema(description = "Libellé de la forme, celui du catalogue professeur.")
+			String formLabel,
+			@Schema(description = "Code du dessin de la forme. Null si la forme n'a pas d'identité.", nullable = true)
+			String iconCode,
+			@Schema(description = "Couleur #rrggbb de la forme. Null si pas d'identité.", nullable = true)
+			String color) {
 	}
 }

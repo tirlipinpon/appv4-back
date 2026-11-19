@@ -24,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.appv4.auth.application.service.question.QuestionFormHandler;
+import com.appv4.auth.application.service.question.QuestionFormLooks;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
 import com.appv4.auth.application.exception.AuthDomainException;
@@ -191,6 +192,12 @@ class TeacherQuestionServiceTest {
 					assertThat(forms.get(11).code()).isEqualTo("texte");
 					assertThat(forms.get(11).label()).isEqualTo("Réponse libre");
 					assertThat(forms.get(11).sortOrder()).isEqualTo(11);
+					assertThat(forms.stream().map(FormLine::code).toList())
+							.containsExactlyInAnyOrderElementsOf(QuestionFormLooks.codes());
+					assertThat(forms.stream().map(form -> QuestionFormLooks.of(form.code()).iconCode()).toList())
+							.doesNotHaveDuplicates();
+					assertThat(forms.stream().map(form -> QuestionFormLooks.of(form.code()).color()).toList())
+							.doesNotHaveDuplicates();
 				});
 	}
 

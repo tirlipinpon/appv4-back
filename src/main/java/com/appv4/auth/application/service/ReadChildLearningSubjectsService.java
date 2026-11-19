@@ -20,6 +20,9 @@ import com.appv4.auth.application.result.ChildLearningQuestionsView;
 import com.appv4.auth.application.result.ChildLearningQuestionsView.QuestionCard;
 import com.appv4.auth.application.result.ChildLearningSubjectsView;
 import com.appv4.auth.application.result.ChildLearningSubjectsView.SubjectCard;
+import com.appv4.auth.application.service.question.QuestionFormLooks;
+import com.appv4.auth.application.service.question.QuestionFormLooks.Look;
+import com.appv4.auth.application.service.question.QuestionFormRegistry;
 
 /**
  * Liste learning des matières liées à l'enfant (BACK-15).
@@ -38,16 +41,19 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 	private final ChildSessionTokenPort childSessionTokenPort;
 	private final ChildSubjectPort childSubjectPort;
 	private final TeacherQuestionPort teacherQuestionPort;
+	private final QuestionFormRegistry questionFormRegistry;
 
 	public ReadChildLearningSubjectsService(
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildSubjectPort childSubjectPort,
-			TeacherQuestionPort teacherQuestionPort) {
+			TeacherQuestionPort teacherQuestionPort,
+			QuestionFormRegistry questionFormRegistry) {
 		this.childLoginPort = childLoginPort;
 		this.childSessionTokenPort = childSessionTokenPort;
 		this.childSubjectPort = childSubjectPort;
 		this.teacherQuestionPort = teacherQuestionPort;
+		this.questionFormRegistry = questionFormRegistry;
 	}
 
 	@Override
@@ -86,7 +92,16 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 		CatalogSubject subject = catalog.get(0);
 		List<StoredQuestion> rows = teacherQuestionPort.findBySubject(subjectId, 0L, 200);
 		List<QuestionCard> cards = rows.stream()
-				.map(q -> new QuestionCard(q.id(), q.formCode(), q.prompt() == null ? "" : q.prompt()))
+				.map(q -> {
+					Look look = QuestionFormLooks.of(q.formCode());
+					return new QuestionCard(
+							q.id(),
+							q.formCode(),
+							q.prompt() == null ? "" : q.prompt(),
+							questionFormRegistry.labelOf(q.formCode()),
+							look == null ? null : look.iconCode(),
+							look == null ? null : look.color());
+				})
 				.toList();
 		return new ChildLearningQuestionsView(subject.id(), subject.name(), cards);
 	}

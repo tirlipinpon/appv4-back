@@ -224,8 +224,22 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			throw bad("Icône inconnue.");
 		}
 		String icon = SubjectIcons.normalizeKnown(iconCode).orElse(null);
+		if (icon == null) {
+			icon = SubjectIcons.pickFree(iconsInClass(schoolId, grade));
+		}
 		StoredSubject saved = teacherSubjectPort.insert(userId, schoolId, grade, trimmed, key, icon);
 		return line(userId, saved);
+	}
+
+	/** Icônes déjà visibles dans cette classe, pour ne pas les redonner. */
+	private List<String> iconsInClass(long schoolId, String grade) {
+		List<String> used = new ArrayList<>();
+		for (StoredSubject row : teacherSubjectPort.findVisibleInClass(schoolId, grade)) {
+			if (row.iconCode() != null && !row.iconCode().isBlank()) {
+				used.add(row.iconCode());
+			}
+		}
+		return used;
 	}
 
 	@Override

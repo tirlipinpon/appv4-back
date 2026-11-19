@@ -11,8 +11,8 @@ import java.util.Locale;
  * Un champ vide n'est pas une réussite.
  * <p><b>Technique :</b> retire les espaces au bord, passe en minuscules, enlève
  * les accents. Un espace au milieu reste.
- * <p><b>Métier / flow :</b> appelée quand l'élève appuie sur Valider. L'écran
- * élève n'a pas encore d'adresse : la règle est déjà ici pour ne pas la réinventer.
+ * <p><b>Métier / flow :</b> POST attempts de la forme {@code texte}, via
+ * {@link com.appv4.auth.application.service.question.play.FreeTextChildAnswerGrader}.
  */
 public final class FreeTextMatch {
 

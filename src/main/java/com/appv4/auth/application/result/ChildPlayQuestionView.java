@@ -15,6 +15,7 @@ import java.util.List;
  * quel mot va dans quel trou est noté à la tentative. Les mots sont mélangés.
  * Image à cliquer : l'image et la géométrie des zones, sans dire lesquelles sont justes.
  * Si les clics sont ordonnés, chaque étape porte la consigne (le nom de la zone).
+ * Réponse libre : l'énoncé seulement, sans la réponse attendue.
  * Lettre par lettre : {@code letterCount} cases et {@code letterMask}
  * ({@code #} = lettre, espace = saut), sans le mot attendu.
  * Puzzle : image de découpe, mode de plateau, fond optionnel, magnétisme et géométrie

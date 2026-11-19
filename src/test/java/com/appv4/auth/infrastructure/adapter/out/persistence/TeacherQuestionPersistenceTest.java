@@ -110,6 +110,20 @@ class TeacherQuestionPersistenceTest {
 	}
 
 	@Test
+	void orderLoadKeepsLegacyItemsWithoutOptionsAndTimelineWithoutItems() {
+		var legacy = insert(2);
+		jdbc.update("delete from back_subject_question_order_options where question_id = ?", legacy.id());
+		var timeline = adapter.insert(subjectId, "order", "", new ItemsDraft(List.of(), true));
+
+		var rows = adapter.findBySubject(subjectId, 0, 10);
+		assertThat(rows).extracting(StoredQuestion::id).containsExactly(legacy.id(), timeline.id());
+		assertThat(rows.get(0).timelineEnabled()).isFalse();
+		assertThat(rows.get(0).items()).containsExactlyElementsOf(legacy.items());
+		assertThat(rows.get(1).timelineEnabled()).isTrue();
+		assertThat(rows.get(1).items()).isEmpty();
+	}
+
+	@Test
 	void cursorLoadsStableBoundedPages() {
 		for (int index = 0; index < 7; index++) {
 			insert(0);

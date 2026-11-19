@@ -15,6 +15,7 @@ import java.util.List;
  * quel mot va dans quel trou est noté à la tentative. Les mots sont mélangés.
  * Image à cliquer : l'image et la géométrie des zones, sans dire lesquelles sont justes.
  * Si les clics sont ordonnés, chaque étape porte la consigne (le nom de la zone).
+ * Lettre par lettre : {@code letterCount} cases, sans le mot attendu.
  * <p><b>Technique :</b> payload GET play.
  * <p><b>Métier / flow :</b> use case play → controller /api/ext.
  */
@@ -36,7 +37,8 @@ public record ChildPlayQuestionView(
 		String imageWebp,
 		Boolean clicksOrdered,
 		List<PlayClickZone> clickZones,
-		List<PlayClickStep> clickSteps) {
+		List<PlayClickStep> clickSteps,
+		Integer letterCount) {
 
 	public ChildPlayQuestionView(
 			long questionId,
@@ -54,7 +56,30 @@ public record ChildPlayQuestionView(
 			String sentence,
 			List<PlayGapWord> words) {
 		this(questionId, subjectId, formCode, prompt, choices, statements, pairs, items, columns, cards,
-				timelineEnabled, links, sentence, words, "", null, List.of(), List.of());
+				timelineEnabled, links, sentence, words, "", null, List.of(), List.of(), null);
+	}
+
+	public ChildPlayQuestionView(
+			long questionId,
+			long subjectId,
+			String formCode,
+			String prompt,
+			List<PlayChoice> choices,
+			List<PlayStatement> statements,
+			List<PlayPair> pairs,
+			List<PlayItem> items,
+			List<PlayColumn> columns,
+			List<PlayCard> cards,
+			Boolean timelineEnabled,
+			List<PlayLink> links,
+			String sentence,
+			List<PlayGapWord> words,
+			String imageWebp,
+			Boolean clicksOrdered,
+			List<PlayClickZone> clickZones,
+			List<PlayClickStep> clickSteps) {
+		this(questionId, subjectId, formCode, prompt, choices, statements, pairs, items, columns, cards,
+				timelineEnabled, links, sentence, words, imageWebp, clicksOrdered, clickZones, clickSteps, null);
 	}
 
 	public ChildPlayQuestionView {

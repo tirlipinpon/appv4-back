@@ -38,6 +38,7 @@ import com.appv4.auth.application.service.question.play.ChildAnswerGrade;
 import com.appv4.auth.application.service.question.play.ClassificationChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.ClickChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.GapChildAnswerGrader;
+import com.appv4.auth.application.service.question.play.LetterChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.LinkChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.MemoryChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.OrderChildAnswerGrader;
@@ -125,6 +126,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			case LinkChildAnswerGrader.FORM -> LinkChildAnswerGrader.grade(stored, answers.linkMatches());
 			case GapChildAnswerGrader.FORM -> GapChildAnswerGrader.grade(stored, answers.gapFills());
 			case ClickChildAnswerGrader.FORM -> ClickChildAnswerGrader.grade(stored, answers.zoneClicks());
+			case LetterChildAnswerGrader.FORM -> LetterChildAnswerGrader.grade(stored, answers.attempt());
 			default -> throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 		};
 	}
@@ -321,6 +323,32 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					ordered,
 					zones,
 					steps);
+		}
+		if (LetterChildAnswerGrader.FORM.equals(form)) {
+			String expected = stored.expectedAnswer();
+			if (expected == null || expected.isBlank()) {
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
+			}
+			return new ChildPlayQuestionView(
+					stored.id(),
+					stored.subjectId(),
+					form,
+					stored.prompt(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					List.of(),
+					null,
+					List.of(),
+					"",
+					List.of(),
+					"",
+					null,
+					List.of(),
+					List.of(),
+					expected.length());
 		}
 		throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 	}

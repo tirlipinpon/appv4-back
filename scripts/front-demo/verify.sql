@@ -64,10 +64,9 @@ DO $$ BEGIN
           OR (NOT img.clicks_ordered AND bool_or(z.click_order IS NOT NULL))
      )
    WHEN 'puzzle' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_puzzle_images c WHERE c.question_id=q.id)
-   -- Simon : un genre, deux éléments au moins, deux pas au moins, code couleur seulement pour les couleurs.
+   -- Simon : un genre, deux éléments au moins, code couleur seulement pour les couleurs.
    WHEN 'simon' THEN NOT EXISTS(SELECT 1 FROM back_subject_question_simon_options o WHERE o.question_id=q.id)
      OR (SELECT count(*) FROM back_subject_question_simon_elements e WHERE e.question_id=q.id)<2
-     OR (SELECT count(*) FROM back_subject_question_simon_steps st WHERE st.question_id=q.id)<2
      OR EXISTS (
       SELECT 1 FROM back_subject_question_simon_elements e
       JOIN back_subject_question_simon_options o ON o.question_id=e.question_id

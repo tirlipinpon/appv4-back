@@ -19,10 +19,10 @@ import java.util.List;
  * ({@code #} = lettre, espace = saut), sans le mot attendu.
  * Puzzle : image de découpe, mode de plateau, fond optionnel, magnétisme et géométrie
  * des pièces (y compris slots blancs) ; l'enfant replace les pièces, le serveur note.
- * Simon : le genre, les éléments (avec leur couleur pour le genre couleurs) et la suite.
- * La suite est le contenu jouable : l'enfant la regarde s'allumer, puis la refait ;
- * le serveur note la reprise. Les éléments ne sont pas mélangés : la suite les désigne
- * par leur position.
+ * Simon : le genre, les éléments (avec leur couleur pour le genre couleurs) et une suite
+ * tirée au hasard pour cette ouverture (le professeur ne la choisit pas). La suite est le
+ * contenu jouable : l'enfant la regarde s'allumer, puis la refait ; le serveur note la reprise
+ * contre cette suite-là. Les éléments ne sont pas mélangés : la suite les désigne par leur position.
  * <p><b>Technique :</b> payload GET play.
  * <p><b>Métier / flow :</b> use case play → controller /api/ext.
  */

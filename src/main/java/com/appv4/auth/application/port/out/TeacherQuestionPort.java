@@ -13,7 +13,7 @@ import java.util.Optional;
  * {@code back_subject_question_pairs}, {@code back_subject_question_items},
  * {@code back_subject_question_statements}, {@code back_subject_question_texts},
  * {@code back_subject_question_click_images}, {@code back_subject_question_click_zones},
- * {@code back_subject_question_simon_options}, {@code _simon_elements}, {@code _simon_steps},
+ * {@code back_subject_question_simon_options}, {@code _simon_elements},
  * et une ligne {@code back_subject_question_forms} à la première question de cette forme.
  * <p><b>Métier / flow :</b> port out de {@code /api/int/teacher/subjects/{id}/questions}.
  */
@@ -379,14 +379,12 @@ public interface TeacherQuestionPort {
 	}
 
 	/**
-	 * Genre des éléments, éléments dans l'ordre saisi, et suite à refaire.
-	 * Chaque pas de {@code sequence} est la position 0-based d'un élément de {@code elements}.
+	 * Genre des éléments et éléments dans l'ordre saisi. Pas de suite : elle est tirée
+	 * pour l'enfant à chaque ouverture (BACK-55).
 	 */
-	record SimonDraft(String elementType, List<SimonElementDraft> elements, List<Integer> sequence)
-			implements DraftContent {
+	record SimonDraft(String elementType, List<SimonElementDraft> elements) implements DraftContent {
 		public SimonDraft {
 			elements = List.copyOf(elements);
-			sequence = List.copyOf(sequence);
 		}
 	}
 
@@ -394,12 +392,10 @@ public interface TeacherQuestionPort {
 	record StoredSimonElement(long id, String label, String color) {
 	}
 
-	/** Genre, éléments et suite tels que le professeur les a enregistrés. */
-	record StoredSimon(String elementType, List<StoredSimonElement> elements, List<Integer> sequence)
-			implements StoredContent {
+	/** Genre et éléments tels que le professeur les a enregistrés. */
+	record StoredSimon(String elementType, List<StoredSimonElement> elements) implements StoredContent {
 		public StoredSimon {
 			elements = List.copyOf(elements);
-			sequence = List.copyOf(sequence);
 		}
 	}
 
@@ -523,9 +519,9 @@ public interface TeacherQuestionPort {
 			return content instanceof StoredSimon value ? value.elements() : List.of();
 		}
 
-		/** Suite Simon : positions des éléments, dans l'ordre des pas. Vide hors Simon. */
+		/** La suite Simon n'est plus stockée sur la question : elle est tirée à la partie. */
 		public List<Integer> simonSequence() {
-			return content instanceof StoredSimon value ? value.sequence() : List.of();
+			return List.of();
 		}
 	}
 }

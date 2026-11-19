@@ -14,10 +14,12 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimon;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimonElement;
 
-/** ADMIN-25 / BACK-54 : la suite refaite est acceptée seulement si elle est identique. */
+/** ADMIN-25 / BACK-55 : la suite tirée est réussie seulement si elle est refaite jusqu'au bout. */
 class SimonChildAnswerGraderTest {
 
-	/** Rouge, bleu, vert, jaune ; suite rouge, bleu, vert, rouge. */
+	private static final List<Integer> ISSUED = List.of(0, 1, 2, 0);
+
+	/** Rouge, bleu, vert, jaune. */
 	private static StoredQuestion question() {
 		return new StoredQuestion(
 				1L,
@@ -30,13 +32,12 @@ class SimonChildAnswerGraderTest {
 								new StoredSimonElement(10L, "rouge", "#ff0000"),
 								new StoredSimonElement(11L, "bleu", "#0000ff"),
 								new StoredSimonElement(12L, "vert", "#00ff00"),
-								new StoredSimonElement(13L, "jaune", "#ffff00")),
-						List.of(0, 1, 2, 0)));
+								new StoredSimonElement(13L, "jaune", "#ffff00"))));
 	}
 
 	@Test
 	void theSameSequenceIsHundredAndPassed() {
-		ChildAnswerGrade grade = SimonChildAnswerGrader.grade(question(), List.of(0, 1, 2, 0));
+		ChildAnswerGrade grade = SimonChildAnswerGrader.grade(question(), ISSUED, List.of(0, 1, 2, 0));
 
 		assertThat(grade.scorePercent()).isEqualTo(100);
 		assertThat(grade.passed()).isTrue();
@@ -48,26 +49,25 @@ class SimonChildAnswerGraderTest {
 	}
 
 	@Test
-	void anotherOrderIsZeroWithoutPartialScore() {
-		ChildAnswerGrade grade = SimonChildAnswerGrader.grade(question(), List.of(0, 2, 1, 0));
+	void aWrongSecondStepKeepsTheFirstRound() {
+		ChildAnswerGrade grade = SimonChildAnswerGrader.grade(question(), ISSUED, List.of(0, 2, 1, 0));
 
-		assertThat(grade.scorePercent()).isZero();
+		assertThat(grade.scorePercent()).isEqualTo(25);
 		assertThat(grade.passed()).isFalse();
-		assertThat(grade.answers()).extracting(AnswerLine::correct).containsExactly(true, false, false, true);
+		assertThat(grade.answers()).extracting(AnswerLine::correct).containsExactly(true, false, false, false);
 		assertThat(grade.answers().get(1)).isEqualTo(new AnswerLine("simon_step", 11L, null, 12L, false));
 	}
 
 	@Test
-	void oneWrongLastStepIsStillZero() {
-		ChildAnswerGrade grade = SimonChildAnswerGrader.grade(question(), List.of(0, 1, 2, 3));
+	void oneWrongLastStepKeepsTheEarlierRounds() {
+		ChildAnswerGrade grade = SimonChildAnswerGrader.grade(question(), ISSUED, List.of(0, 1, 2, 3));
 
-		assertThat(grade.scorePercent()).isZero();
+		assertThat(grade.scorePercent()).isEqualTo(75);
 		assertThat(grade.passed()).isFalse();
 	}
 
 	@Test
-	void aShorterOrLongerReplayIsRefused() {
-		refused(List.of(0, 1, 2));
+	void anEmptyOrLongerReplayIsRefused() {
 		refused(List.of(0, 1, 2, 0, 1));
 		refused(List.of());
 		refused(null);
@@ -81,16 +81,16 @@ class SimonChildAnswerGraderTest {
 	}
 
 	@Test
-	void aQuestionWithoutContentIsRefused() {
-		StoredQuestion empty = new StoredQuestion(1L, 2L, "simon", "", new StoredSimon("nombres", List.of(), List.of()));
+	void aQuestionWithoutAnIssuedSequenceIsRefused() {
+		StoredQuestion empty = new StoredQuestion(1L, 2L, "simon", "", new StoredSimon("nombres", List.of()));
 
-		assertThatThrownBy(() -> SimonChildAnswerGrader.grade(empty, List.of(0, 1)))
+		assertThatThrownBy(() -> SimonChildAnswerGrader.grade(empty, List.of(), List.of(0, 1)))
 				.isInstanceOf(AuthDomainException.class)
-				.hasMessage(SimonChildAnswerGrader.BAD_ANSWER);
+				.hasMessage(SimonChildAnswerGrader.SEQUENCE_MISSING);
 	}
 
 	private static void refused(List<Integer> replayed) {
-		assertThatThrownBy(() -> SimonChildAnswerGrader.grade(question(), replayed))
+		assertThatThrownBy(() -> SimonChildAnswerGrader.grade(question(), ISSUED, replayed))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage(SimonChildAnswerGrader.BAD_ANSWER);
 	}

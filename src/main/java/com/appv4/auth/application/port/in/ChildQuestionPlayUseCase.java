@@ -14,6 +14,7 @@ import com.appv4.auth.application.result.ChildPlayQuestionView;
  * <p><b>Business :</b> jeton enfant seulement ; matière liée obligatoire.
  * <p><b>Technique :</b> GET détail sans solution + POST answers → score ;
  * POST letter-locks pour figer les lettres justes pendant la saisie.
+ * Le GET d'un Simon tire une nouvelle suite et la garde pour la note (BACK-55).
  * <p><b>Métier / flow :</b> Learn play → ce port → ports out questions / attempts.
  */
 public interface ChildQuestionPlayUseCase {
@@ -54,7 +55,8 @@ public interface ChildQuestionPlayUseCase {
 
 	/**
 	 * Réponses envoyées par l'enfant ; seule la liste de la forme jouée est lue.
-	 * {@code simonSequence} : positions 0-based des éléments touchés, dans l'ordre.
+	 * {@code simonSequence} : positions 0-based des éléments touchés, dans l'ordre ; notées contre
+	 * la suite tirée à la dernière ouverture de la question.
 	 */
 	record AttemptAnswers(
 			List<Long> selectedChoiceIds,

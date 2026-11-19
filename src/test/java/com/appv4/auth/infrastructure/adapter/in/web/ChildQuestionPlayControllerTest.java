@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
+import com.appv4.auth.application.port.out.ChildSimonChallengePort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.NewAttempt;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredAttempt;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
@@ -70,6 +71,9 @@ class ChildQuestionPlayControllerTest {
 
 	@MockBean
 	private ChildQuestionAttemptPort childQuestionAttemptPort;
+
+	@MockBean
+	private ChildSimonChallengePort childSimonChallengePort;
 
 	@Test
 	void getTrueFalseHidesTruthful() throws Exception {
@@ -365,9 +369,7 @@ class ChildQuestionPlayControllerTest {
 				.andExpect(jsonPath("$.elements[0].label").value("rouge"))
 				.andExpect(jsonPath("$.elements[0].color").value("#ff0000"))
 				.andExpect(jsonPath("$.elements[3].label").value("jaune"))
-				.andExpect(jsonPath("$.sequence.length()").value(4))
-				.andExpect(jsonPath("$.sequence[1]").value(1))
-				.andExpect(jsonPath("$.sequence[3]").value(0));
+				.andExpect(jsonPath("$.sequence.length()").value(4));
 	}
 
 	@Test
@@ -375,6 +377,7 @@ class ChildQuestionPlayControllerTest {
 		String token = loginAsLea();
 		stubLinkedChild();
 		when(teacherQuestionPort.findInSubject(4L, 18L)).thenReturn(Optional.of(simonQuestion()));
+		when(childSimonChallengePort.find(7L, 18L)).thenReturn(Optional.of(List.of(0, 1, 2, 0)));
 		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
 				.thenReturn(new StoredAttempt(48L, 7L, 4L, 18L, "simon", 100, true));
 
@@ -402,8 +405,9 @@ class ChildQuestionPlayControllerTest {
 		String token = loginAsLea();
 		stubLinkedChild();
 		when(teacherQuestionPort.findInSubject(4L, 18L)).thenReturn(Optional.of(simonQuestion()));
+		when(childSimonChallengePort.find(7L, 18L)).thenReturn(Optional.of(List.of(0, 1, 2, 0)));
 		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
-				.thenReturn(new StoredAttempt(49L, 7L, 4L, 18L, "simon", 0, false));
+				.thenReturn(new StoredAttempt(49L, 7L, 4L, 18L, "simon", 25, false));
 
 		mockMvc.perform(post("/api/ext/subjects/4/questions/18/attempts")
 						.header("Authorization", "Bearer " + token)
@@ -412,12 +416,12 @@ class ChildQuestionPlayControllerTest {
 								{"simonSequence":[0,2,1,0]}
 								"""))
 				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.scorePercent").value(0))
+				.andExpect(jsonPath("$.scorePercent").value(25))
 				.andExpect(jsonPath("$.passed").value(false));
 
 		ArgumentCaptor<NewAttempt> attempt = ArgumentCaptor.forClass(NewAttempt.class);
 		verify(childQuestionAttemptPort).insert(attempt.capture());
-		assertThat(attempt.getValue().scorePercent()).isZero();
+		assertThat(attempt.getValue().scorePercent()).isEqualTo(25);
 		assertThat(attempt.getValue().passed()).isFalse();
 	}
 
@@ -426,6 +430,7 @@ class ChildQuestionPlayControllerTest {
 		String token = loginAsLea();
 		stubLinkedChild();
 		when(teacherQuestionPort.findInSubject(4L, 18L)).thenReturn(Optional.of(simonQuestion()));
+		when(childSimonChallengePort.find(7L, 18L)).thenReturn(Optional.of(List.of(0, 1, 2, 0)));
 
 		mockMvc.perform(post("/api/ext/subjects/4/questions/18/attempts")
 						.header("Authorization", "Bearer " + token)
@@ -457,8 +462,7 @@ class ChildQuestionPlayControllerTest {
 				new StoredSimonElement(1L, "rouge", "#ff0000"),
 				new StoredSimonElement(2L, "bleu", "#0000ff"),
 				new StoredSimonElement(3L, "vert", "#00ff00"),
-				new StoredSimonElement(4L, "jaune", "#ffff00")),
-				List.of(0, 1, 2, 0)));
+				new StoredSimonElement(4L, "jaune", "#ffff00"))));
 	}
 
 	private void stubLinkedChild() {

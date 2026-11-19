@@ -43,7 +43,6 @@ class SimonQuestionFormTest {
 				new SimonElementDraft("rouge", "#ff0000"),
 				new SimonElementDraft("bleu", "#0000ff"),
 				new SimonElementDraft("vert", "#00ff00"));
-		assertThat(draft.sequence()).containsExactly(0, 1, 2, 0);
 	}
 
 	@Test
@@ -116,24 +115,6 @@ class SimonQuestionFormTest {
 				TeacherQuestionService.SIMON_ELEMENT_DUPLICATE);
 		refused(new SimonInput("couleurs", List.of(element("rouge", "#FF0000"), element("carmin", "#ff0000")),
 				List.of(0, 1)), TeacherQuestionService.SIMON_COLOR_DUPLICATE);
-	}
-
-	@Test
-	void aSequenceOfOneStepIsRefused() {
-		refused(new SimonInput("nombres", twoNumbers(), List.of(0)), TeacherQuestionService.SIMON_SEQUENCE_REQUIRED);
-		refused(new SimonInput("nombres", twoNumbers(), null), TeacherQuestionService.SIMON_SEQUENCE_REQUIRED);
-	}
-
-	@Test
-	void aStepOutsideTheElementsIsRefused() {
-		refused(new SimonInput("nombres", twoNumbers(), List.of(0, 2)), TeacherQuestionService.SIMON_STEP_UNKNOWN);
-		refused(new SimonInput("nombres", twoNumbers(), List.of(-1, 0)), TeacherQuestionService.SIMON_STEP_UNKNOWN);
-		refused(new SimonInput("nombres", twoNumbers(), Arrays.asList(0, null)), TeacherQuestionService.SIMON_STEP_UNKNOWN);
-	}
-
-	@Test
-	void theSameElementCanComeBackInTheSequence() {
-		assertThat(draft("nombres", twoNumbers(), List.of(1, 1, 0, 1)).sequence()).containsExactly(1, 1, 0, 1);
 	}
 
 	private SimonDraft draft(String type, List<SimonElementInput> elements) {

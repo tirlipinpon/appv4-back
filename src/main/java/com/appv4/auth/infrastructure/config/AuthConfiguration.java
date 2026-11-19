@@ -72,6 +72,7 @@ import com.appv4.auth.application.port.out.ChildDailyMissionPort;
 import com.appv4.auth.application.port.out.ChildSubjectBoardPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
+import com.appv4.auth.application.port.out.ChildSimonChallengePort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
@@ -474,6 +475,7 @@ public class AuthConfiguration {
 			ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
 			ChildQuestionAttemptPort childQuestionAttemptPort,
+			ChildSimonChallengePort childSimonChallengePort,
 			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService,
 			ChildDailyMissionService childDailyMissionService) {
 		return new ChildQuestionPlayService(
@@ -482,6 +484,7 @@ public class AuthConfiguration {
 				childSubjectPort,
 				teacherQuestionPort,
 				childQuestionAttemptPort,
+				childSimonChallengePort,
 				updateChildProgressAfterAttemptService,
 				childDailyMissionService);
 	}

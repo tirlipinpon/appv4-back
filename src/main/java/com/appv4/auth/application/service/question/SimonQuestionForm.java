@@ -15,9 +15,7 @@ import static com.appv4.auth.application.service.TeacherQuestionService.SIMON_LE
 import static com.appv4.auth.application.service.TeacherQuestionService.SIMON_NUMBERS;
 import static com.appv4.auth.application.service.TeacherQuestionService.SIMON_NUMBER_REQUIRED;
 import static com.appv4.auth.application.service.TeacherQuestionService.SIMON_ORDER;
-import static com.appv4.auth.application.service.TeacherQuestionService.SIMON_SEQUENCE_REQUIRED;
 import static com.appv4.auth.application.service.TeacherQuestionService.SIMON_SHAPES;
-import static com.appv4.auth.application.service.TeacherQuestionService.SIMON_STEP_UNKNOWN;
 import static com.appv4.auth.application.service.TeacherQuestionService.SIMON_TYPE_INVALID;
 import static com.appv4.auth.application.service.question.QuestionValidation.bad;
 
@@ -39,13 +37,13 @@ import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
  * Règles de saisie d'un Simon (ADMIN-25, BACK-54).
  *
  * <p><b>Business :</b> le professeur choisit un genre (couleurs, nombres, lettres ou formes),
- * pose au moins deux éléments de ce genre, puis la suite que l'élève devra refaire, d'au moins
- * deux pas. Un élément hors du genre est refusé : un nombre doit être un nombre, une lettre une
+ * pose au moins deux éléments de ce genre. La suite n'est pas choisie ici : à la partie,
+ * le serveur la tire au hasard et la rallonge d'un pas à chaque réussite (1, puis 2 depuis
+ * le début, puis 3…). Un élément hors du genre est refusé : un nombre doit être un nombre, une lettre une
  * seule lettre, une couleur porte son code ; les autres genres n'ont pas de code couleur.
  * Deux éléments de même nom, ou deux couleurs de même code, sont refusés : l'élève ne pourrait
  * pas les distinguer. L'énoncé peut rester vide.
  * <p><b>Technique :</b> code {@code simon}, ordre 7. Un élément vide est refusé, pas ignoré :
- * les pas désignent les éléments par leur position 0-based, qui ne doit pas glisser.
  * Le code couleur est rangé en minuscules ({@code #rrggbb}).
  * <p><b>Métier / flow :</b> le registre appelle {@link #prepare} avant l'enregistrement.
  * L'élève regarde ensuite la suite, la refait, et le serveur la note.
@@ -69,9 +67,7 @@ public final class SimonQuestionForm implements QuestionFormHandler {
 		}
 		String type = requireType(simon.elementType());
 		List<SimonElementDraft> elements = requireElements(type, simon.elements());
-		return new Prepared(
-				QuestionValidation.optionalPrompt(prompt),
-				new SimonDraft(type, elements, requireSequence(simon.sequence(), elements.size())));
+		return new Prepared(QuestionValidation.optionalPrompt(prompt), new SimonDraft(type, elements));
 	}
 
 	private static String requireType(String raw) {
@@ -143,15 +139,4 @@ public final class SimonQuestionForm implements QuestionFormHandler {
 		return color.toLowerCase(Locale.ROOT);
 	}
 
-	private static List<Integer> requireSequence(List<Integer> sequence, int elementCount) {
-		if (sequence == null || sequence.size() < 2) {
-			throw bad(SIMON_SEQUENCE_REQUIRED);
-		}
-		for (Integer index : sequence) {
-			if (index == null || index < 0 || index >= elementCount) {
-				throw bad(SIMON_STEP_UNKNOWN);
-			}
-		}
-		return List.copyOf(sequence);
-	}
 }

@@ -5,6 +5,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.NewAttempt;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredAttempt;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
+import com.appv4.auth.application.port.out.ChildSimonChallengePort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
@@ -49,13 +51,18 @@ import com.appv4.auth.application.service.question.play.OrderChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.PuzzleChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.QcmChildAnswerGrader;
 import com.appv4.auth.application.service.question.play.SimonChildAnswerGrader;
+import com.appv4.auth.application.service.question.play.SimonSequenceDraw;
 import com.appv4.auth.application.service.question.play.TrueFalseChildAnswerGrader;
 
 /**
- * Lecture jouable et correction d'une tentative enfant (BACK-16 / BACK-17 / BACK-18 / BACK-49 / BACK-54).
+ * Lecture jouable et correction d'une tentative enfant
+ * (BACK-16 / BACK-17 / BACK-18 / BACK-49 / BACK-54 / BACK-55).
  *
  * <p><b>Business :</b> seule une matière liée est jouable ; le front ne recalcule pas le score.
+ * Simon : la suite n'est pas celle du professeur, elle est tirée au hasard à chaque ouverture,
+ * et la reprise est notée contre la suite montrée à cet enfant.
  * <p><b>Technique :</b> jeton enfant → question → grader → insert attempt → progress puis mission du jour.
+ * La lecture d'un Simon écrit la suite tirée ({@link ChildSimonChallengePort}) ; la note la retire.
  * <p><b>Métier / flow :</b> Learn play → ce service → ports out (+ progression et mission).
  */
 public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
@@ -70,6 +77,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 	private final ChildSubjectPort childSubjectPort;
 	private final TeacherQuestionPort teacherQuestionPort;
 	private final ChildQuestionAttemptPort childQuestionAttemptPort;
+	private final ChildSimonChallengePort childSimonChallengePort;
 	private final UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService;
 	private final ChildDailyMissionService childDailyMissionService;
 
@@ -79,6 +87,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
 			ChildQuestionAttemptPort childQuestionAttemptPort,
+			ChildSimonChallengePort childSimonChallengePort,
 			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService,
 			ChildDailyMissionService childDailyMissionService) {
 		this.childLoginPort = childLoginPort;
@@ -86,16 +95,21 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		this.childSubjectPort = childSubjectPort;
 		this.teacherQuestionPort = teacherQuestionPort;
 		this.childQuestionAttemptPort = childQuestionAttemptPort;
+		this.childSimonChallengePort = childSimonChallengePort;
 		this.updateChildProgressAfterAttemptService = updateChildProgressAfterAttemptService;
 		this.childDailyMissionService = childDailyMissionService;
 	}
 
+	/** Pas en lecture seule : ouvrir un Simon écrit la suite tirée pour l'enfant. */
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public ChildPlayQuestionView question(String rawToken, long subjectId, long questionId) {
-		requireActiveChild(rawToken);
+		long childId = requireActiveChild(rawToken);
 		requireLinkedSubject(rawToken, subjectId);
 		StoredQuestion stored = requireQuestion(subjectId, questionId);
+		if (SimonChildAnswerGrader.FORM.equals(stored.formCode())) {
+			return toSimonPlayView(stored, issueSimonSequence(childId, stored));
+		}
 		return toPlayView(stored);
 	}
 
@@ -106,7 +120,10 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		long childId = requireActiveChild(rawToken);
 		requireLinkedSubject(rawToken, subjectId);
 		StoredQuestion stored = requireQuestion(subjectId, questionId);
-		ChildAnswerGrade grade = grade(stored, answers);
+		ChildAnswerGrade grade = grade(childId, stored, answers);
+		if (SimonChildAnswerGrader.FORM.equals(stored.formCode())) {
+			childSimonChallengePort.delete(childId, questionId);
+		}
 		StoredAttempt saved = childQuestionAttemptPort.insert(new NewAttempt(
 				childId,
 				subjectId,
@@ -140,7 +157,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		return new ChildLetterLocksView(LetterByLetterMatch.positionLocks(expected, attempt));
 	}
 
-	private ChildAnswerGrade grade(StoredQuestion stored, AttemptAnswers answers) {
+	private ChildAnswerGrade grade(long childId, StoredQuestion stored, AttemptAnswers answers) {
 		return switch (stored.formCode()) {
 			case QcmChildAnswerGrader.FORM -> QcmChildAnswerGrader.grade(stored, answers.selectedChoiceIds());
 			case TrueFalseChildAnswerGrader.FORM -> TrueFalseChildAnswerGrader.grade(stored, answers.statements());
@@ -153,9 +170,23 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			case ClickChildAnswerGrader.FORM -> ClickChildAnswerGrader.grade(stored, answers.zoneClicks());
 			case LetterChildAnswerGrader.FORM -> LetterChildAnswerGrader.grade(stored, answers.attempt());
 			case PuzzleChildAnswerGrader.FORM -> PuzzleChildAnswerGrader.grade(stored, answers.puzzlePlacements());
-			case SimonChildAnswerGrader.FORM -> SimonChildAnswerGrader.grade(stored, answers.simonSequence());
+			case SimonChildAnswerGrader.FORM -> SimonChildAnswerGrader.grade(
+					stored,
+					childSimonChallengePort.find(childId, stored.id()).orElse(List.of()),
+					answers.simonSequence());
 			default -> throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
 		};
+	}
+
+	/** Tire la suite de cette ouverture et la garde : la tentative sera notée contre elle. */
+	private List<Integer> issueSimonSequence(long childId, StoredQuestion stored) {
+		int elementCount = stored.simonElements().size();
+		if (elementCount == 0) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
+		}
+		List<Integer> sequence = SimonSequenceDraw.draw(elementCount, ThreadLocalRandom.current());
+		childSimonChallengePort.save(childId, stored.id(), sequence);
+		return sequence;
 	}
 
 	private ChildPlayQuestionView toPlayView(StoredQuestion stored) {
@@ -428,43 +459,42 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 					List.of(),
 					List.of());
 		}
-		if (SimonChildAnswerGrader.FORM.equals(form)) {
-			if (stored.simonElements().isEmpty() || stored.simonSequence().isEmpty()) {
-				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
-			}
-			List<PlaySimonElement> elements = stored.simonElements().stream()
-					.map(element -> new PlaySimonElement(element.label(), element.color()))
-					.toList();
-			return new ChildPlayQuestionView(
-					stored.id(),
-					stored.subjectId(),
-					form,
-					stored.prompt(),
-					List.of(),
-					List.of(),
-					List.of(),
-					List.of(),
-					List.of(),
-					List.of(),
-					null,
-					List.of(),
-					"",
-					List.of(),
-					"",
-					null,
-					List.of(),
-					List.of(),
-					null,
-					null,
-					null,
-					"",
-					null,
-					List.of(),
-					stored.simonElementType(),
-					elements,
-					stored.simonSequence());
-		}
 		throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, FORM_UNSUPPORTED);
+	}
+
+	/** Éléments dans l'ordre du professeur : la suite tirée désigne leur position. */
+	private static ChildPlayQuestionView toSimonPlayView(StoredQuestion stored, List<Integer> sequence) {
+		List<PlaySimonElement> elements = stored.simonElements().stream()
+				.map(element -> new PlaySimonElement(element.label(), element.color()))
+				.toList();
+		return new ChildPlayQuestionView(
+				stored.id(),
+				stored.subjectId(),
+				stored.formCode(),
+				stored.prompt(),
+				List.of(),
+				List.of(),
+				List.of(),
+				List.of(),
+				List.of(),
+				List.of(),
+				null,
+				List.of(),
+				"",
+				List.of(),
+				"",
+				null,
+				List.of(),
+				List.of(),
+				null,
+				null,
+				null,
+				"",
+				null,
+				List.of(),
+				stored.simonElementType(),
+				elements,
+				sequence);
 	}
 
 	private StoredQuestion requireQuestion(long subjectId, long questionId) {

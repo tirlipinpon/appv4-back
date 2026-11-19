@@ -2,8 +2,8 @@ DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM dev_front_demo.installation) THEN
    RAISE EXCEPTION 'Demo already installed. Use status, rollback or reset (no duplicates created).';
  END IF;
- IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '65' THEN
-   RAISE EXCEPTION 'Fixtures validated against V65. Review schema changes before updating this guard.';
+ IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) <> '66' THEN
+   RAISE EXCEPTION 'Fixtures validated against V66. Review schema changes before updating this guard.';
  END IF;
 END $$;
 
@@ -186,8 +186,7 @@ SELECT id,decode(:'demo_image','hex'),'trous',NULL,0.04+0.02*(n%5) FROM question
 INSERT INTO back_subject_question_puzzle_pieces(question_id,label,shape,points,sort_order)
 SELECT q.id,v.label,'rect',v.points,v.ord FROM questions q CROSS JOIN
  (VALUES ('Moitié gauche','0,0;0.5,1',0),('Moitié droite','0.5,0;1,1',1)) v(label,points,ord) WHERE code='puzzle';
--- Simon : un genre par question, quatre éléments de ce genre (code couleur pour les couleurs seulement),
--- puis une suite de 2 à 6 pas qui commence par rouge, bleu, vert, rouge.
+-- Simon : un genre par question et quatre éléments. La suite est tirée à la partie.
 INSERT INTO back_subject_question_simon_options(question_id,element_type)
 SELECT id,(ARRAY['couleurs','nombres','lettres','formes'])[1+(n/12)%4] FROM questions WHERE code='simon';
 INSERT INTO back_subject_question_simon_elements(question_id,label,color,sort_order)
@@ -200,9 +199,6 @@ JOIN (VALUES
  ('formes','cercle',NULL,0),('formes','carré',NULL,1),('formes','triangle',NULL,2),('formes','étoile',NULL,3)
 ) v(kind,label,color,ord) ON v.kind=o.element_type
 WHERE q.code='simon';
-INSERT INTO back_subject_question_simon_steps(question_id,element_index,sort_order)
-SELECT q.id,(ARRAY[0,1,2,0,3,1])[1+i],i FROM questions q
-CROSS JOIN LATERAL generate_series(0,1+(q.n/10)%5) i WHERE code='simon';
 
 -- Separate archived copies keep 2..5 visible, active subjects in every class.
 WITH added AS (

@@ -73,5 +73,11 @@ DO $$ BEGIN
       WHERE e.question_id=q.id AND (e.color IS NULL) = (o.element_type='couleurs'))
    ELSE true END
  ) THEN RAISE EXCEPTION 'Missing question content'; END IF;
+ IF EXISTS (
+  SELECT 1 FROM back_subject_questions q
+  JOIN dev_front_demo.roots r ON r.kind='subject' AND r.id=q.subject_id
+  WHERE q.max_attempts <> 1 OR q.difficulty <> 'facile' OR q.customize_points OR q.gamification_disabled
+     OR EXISTS (SELECT 1 FROM back_subject_question_attempt_points p WHERE p.question_id=q.id)
+ ) THEN RAISE EXCEPTION 'Demo questions must keep the default gamification'; END IF;
 END $$;
 SELECT 'Demo integrity OK' AS result;

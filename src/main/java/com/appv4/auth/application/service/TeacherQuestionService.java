@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GamificationInput;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.CardDraft;
@@ -70,6 +71,7 @@ import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
 import com.appv4.auth.application.service.question.LetterByLetterMatch;
 import com.appv4.auth.application.service.question.QuestionFormHandler;
+import com.appv4.auth.application.service.question.QuestionGamification;
 import com.appv4.auth.application.service.question.QuestionFormHandler.Prepared;
 import com.appv4.auth.application.service.question.QuestionFormRegistry;
 
@@ -311,17 +313,32 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 			String formCode,
 			String prompt,
 			ContentInput content) {
+		return create(userId, activeRole, subjectId, formCode, prompt, content, null);
+	}
+
+	@Override
+	@Transactional
+	public QuestionLine create(
+			long userId,
+			String activeRole,
+			long subjectId,
+			String formCode,
+			String prompt,
+			ContentInput content,
+			GamificationInput gamification) {
 		requireTeacher(activeRole);
 		requireOwned(userId, subjectId);
 		QuestionFormHandler handler = forms.require(formCode);
 		FormLine form = handler.form();
 		Prepared prepared = handler.prepare(prompt, content);
+		QuestionGamification.Resolved resolved = resolve(gamification);
 		teacherQuestionPort.ensureForm(subjectId, form.code(), form.label(), form.sortOrder());
 		StoredQuestion saved = teacherQuestionPort.insert(
 				subjectId,
 				form.code(),
 				prepared.prompt(),
 				prepared.content());
+		teacherQuestionPort.saveGamification(saved.id(), stored(resolved));
 		return line(saved);
 	}
 
@@ -342,6 +359,20 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 			String formCode,
 			String prompt,
 			ContentInput content) {
+		return update(userId, activeRole, subjectId, questionId, formCode, prompt, content, null);
+	}
+
+	@Override
+	@Transactional
+	public QuestionLine update(
+			long userId,
+			String activeRole,
+			long subjectId,
+			long questionId,
+			String formCode,
+			String prompt,
+			ContentInput content,
+			GamificationInput gamification) {
 		requireTeacher(activeRole);
 		requireOwned(userId, subjectId);
 		QuestionFormHandler handler = forms.require(formCode);
@@ -352,8 +383,12 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 			throw bad(FORM_LOCKED);
 		}
 		Prepared prepared = handler.prepare(prompt, content);
-		return line(teacherQuestionPort.replace(
-				questionId, prepared.prompt(), prepared.content()));
+		QuestionGamification.Resolved resolved = gamification == null
+				? keep(questionId)
+				: resolve(gamification);
+		StoredQuestion saved = teacherQuestionPort.replace(questionId, prepared.prompt(), prepared.content());
+		teacherQuestionPort.saveGamification(saved.id(), stored(resolved));
+		return line(saved);
 	}
 
 	/**
@@ -404,6 +439,7 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 			teacherQuestionPort.ensureForm(targetSubjectId, form.code(), form.label(), form.sortOrder());
 			StoredQuestion saved = teacherQuestionPort.insert(
 					targetSubjectId, form.code(), source.prompt(), draftOf(source));
+			teacherQuestionPort.saveGamification(saved.id(), stored(keep(source.id())));
 			copies.add(line(saved));
 		}
 		return new TeacherSubjectQuestionsView(List.copyOf(copies));
@@ -473,7 +509,41 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 
 	private QuestionLine line(StoredQuestion question) {
 		return new QuestionLine(question.id(), question.formCode(), forms.labelOf(question.formCode()),
-				question.prompt(), question.content());
+				question.prompt(), question.content(), keep(question.id()));
+	}
+
+	private QuestionGamification.Resolved keep(long questionId) {
+		TeacherQuestionPort.StoredGamification stored = teacherQuestionPort.gamificationOf(questionId);
+		if (stored == null) {
+			return QuestionGamification.defaults();
+		}
+		return QuestionGamification.resolve(
+				stored.maxAttempts(),
+				stored.difficulty(),
+				stored.customizePoints(),
+				stored.gamificationDisabled(),
+				stored.customizePoints() ? stored.customPoints() : null);
+	}
+
+	private static QuestionGamification.Resolved resolve(GamificationInput input) {
+		if (input == null) {
+			return QuestionGamification.defaults();
+		}
+		return QuestionGamification.resolve(
+				input.maxAttempts(),
+				input.difficulty(),
+				input.customizePoints(),
+				input.gamificationDisabled(),
+				input.points());
+	}
+
+	private static TeacherQuestionPort.StoredGamification stored(QuestionGamification.Resolved resolved) {
+		return new TeacherQuestionPort.StoredGamification(
+				resolved.maxAttempts(),
+				resolved.difficulty(),
+				resolved.customizePoints(),
+				resolved.gamificationDisabled(),
+				resolved.customizePoints() ? resolved.points() : List.of());
 	}
 
 	private static void requireTeacher(String activeRole) {

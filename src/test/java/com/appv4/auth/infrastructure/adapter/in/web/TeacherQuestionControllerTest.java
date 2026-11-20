@@ -2,6 +2,7 @@ package com.appv4.auth.infrastructure.adapter.in.web;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -29,6 +30,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickZone;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGamification;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzle;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzlePiece;
@@ -40,6 +42,7 @@ import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.service.SpaceAccess;
 import com.appv4.auth.application.service.TeacherQuestionService;
 import com.appv4.auth.application.service.TeacherSubjectService;
+import com.appv4.auth.application.service.question.QuestionGamification;
 import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
 
 @SpringBootTest
@@ -133,7 +136,142 @@ class TeacherQuestionControllerTest {
 				.andExpect(jsonPath("$.formLabel").value("Choix multiples"))
 				.andExpect(jsonPath("$.prompt").value("Combien font 2 + 2 ?"))
 				.andExpect(jsonPath("$.choices[1].label").value("4"))
-				.andExpect(jsonPath("$.choices[1].correct").value(true));
+				.andExpect(jsonPath("$.choices[1].correct").value(true))
+				.andExpect(jsonPath("$.gamification.maxAttempts").value(1))
+				.andExpect(jsonPath("$.gamification.difficulty").value("facile"))
+				.andExpect(jsonPath("$.gamification.difficultyLabel").value("Facile"))
+				.andExpect(jsonPath("$.gamification.customizePoints").value(false))
+				.andExpect(jsonPath("$.gamification.gamificationDisabled").value(false))
+				.andExpect(jsonPath("$.gamification.points[0]").value(10));
+	}
+
+	@Test
+	void catalogReturnsTheDefaultAndTheScale() throws Exception {
+		mockMvc.perform(get("/api/int/teacher/question-gamification")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.defaults.maxAttempts").value(1))
+				.andExpect(jsonPath("$.defaults.difficulty").value("facile"))
+				.andExpect(jsonPath("$.defaults.difficultyLabel").value("Facile"))
+				.andExpect(jsonPath("$.defaults.points[0]").value(10))
+				.andExpect(jsonPath("$.difficulties[0].code").value("facile"))
+				.andExpect(jsonPath("$.difficulties[0].label").value("Facile"))
+				.andExpect(jsonPath("$.difficulties[1].code").value("modere"))
+				.andExpect(jsonPath("$.difficulties[1].label").value("Modéré"))
+				.andExpect(jsonPath("$.difficulties[1].pointsByAttempt[0]").value(20))
+				.andExpect(jsonPath("$.difficulties[1].pointsByAttempt[1]").value(10))
+				.andExpect(jsonPath("$.difficulties[2].code").value("difficile"))
+				.andExpect(jsonPath("$.difficulties[2].label").value("Difficile"));
+	}
+
+	@Test
+	void createReplaysCustomPoints() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
+		when(questions.insert(eq(4L), eq("qcm"), eq("Couleur du ciel ?"), any()))
+				.thenReturn(new StoredQuestion(70L, 4L, "qcm", "Couleur du ciel ?",
+						List.of(new StoredChoice(1L, "bleu", true), new StoredChoice(2L, "vert", false)),
+						List.of(), List.of()));
+		StoredGamification stored = new StoredGamification(2, "modere", true, false, List.of(20, 10));
+		when(questions.gamificationOf(70L)).thenReturn(stored);
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"formCode":"qcm","prompt":"Couleur du ciel ?","choices":[
+								  {"label":"bleu","correct":true},
+								  {"label":"vert","correct":false}
+								],"gamification":{
+								  "maxAttempts":2,"difficulty":"modere","customizePoints":true,
+								  "gamificationDisabled":false,"points":[20,10]}}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.gamification.maxAttempts").value(2))
+				.andExpect(jsonPath("$.gamification.difficulty").value("modere"))
+				.andExpect(jsonPath("$.gamification.difficultyLabel").value("Modéré"))
+				.andExpect(jsonPath("$.gamification.customizePoints").value(true))
+				.andExpect(jsonPath("$.gamification.gamificationDisabled").value(false))
+				.andExpect(jsonPath("$.gamification.points[0]").value(20))
+				.andExpect(jsonPath("$.gamification.points[1]").value(10));
+
+		verify(questions).saveGamification(70L, stored);
+	}
+
+	@Test
+	void customPointsShorterThanAttemptsAreRefused() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"formCode":"qcm","prompt":"Couleur du ciel ?","choices":[
+								  {"label":"bleu","correct":true},
+								  {"label":"vert","correct":false}
+								],"gamification":{
+								  "maxAttempts":2,"difficulty":"modere","customizePoints":true,
+								  "gamificationDisabled":false,"points":[20]}}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(QuestionGamification.POINTS_LENGTH));
+	}
+
+	@Test
+	void unknownDifficultyIsRefused() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
+
+		mockMvc.perform(post("/api/int/teacher/subjects/4/questions")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"formCode":"qcm","prompt":"Couleur du ciel ?","choices":[
+								  {"label":"bleu","correct":true},
+								  {"label":"vert","correct":false}
+								],"gamification":{
+								  "maxAttempts":1,"difficulty":"extreme","customizePoints":false,
+								  "gamificationDisabled":false}}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message").value(QuestionGamification.UNKNOWN_DIFFICULTY));
+	}
+
+	@Test
+	void updateCanTurnGamificationOffAndKeepsTheScale() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
+		when(questions.findInSubject(4L, 71L))
+				.thenReturn(Optional.of(new StoredQuestion(
+						71L, 4L, "qcm", "2 + 2",
+						List.of(new StoredChoice(1L, "4", true), new StoredChoice(2L, "5", false)),
+						List.of(), List.of())));
+		when(questions.replace(eq(71L), eq("2 + 2"), any()))
+				.thenReturn(new StoredQuestion(
+						71L, 4L, "qcm", "2 + 2",
+						List.of(new StoredChoice(1L, "4", true), new StoredChoice(2L, "5", false)),
+						List.of(), List.of()));
+		StoredGamification stored = new StoredGamification(1, "facile", false, true, List.of());
+		when(questions.gamificationOf(71L)).thenReturn(stored);
+
+		mockMvc.perform(put("/api/int/teacher/subjects/4/questions/71")
+						.header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"formCode":"qcm","prompt":"2 + 2","choices":[
+								  {"label":"4","correct":true},
+								  {"label":"5","correct":false}
+								],"gamification":{
+								  "maxAttempts":1,"difficulty":"facile","customizePoints":false,
+								  "gamificationDisabled":true}}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.gamification.gamificationDisabled").value(true))
+				.andExpect(jsonPath("$.gamification.customizePoints").value(false))
+				.andExpect(jsonPath("$.gamification.points[0]").value(10));
+
+		verify(questions).saveGamification(71L, stored);
 	}
 
 	@Test

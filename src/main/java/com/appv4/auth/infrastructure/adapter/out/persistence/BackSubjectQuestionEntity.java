@@ -33,6 +33,18 @@ public class BackSubjectQuestionEntity {
 	@Column(nullable = false, length = 500)
 	private String prompt;
 
+	@Column(name = "max_attempts", nullable = false)
+	private int maxAttempts = 1;
+
+	@Column(nullable = false, length = 20)
+	private String difficulty = "facile";
+
+	@Column(name = "customize_points", nullable = false)
+	private boolean customizePoints;
+
+	@Column(name = "gamification_disabled", nullable = false)
+	private boolean gamificationDisabled;
+
 	protected BackSubjectQuestionEntity() {
 	}
 
@@ -61,5 +73,28 @@ public class BackSubjectQuestionEntity {
 	/** Le professeur corrige l'énoncé. La forme et la matière ne changent pas. */
 	public void setPrompt(String prompt) {
 		this.prompt = prompt;
+	}
+
+	public int getMaxAttempts() {
+		return maxAttempts;
+	}
+
+	public String getDifficulty() {
+		return difficulty;
+	}
+
+	public boolean isCustomizePoints() {
+		return customizePoints;
+	}
+
+	public boolean isGamificationDisabled() {
+		return gamificationDisabled;
+	}
+
+	public void applyGamification(int maxAttempts, String difficulty, boolean customizePoints, boolean gamificationDisabled) {
+		this.maxAttempts = maxAttempts;
+		this.difficulty = difficulty;
+		this.customizePoints = customizePoints;
+		this.gamificationDisabled = gamificationDisabled;
 	}
 }

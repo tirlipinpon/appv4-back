@@ -15,6 +15,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClassification;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGaps;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
+import com.appv4.auth.application.service.question.QuestionGamification;
 
 /**
  * Questions déjà préparées dans une matière (SCRUM-174, SCRUM-177).
@@ -38,7 +39,12 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 			String formCode,
 			String formLabel,
 			String prompt,
-			StoredContent content) {
+			StoredContent content,
+			QuestionGamification.Resolved gamification) {
+
+		public QuestionLine(long id, String formCode, String formLabel, String prompt, StoredContent content) {
+			this(id, formCode, formLabel, prompt, content, QuestionGamification.defaults());
+		}
 
 		public List<ChoiceLine> choices() {
 			return content instanceof StoredChoices value

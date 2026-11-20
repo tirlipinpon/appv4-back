@@ -72,8 +72,34 @@ public interface TeacherQuestionUseCase {
 	/** Entrée extensible : chaque forme peut déclarer sa structure propre. */
 	QuestionLine create(long userId, String activeRole, long subjectId, String formCode, String prompt, ContentInput content);
 
+	/**
+	 * Comme {@link #create} avec le réglage de gamification. Null : 1 essai, Facile, gamification allumée.
+	 */
+	default QuestionLine create(
+			long userId,
+			String activeRole,
+			long subjectId,
+			String formCode,
+			String prompt,
+			ContentInput content,
+			GamificationInput gamification) {
+		return create(userId, activeRole, subjectId, formCode, prompt, content);
+	}
+
 	QuestionLine update(long userId, String activeRole, long subjectId, long questionId,
 			String formCode, String prompt, ContentInput content);
+
+	default QuestionLine update(
+			long userId,
+			String activeRole,
+			long subjectId,
+			long questionId,
+			String formCode,
+			String prompt,
+			ContentInput content,
+			GamificationInput gamification) {
+		return update(userId, activeRole, subjectId, questionId, formCode, prompt, content);
+	}
 
 	/**
 	 * Copie les questions choisies sur {@code targetSubjectId}.
@@ -103,6 +129,19 @@ public interface TeacherQuestionUseCase {
 	List<Long> deleteQuestions(long userId, String activeRole, long subjectId, List<Long> questionIds);
 
 	interface ContentInput {
+	}
+
+	/**
+	 * Réglage envoyé par le professeur. Un champ null reprend le défaut du back.
+	 *
+	 * @param points points par essai, seulement si {@code customizePoints} est vrai
+	 */
+	record GamificationInput(
+			Integer maxAttempts,
+			String difficulty,
+			Boolean customizePoints,
+			Boolean gamificationDisabled,
+			List<Integer> points) {
 	}
 
 	/** Adaptation des formulaires QCM, Memory et Ordre déjà publiés. */

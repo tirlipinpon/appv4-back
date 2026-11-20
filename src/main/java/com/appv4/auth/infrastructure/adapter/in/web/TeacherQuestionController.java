@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GamificationInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.CardInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClassificationInput;
@@ -45,6 +46,7 @@ import com.appv4.auth.application.result.TeacherSubjectFollowersView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
 import com.appv4.auth.application.service.question.QuestionFormLooks;
+import com.appv4.auth.application.service.question.QuestionGamification;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.CardLine;
 import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ChoiceLine;
@@ -112,6 +114,20 @@ public class TeacherQuestionController {
 		return ResponseEntity.ok(forms(teacherQuestionUseCase.listForms(user.userId(), user.activeRole())));
 	}
 
+	@GetMapping("/question-gamification")
+	@Operation(operationId = "getTeacherQuestionGamification", summary = "Lire le barème et le défaut de gamification")
+	@ApiResponse(responseCode = "200", description = "Défaut d'une question neuve et barème des difficultés")
+	public ResponseEntity<TeacherQuestionGamificationCatalog> gamificationCatalog(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		teacherQuestionUseCase.listForms(user.userId(), user.activeRole());
+		QuestionGamification.Resolved defaults = QuestionGamification.defaults();
+		List<TeacherQuestionDifficultyItem> levels = QuestionGamification.scale().stream()
+				.map(level -> new TeacherQuestionDifficultyItem(level.code(), level.label(), level.pointsByAttempt()))
+				.toList();
+		return ResponseEntity.ok(new TeacherQuestionGamificationCatalog(gamificationItem(defaults), levels));
+	}
+
 	@GetMapping("/subjects/{subjectId}/questions")
 	@Operation(operationId = "listTeacherSubjectQuestions", summary = "Lister les questions d'une matière")
 	@ApiResponse(responseCode = "200", description = "Énoncés de cette matière, du plus ancien au plus récent")
@@ -156,7 +172,7 @@ public class TeacherQuestionController {
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
 						null, null, null, null, null, null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.create(
 				user.userId(),
@@ -164,7 +180,8 @@ public class TeacherQuestionController {
 				subjectId,
 				body.formCode(),
 				body.prompt(),
-				content(body));
+				content(body),
+				gamification(body));
 		return ResponseEntity.ok(item(line));
 	}
 
@@ -192,7 +209,7 @@ public class TeacherQuestionController {
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
 						null, null, null, null, null, null, null, null, null, null, null, null, null,
-						null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		QuestionLine line = teacherQuestionUseCase.update(
 				user.userId(),
@@ -201,7 +218,8 @@ public class TeacherQuestionController {
 				questionId,
 				body.formCode(),
 				body.prompt(),
-				content(body));
+				content(body),
+				gamification(body));
 		return ResponseEntity.ok(item(line));
 	}
 
@@ -617,7 +635,31 @@ public class TeacherQuestionController {
 				choices, pairs, items, statements, links, columns, cards, line.sentence(), answers, decoys,
 				line.expectedAnswer(), base64(line.imageWebp()), line.boardMode(),
 				base64(line.boardImageWebp()), line.requireAllCorrect(), zones, pieces, line.snapDistance(),
-				line.timelineEnabled(), line.clicksOrdered(), line.elementType(), elements, line.sequence());
+				line.timelineEnabled(), line.clicksOrdered(), line.elementType(), elements, line.sequence(),
+				gamificationItem(line.gamification()));
+	}
+
+	private static TeacherQuestionGamificationItem gamificationItem(QuestionGamification.Resolved resolved) {
+		return new TeacherQuestionGamificationItem(
+				resolved.maxAttempts(),
+				resolved.difficulty(),
+				resolved.difficultyLabel(),
+				resolved.customizePoints(),
+				resolved.gamificationDisabled(),
+				resolved.points());
+	}
+
+	private static GamificationInput gamification(CreateTeacherSubjectQuestionRequest body) {
+		TeacherQuestionGamificationInput input = body.gamification();
+		if (input == null) {
+			return null;
+		}
+		return new GamificationInput(
+				input.maxAttempts(),
+				input.difficulty(),
+				input.customizePoints(),
+				input.gamificationDisabled(),
+				input.points());
 	}
 
 	private static List<TeacherQuestionPointItem> pointItems(List<ClickPoint> points) {
@@ -687,7 +729,8 @@ public class TeacherQuestionController {
 			List<TeacherQuestionSimonElementItem> elements,
 			@Schema(description = "Simon seulement : la suite à refaire, "
 					+ "chaque pas étant la position 0-based d'un élément de elements.")
-			List<Integer> sequence) {
+			List<Integer> sequence,
+			TeacherQuestionGamificationItem gamification) {
 		public TeacherSubjectQuestionItem(
 				long id,
 				String formCode,
@@ -714,8 +757,29 @@ public class TeacherQuestionController {
 				Boolean timelineEnabled) {
 			this(id, formCode, formLabel, prompt, choices, pairs, items, statements, links, columns, cards, sentence,
 					answers, decoys, expectedAnswer, imageWebp, boardMode, boardImageWebp, requireAllCorrect, zones,
-					pieces, snapDistance, timelineEnabled, null, null, List.of(), List.of());
+					pieces, snapDistance, timelineEnabled, null, null, List.of(), List.of(),
+					gamificationItem(QuestionGamification.defaults()));
 		}
+	}
+
+	@Schema(name = "TeacherQuestionGamificationCatalog")
+	public record TeacherQuestionGamificationCatalog(
+			TeacherQuestionGamificationItem defaults,
+			List<TeacherQuestionDifficultyItem> difficulties) {
+	}
+
+	@Schema(name = "TeacherQuestionDifficultyItem")
+	public record TeacherQuestionDifficultyItem(String code, String label, List<Integer> pointsByAttempt) {
+	}
+
+	@Schema(name = "TeacherQuestionGamificationItem")
+	public record TeacherQuestionGamificationItem(
+			int maxAttempts,
+			String difficulty,
+			String difficultyLabel,
+			boolean customizePoints,
+			boolean gamificationDisabled,
+			List<Integer> points) {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
@@ -804,7 +868,18 @@ public class TeacherQuestionController {
 			List<TeacherQuestionSimonElementInput> elements,
 			@Schema(description = "Simon seulement : la suite à refaire, au moins deux pas. "
 					+ "Chaque pas est la position 0-based d'un élément de elements.")
-			List<Integer> sequence) {
+			List<Integer> sequence,
+			@Schema(description = "Essais, difficulté et points. Absent : 1 essai, Facile, gamification allumée.")
+			TeacherQuestionGamificationInput gamification) {
+	}
+
+	@Schema(name = "TeacherQuestionGamificationInput")
+	public record TeacherQuestionGamificationInput(
+			Integer maxAttempts,
+			String difficulty,
+			Boolean customizePoints,
+			Boolean gamificationDisabled,
+			List<Integer> points) {
 	}
 
 	@Schema(name = "TeacherQuestionSimonElementInput")

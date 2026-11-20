@@ -1,5 +1,6 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,14 +24,17 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 
 	private final BackSubjectQuestionJpaRepository questions;
 	private final BackSubjectQuestionFormJpaRepository forms;
+	private final BackSubjectQuestionAttemptPointJpaRepository attemptPoints;
 	private final Map<String, QuestionContentStore> stores;
 
 	public TeacherQuestionPersistenceAdapter(
 			BackSubjectQuestionJpaRepository questions,
 			BackSubjectQuestionFormJpaRepository forms,
+			BackSubjectQuestionAttemptPointJpaRepository attemptPoints,
 			List<QuestionContentStore> stores) {
 		this.questions = questions;
 		this.forms = forms;
+		this.attemptPoints = attemptPoints;
 		// Un doublon est une erreur de câblage : échec au démarrage, pas de choix implicite.
 		this.stores = stores.stream().collect(Collectors.toUnmodifiableMap(
 				QuestionContentStore::formCode, Function.identity()));
@@ -100,6 +104,47 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 	@Transactional
 	public void ensureForm(long subjectId, String formCode, String label, int sortOrder) {
 		forms.insertIfAbsent(subjectId, formCode, label, sortOrder);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public StoredGamification gamificationOf(long questionId) {
+		BackSubjectQuestionEntity question = questions.findById(questionId).orElse(null);
+		if (question == null) {
+			return null;
+		}
+		List<Integer> custom = List.of();
+		if (question.isCustomizePoints()) {
+			custom = attemptPoints.findByQuestionIdOrderBySortOrderAsc(questionId).stream()
+					.map(BackSubjectQuestionAttemptPointEntity::getPoints)
+					.toList();
+		}
+		return new StoredGamification(
+				question.getMaxAttempts(),
+				question.getDifficulty(),
+				question.isCustomizePoints(),
+				question.isGamificationDisabled(),
+				custom);
+	}
+
+	@Override
+	@Transactional
+	public void saveGamification(long questionId, StoredGamification gamification) {
+		BackSubjectQuestionEntity question = questions.findById(questionId).orElseThrow();
+		question.applyGamification(
+				gamification.maxAttempts(),
+				gamification.difficulty(),
+				gamification.customizePoints(),
+				gamification.gamificationDisabled());
+		attemptPoints.deleteByQuestionId(questionId);
+		if (gamification.customizePoints()) {
+			List<BackSubjectQuestionAttemptPointEntity> rows = new ArrayList<>();
+			List<Integer> points = gamification.customPoints();
+			for (int index = 0; index < points.size(); index++) {
+				rows.add(new BackSubjectQuestionAttemptPointEntity(questionId, index, points.get(index)));
+			}
+			attemptPoints.saveAll(rows);
+		}
 	}
 
 	@Override

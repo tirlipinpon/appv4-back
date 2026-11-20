@@ -42,7 +42,8 @@ class QuestionContentBatchTest {
 			List<Long> ids = invocation.getArgument(0);
 			return ids.stream().collect(Collectors.toMap(Function.identity(), id -> new ImageContent("image-" + id)));
 		});
-		TeacherQuestionPersistenceAdapter adapter = new TeacherQuestionPersistenceAdapter(questions, forms, List.of(store));
+		TeacherQuestionPersistenceAdapter adapter = new TeacherQuestionPersistenceAdapter(
+				questions, forms, mock(BackSubjectQuestionAttemptPointJpaRepository.class), List.of(store));
 		List<StoredQuestion> result = adapter.findBySubject(4, 0, 501);
 		assertThat(result).hasSize(501);
 		assertThat(result.get(500).content()).isEqualTo(new ImageContent("image-501"));
@@ -60,7 +61,8 @@ class QuestionContentBatchTest {
 				org.mockito.ArgumentMatchers.eq(0L), any()))
 				.thenReturn(List.of(new BackSubjectQuestionEntity(4, "unknown", "X")));
 		TeacherQuestionPersistenceAdapter adapter = new TeacherQuestionPersistenceAdapter(
-				questions, mock(BackSubjectQuestionFormJpaRepository.class), List.of());
+				questions, mock(BackSubjectQuestionFormJpaRepository.class),
+				mock(BackSubjectQuestionAttemptPointJpaRepository.class), List.of());
 		assertThatThrownBy(() -> adapter.findBySubject(4, 0, 501)).isInstanceOf(IllegalStateException.class);
 	}
 
@@ -70,7 +72,8 @@ class QuestionContentBatchTest {
 		when(store.formCode()).thenReturn("qcm");
 		assertThatThrownBy(() -> new TeacherQuestionPersistenceAdapter(
 				mock(BackSubjectQuestionJpaRepository.class),
-				mock(BackSubjectQuestionFormJpaRepository.class), List.of(store, store)))
+				mock(BackSubjectQuestionFormJpaRepository.class),
+				mock(BackSubjectQuestionAttemptPointJpaRepository.class), List.of(store, store)))
 				.isInstanceOf(IllegalStateException.class);
 	}
 

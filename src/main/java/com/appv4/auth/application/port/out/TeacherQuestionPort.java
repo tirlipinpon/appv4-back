@@ -524,4 +524,23 @@ public interface TeacherQuestionPort {
 			return List.of();
 		}
 	}
+
+	/**
+	 * Réglage enregistré. {@code customPoints} n'est rempli que si le professeur les a saisis.
+	 */
+	record StoredGamification(
+			int maxAttempts,
+			String difficulty,
+			boolean customizePoints,
+			boolean gamificationDisabled,
+			List<Integer> customPoints) {
+	}
+
+	/** Absent en test : le service reprend alors le défaut (1 essai, Facile). */
+	default StoredGamification gamificationOf(long questionId) {
+		return null;
+	}
+
+	default void saveGamification(long questionId, StoredGamification gamification) {
+	}
 }

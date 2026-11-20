@@ -28,6 +28,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickZone;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGamification;
@@ -850,6 +851,29 @@ class TeacherQuestionControllerTest {
 								"""))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value(TeacherQuestionService.PROMPT_REQUIRED));
+	}
+
+	@Test
+	void previewReusesFreeTextGradingAndRequiresTheTeacherRole() throws Exception {
+		when(subjects.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
+		when(questions.findInSubject(4L, 7L)).thenReturn(Optional.of(
+				new StoredQuestion(7L, 4L, "texte", "Capitale de la France", new StoredFreeText("Paris"))));
+		String url = "/api/int/teacher/subjects/4/questions/7/preview";
+		mockMvc.perform(get(url).header(HttpHeaders.AUTHORIZATION, bearer("parent")))
+				.andExpect(status().isForbidden());
+		mockMvc.perform(get(url).header(HttpHeaders.AUTHORIZATION, bearer("teacher")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content").isMap())
+				.andExpect(jsonPath("$.content.expectedAnswer").doesNotExist());
+		mockMvc.perform(post(url + "/attempts").header(HttpHeaders.AUTHORIZATION, bearer("teacher"))
+						.contentType(MediaType.APPLICATION_JSON).content("""
+								{"answer":{"formCode":"texte","attempt":"\u00a0Pâris\u00a0"}}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.scorePercent").value(100))
+				.andExpect(jsonPath("$.passed").value(true))
+				.andExpect(jsonPath("$.attemptId").doesNotExist());
 	}
 
 	@Test

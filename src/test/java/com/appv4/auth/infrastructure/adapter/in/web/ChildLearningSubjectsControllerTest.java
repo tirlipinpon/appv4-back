@@ -28,8 +28,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.QuestionSummary;
 import com.appv4.auth.application.service.ReadChildLearningSubjectsService;
 import com.jayway.jsonpath.JsonPath;
 
@@ -90,8 +89,8 @@ class ChildLearningSubjectsControllerTest {
 		when(childSubjectPort.linksOf(7L)).thenReturn(List.of(new StoredLink(4L, false)));
 		when(childSubjectPort.visibleByIds(List.of(4L)))
 				.thenReturn(List.of(new CatalogSubject(4L, "Mathématiques", "Mme X", 1L, "CE1", "math")));
-		when(teacherQuestionPort.findBySubject(4L, 0L, 200)).thenReturn(List.of(
-				new StoredQuestion(11L, 4L, "qcm", "Combien font 2+2 ?", new StoredChoices(List.of()))));
+		when(teacherQuestionPort.findSummariesBySubject(4L, 0L, 201)).thenReturn(List.of(
+				new QuestionSummary(11L, "qcm", "Combien font 2+2 ?")));
 
 		mockMvc.perform(get("/api/ext/subjects/4/questions").header("Authorization", "Bearer " + token))
 				.andExpect(status().isOk())

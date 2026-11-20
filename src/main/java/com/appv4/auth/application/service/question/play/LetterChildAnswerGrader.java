@@ -36,9 +36,9 @@ public final class LetterChildAnswerGrader {
 		if (attempt.length() != expected.length()) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, BAD_ANSWER);
 		}
-		int score = LetterByLetterMatch.scorePercent(expected, attempt);
-		boolean passed = score == 100;
+		LetterByLetterMatch.Score score = LetterByLetterMatch.score(expected, attempt);
+		boolean passed = score.passed();
 		List<AnswerLine> lines = List.of(new AnswerLine("letter", question.id(), null, null, passed));
-		return new ChildAnswerGrade(score, passed, lines);
+		return new ChildAnswerGrade(score.percent(), passed, lines);
 	}
 }

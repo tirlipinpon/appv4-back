@@ -28,6 +28,13 @@ DO $$ BEGIN
    (subject_id IN (SELECT id FROM demo_subjects)) <> (user_id IN (SELECT id FROM demo_users)))
  OR EXISTS(SELECT 1 FROM back_child_subject_links WHERE
    (subject_id IN (SELECT id FROM demo_subjects)) <> (child_id IN (SELECT id FROM demo_children)))
+ OR EXISTS(SELECT 1 FROM back_child_attempts attempt
+   WHERE (attempt.subject_id IN (SELECT id FROM demo_subjects))
+      <> (attempt.child_id IN (SELECT id FROM demo_children)))
+ OR EXISTS(SELECT 1 FROM back_child_simon_challenges challenge
+   JOIN back_subject_questions question ON question.id = challenge.question_id
+   WHERE (question.subject_id IN (SELECT id FROM demo_subjects))
+      <> (challenge.child_id IN (SELECT id FROM demo_children)))
  OR EXISTS(SELECT 1 FROM back_child_links WHERE
    (subject_child_id IN (SELECT id FROM demo_children)) <> (related_child_id IN (SELECT id FROM demo_children)) OR
    (subject_child_id IN (SELECT id FROM demo_children)) <> (parent_user_id IN (SELECT id FROM demo_users)))

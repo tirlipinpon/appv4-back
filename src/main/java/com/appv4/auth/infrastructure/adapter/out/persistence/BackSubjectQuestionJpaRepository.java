@@ -19,6 +19,23 @@ public interface BackSubjectQuestionJpaRepository extends JpaRepository<BackSubj
 
 	Optional<BackSubjectQuestionEntity> findByIdAndSubjectId(long id, long subjectId);
 
+	List<QuestionSummaryRow> findSummariesBySubjectIdAndIdGreaterThanOrderByIdAsc(
+			long subjectId, long afterId, Pageable page);
+
+	@Query("""
+			select question.id from BackSubjectQuestionEntity question
+			where question.subjectId = :subjectId and question.formCode in :formCodes
+			order by question.id
+			""")
+	List<Long> findIdsByForm(
+			@Param("subjectId") long subjectId, @Param("formCodes") Collection<String> formCodes, Pageable page);
+
+	interface QuestionSummaryRow {
+		long getId();
+		String getFormCode();
+		String getPrompt();
+	}
+
 	/**
 	 * Totaux par matière. Chaque ligne est {@code [subjectId, count]}.
 	 * Les matières sans question n'apparaissent pas.

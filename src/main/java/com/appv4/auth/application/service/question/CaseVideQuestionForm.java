@@ -8,6 +8,8 @@ import static com.appv4.auth.application.service.question.QuestionValidation.bad
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapWordInput;
@@ -42,12 +44,20 @@ public final class CaseVideQuestionForm implements QuestionFormHandler {
 		if (holes < 1) {
 			throw bad(GAP_REQUIRED);
 		}
-		return new Prepared(
-				QuestionValidation.optionalPrompt(prompt),
-				new GapsDraft(sentence, requireAnswers(gaps.answers(), holes), keepDecoys(gaps.decoys())));
+		List<GapWordDraft> answers = requireAnswers(gaps.answers(), holes);
+		Set<String> answerLabels = answers.stream().map(word -> QuestionLabel.comparable(word.label()))
+				.collect(Collectors.toSet());
+		List<GapWordDraft> decoys = keepDecoys(gaps.decoys());
+		if (decoys.stream().anyMatch(word -> answerLabels.contains(QuestionLabel.comparable(word.label())))) {
+			throw bad("Un leurre doit être différent des réponses attendues.");
+		}
+		return new Prepared(QuestionValidation.optionalPrompt(prompt), new GapsDraft(sentence, answers, decoys));
 	}
 
-	static int countHoles(String sentence) {
+	public static int countHoles(String sentence) {
+		if (sentence == null) {
+			return 0;
+		}
 		int count = 0;
 		int from = 0;
 		while (from <= sentence.length() - HOLE.length()) {

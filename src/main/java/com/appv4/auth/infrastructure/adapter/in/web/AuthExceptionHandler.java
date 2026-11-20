@@ -2,6 +2,7 @@ package com.appv4.auth.infrastructure.adapter.in.web;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -24,6 +25,11 @@ public class AuthExceptionHandler {
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ResponseEntity<ErrorBody> handleValidation(MethodArgumentNotValidException ex) {
+		return ResponseEntity.badRequest().body(new ErrorBody("Requête invalide", AuthErrorCode.BAD_REQUEST.name()));
+	}
+
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	public ResponseEntity<ErrorBody> handleUnreadableRequest(HttpMessageNotReadableException ex) {
 		return ResponseEntity.badRequest().body(new ErrorBody("Requête invalide", AuthErrorCode.BAD_REQUEST.name()));
 	}
 

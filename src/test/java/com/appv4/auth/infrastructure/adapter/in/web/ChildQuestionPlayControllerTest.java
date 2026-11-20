@@ -2,9 +2,11 @@ package com.appv4.auth.infrastructure.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -16,8 +18,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -35,26 +41,43 @@ import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSimonChallengePort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.NewAttempt;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredAttempt;
+import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredCard;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoices;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClassification;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickZone;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredColumn;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredContent;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGapWord;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGaps;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItem;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredLinks;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredItems;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPairs;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzle;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzlePiece;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimon;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimonElement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatement;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredStatements;
+import com.appv4.auth.application.port.out.TeacherSubjectPort;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
 import com.appv4.auth.application.service.question.play.FreeTextChildAnswerGrader;
-import com.appv4.auth.application.service.question.play.SimonChildAnswerGrader;
+import com.appv4.auth.infrastructure.adapter.out.jwt.JjwtTokenAdapter;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.jayway.jsonpath.JsonPath;
 
 @SpringBootTest
@@ -65,6 +88,15 @@ class ChildQuestionPlayControllerTest {
 	@Autowired
 	private MockMvc mockMvc;
 
+	@Autowired
+	private ObjectMapper json;
+
+	@Autowired
+	private ChildSessionTokenPort childTokens;
+
+	@Autowired
+	private JjwtTokenAdapter adultTokens;
+
 	@MockBean
 	private ChildLoginPort childLoginPort;
 
@@ -73,6 +105,9 @@ class ChildQuestionPlayControllerTest {
 
 	@MockBean
 	private TeacherQuestionPort teacherQuestionPort;
+
+	@MockBean
+	private TeacherSubjectPort teacherSubjectPort;
 
 	@MockBean
 	private ChildQuestionAttemptPort childQuestionAttemptPort;
@@ -103,6 +138,169 @@ class ChildQuestionPlayControllerTest {
 				.andExpect(jsonPath("$.statements[0].label").value("2+2=4"))
 				.andExpect(jsonPath("$.statements[0].truthful").doesNotExist())
 				.andExpect(jsonPath("$.statements[1].statementId").value(2));
+	}
+
+	@Test
+	void structuredPlayExposesOnlyTheContentOfTheForm() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 19L)).thenReturn(Optional.of(freeTextQuestion()));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/19/play").header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.formCode").value("texte"))
+				.andExpect(jsonPath("$.content").isMap())
+				.andExpect(jsonPath("$.content.expectedAnswer").doesNotExist())
+				.andExpect(jsonPath("$.choices").doesNotExist());
+	}
+
+	@Test
+	void submitRejectsMissingValuesAndMixedVariants() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		for (String body : List.of(
+				"{\"formCode\":\"vrai_faux\",\"statements\":[{\"statementId\":1}]}",
+				"{\"formCode\":\"vrai_faux\",\"statements\":[null]}",
+				"{\"formCode\":\"puzzle\",\"puzzlePlacements\":[{\"pieceId\":1,\"y\":0}]}",
+				"{\"formCode\":\"case_vide\",\"gapFills\":[{\"wordId\":1}]}",
+				"{\"formCode\":\"vrai_faux\",\"statements\":[{\"statementId\":1,\"value\":false}],\"attempt\":\"mot\"}")) {
+			mockMvc.perform(post("/api/ext/subjects/4/questions/11/attempts")
+							.header("Authorization", "Bearer " + token)
+							.contentType(MediaType.APPLICATION_JSON).content(body))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+		}
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("playContracts")
+	void modernChildAndTeacherContractsAgreeForEachForm(PlayContract form) throws Exception {
+		long questionId = 19L;
+		String childAuth = "Bearer " + childTokens.issue(7L, "Léa").token();
+		String teacherAuth = "Bearer " + adultTokens
+				.encode(9L, "prof@example.com", "teacher", List.of("teacher"), false, 0).token();
+		String childUrl = "/api/ext/subjects/4/questions/" + questionId;
+		String previewUrl = "/api/int/teacher/subjects/4/questions/" + questionId + "/preview";
+		stubLinkedChild();
+		when(teacherSubjectPort.findOwned(9L, 4L))
+				.thenReturn(Optional.of(new StoredSubject(4L, 9L, 1L, "CE1", "Mathématiques", true, null)));
+		when(teacherQuestionPort.findInSubject(4L, questionId)).thenReturn(Optional.of(
+				new StoredQuestion(questionId, 4L, form.code(), "Question", form.stored())));
+
+		JsonNode preview = json.readTree(mockMvc.perform(get(previewUrl).header("Authorization", teacherAuth))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.formCode").value(form.code()))
+				.andExpect(jsonPath("$.content").isMap()).andExpect(jsonPath("$.challengeId").doesNotExist())
+				.andReturn().getResponse().getContentAsByteArray()).get("content");
+		ObjectNode envelope = json.createObjectNode();
+		envelope.set("answer", playAnswer(form, preview));
+		if (form.simon()) {
+			envelope.set("previewSequence", preview.get("sequence"));
+		}
+		mockMvc.perform(post(previewUrl + "/attempts").header("Authorization", teacherAuth)
+						.contentType(MediaType.APPLICATION_JSON).content(envelope.toString()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.scorePercent").value(form.score()))
+				.andExpect(jsonPath("$.passed").value(form.score() == 100))
+				.andExpect(jsonPath("$.attemptId").doesNotExist());
+		verifyNoInteractions(childQuestionAttemptPort, childSimonChallengePort);
+
+		UUID challengeId = UUID.randomUUID();
+		if (form.simon()) {
+			when(childSimonChallengePort.issue(eq(7L), eq(questionId), anyList(), eq(false))).thenReturn(challengeId);
+		}
+		MvcResult opened = mockMvc.perform(post(childUrl + "/play").header("Authorization", childAuth))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.formCode").value(form.code()))
+				.andExpect(jsonPath("$.content").isMap()).andReturn();
+		JsonNode question = json.readTree(opened.getResponse().getContentAsByteArray());
+		ObjectNode answer = playAnswer(form, question.get("content"));
+		if (form.simon()) {
+			List<Integer> sequence = JsonPath.read(opened.getResponse().getContentAsString(), "$.content.sequence");
+			when(childSimonChallengePort.take(7L, questionId, challengeId)).thenReturn(Optional.of(sequence));
+			mockMvc.perform(post(childUrl + "/attempts").header("Authorization", childAuth)
+							.contentType(MediaType.APPLICATION_JSON).content(answer.toString()))
+					.andExpect(status().isBadRequest());
+			answer.put("challengeId", question.get("challengeId").asText());
+		}
+
+		ObjectNode missingAnswer = answer.deepCopy();
+		missingAnswer.remove(form.answerField());
+		mockMvc.perform(post(childUrl + "/attempts").header("Authorization", childAuth)
+						.contentType(MediaType.APPLICATION_JSON).content(missingAnswer.toString()))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+		verifyNoInteractions(childQuestionAttemptPort);
+		when(childQuestionAttemptPort.insert(any(NewAttempt.class))).thenAnswer(call -> {
+			NewAttempt attempt = call.getArgument(0);
+			return new StoredAttempt(42L, attempt.childId(), attempt.subjectId(), attempt.questionId(),
+					attempt.formCode(), attempt.scorePercent(), attempt.passed());
+		});
+		mockMvc.perform(post(childUrl + "/attempts").header("Authorization", childAuth)
+						.contentType(MediaType.APPLICATION_JSON).content(answer.toString()))
+				.andExpect(status().isCreated()).andExpect(jsonPath("$.scorePercent").value(form.score()))
+				.andExpect(jsonPath("$.passed").value(form.score() == 100));
+	}
+
+	private ObjectNode playAnswer(PlayContract form, JsonNode content) throws Exception {
+		ObjectNode answer = json.createObjectNode().put("formCode", form.code());
+		switch (form.code()) {
+			case "memory" -> answer.putArray(form.answerField()).addObject()
+					.put("firstCardId", content.path("memoryCards").get(0).path("cardId").asText())
+					.put("secondCardId", content.path("memoryCards").get(1).path("cardId").asText());
+			case "liens" -> {
+				var matches = answer.putArray(form.answerField());
+				for (int index = 0; index < 2; index++) {
+					JsonNode left = content.path("linkLefts").get(index);
+					JsonNode right = content.path("linkRights").get(1 - index);
+					matches.addObject().put("leftId", left.path("optionId").asText())
+							.put("rightId", right.path("optionId").asText());
+				}
+			}
+			case "simon" -> answer.putArray(form.answerField()).add(content.path("sequence").get(0).asInt());
+			default -> answer.set(form.answerField(), json.readTree(form.value()));
+		}
+		return answer;
+	}
+
+	private static Stream<PlayContract> playContracts() {
+		List<ClickPoint> rectangle = List.of(new ClickPoint(0, 0), new ClickPoint(.2, .2));
+		return Stream.of(
+				new PlayContract("qcm", new StoredChoices(List.of(new StoredChoice(1L, "4", true))),
+						"selectedChoiceIds", "[1]", 100),
+				new PlayContract("vrai_faux", new StoredStatements(List.of(new StoredStatement(1L, "2+2=5", false))),
+						"statements", "[{\"statementId\":1,\"value\":false}]", 100),
+				new PlayContract("memory", new StoredPairs(List.of(new StoredPair(1L, "chat", "cat"))),
+						"memoryMatches", null, 100),
+				new PlayContract("order", new StoredItems(List.of(new StoredItem(1L, "A"), new StoredItem(2L, "B"))),
+						"orderedItemIds", "[1,2]", 100),
+				new PlayContract("classement", new StoredClassification(
+						List.of(new StoredColumn(2L, "Fruits")), List.of(new StoredCard(1L, "Pomme", 2L))),
+						"placements", "[{\"cardId\":1,\"columnId\":2}]", 100),
+				new PlayContract("liens", new StoredLinks(List.of(
+						new TeacherQuestionPort.StoredLink(1L, "chat", "cat"),
+						new TeacherQuestionPort.StoredLink(2L, "chat", "Katze"))),
+						"linkSelections", null, 100),
+				new PlayContract("case_vide", new StoredGaps("___ et ___", List.of(
+						new StoredGapWord(1L, "chat"), new StoredGapWord(2L, "chat")), List.of()),
+						"gapFills", "[{\"holeIndex\":0,\"wordId\":2},{\"holeIndex\":1,\"wordId\":1}]", 100),
+				new PlayContract("image_interactive", new StoredClickImage(new byte[]{1}, true, false, List.of(
+						new StoredClickZone(1L, "A", true, "rect", rectangle, null),
+						new StoredClickZone(2L, "B", true, "rect", rectangle, null))),
+						"zoneClicks", "[{\"zoneId\":1}]", 50),
+				new PlayContract("reponse_libre", new StoredFreeText("chat"), "attempt", "\"char\"", 75),
+				new PlayContract("texte", new StoredFreeText("Paris"), "attempt", "\"\u00a0Pâris\u00a0\"", 100),
+				new PlayContract("puzzle", new StoredPuzzle(new byte[]{1}, "blanc", null, .08, List.of(
+						new StoredPuzzlePiece(1L, "A", "rect", rectangle, 0.0, 0.0, null))),
+						"puzzlePlacements", "[{\"pieceId\":1,\"x\":-0.02,\"y\":0}]", 100),
+				new PlayContract("simon", simonQuestion().content(), "simonSequence", null, 25));
+	}
+
+	private record PlayContract(String code, StoredContent stored, String answerField, String value, int score) {
+		boolean simon() {
+			return "simon".equals(code);
+		}
+
+		@Override
+		public String toString() {
+			return code;
+		}
 	}
 
 	@Test
@@ -385,7 +583,7 @@ class ChildQuestionPlayControllerTest {
 		String token = loginAsLea();
 		stubLinkedChild();
 		when(teacherQuestionPort.findInSubject(4L, 18L)).thenReturn(Optional.of(simonQuestion()));
-		when(childSimonChallengePort.find(7L, 18L)).thenReturn(Optional.of(List.of(0, 1, 2, 0)));
+		when(childSimonChallengePort.take(7L, 18L, null)).thenReturn(Optional.of(List.of(0, 1, 2, 0)));
 		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
 				.thenReturn(new StoredAttempt(48L, 7L, 4L, 18L, "simon", 100, true));
 
@@ -413,7 +611,7 @@ class ChildQuestionPlayControllerTest {
 		String token = loginAsLea();
 		stubLinkedChild();
 		when(teacherQuestionPort.findInSubject(4L, 18L)).thenReturn(Optional.of(simonQuestion()));
-		when(childSimonChallengePort.find(7L, 18L)).thenReturn(Optional.of(List.of(0, 1, 2, 0)));
+		when(childSimonChallengePort.take(7L, 18L, null)).thenReturn(Optional.of(List.of(0, 1, 2, 0)));
 		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
 				.thenReturn(new StoredAttempt(49L, 7L, 4L, 18L, "simon", 25, false));
 
@@ -438,7 +636,7 @@ class ChildQuestionPlayControllerTest {
 		String token = loginAsLea();
 		stubLinkedChild();
 		when(teacherQuestionPort.findInSubject(4L, 18L)).thenReturn(Optional.of(simonQuestion()));
-		when(childSimonChallengePort.find(7L, 18L)).thenReturn(Optional.of(List.of(0, 1, 2, 0)));
+		when(childSimonChallengePort.take(7L, 18L, null)).thenReturn(Optional.of(List.of(0, 1, 2, 0)));
 
 		mockMvc.perform(post("/api/ext/subjects/4/questions/18/attempts")
 						.header("Authorization", "Bearer " + token)
@@ -447,7 +645,7 @@ class ChildQuestionPlayControllerTest {
 								{"simonSequence":[0,null,2,0]}
 								"""))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.message").value(SimonChildAnswerGrader.BAD_ANSWER));
+				.andExpect(jsonPath("$.code").value("BAD_REQUEST"));
 
 		verify(childQuestionAttemptPort, never()).insert(any(NewAttempt.class));
 	}

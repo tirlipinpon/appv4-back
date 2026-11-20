@@ -1,6 +1,8 @@
 package com.appv4.auth.application.port.out;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Persistance des tentatives enfant (BACK-16).
@@ -12,6 +14,9 @@ import java.util.List;
 public interface ChildQuestionAttemptPort {
 
 	StoredAttempt insert(NewAttempt attempt);
+
+	/** Sérialise les soumissions rejouables de cet enfant jusqu'à la fin de la transaction. */
+	Optional<StoredAttempt> lockAndFind(long childId, UUID submissionId);
 
 	record AnswerLine(
 			String targetKind,
@@ -28,7 +33,8 @@ public interface ChildQuestionAttemptPort {
 			String formCode,
 			int scorePercent,
 			boolean passed,
-			List<AnswerLine> answers) {
+			List<AnswerLine> answers,
+			UUID submissionId) {
 		public NewAttempt {
 			answers = answers == null ? List.of() : List.copyOf(answers);
 		}

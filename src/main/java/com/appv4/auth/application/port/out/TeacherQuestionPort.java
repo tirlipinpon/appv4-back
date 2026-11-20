@@ -3,6 +3,7 @@ package com.appv4.auth.application.port.out;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Énoncés d'une matière et la forme qui leur est attachée (SCRUM-174).
@@ -20,6 +21,13 @@ import java.util.Optional;
 public interface TeacherQuestionPort {
 
 	List<StoredQuestion> findBySubject(long subjectId, long afterId, int limit);
+
+	List<QuestionSummary> findSummariesBySubject(long subjectId, long afterId, int limit);
+
+	Optional<Long> firstQuestionIdByForm(long subjectId, Set<String> formCodes);
+
+	record QuestionSummary(long id, String formCode, String prompt) {
+	}
 
 	/**
 	 * Total de questions par matière.

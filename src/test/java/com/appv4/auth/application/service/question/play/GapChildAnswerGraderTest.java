@@ -47,6 +47,17 @@ class GapChildAnswerGraderTest {
 	}
 
 	@Test
+	void wordsWithTheSameLabelAreInterchangeable() {
+		var question = new StoredQuestion(1L, 2L, "case_vide", "", new StoredGaps(
+				"Le ___ rejoint le ___.", List.of(new StoredGapWord(10L, "chat"), new StoredGapWord(11L, "chat")),
+				List.of(new StoredGapWord(12L, "chien"))));
+		assertThat(GapChildAnswerGrader.grade(question, List.of(new GapFillAnswer(0, 11L), new GapFillAnswer(1, 10L)))
+				.passed()).isTrue();
+		assertThat(GapChildAnswerGrader.grade(question, List.of(new GapFillAnswer(0, 12L), new GapFillAnswer(1, 10L)))
+				.scorePercent()).isEqualTo(50);
+	}
+
+	@Test
 	void duplicateWordIsRefused() {
 		assertThatThrownBy(() -> GapChildAnswerGrader.grade(
 						question(),

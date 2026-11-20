@@ -10,5 +10,8 @@ import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.AnswerLine;
 public record ChildAnswerGrade(int scorePercent, boolean passed, List<AnswerLine> answers) {
 	public ChildAnswerGrade {
 		answers = answers == null ? List.of() : List.copyOf(answers);
+		if (!passed) {
+			scorePercent = Math.min(99, scorePercent);
+		}
 	}
 }

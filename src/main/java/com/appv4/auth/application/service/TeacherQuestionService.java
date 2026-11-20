@@ -11,6 +11,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.MemoryMatch;
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.Submission;
+import com.appv4.auth.application.result.ChildLetterLocksView;
+import com.appv4.auth.application.result.ChildPlayQuestionView;
+import com.appv4.auth.application.service.question.play.ChildAnswerGrade;
+import com.appv4.auth.application.service.question.play.PlayableQuestionForm;
+import com.appv4.auth.application.service.question.play.QuestionPlayEngine;
+import com.appv4.auth.application.service.question.play.SimonSequenceDraw;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GamificationInput;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
@@ -399,15 +407,60 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	@Transactional(readOnly = true)
 	public LetterAttemptView tryLetterAnswer(
 			long userId, String activeRole, long subjectId, long questionId, String attempt) {
-		requireTeacher(activeRole);
-		requireOwned(userId, subjectId);
-		StoredQuestion current = teacherQuestionPort.findInSubject(subjectId, questionId)
-				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, QUESTION_MISSING));
+		StoredQuestion current = requirePreviewQuestion(userId, activeRole, subjectId, questionId);
 		if (!REPONSE_LIBRE.equals(current.formCode())) {
 			throw bad(LETTER_FORM);
 		}
 		boolean accepted = LetterByLetterMatch.accepted(current.expectedAnswer(), attempt);
 		return new LetterAttemptView(accepted, accepted ? LETTER_ACCEPTED : LETTER_REFUSED);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ChildPlayQuestionView preview(long userId, String activeRole, long subjectId, long questionId) {
+		StoredQuestion question = requirePreviewQuestion(userId, activeRole, subjectId, questionId);
+		List<Integer> sequence = PlayableQuestionForm.SIMON.code().equals(question.formCode())
+				? QuestionPlayEngine.drawSimon(question) : List.of();
+		return QuestionPlayEngine.project(question, null, sequence, false);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public PreviewVerdict previewAnswer(long userId, String activeRole, long subjectId, long questionId,
+			Submission submission, List<Integer> previewSequence) {
+		StoredQuestion question = requirePreviewQuestion(userId, activeRole, subjectId, questionId);
+		List<Integer> sequence = previewSequence == null ? List.of() : previewSequence;
+		if (PlayableQuestionForm.SIMON.code().equals(question.formCode())) {
+			int count = question.simonElements().size();
+			if (sequence.size() != SimonSequenceDraw.length(count)
+					|| sequence.stream().anyMatch(step -> step == null || step < 0 || step >= count)) {
+				throw QuestionPlayEngine.invalidAnswer();
+			}
+		} else if (!sequence.isEmpty()) {
+			throw QuestionPlayEngine.invalidAnswer();
+		}
+		ChildAnswerGrade grade = QuestionPlayEngine.grade(question, submission, sequence);
+		return new PreviewVerdict(grade.scorePercent(), grade.passed());
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ChildLetterLocksView previewLetterLocks(
+			long userId, String activeRole, long subjectId, long questionId, String attempt) {
+		return QuestionPlayEngine.letterLocks(requirePreviewQuestion(userId, activeRole, subjectId, questionId), attempt);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public boolean previewMemoryPair(long userId, String activeRole, long subjectId, long questionId, MemoryMatch match) {
+		return QuestionPlayEngine.memoryPair(requirePreviewQuestion(userId, activeRole, subjectId, questionId), match);
+	}
+
+	private StoredQuestion requirePreviewQuestion(long userId, String activeRole, long subjectId, long questionId) {
+		requireTeacher(activeRole);
+		requireOwned(userId, subjectId);
+		return teacherQuestionPort.findInSubject(subjectId, questionId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, QUESTION_MISSING));
 	}
 
 	@Override

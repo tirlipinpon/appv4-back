@@ -1,6 +1,7 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -47,17 +48,22 @@ public class BackChildAttemptEntity {
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt = Instant.now();
 
+	@Column(name = "submission_id")
+	private UUID submissionId;
+
 	protected BackChildAttemptEntity() {
 	}
 
 	public BackChildAttemptEntity(
-			long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed) {
+			long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed,
+			UUID submissionId) {
 		this.childId = childId;
 		this.subjectId = subjectId;
 		this.questionId = questionId;
 		this.formCode = formCode;
 		this.scorePercent = (short) scorePercent;
 		this.passed = passed;
+		this.submissionId = submissionId;
 	}
 
 	public Long getId() {

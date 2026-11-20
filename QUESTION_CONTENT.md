@@ -1,130 +1,53 @@
-# Questions et futurs jeux
+# Formes de questions et parcours
 
-Référence fonctionnelle : `../cursor_app_functionality_list.md`.
+La question commune porte la matière, le code de forme et l’énoncé. Chaque forme valide et stocke ses données dans son propre `QuestionFormHandler` et `QuestionContentStore`. Le moteur `QuestionPlayEngine` produit les données jouables et corrige les réponses en s’appuyant sur le contenu enregistré.
 
-## Structure retenue
-
-`back_subject_questions` conserve l'identité, la matière, la forme et l'énoncé.
-Chaque structure possède son contenu et ses règles : aujourd'hui `choices` pour
-QCM, `pairs` pour Memory, `items` pour Ordre, `statements` pour Vrai ou faux,
-`links` pour Liens, et `sentence`, `answers`, `decoys` pour Case vide. Les tables existantes et leurs
-identifiants sont conservés. Le nombre de tables n'est pas le facteur limitant ;
-on évite surtout de lire les tables de tous les jeux pour chaque question.
-
-Le cœur utilise trois contrats extensibles : `ContentInput` pour la saisie,
-`DraftContent` après validation et `StoredContent` après persistance. Une future
-image interactive peut ainsi transporter ses zones, et un puzzle ses pièces,
-sans ajouter des paramètres à toutes les méthodes existantes.
-
-- `QuestionFormHandler` valide une forme et fournit ses métadonnées.
-- `QuestionFormRegistry` indexe les validateurs par code et construit le catalogue.
-- `QuestionContentStore` lit, écrit et supprime le contenu propre à une forme.
-- `TeacherQuestionService` gère les droits, la matière, la forme et la transaction.
-- `TeacherQuestionPersistenceAdapter` charge les questions et délègue leurs contenus.
-
-Seuls QCM, Memory, Ordre, Vrai ou faux, Liens et Case vide sont actuellement proposés par l'API.
-Les interfaces de création et les moteurs des autres jeux restent à développer.
-
-## Évolution vers les dix jeux
-
-Ce tableau est une orientation de modélisation, pas la spécification définitive
-de formats encore non implémentés.
-
-| Jeu | Données spécifiques à prévoir | Situation |
+| Forme | Saisie professeur | Soumission de jeu |
 | --- | --- | --- |
-| QCM | Propositions, bonnes réponses, ordre | Implémenté : `choices` |
-| Memory | Paires de faces associées | Implémenté : `pairs` |
-| Chronologie | Éléments ordonnés, éventuellement dates | `order` couvre l'ordre simple ; dates à définir |
-| Vrai/Faux | Phrases et côté vrai ou faux | Implémenté : `statements` |
-| Liens | Mot de gauche et réponse de droite | Implémenté : `links` |
-| Case vide | Phrase avec `___`, mot juste de chaque trou, leurres | Implémenté : `sentence`, `answers`, `decoys` |
-| Simon | Genre et éléments. La suite est tirée à la partie (1, puis 2 depuis le début, puis 3…) | Implémenté : `elementType`, `elements`. `sequence` seulement dans le jeu enfant |
-| Image interactive | Référence de média, zones, réponses | Structure spécifique |
-| Réponse libre | Réponses admises et règles de comparaison | Structure spécifique |
-| Puzzle | Référence de média, découpage, configuration | Structure spécifique |
+| Choix multiples `qcm` | Propositions et bonnes réponses | Ensemble des choix sélectionnés |
+| Vrai ou faux `vrai_faux` | Affirmations et verdict attendu | Booléen par affirmation |
+| Memory `memory` | Paires de faces | Identifiants des deux cartes de chaque paire trouvée |
+| Ordre `order` | Étapes ordonnées et jalons facultatifs de frise | Liste des éléments dans l’ordre retenu |
+| Classement `classement` | Cartes et colonnes cibles | Colonne choisie par carte |
+| Liens `liens` | Associations gauche et droite | Options choisies dans chaque colonne |
+| Case vide `case_vide` | Phrase, mots attendus et leurres | Un jeton par trou |
+| Image interactive `image_interactive` | Média, zones et ordre facultatif | Clics dans l’ordre réalisé |
+| Lettre par lettre `reponse_libre` | Mot ou texte attendu | Saisie avec les accents et retour par case |
+| Réponse libre `texte` | Texte attendu | Saisie comparée sans casse, accents ni espaces de bord |
+| Puzzle `puzzle` | Média, pièces et plateau avec trous, blanc ou fond dédié | Coordonnées normalisées de chaque pièce |
+| Simon `simon` | Genre et éléments | Positions rappelées sur la dernière manche |
 
-Une table spécialisée convient aux données à relier, contraindre et rechercher.
-Un contenu JSONB versionné pourra convenir à une configuration très variable,
-dans le store concerné, avec validation explicite. Il n'est pas nécessaire de
-convertir aujourd'hui toutes les données existantes en JSONB.
+Les réponses utilisent les identifiants des éléments proposés. Pour Liens et Case vide, deux jetons de même libellé peuvent être interchangés. Les leurres identiques aux réponses sont refusés à la saisie. Le score est un pourcentage. Une forme à réussite exacte réserve 100 % à une réponse entièrement juste.
 
-Le jeu jouable (scénario, configuration, score) et la forme d'une question sont
-deux concepts distincts. Lors de l'implémentation des jeux, prévoir leur catalogue
-et leurs formes compatibles ; une même structure pourra servir plusieurs jeux.
-Ces futures tables de jeux ne sont pas créées prématurément par cette optimisation.
+## Parcours professeur
 
-## Ajouter une forme
+L’édition passe par `/api/int/teacher/subjects/{subjectId}/questions`. L’objet d’écriture est discriminé par `formCode` dans OpenAPI. L’aperçu d’une question enregistrée utilise `GET .../{questionId}/preview` et `POST .../{questionId}/preview/attempts`. Le moteur fournit le même rendu, la même correction et le même retour par case ou paire dans ce contexte de simulation. L’aperçu possède son propre tirage Simon. La simulation est en lecture seule pour les données de progression.
 
-1. Définir ses types d'entrée, de contenu validé et de contenu enregistré.
-2. Implémenter `QuestionFormHandler` et l'enregistrer comme bean dans la configuration.
-3. Implémenter `QuestionContentStore` avec le même code de forme. Son chargement
-   reçoit au plus 500 identifiants et retourne une entrée par question.
-4. Ajouter une migration Flyway si cette structure exige un nouveau stockage.
-5. Ajouter le DTO HTTP et le formulaire adaptés à la nouvelle structure. Les
-   formes déjà publiées gardent leur contrat `choices` / `pairs` / `items`.
-   Vrai ou faux ajoute `statements`, Liens ajoute `links`, Case vide ajoute
-   `sentence`, `answers` et `decoys`, Simon ajoute `elementType` et `elements`.
-   Les surcharges prenant `ContentInput` permettent aux nouveaux adaptateurs
-   d'appeler le même service avec une structure différente.
-6. Tester validation, droits, aller-retour en base et nombre de requêtes avant
-   de proposer cette forme dans l'interface. Le moteur enfant est un travail distinct.
+## Parcours enfant
 
-Le test `independentFormCarriesItsOwnStructureThroughTheCommonService` démontre
-le passage d'un contenu d'image fictif sans modifier l'orchestration commune.
-`QuestionContentBatchTest` vérifie l'extension du stockage et les lots de 500.
+`GET /api/ext/subjects/{subjectId}/questions` interroge uniquement l’identifiant, le code et l’énoncé via une projection. La page est ordonnée par identifiant. La valeur de `nextCursor` repart dans `afterId` pour la suite. La limite maximale est 200 et Learning demande 50 lignes. L’accès reste conditionné à une matière liée, visible et non exclue.
 
-## Coûts et intégrité
+Une mission sélectionne la première question compatible par requête sur la matière entière. Le catalogue des formes jouables est partagé avec le moteur. Le plan du jour reste stable après sa création.
 
-La lecture coûte une requête pour les questions, puis une requête par forme
-présente et par lot de 500 questions de cette forme. Une matière vide ne lance
-aucune lecture de contenu. L'ordre de création des questions et l'ordre saisi
-des éléments sont conservés.
+`POST .../{questionId}/play` ouvre la question. Le champ `content` dépend de `formCode`. Memory présente des cartes indépendantes et fait vérifier les deux cartes retournées par `POST .../memory-pair`. Liens présente deux listes indépendantes. Les médias sont chargés lors de l’ouverture d’une question illustrée.
 
-Mesures vérifiées avec Hibernate sur PostgreSQL :
+`POST .../{questionId}/attempts` attend une seule variante de réponse. Learning fournit un `submissionId` et réutilise cet identifiant lors d’une relance. La réponse et ses effets sur la progression sont enregistrés ensemble. Une soumission rejouée retourne le même verdict.
 
-| Contenu de la matière | Ancien chargement | Nouveau chargement |
-| --- | ---: | ---: |
-| 100 questions QCM / Memory / Ordre | 301 requêtes | 4 requêtes |
-| 100 QCM | 301 requêtes | 2 requêtes |
-| Matière vide | 1 requête | 1 requête |
+Simon ajoute un `challengeId` à la réponse d’ouverture. L’enfant le renvoie avec sa tentative. Il identifie la suite affichée et appartient à la question et à l’enfant. Il expire après 30 minutes. Sa consommation est atomique avec l’enregistrement de la tentative. La simulation professeur utilise son propre champ `previewSequence`. Le GET historique et les soumissions historiques restent disponibles pour les clients antérieurs. Pour Simon, le support historique utilise un défi dédié à l’ancien protocole.
 
-Ces comptes concernent les questions et leurs contenus, hors contrôle d'accès.
-Ce sont des comptes SQL, pas des mesures de latence ou de capacité en production.
-L'endpoint historique retourne encore toute la matière : une pagination sera
-nécessaire si une matière contient des milliers de questions, pour limiter aussi
-la mémoire et la taille de la réponse HTTP.
+## Chargements et extension
 
-Les écritures n'effectuent plus un `flush` par élément. Les identifiants JPA
-`IDENTITY` impliquent encore un INSERT par ligne : `saveAllAndFlush` ne constitue
-pas à lui seul un batch JDBC d'INSERT. Les corrections utilisent un DELETE groupé
-sur le contenu concerné et verrouillent la question pendant la transaction.
+Les lectures de contenu de l’éditeur regroupent les questions par forme et par lots de 500 identifiants. Les réponses de liste restent paginées. L’écriture délègue au store de la forme et sérialise les remplacements du contenu d’une même question.
 
-La création de la ligne matière/forme utilise `ON CONFLICT DO NOTHING` : deux
-créations concurrentes ne provoquent plus une violation d'unicité récupérée dans
-une transaction déjà en échec. La migration V33 ajoute la référence
-question -> forme de la matière, interdit les positions négatives ou dupliquées
-et remplace les anciens index de position par les index uniques correspondants.
-Elle ne supprime aucun contenu. Elle est appliquée par Flyway au prochain démarrage.
+Pour ajouter une forme, câbler le validateur, le store, la projection et le correcteur au moteur. Décrire ses champs dans le contrat HTTP et ajouter ses règles au rendu partagé du frontend. Couvrir l’aller-retour d’édition, la validation des réponses et la parité entre aperçu et jeu. Toute migration de schéma implique la revue des scripts de démo.
 
 ## Vérification
 
-`./mvnw.cmd verify` exécute Checkstyle et les tests métier/HTTP.
-Les tests PostgreSQL sont activés seulement si `APPV4_PERSISTENCE_TEST_URL` est
-défini. Utiliser une base **réservée aux tests** : Flyway y applique les migrations
-et le test de montée de version y crée un schéma temporaire supplémentaire.
+`./mvnw.cmd verify` exécute Checkstyle et les tests Java. Définir `APPV4_PERSISTENCE_TEST_URL` sur une base PostgreSQL dédiée pour inclure les tests de persistance. Le profil `postgres-integration` exécute aussi les tests de concurrence Failsafe.
 
 ```powershell
 $env:APPV4_PERSISTENCE_TEST_URL = 'jdbc:postgresql://localhost:5432/appv4_questions_test'
-# Facultatifs : APPV4_PERSISTENCE_TEST_USER et APPV4_PERSISTENCE_TEST_PASSWORD
-# Valeurs locales par défaut : appv4 / appv4.
-.\mvnw.cmd verify
+.\mvnw.cmd -Ppostgres-integration verify
 ```
 
-La CI fournit l’URL du service PostgreSQL éphémère à cette même commande.
-Le profil Maven `postgres-integration` active Failsafe pour les classes `*IT`,
-dont `ChildProgressConcurrencyIT`, qui vérifie deux écritures simultanées d’XP.
-Les suites de persistance existantes en `*Test` passent dans la phase Surefire.
-
-`TeacherQuestionPersistenceTest` mesure les lectures SQL et vérifie les mises à
-jour et contraintes. `QuestionMigrationTest` crée des contenus en V32, migre en
-V33 et vérifie les identifiants, contenus et suppressions en cascade.
+`OpenApiContractExportTest` exporte le contrat dans `target/openapi.json`. Reporter les changements dans `openapi/openapi.json` puis lancer `npm run api:generate` dans le frontend pour mettre à jour le schéma TypeScript partagé.

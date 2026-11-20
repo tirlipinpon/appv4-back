@@ -1,129 +1,90 @@
 package com.appv4.auth.application.port.in;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import com.appv4.auth.application.result.ChildAttemptResultView;
 import com.appv4.auth.application.result.ChildLetterLocksView;
 import com.appv4.auth.application.result.ChildPlayQuestionView;
 
-/**
- * Lire une question jouable et enregistrer une tentative (BACK-16).
- *
- * <p><b>Business :</b> jeton enfant seulement ; matière liée obligatoire.
- * <p><b>Technique :</b> GET détail sans solution + POST answers → score ;
- * POST letter-locks pour figer les lettres justes pendant la saisie.
- * Le GET d'un Simon tire une nouvelle suite et la garde pour la note (BACK-55).
- * <p><b>Métier / flow :</b> Learn play → ce port → ports out questions / attempts.
- */
+/** Ouvrir, jouer et corriger une question dans l'espace enfant. */
 public interface ChildQuestionPlayUseCase {
 
-	ChildPlayQuestionView question(String rawToken, long subjectId, long questionId);
+	ChildPlayQuestionView question(String rawToken, long subjectId, long questionId, boolean legacy);
 
-	ChildAttemptResultView submit(
-			String rawToken, long subjectId, long questionId, AttemptAnswers answers);
+	ChildAttemptResultView submit(String rawToken, long subjectId, long questionId, Submission submission);
 
-	/** Verrous case par case (lettre juste / espace), sans enregistrer. */
 	ChildLetterLocksView letterLocks(String rawToken, long subjectId, long questionId, String attempt);
+
+	boolean memoryPair(String rawToken, long subjectId, long questionId, MemoryMatch match);
+
+	record Submission(String declaredForm, Answer answer, UUID submissionId, UUID challengeId) {
+	}
+
+	sealed interface Answer permits Choices, Statements, LegacyMemory, MemoryMatches, Order, Placements,
+			LegacyLinks, LinkSelections, GapFills, ImageClicks, Text, Puzzle, Simon {
+	}
+
+	record Choices(List<Long> ids) implements Answer {
+	}
+
+	record Statements(List<StatementAnswer> values) implements Answer {
+	}
+
+	record LegacyMemory(List<Long> pairIds) implements Answer {
+	}
+
+	record MemoryMatches(List<MemoryMatch> matches) implements Answer {
+	}
+
+	record Order(List<Long> ids) implements Answer {
+	}
+
+	record Placements(List<PlacementAnswer> values) implements Answer {
+	}
+
+	record LegacyLinks(List<LinkMatchAnswer> matches) implements Answer {
+	}
+
+	record LinkSelections(List<LinkSelection> matches) implements Answer {
+	}
+
+	record GapFills(List<GapFillAnswer> values) implements Answer {
+	}
+
+	record ImageClicks(List<ZoneClickAnswer> values) implements Answer {
+	}
+
+	record Text(String attempt) implements Answer {
+	}
+
+	record Puzzle(List<PuzzlePiecePlacementAnswer> values) implements Answer {
+	}
+
+	record Simon(List<Integer> sequence) implements Answer {
+	}
 
 	record StatementAnswer(long statementId, boolean value) {
 	}
 
-	/** Placement d'une carte dans une colonne (classement). */
 	record PlacementAnswer(long cardId, long columnId) {
 	}
 
-	/** Association choisie par l'enfant : mot de gauche vers réponse de droite. */
 	record LinkMatchAnswer(long leftId, long rightId) {
 	}
 
-	/** Mot placé dans un trou. {@code holeIndex} suit les {@code ___} de gauche à droite. */
+	record LinkSelection(UUID leftId, UUID rightId) {
+	}
+
+	record MemoryMatch(UUID firstCardId, UUID secondCardId) {
+	}
+
 	record GapFillAnswer(int holeIndex, long wordId) {
 	}
 
-	/** Zone touchée. L'ordre de la liste est l'ordre des clics. */
 	record ZoneClickAnswer(long zoneId) {
 	}
 
-	/**
-	 * Position du coin haut-gauche d'une pièce sur le plateau (0–1).
-	 * Une ligne par pièce ; toutes les pièces doivent être placées.
-	 */
 	record PuzzlePiecePlacementAnswer(long pieceId, double x, double y) {
-	}
-
-	/**
-	 * Réponses envoyées par l'enfant ; seule la liste de la forme jouée est lue.
-	 * {@code simonSequence} : positions 0-based des éléments touchés, dans l'ordre ; notées contre
-	 * la suite tirée à la dernière ouverture de la question.
-	 */
-	record AttemptAnswers(
-			List<Long> selectedChoiceIds,
-			List<StatementAnswer> statements,
-			List<Long> matchedPairIds,
-			List<Long> orderedItemIds,
-			List<PlacementAnswer> placements,
-			List<LinkMatchAnswer> linkMatches,
-			List<GapFillAnswer> gapFills,
-			List<ZoneClickAnswer> zoneClicks,
-			List<PuzzlePiecePlacementAnswer> puzzlePlacements,
-			String attempt,
-			List<Integer> simonSequence) {
-		public AttemptAnswers(
-				List<Long> selectedChoiceIds,
-				List<StatementAnswer> statements,
-				List<Long> matchedPairIds,
-				List<Long> orderedItemIds,
-				List<PlacementAnswer> placements,
-				List<LinkMatchAnswer> linkMatches,
-				List<GapFillAnswer> gapFills) {
-			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
-					List.of(), List.of(), null, List.of());
-		}
-
-		public AttemptAnswers(
-				List<Long> selectedChoiceIds,
-				List<StatementAnswer> statements,
-				List<Long> matchedPairIds,
-				List<Long> orderedItemIds,
-				List<PlacementAnswer> placements,
-				List<LinkMatchAnswer> linkMatches,
-				List<GapFillAnswer> gapFills,
-				List<ZoneClickAnswer> zoneClicks) {
-			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
-					zoneClicks, List.of(), null, List.of());
-		}
-
-		public AttemptAnswers(
-				List<Long> selectedChoiceIds,
-				List<StatementAnswer> statements,
-				List<Long> matchedPairIds,
-				List<Long> orderedItemIds,
-				List<PlacementAnswer> placements,
-				List<LinkMatchAnswer> linkMatches,
-				List<GapFillAnswer> gapFills,
-				List<ZoneClickAnswer> zoneClicks,
-				String attempt) {
-			this(selectedChoiceIds, statements, matchedPairIds, orderedItemIds, placements, linkMatches, gapFills,
-					zoneClicks, List.of(), attempt, List.of());
-		}
-
-		public AttemptAnswers {
-			selectedChoiceIds = selectedChoiceIds == null ? List.of() : List.copyOf(selectedChoiceIds);
-			statements = statements == null ? List.of() : List.copyOf(statements);
-			matchedPairIds = matchedPairIds == null ? List.of() : List.copyOf(matchedPairIds);
-			orderedItemIds = orderedItemIds == null ? List.of() : List.copyOf(orderedItemIds);
-			placements = placements == null ? List.of() : List.copyOf(placements);
-			linkMatches = linkMatches == null ? List.of() : List.copyOf(linkMatches);
-			gapFills = gapFills == null ? List.of() : List.copyOf(gapFills);
-			zoneClicks = zoneClicks == null ? List.of() : List.copyOf(zoneClicks);
-			puzzlePlacements = puzzlePlacements == null ? List.of() : List.copyOf(puzzlePlacements);
-			attempt = attempt == null ? "" : attempt;
-			// Un pas null reste dans la liste : le correcteur le refuse en 400 (List.copyOf lèverait une NPE).
-			simonSequence = simonSequence == null
-					? List.of()
-					: Collections.unmodifiableList(new ArrayList<>(simonSequence));
-		}
 	}
 }

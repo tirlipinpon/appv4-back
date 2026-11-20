@@ -2,6 +2,7 @@ package com.appv4.auth.application.service.question;
 
 import java.text.Normalizer;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Comparaison d'une réponse libre (SCRUM-198).
@@ -15,6 +16,7 @@ import java.util.Locale;
  * {@link com.appv4.auth.application.service.question.play.FreeTextChildAnswerGrader}.
  */
 public final class FreeTextMatch {
+	private static final Pattern EDGE_SPACES = Pattern.compile("^[\\p{Z}\\x00-\\x20]+|[\\p{Z}\\x00-\\x20]+$");
 
 	private FreeTextMatch() {
 	}
@@ -31,7 +33,7 @@ public final class FreeTextMatch {
 	}
 
 	static String normalize(String value) {
-		String trimmed = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+		String trimmed = value == null ? "" : EDGE_SPACES.matcher(value).replaceAll("").toLowerCase(Locale.ROOT);
 		String decomposed = Normalizer.normalize(trimmed, Normalizer.Form.NFD);
 		return decomposed.replaceAll("\\p{M}+", "");
 	}

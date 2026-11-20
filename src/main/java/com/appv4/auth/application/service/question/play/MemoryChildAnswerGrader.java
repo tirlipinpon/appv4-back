@@ -2,12 +2,16 @@ package com.appv4.auth.application.service.question.play;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.MemoryMatch;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.AnswerLine;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPair;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
@@ -25,6 +29,45 @@ public final class MemoryChildAnswerGrader {
 	public static final String BAD_ANSWER = "Réponse invalide pour cette question.";
 
 	private MemoryChildAnswerGrader() {
+	}
+
+	public static boolean matches(StoredQuestion question, MemoryMatch match) {
+		Map<UUID, Long> cards = cards(question);
+		return pairOf(cards, match) != null;
+	}
+
+	public static ChildAnswerGrade gradeMatches(StoredQuestion question, List<MemoryMatch> matches) {
+		Map<UUID, Long> cards = cards(question);
+		Set<UUID> seen = new HashSet<>();
+		List<Long> paired = new ArrayList<>();
+		for (MemoryMatch match : matches) {
+			Long pair = pairOf(cards, match);
+			if (!seen.add(match.firstCardId()) || !seen.add(match.secondCardId())) {
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, BAD_ANSWER);
+			}
+			if (pair != null) {
+				paired.add(pair);
+			}
+		}
+		return grade(question, paired);
+	}
+
+	private static Long pairOf(Map<UUID, Long> cards, MemoryMatch match) {
+		Long first = cards.get(match.firstCardId());
+		Long second = cards.get(match.secondCardId());
+		if (first == null || second == null || match.firstCardId().equals(match.secondCardId())) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, BAD_ANSWER);
+		}
+		return first.equals(second) ? first : null;
+	}
+
+	private static Map<UUID, Long> cards(StoredQuestion question) {
+		Map<UUID, Long> cards = new HashMap<>();
+		for (StoredPair pair : question.pairs()) {
+			cards.put(AssociationTokens.forSide(FORM, pair.id(), true), pair.id());
+			cards.put(AssociationTokens.forSide(FORM, pair.id(), false), pair.id());
+		}
+		return cards;
 	}
 
 	public static ChildAnswerGrade grade(StoredQuestion question, List<Long> matchedPairIds) {

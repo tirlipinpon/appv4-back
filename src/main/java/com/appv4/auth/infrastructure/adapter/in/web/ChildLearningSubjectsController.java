@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
@@ -70,13 +71,17 @@ public class ChildLearningSubjectsController {
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	public ResponseEntity<ChildLearningQuestionsResponse> questions(
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
-			@PathVariable long subjectId) {
-		ChildLearningQuestionsView view = readChildLearningSubjectsUseCase.questions(bearer(authorization), subjectId);
+			@PathVariable long subjectId,
+			@RequestParam(defaultValue = "0") long afterId,
+			@RequestParam(defaultValue = "200") int limit) {
+		ChildLearningQuestionsView view = readChildLearningSubjectsUseCase.questions(
+				bearer(authorization), subjectId, afterId, limit);
 		List<ChildLearningQuestionItem> items = view.questions().stream()
 				.map(q -> new ChildLearningQuestionItem(
 						q.questionId(), q.formCode(), q.prompt(), q.formLabel(), q.iconCode(), q.color()))
 				.toList();
-		return ResponseEntity.ok(new ChildLearningQuestionsResponse(view.subjectId(), view.subjectName(), items));
+		return ResponseEntity.ok(new ChildLearningQuestionsResponse(
+				view.subjectId(), view.subjectName(), items, view.nextCursor()));
 	}
 
 	private static String bearer(String authorization) {
@@ -105,7 +110,9 @@ public class ChildLearningSubjectsController {
 	public record ChildLearningQuestionsResponse(
 			long subjectId,
 			String subjectName,
-			List<ChildLearningQuestionItem> questions) {
+			List<ChildLearningQuestionItem> questions,
+			@Schema(description = "Dernier identifiant de la page, à renvoyer dans afterId.", nullable = true)
+			Long nextCursor) {
 	}
 
 	@Schema(name = "ChildLearningQuestionItem")

@@ -139,6 +139,36 @@ class TeacherQuestionPersistenceTest {
 	}
 
 	@Test
+	void learningSummariesPageAcrossFourHundredQuestionsWithoutFetchingContent() {
+		jdbc.update("""
+				insert into back_subject_questions (subject_id, form_code, prompt)
+				select ?, 'qcm', 'Question ' || number from generate_series(1, 400) number
+				""", subjectId);
+		Statistics statistics = resetStatistics();
+		var first = adapter.findSummariesBySubject(subjectId, 0, 200);
+		var second = adapter.findSummariesBySubject(subjectId, first.getLast().id(), 200);
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+		assertThat(first).hasSize(200);
+		assertThat(second).hasSize(200);
+		assertThat(second.getFirst().prompt()).isEqualTo("Question 201");
+		assertThat(second.getLast().prompt()).isEqualTo("Question 400");
+		assertThat(second.getFirst().id()).isGreaterThan(first.getLast().id());
+	}
+
+	@Test
+	void missionSelectionFiltersBeforeLimitingTheResults() {
+		jdbc.update("""
+				insert into back_subject_questions (subject_id, form_code, prompt)
+				select ?, 'qcm', 'Question ' || number from generate_series(1, 50) number
+				""", subjectId);
+		StoredQuestion simon = insertSimonNumbers();
+		Statistics statistics = resetStatistics();
+		assertThat(adapter.firstQuestionIdByForm(subjectId, java.util.Set.of("simon"))).contains(simon.id());
+		assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+		assertThat(adapter.firstQuestionIdByForm(subjectId, java.util.Set.of("puzzle"))).isEmpty();
+	}
+
+	@Test
 	void hundredQcmQuestionsTakeOnlyTwoSelects() {
 		for (int index = 0; index < 100; index++) {
 			insert(0);

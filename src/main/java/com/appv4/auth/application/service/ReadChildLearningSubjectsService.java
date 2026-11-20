@@ -15,7 +15,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.QuestionSummary;
 import com.appv4.auth.application.result.ChildLearningQuestionsView;
 import com.appv4.auth.application.result.ChildLearningQuestionsView.QuestionCard;
 import com.appv4.auth.application.result.ChildLearningSubjectsView;
@@ -36,6 +36,7 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 	public static final String INVALID_SESSION_MESSAGE = LoginChildService.INVALID_SESSION_MESSAGE;
 
 	public static final String SUBJECT_MISSING = "Matière introuvable.";
+	private static final int MAX_QUESTIONS_PER_PAGE = 200;
 
 	private final ChildLoginPort childLoginPort;
 	private final ChildSessionTokenPort childSessionTokenPort;
@@ -80,7 +81,7 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 
 	@Override
 	@Transactional(readOnly = true)
-	public ChildLearningQuestionsView questions(String rawToken, long subjectId) {
+	public ChildLearningQuestionsView questions(String rawToken, long subjectId, long afterId, int limit) {
 		long childId = requireActiveChild(rawToken);
 		if (!chosenSubjectIds(childId).contains(subjectId)) {
 			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, SUBJECT_MISSING);
@@ -90,8 +91,11 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, SUBJECT_MISSING);
 		}
 		CatalogSubject subject = catalog.get(0);
-		List<StoredQuestion> rows = teacherQuestionPort.findBySubject(subjectId, 0L, 200);
-		List<QuestionCard> cards = rows.stream()
+		int pageSize = Math.clamp(limit, 1, MAX_QUESTIONS_PER_PAGE);
+		List<QuestionSummary> rows = teacherQuestionPort.findSummariesBySubject(
+				subjectId, Math.max(0, afterId), pageSize + 1);
+		Long nextCursor = rows.size() > pageSize ? rows.get(pageSize - 1).id() : null;
+		List<QuestionCard> cards = rows.stream().limit(pageSize)
 				.map(q -> {
 					Look look = QuestionFormLooks.of(q.formCode());
 					return new QuestionCard(
@@ -103,7 +107,7 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 							look == null ? null : look.color());
 				})
 				.toList();
-		return new ChildLearningQuestionsView(subject.id(), subject.name(), cards);
+		return new ChildLearningQuestionsView(subject.id(), subject.name(), cards, nextCursor);
 	}
 
 	private long requireActiveChild(String rawToken) {

@@ -85,10 +85,11 @@ public final class LetterByLetterMatch {
 	 * Ex. 10 lettres justes sur 11 → 91 %.
 	 */
 	public static int scorePercent(String expected, String attempt) {
+		return score(expected, attempt).percent();
+	}
+
+	public static Score score(String expected, String attempt) {
 		String exp = expected == null ? "" : expected;
-		if (exp.isEmpty()) {
-			return 0;
-		}
 		List<Boolean> locks = positionLocks(exp, attempt);
 		int total = 0;
 		int ok = 0;
@@ -101,10 +102,20 @@ public final class LetterByLetterMatch {
 				ok++;
 			}
 		}
-		if (total == 0) {
-			return 0;
+		return new Score(ok, total);
+	}
+
+	public record Score(int correct, int total) {
+		public boolean passed() {
+			return total > 0 && correct == total;
 		}
-		return (int) Math.round((100.0 * ok) / total);
+
+		public int percent() {
+			if (total == 0) {
+				return 0;
+			}
+			return passed() ? 100 : Math.min(99, (int) Math.round((100.0 * correct) / total));
+		}
 	}
 
 	static String normalize(String value) {

@@ -1,6 +1,10 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
+import java.util.Optional;
+import java.util.UUID;
+
 import org.springframework.context.annotation.Profile;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,11 +23,21 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 
 	private final BackChildAttemptJpaRepository attempts;
 	private final BackChildAttemptAnswerJpaRepository answers;
+	private final JdbcClient jdbc;
 
 	public ChildQuestionAttemptPersistenceAdapter(
-			BackChildAttemptJpaRepository attempts, BackChildAttemptAnswerJpaRepository answers) {
+			BackChildAttemptJpaRepository attempts, BackChildAttemptAnswerJpaRepository answers, JdbcClient jdbc) {
 		this.attempts = attempts;
 		this.answers = answers;
+		this.jdbc = jdbc;
+	}
+
+	@Override
+	@Transactional
+	public Optional<StoredAttempt> lockAndFind(long childId, UUID submissionId) {
+		jdbc.sql("select id from back_children where id = :child for no key update")
+				.param("child", childId).query(Long.class).optional();
+		return attempts.findByChildIdAndSubmissionId(childId, submissionId).map(ChildQuestionAttemptPersistenceAdapter::stored);
 	}
 
 	@Override
@@ -35,7 +49,8 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				attempt.questionId(),
 				attempt.formCode(),
 				attempt.scorePercent(),
-				attempt.passed()));
+				attempt.passed(),
+				attempt.submissionId()));
 		long attemptId = saved.getId();
 		for (AnswerLine line : attempt.answers()) {
 			answers.save(new BackChildAttemptAnswerEntity(
@@ -46,8 +61,12 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 					line.answerChoiceId(),
 					line.correct()));
 		}
+		return stored(saved);
+	}
+
+	private static StoredAttempt stored(BackChildAttemptEntity saved) {
 		return new StoredAttempt(
-				attemptId,
+				saved.getId(),
 				saved.getChildId(),
 				saved.getSubjectId(),
 				saved.getQuestionId(),

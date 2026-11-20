@@ -2,8 +2,6 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -32,8 +30,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
+import com.appv4.auth.application.service.question.play.PlayableQuestionForm;
 import com.appv4.auth.application.result.ChildTodayView;
 
 class ChildDailyMissionServiceTest {
@@ -168,14 +165,8 @@ class ChildDailyMissionServiceTest {
 		when(childSubjectPort.visibleByIds(any())).thenReturn(List.of(
 				new CatalogSubject(4L, "Maths", "Mme X", 1L, "CE1", "math"),
 				new CatalogSubject(5L, "Mots", "M. Y", 1L, "CE1", "words")));
-		when(teacherQuestionPort.findBySubject(eq(4L), eq(0L), anyInt()))
-				.thenReturn(List.of(question(11L, 4L, "qcm"), question(12L, 4L, "memory")));
-		when(teacherQuestionPort.findBySubject(eq(5L), eq(0L), anyInt()))
-				.thenReturn(List.of(question(21L, 5L, "vrai_faux")));
-	}
-
-	private static StoredQuestion question(long id, long subjectId, String form) {
-		return new StoredQuestion(id, subjectId, form, "énoncé", List.of(new StoredChoice(1L, "A", true)), List.of(), List.of());
+		when(teacherQuestionPort.firstQuestionIdByForm(4L, PlayableQuestionForm.codes())).thenReturn(Optional.of(11L));
+		when(teacherQuestionPort.firstQuestionIdByForm(5L, PlayableQuestionForm.codes())).thenReturn(Optional.of(21L));
 	}
 
 	private static final class MemoryMissionPort implements ChildDailyMissionPort {

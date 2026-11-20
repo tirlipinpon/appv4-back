@@ -79,5 +79,11 @@ DO $$ BEGIN
   WHERE q.max_attempts <> 1 OR q.difficulty <> 'facile' OR q.customize_points OR q.gamification_disabled
      OR EXISTS (SELECT 1 FROM back_subject_question_attempt_points p WHERE p.question_id=q.id)
  ) THEN RAISE EXCEPTION 'Demo questions must keep the default gamification'; END IF;
+ IF EXISTS (
+  SELECT 1 FROM back_child_simon_challenges c
+  JOIN back_subject_questions q ON q.id=c.question_id
+  JOIN dev_front_demo.roots r ON r.kind='subject' AND r.id=q.subject_id
+  WHERE q.form_code <> 'simon' OR cardinality(c.sequence) NOT BETWEEN 3 AND 8
+ ) THEN RAISE EXCEPTION 'Invalid Simon challenge on a demo question'; END IF;
 END $$;
 SELECT 'Demo integrity OK' AS result;

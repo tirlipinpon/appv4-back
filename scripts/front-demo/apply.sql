@@ -2,8 +2,8 @@ DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM dev_front_demo.installation) THEN
    RAISE EXCEPTION 'Demo already installed. Use status, rollback or reset (no duplicates created).';
  END IF;
- IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) IS DISTINCT FROM '68' THEN
-  RAISE EXCEPTION 'Fixtures validated against V68. Review schema changes before updating this guard.';
+ IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) IS DISTINCT FROM '69' THEN
+  RAISE EXCEPTION 'Fixtures validated against V69. Review schema changes before updating this guard.';
  END IF;
 END $$;
 
@@ -127,6 +127,7 @@ CREATE TEMP TABLE questions ON COMMIT DROP AS
 SELECT nextval('back_subject_questions_id_seq') id,s.id subject_id,f.code,n,s.k
 FROM subjects s CROSS JOIN LATERAL generate_series(1,200+50*((s.school_n+s.grade_n+s.k)%5)) n
 JOIN forms f ON f.slot=1+(n-1)%12;
+-- Les parties Simon et les clés de soumission sont créées à l'usage, après le chargement des questions.
 INSERT INTO back_subject_questions(id,subject_id,form_code,prompt)
 SELECT q.id,q.subject_id,q.code,
  CASE WHEN q.n%13=0 AND q.code IN ('memory','order','vrai_faux','liens','case_vide','classement','simon') THEN '' ELSE

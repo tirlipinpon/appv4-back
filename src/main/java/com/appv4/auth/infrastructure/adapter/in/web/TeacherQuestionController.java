@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
+import com.appv4.auth.application.service.question.play.PlayableQuestionForm;
+import com.appv4.auth.application.service.question.play.QuestionPlayEngine;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GamificationInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.CardInput;
 import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
@@ -167,7 +172,7 @@ public class TeacherQuestionController {
 	public ResponseEntity<TeacherSubjectQuestionItem> create(
 			@AuthenticationPrincipal AuthenticatedUser principal,
 			@PathVariable long subjectId,
-			@RequestBody CreateTeacherSubjectQuestionRequest request) {
+			@Valid @RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
@@ -204,7 +209,7 @@ public class TeacherQuestionController {
 			@AuthenticationPrincipal AuthenticatedUser principal,
 			@PathVariable long subjectId,
 			@PathVariable long questionId,
-			@RequestBody CreateTeacherSubjectQuestionRequest request) {
+			@Valid @RequestBody CreateTeacherSubjectQuestionRequest request) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateTeacherSubjectQuestionRequest body = request == null
 				? new CreateTeacherSubjectQuestionRequest(
@@ -334,6 +339,9 @@ public class TeacherQuestionController {
 
 	private static ContentInput content(CreateTeacherSubjectQuestionRequest body) {
 		String code = body.formCode() == null ? "" : body.formCode().trim();
+		if (PlayableQuestionForm.codes().contains(code)) {
+			validateTeacherVariant(body, QuestionHttpForm.of(PlayableQuestionForm.require(code)));
+		}
 		if (TeacherQuestionService.TRUE_FALSE.equals(code)) {
 			return new StatementsInput(statementInputs(body.statements()));
 		}
@@ -368,6 +376,40 @@ public class TeacherQuestionController {
 			return new SimonInput(body.elementType(), simonElementInputs(body.elements()), body.sequence());
 		}
 		return new LegacyInput(inputs(body.choices()), pairInputs(body.pairs()), itemInputs(body.items()));
+	}
+
+	private static void validateTeacherVariant(CreateTeacherSubjectQuestionRequest body, QuestionHttpForm form) {
+		List<ContentField> fields = List.of(
+				new ContentField("choices", body.choices()), new ContentField("pairs", body.pairs()),
+				new ContentField("items", body.items()), new ContentField("statements", body.statements()),
+				new ContentField("links", body.links()), new ContentField("columns", body.columns()),
+				new ContentField("cards", body.cards()), new ContentField("sentence", body.sentence()),
+				new ContentField("answers", body.answers()), new ContentField("decoys", body.decoys()),
+				new ContentField("expectedAnswer", body.expectedAnswer()), new ContentField("imageWebp", body.imageWebp()),
+				new ContentField("boardMode", body.boardMode()), new ContentField("boardImageWebp", body.boardImageWebp()),
+				new ContentField("requireAllCorrect", body.requireAllCorrect()), new ContentField("zones", body.zones()),
+				new ContentField("pieces", body.pieces()), new ContentField("snapDistance", body.snapDistance()),
+				new ContentField("timelineEnabled", body.timelineEnabled()),
+				new ContentField("clicksOrdered", body.clicksOrdered()),
+				new ContentField("elementType", body.elementType()), new ContentField("elements", body.elements()),
+				new ContentField("sequence", body.sequence()));
+		boolean mixed = fields.stream().filter(ContentField::present)
+				.anyMatch(field -> !form.teacherRequired().contains(field.name())
+						&& !form.teacherOptional().contains(field.name()));
+		if (mixed) {
+			throw QuestionPlayEngine.invalidAnswer();
+		}
+	}
+
+	private record ContentField(String name, Object value) {
+		boolean present() {
+			return switch (value) {
+				case null -> false;
+				case List<?> rows -> !rows.isEmpty();
+				case String text -> !text.isBlank();
+				default -> true;
+			};
+		}
 	}
 
 	/**
@@ -842,32 +884,31 @@ public class TeacherQuestionController {
 	public record CreateTeacherSubjectQuestionRequest(
 			String formCode,
 			String prompt,
-			List<TeacherQuestionChoiceInput> choices,
-			List<TeacherQuestionPairInput> pairs,
-			List<TeacherQuestionItemInput> items,
-			List<TeacherQuestionStatementInput> statements,
-			List<TeacherQuestionLinkInput> links,
-			List<TeacherQuestionColumnInput> columns,
-			List<TeacherQuestionCardInput> cards,
+			List<@NotNull @Valid TeacherQuestionChoiceInput> choices,
+			List<@NotNull @Valid TeacherQuestionPairInput> pairs,
+			List<@NotNull @Valid TeacherQuestionItemInput> items,
+			List<@NotNull @Valid TeacherQuestionStatementInput> statements,
+			List<@NotNull @Valid TeacherQuestionLinkInput> links,
+			List<@NotNull @Valid TeacherQuestionColumnInput> columns,
+			List<@NotNull @Valid TeacherQuestionCardInput> cards,
 			String sentence,
-			List<TeacherQuestionGapWordInput> answers,
-			List<TeacherQuestionGapWordInput> decoys,
+			List<@NotNull @Valid TeacherQuestionGapWordInput> answers,
+			List<@NotNull @Valid TeacherQuestionGapWordInput> decoys,
 			String expectedAnswer,
 			String imageWebp,
 			String boardMode,
 			String boardImageWebp,
 			Boolean requireAllCorrect,
-			List<TeacherQuestionZoneInput> zones,
-			List<TeacherQuestionPieceInput> pieces,
+			List<@NotNull @Valid TeacherQuestionZoneInput> zones,
+			List<@NotNull @Valid TeacherQuestionPieceInput> pieces,
 			Double snapDistance,
 			Boolean timelineEnabled,
 			Boolean clicksOrdered,
 			@Schema(description = "Simon seulement : couleurs, nombres, lettres ou formes.")
 			String elementType,
 			@Schema(description = "Simon seulement : au moins deux éléments du genre choisi, dans l'ordre voulu.")
-			List<TeacherQuestionSimonElementInput> elements,
-			@Schema(description = "Simon seulement : la suite à refaire, au moins deux pas. "
-					+ "Chaque pas est la position 0-based d'un élément de elements.")
+			List<@Valid TeacherQuestionSimonElementInput> elements,
+			@Schema(description = "Ancien champ Simon. La suite est désormais tirée à l'ouverture.", deprecated = true)
 			List<Integer> sequence,
 			@Schema(description = "Essais, difficulté et points. Absent : 1 essai, Facile, gamification allumée.")
 			TeacherQuestionGamificationInput gamification) {
@@ -972,7 +1013,7 @@ public class TeacherQuestionController {
 	}
 
 	@Schema(name = "TeacherQuestionStatementInput")
-	public record TeacherQuestionStatementInput(String label, Boolean truthful) {
+	public record TeacherQuestionStatementInput(String label, @NotNull Boolean truthful) {
 	}
 
 	@Schema(name = "TeacherQuestionLinkInput")

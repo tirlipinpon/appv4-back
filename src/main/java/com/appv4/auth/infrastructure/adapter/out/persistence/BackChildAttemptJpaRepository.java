@@ -1,12 +1,16 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface BackChildAttemptJpaRepository extends JpaRepository<BackChildAttemptEntity, Long> {
+
+	Optional<BackChildAttemptEntity> findByChildIdAndSubmissionId(long childId, UUID submissionId);
 
 	@Query("""
 			select distinct a.questionId from BackChildAttemptEntity a

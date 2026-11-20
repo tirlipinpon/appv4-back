@@ -49,6 +49,18 @@ class LetterChildAnswerGraderTest {
 	}
 
 	@Test
+	void aRoundedPercentNeverTurnsAnErrorIntoAWin() {
+		for (int length : new int[] {200, 500}) {
+			StoredQuestion longWord = new StoredQuestion(
+					1L, 2L, "reponse_libre", "Écris le mot.", new StoredFreeText("a".repeat(length)));
+			ChildAnswerGrade partial = LetterChildAnswerGrader.grade(longWord, "a".repeat(length - 1) + "b");
+			assertThat(partial.scorePercent()).isEqualTo(99);
+			assertThat(partial.passed()).isFalse();
+			assertThat(LetterChildAnswerGrader.grade(longWord, "a".repeat(length)).passed()).isTrue();
+		}
+	}
+
+	@Test
 	void blankAttemptIsRefused() {
 		assertThatThrownBy(() -> LetterChildAnswerGrader.grade(question(), "   "))
 				.isInstanceOf(AuthDomainException.class)

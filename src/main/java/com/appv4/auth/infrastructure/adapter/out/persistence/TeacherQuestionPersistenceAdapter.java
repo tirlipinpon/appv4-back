@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -56,6 +57,21 @@ public class TeacherQuestionPersistenceAdapter implements TeacherQuestionPort {
 			}
 		});
 		return rows.stream().map(row -> stored(row, contents.get(row.getId()))).toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<QuestionSummary> findSummariesBySubject(long subjectId, long afterId, int limit) {
+		return questions.findSummariesBySubjectIdAndIdGreaterThanOrderByIdAsc(
+				subjectId, afterId, PageRequest.of(0, limit)).stream()
+				.map(row -> new QuestionSummary(row.getId(), row.getFormCode(), row.getPrompt()))
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<Long> firstQuestionIdByForm(long subjectId, Set<String> formCodes) {
+		return questions.findIdsByForm(subjectId, formCodes, PageRequest.of(0, 1)).stream().findFirst();
 	}
 
 	@Override

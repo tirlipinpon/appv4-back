@@ -14,5 +14,5 @@ public interface ReadChildLearningSubjectsUseCase {
 
 	ChildLearningSubjectsView list(String rawToken);
 
-	ChildLearningQuestionsView questions(String rawToken, long subjectId);
+	ChildLearningQuestionsView questions(String rawToken, long subjectId, long afterId, int limit);
 }

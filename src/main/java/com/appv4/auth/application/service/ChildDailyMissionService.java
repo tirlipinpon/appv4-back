@@ -22,12 +22,8 @@ import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.result.ChildTodayView;
-import com.appv4.auth.application.service.question.play.MemoryChildAnswerGrader;
-import com.appv4.auth.application.service.question.play.OrderChildAnswerGrader;
-import com.appv4.auth.application.service.question.play.QcmChildAnswerGrader;
-import com.appv4.auth.application.service.question.play.TrueFalseChildAnswerGrader;
+import com.appv4.auth.application.service.question.play.PlayableQuestionForm;
 
 /**
  * Mission du jour d'un enfant (BACK-18).
@@ -132,7 +128,8 @@ public class ChildDailyMissionService implements ReadChildTodayUseCase {
 			if (tasks.size() >= ChildDailyMissionRules.MAX_TASKS) {
 				break;
 			}
-			Optional<StoredQuestion> question = firstPlayable(subject.id());
+			Optional<Long> question = teacherQuestionPort.firstQuestionIdByForm(
+					subject.id(), PlayableQuestionForm.codes());
 			if (question.isEmpty()) {
 				continue;
 			}
@@ -142,18 +139,9 @@ public class ChildDailyMissionService implements ReadChildTodayUseCase {
 					ChildDailyMissionRules.TARGET_PER_TASK,
 					ChildDailyMissionRules.REWARD_XP,
 					subject.id(),
-					question.get().id()));
+					question.get()));
 		}
 		return tasks;
-	}
-
-	private Optional<StoredQuestion> firstPlayable(long subjectId) {
-		return teacherQuestionPort.findBySubject(subjectId, 0L, 50).stream()
-				.filter(question -> QcmChildAnswerGrader.FORM.equals(question.formCode())
-						|| TrueFalseChildAnswerGrader.FORM.equals(question.formCode())
-						|| MemoryChildAnswerGrader.FORM.equals(question.formCode())
-						|| OrderChildAnswerGrader.FORM.equals(question.formCode()))
-				.findFirst();
 	}
 
 	private LocalDate today() {

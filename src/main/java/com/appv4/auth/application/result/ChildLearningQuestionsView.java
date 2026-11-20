@@ -7,7 +7,8 @@ import java.util.List;
  *
  * <p><b>Business :</b> lecture seule : id, forme et énoncé. Pas de correction ici.
  */
-public record ChildLearningQuestionsView(long subjectId, String subjectName, List<QuestionCard> questions) {
+public record ChildLearningQuestionsView(long subjectId, String subjectName, List<QuestionCard> questions,
+		Long nextCursor) {
 
 	public ChildLearningQuestionsView {
 		questions = questions == null ? List.of() : List.copyOf(questions);

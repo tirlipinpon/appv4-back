@@ -13,35 +13,36 @@ import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.GapFillAnswer
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.AnswerLine;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGapWord;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
+import com.appv4.auth.application.service.question.CaseVideQuestionForm;
+import com.appv4.auth.application.service.question.QuestionLabel;
 
 /**
  * Note une Case vide : chaque trou doit recevoir le mot de même rang.
  *
  * <p><b>Business :</b> score = % de trous justes ; réussi seulement à 100 %.
  * <p><b>Technique :</b> le mot juste du trou {@code i} est {@code answers.get(i)}.
- * Un leurre est un mot connu, jamais juste. La trace garde {@code answer_choice_id}.
+ * Deux jetons de même libellé sont interchangeables. La trace garde l'identifiant du jeton choisi.
  * <p><b>Métier / flow :</b> POST attempts → {@link com.appv4.auth.application.service.ChildQuestionPlayService}.
  */
 public final class GapChildAnswerGrader {
 
 	public static final String FORM = "case_vide";
 	public static final String BAD_ANSWER = "Réponse invalide pour cette question.";
-	static final String HOLE = "___";
 
 	private GapChildAnswerGrader() {
 	}
 
 	public static ChildAnswerGrade grade(StoredQuestion question, List<GapFillAnswer> fills) {
 		List<StoredGapWord> answers = question.answers();
-		if (answers.isEmpty() || countHoles(question.sentence()) != answers.size()) {
+		if (answers.isEmpty() || CaseVideQuestionForm.countHoles(question.sentence()) != answers.size()) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, BAD_ANSWER);
 		}
-		Set<Long> known = new HashSet<>();
+		Map<Long, String> labels = new HashMap<>();
 		for (StoredGapWord word : answers) {
-			known.add(word.id());
+			labels.put(word.id(), QuestionLabel.comparable(word.label()));
 		}
 		for (StoredGapWord word : question.decoys()) {
-			known.add(word.id());
+			labels.put(word.id(), QuestionLabel.comparable(word.label()));
 		}
 		List<GapFillAnswer> submitted = fills == null ? List.of() : fills;
 		if (submitted.size() != answers.size()) {
@@ -54,7 +55,7 @@ public final class GapChildAnswerGrader {
 					|| fill.holeIndex() < 0
 					|| fill.holeIndex() >= answers.size()
 					|| chosenByHole.containsKey(fill.holeIndex())
-					|| !known.contains(fill.wordId())
+					|| !labels.containsKey(fill.wordId())
 					|| !seenWords.add(fill.wordId())) {
 				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, BAD_ANSWER);
 			}
@@ -64,7 +65,7 @@ public final class GapChildAnswerGrader {
 		List<AnswerLine> lines = new ArrayList<>();
 		for (int hole = 0; hole < answers.size(); hole++) {
 			long chosen = chosenByHole.get(hole);
-			boolean correct = chosen == answers.get(hole).id();
+			boolean correct = labels.get(chosen).equals(labels.get(answers.get(hole).id()));
 			if (correct) {
 				ok++;
 			}
@@ -75,20 +76,4 @@ public final class GapChildAnswerGrader {
 		return new ChildAnswerGrade(score, passed, lines);
 	}
 
-	static int countHoles(String sentence) {
-		if (sentence == null) {
-			return 0;
-		}
-		int count = 0;
-		int from = 0;
-		while (from <= sentence.length() - HOLE.length()) {
-			int at = sentence.indexOf(HOLE, from);
-			if (at < 0) {
-				break;
-			}
-			count++;
-			from = at + HOLE.length();
-		}
-		return count;
-	}
 }

@@ -15,6 +15,17 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 
 class LinkChildAnswerGraderTest {
 
+	@Test
+	void identicalLabelsCanExchangeTheirAssignedTokens() {
+		var left = new StoredQuestion(1L, 2L, "liens", "", new StoredLinks(List.of(
+				new StoredLink(10L, "Même libellé", "Premier"), new StoredLink(11L, "Même libellé", "Second"))));
+		var right = new StoredQuestion(1L, 2L, "liens", "", new StoredLinks(List.of(
+				new StoredLink(10L, "Premier", "Même libellé"), new StoredLink(11L, "Second", "Même libellé"))));
+		List<LinkMatchAnswer> reversed = List.of(new LinkMatchAnswer(10L, 11L), new LinkMatchAnswer(11L, 10L));
+		assertThat(LinkChildAnswerGrader.grade(left, reversed).passed()).isTrue();
+		assertThat(LinkChildAnswerGrader.grade(right, reversed).passed()).isTrue();
+	}
+
 	private static StoredQuestion question() {
 		return new StoredQuestion(
 				1L,

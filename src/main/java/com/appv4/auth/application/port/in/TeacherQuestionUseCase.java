@@ -2,6 +2,10 @@ package com.appv4.auth.application.port.in;
 
 import java.util.List;
 
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.MemoryMatch;
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.Submission;
+import com.appv4.auth.application.result.ChildLetterLocksView;
+import com.appv4.auth.application.result.ChildPlayQuestionView;
 import com.appv4.auth.application.result.LetterAttemptView;
 import com.appv4.auth.application.result.TeacherQuestionFormsView;
 import com.appv4.auth.application.result.TeacherSubjectFollowersView;
@@ -34,6 +38,18 @@ public interface TeacherQuestionUseCase {
 	TeacherQuestionFormsView listForms(long userId, String activeRole);
 
 	TeacherSubjectQuestionsView list(long userId, String activeRole, long subjectId, long afterId, int limit);
+
+	ChildPlayQuestionView preview(long userId, String activeRole, long subjectId, long questionId);
+
+	PreviewVerdict previewAnswer(long userId, String activeRole, long subjectId, long questionId,
+			Submission submission, List<Integer> previewSequence);
+
+	ChildLetterLocksView previewLetterLocks(long userId, String activeRole, long subjectId, long questionId, String attempt);
+
+	boolean previewMemoryPair(long userId, String activeRole, long subjectId, long questionId, MemoryMatch match);
+
+	record PreviewVerdict(int scorePercent, boolean passed) {
+	}
 
 	/**
 	 * Verdict de Valider pour une question {@code reponse_libre}.

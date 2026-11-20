@@ -56,7 +56,7 @@ public class SimonQuestionContentStore implements QuestionContentStore {
 		for (BackSubjectQuestionSimonElementEntity row : elements
 				.findByQuestionIdInOrderByQuestionIdAscSortOrderAsc(questionIds)) {
 			elementsById.get(row.getQuestionId())
-					.add(new StoredSimonElement(row.getId(), row.getLabel(), row.getColor()));
+					.add(new StoredSimonElement(row.getId(), row.getLabel(), row.getColor(), row.getImageWebp()));
 		}
 		Map<Long, StoredContent> contents = new HashMap<>();
 		for (long id : questionIds) {
@@ -75,10 +75,10 @@ public class SimonQuestionContentStore implements QuestionContentStore {
 		List<BackSubjectQuestionSimonElementEntity> elementRows = new ArrayList<>();
 		for (SimonElementDraft element : draft.elements()) {
 			elementRows.add(new BackSubjectQuestionSimonElementEntity(
-					questionId, element.label(), element.color(), elementRows.size()));
+					questionId, element.label(), element.color(), elementRows.size(), element.imageWebp()));
 		}
 		List<StoredSimonElement> storedElements = elements.saveAllAndFlush(elementRows).stream()
-				.map(row -> new StoredSimonElement(row.getId(), row.getLabel(), row.getColor()))
+				.map(row -> new StoredSimonElement(row.getId(), row.getLabel(), row.getColor(), row.getImageWebp()))
 				.toList();
 		return new StoredSimon(saved.getElementType(), storedElements);
 	}

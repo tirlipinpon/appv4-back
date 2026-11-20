@@ -51,7 +51,8 @@ public class ItemQuestionContentStore implements QuestionContentStore {
 		Set<Long> timelineOn = new HashSet<>();
 		for (var row : repository.findItemsWithOptions(questionIds)) {
 			if (row.getItemId() != null) {
-				grouped.get(row.getQuestionId()).add(new StoredItem(row.getItemId(), row.getLabel(), row.getAxisLabel()));
+				grouped.get(row.getQuestionId()).add(new StoredItem(
+						row.getItemId(), row.getLabel(), row.getAxisLabel(), row.getImageWebp()));
 			}
 			if (row.getTimelineEnabled()) {
 				timelineOn.add(row.getQuestionId());
@@ -71,11 +72,12 @@ public class ItemQuestionContentStore implements QuestionContentStore {
 		List<BackSubjectQuestionItemEntity> rows = new ArrayList<>();
 		for (var row : draft.items()) {
 			rows.add(new BackSubjectQuestionItemEntity(
-					questionId, row.label(), row.axisLabel(), rows.size()));
+					questionId, row.label(), row.axisLabel(), rows.size(), row.imageWebp()));
 		}
 		return new StoredItems(
 				repository.saveAllAndFlush(rows).stream()
-						.map(row -> new StoredItem(row.getId(), row.getLabel(), row.getAxisLabel()))
+						.map(row -> new StoredItem(
+								row.getId(), row.getLabel(), row.getAxisLabel(), row.getImageWebp()))
 						.toList(),
 				draft.timelineEnabled());
 	}

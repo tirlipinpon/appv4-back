@@ -79,29 +79,45 @@ public interface TeacherQuestionPort {
 	 */
 	void delete(long questionId);
 
-	record ChoiceDraft(String label, boolean correct) {
+	record ChoiceDraft(String label, boolean correct, byte[] imageWebp) {
+		public ChoiceDraft(String label, boolean correct) {
+			this(label, correct, null);
+		}
 	}
 
 	/** Les deux faces d'une paire Memory, déjà non vides. */
-	record PairDraft(String questionSide, String answerSide) {
+	record PairDraft(String questionSide, String answerSide, byte[] questionImageWebp, byte[] answerImageWebp) {
+		public PairDraft(String questionSide, String answerSide) {
+			this(questionSide, answerSide, null, null);
+		}
 	}
 
 	/**
 	 * Texte d'un élément Ordre, déjà non vide. L'ordre de la liste est l'ordre saisi.
 	 * {@code axisLabel} est le jalon de frise (null si timeline désactivée).
 	 */
-	record ItemDraft(String label, String axisLabel) {
+	record ItemDraft(String label, String axisLabel, byte[] imageWebp) {
+		public ItemDraft(String label, String axisLabel) {
+			this(label, axisLabel, null);
+		}
+
 		public ItemDraft(String label) {
-			this(label, null);
+			this(label, null, null);
 		}
 	}
 
 	/** Phrase Vrai ou faux déjà non vide. {@code truthful} dit si la phrase est vraie. */
-	record StatementDraft(String label, boolean truthful) {
+	record StatementDraft(String label, boolean truthful, byte[] imageWebp) {
+		public StatementDraft(String label, boolean truthful) {
+			this(label, truthful, null);
+		}
 	}
 
 	/** Mot de gauche et réponse de droite d'un lien, déjà non vides. */
-	record LinkDraft(String leftLabel, String rightLabel) {
+	record LinkDraft(String leftLabel, String rightLabel, byte[] leftImageWebp, byte[] rightImageWebp) {
+		public LinkDraft(String leftLabel, String rightLabel) {
+			this(leftLabel, rightLabel, null, null);
+		}
 	}
 
 	/** Colonne d'un classement, déjà non vide. */
@@ -112,7 +128,10 @@ public interface TeacherQuestionPort {
 	 * Carte d'un classement, déjà non vide.
 	 * {@code columnIndex} pointe la colonne juste dans le brouillon colonnes.
 	 */
-	record CardDraft(String label, int columnIndex) {
+	record CardDraft(String label, int columnIndex, byte[] imageWebp) {
+		public CardDraft(String label, int columnIndex) {
+			this(label, columnIndex, null);
+		}
 	}
 
 	/** Mot juste ou leurre d'une case vide, déjà non vide. */
@@ -154,28 +173,47 @@ public interface TeacherQuestionPort {
 		}
 	}
 
-	record StoredChoice(long id, String label, boolean correct) {
-	}
-
-	record StoredPair(long id, String questionSide, String answerSide) {
-	}
-
-	record StoredItem(long id, String label, String axisLabel) {
-		public StoredItem(long id, String label) {
-			this(id, label, null);
+	record StoredChoice(long id, String label, boolean correct, byte[] imageWebp) {
+		public StoredChoice(long id, String label, boolean correct) {
+			this(id, label, correct, null);
 		}
 	}
 
-	record StoredStatement(long id, String label, boolean truthful) {
+	record StoredPair(long id, String questionSide, String answerSide, byte[] questionImageWebp, byte[] answerImageWebp) {
+		public StoredPair(long id, String questionSide, String answerSide) {
+			this(id, questionSide, answerSide, null, null);
+		}
 	}
 
-	record StoredLink(long id, String leftLabel, String rightLabel) {
+	record StoredItem(long id, String label, String axisLabel, byte[] imageWebp) {
+		public StoredItem(long id, String label, String axisLabel) {
+			this(id, label, axisLabel, null);
+		}
+
+		public StoredItem(long id, String label) {
+			this(id, label, null, null);
+		}
+	}
+
+	record StoredStatement(long id, String label, boolean truthful, byte[] imageWebp) {
+		public StoredStatement(long id, String label, boolean truthful) {
+			this(id, label, truthful, null);
+		}
+	}
+
+	record StoredLink(long id, String leftLabel, String rightLabel, byte[] leftImageWebp, byte[] rightImageWebp) {
+		public StoredLink(long id, String leftLabel, String rightLabel) {
+			this(id, leftLabel, rightLabel, null, null);
+		}
 	}
 
 	record StoredColumn(long id, String label) {
 	}
 
-	record StoredCard(long id, String label, long correctColumnId) {
+	record StoredCard(long id, String label, long correctColumnId, byte[] imageWebp) {
+		public StoredCard(long id, String label, long correctColumnId) {
+			this(id, label, correctColumnId, null);
+		}
 	}
 
 	record StoredGapWord(long id, String label) {
@@ -383,7 +421,10 @@ public interface TeacherQuestionPort {
 	 * Élément d'un Simon, déjà nommé et du genre choisi.
 	 * {@code color} est un code {@code #rrggbb} en minuscules pour le genre couleurs, sinon null.
 	 */
-	record SimonElementDraft(String label, String color) {
+	record SimonElementDraft(String label, String color, byte[] imageWebp) {
+		public SimonElementDraft(String label, String color) {
+			this(label, color, null);
+		}
 	}
 
 	/**
@@ -397,7 +438,10 @@ public interface TeacherQuestionPort {
 	}
 
 	/** Élément de Simon relu, avec l'id de la ligne. */
-	record StoredSimonElement(long id, String label, String color) {
+	record StoredSimonElement(long id, String label, String color, byte[] imageWebp) {
+		public StoredSimonElement(long id, String label, String color) {
+			this(id, label, color, null);
+		}
 	}
 
 	/** Genre et éléments tels que le professeur les a enregistrés. */

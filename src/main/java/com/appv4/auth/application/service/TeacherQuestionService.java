@@ -203,6 +203,9 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 	public static final String BOARD_MODE_DEFAULT = BOARD_MODE_TROUS;
 	public static final String IMAGE_NOT_WEBP = "L'image doit être au format WebP.";
 	public static final String IMAGE_TOO_LARGE = "L'image dépasse 5 Mo.";
+	public static final String PIECE_BOTH = "Une pièce ne peut pas être un texte et une image.";
+	public static final String PIECE_EMPTY = "Chaque pièce est un texte ou une image.";
+	public static final String SIMON_FACE = "Chaque élément est une image, une couleur, ou un texte.";
 	public static final String ZONES_REQUIRED = "Il faut au moins une zone.";
 	public static final String ZONE_NAME_REQUIRED = "Chaque zone doit avoir un nom.";
 	public static final String ZONE_NAME_TOO_LONG = "Un nom de zone dépasse 200 caractères.";
@@ -303,6 +306,16 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 		List<StoredQuestion> page = hasNext ? fetched.subList(0, capped) : fetched;
 		Long next = hasNext ? page.get(page.size() - 1).id() : null;
 		return new TeacherSubjectQuestionsView(lines(page), next);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public QuestionLine get(long userId, String activeRole, long subjectId, long questionId) {
+		requireTeacher(activeRole);
+		requireOwned(userId, subjectId);
+		StoredQuestion question = teacherQuestionPort.findInSubject(subjectId, questionId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, QUESTION_MISSING));
+		return line(question);
 	}
 
 	@Override
@@ -632,35 +645,36 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 		if (content instanceof StoredChoices choices) {
 			List<ChoiceDraft> drafts = new ArrayList<>();
 			for (StoredChoice choice : choices.choices()) {
-				drafts.add(new ChoiceDraft(choice.label(), choice.correct()));
+				drafts.add(new ChoiceDraft(choice.label(), choice.correct(), choice.imageWebp()));
 			}
 			return new ChoicesDraft(drafts);
 		}
 		if (content instanceof StoredPairs pairs) {
 			List<PairDraft> drafts = new ArrayList<>();
 			for (StoredPair pair : pairs.pairs()) {
-				drafts.add(new PairDraft(pair.questionSide(), pair.answerSide()));
+				drafts.add(new PairDraft(
+						pair.questionSide(), pair.answerSide(), pair.questionImageWebp(), pair.answerImageWebp()));
 			}
 			return new PairsDraft(drafts);
 		}
 		if (content instanceof StoredItems items) {
 			List<ItemDraft> drafts = new ArrayList<>();
 			for (StoredItem item : items.items()) {
-				drafts.add(new ItemDraft(item.label(), item.axisLabel()));
+				drafts.add(new ItemDraft(item.label(), item.axisLabel(), item.imageWebp()));
 			}
 			return new ItemsDraft(drafts, items.timelineEnabled());
 		}
 		if (content instanceof StoredStatements statements) {
 			List<StatementDraft> drafts = new ArrayList<>();
 			for (StoredStatement statement : statements.statements()) {
-				drafts.add(new StatementDraft(statement.label(), statement.truthful()));
+				drafts.add(new StatementDraft(statement.label(), statement.truthful(), statement.imageWebp()));
 			}
 			return new StatementsDraft(drafts);
 		}
 		if (content instanceof StoredLinks links) {
 			List<LinkDraft> drafts = new ArrayList<>();
 			for (StoredLink link : links.links()) {
-				drafts.add(new LinkDraft(link.leftLabel(), link.rightLabel()));
+				drafts.add(new LinkDraft(link.leftLabel(), link.rightLabel(), link.leftImageWebp(), link.rightImageWebp()));
 			}
 			return new LinksDraft(drafts);
 		}
@@ -680,7 +694,7 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 				if (index == null) {
 					throw new IllegalStateException("Carte sans colonne pour la copie : " + card.id());
 				}
-				cards.add(new CardDraft(card.label(), index));
+				cards.add(new CardDraft(card.label(), index, card.imageWebp()));
 			}
 			return new ClassificationDraft(columns, cards);
 		}
@@ -728,7 +742,7 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 		if (content instanceof StoredSimon simon) {
 			List<SimonElementDraft> elements = new ArrayList<>();
 			for (StoredSimonElement element : simon.elements()) {
-				elements.add(new SimonElementDraft(element.label(), element.color()));
+				elements.add(new SimonElementDraft(element.label(), element.color(), element.imageWebp()));
 			}
 			return new SimonDraft(simon.elementType(), elements);
 		}

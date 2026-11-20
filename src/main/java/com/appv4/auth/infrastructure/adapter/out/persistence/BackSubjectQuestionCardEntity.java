@@ -25,8 +25,11 @@ public class BackSubjectQuestionCardEntity {
 	@Column(name = "question_id", nullable = false)
 	private long questionId;
 
-	@Column(name = "label", nullable = false, length = 200)
+	@Column(name = "label", length = 200)
 	private String label;
+
+	@Column(name = "image_webp")
+	private byte[] imageWebp;
 
 	@Column(name = "correct_column_id", nullable = false)
 	private long correctColumnId;
@@ -38,10 +41,16 @@ public class BackSubjectQuestionCardEntity {
 	}
 
 	public BackSubjectQuestionCardEntity(long questionId, String label, long correctColumnId, int sortOrder) {
+		this(questionId, label, correctColumnId, sortOrder, null);
+	}
+
+	public BackSubjectQuestionCardEntity(
+			long questionId, String label, long correctColumnId, int sortOrder, byte[] imageWebp) {
 		this.questionId = questionId;
 		this.label = label;
 		this.correctColumnId = correctColumnId;
 		this.sortOrder = sortOrder;
+		this.imageWebp = imageWebp;
 	}
 
 	public Long getId() {
@@ -54,6 +63,10 @@ public class BackSubjectQuestionCardEntity {
 
 	public String getLabel() {
 		return label;
+	}
+
+	public byte[] getImageWebp() {
+		return imageWebp;
 	}
 
 	public long getCorrectColumnId() {

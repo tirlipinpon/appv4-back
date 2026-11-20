@@ -39,7 +39,9 @@ public class LinkQuestionContentStore implements QuestionContentStore {
 		for (BackSubjectQuestionLinkEntity row : repository
 				.findByQuestionIdInOrderByQuestionIdAscSortOrderAsc(questionIds)) {
 			grouped.get(row.getQuestionId())
-					.add(new StoredLink(row.getId(), row.getLeftLabel(), row.getRightLabel()));
+					.add(new StoredLink(
+							row.getId(), row.getLeftLabel(), row.getRightLabel(),
+							row.getLeftImageWebp(), row.getRightImageWebp()));
 		}
 		Map<Long, StoredContent> contents = new HashMap<>();
 		grouped.forEach((id, rows) -> contents.put(id, new StoredLinks(rows)));
@@ -53,10 +55,14 @@ public class LinkQuestionContentStore implements QuestionContentStore {
 		}
 		List<BackSubjectQuestionLinkEntity> rows = new ArrayList<>();
 		for (var row : draft.links()) {
-			rows.add(new BackSubjectQuestionLinkEntity(questionId, row.leftLabel(), row.rightLabel(), rows.size()));
+			rows.add(new BackSubjectQuestionLinkEntity(
+					questionId, row.leftLabel(), row.rightLabel(), rows.size(),
+					row.leftImageWebp(), row.rightImageWebp()));
 		}
 		return new StoredLinks(repository.saveAllAndFlush(rows).stream()
-				.map(row -> new StoredLink(row.getId(), row.getLeftLabel(), row.getRightLabel())).toList());
+				.map(row -> new StoredLink(
+						row.getId(), row.getLeftLabel(), row.getRightLabel(),
+						row.getLeftImageWebp(), row.getRightImageWebp())).toList());
 	}
 
 	@Override

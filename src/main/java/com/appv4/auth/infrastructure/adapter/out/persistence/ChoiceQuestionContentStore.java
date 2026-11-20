@@ -37,7 +37,8 @@ public class ChoiceQuestionContentStore implements QuestionContentStore {
 			grouped.put(id, new ArrayList<>());
 		}
 		for (BackSubjectQuestionChoiceEntity row : repository.findByQuestionIdInOrderByQuestionIdAscSortOrderAsc(questionIds)) {
-			grouped.get(row.getQuestionId()).add(new StoredChoice(row.getId(), row.getLabel(), row.isCorrect()));
+			grouped.get(row.getQuestionId()).add(new StoredChoice(
+					row.getId(), row.getLabel(), row.isCorrect(), row.getImageWebp()));
 		}
 		Map<Long, StoredContent> contents = new HashMap<>();
 		grouped.forEach((id, rows) -> contents.put(id, new StoredChoices(rows)));
@@ -51,10 +52,11 @@ public class ChoiceQuestionContentStore implements QuestionContentStore {
 		}
 		List<BackSubjectQuestionChoiceEntity> rows = new ArrayList<>();
 		for (var row : draft.choices()) {
-			rows.add(new BackSubjectQuestionChoiceEntity(questionId, row.label(), row.correct(), rows.size()));
+			rows.add(new BackSubjectQuestionChoiceEntity(
+					questionId, row.label(), row.correct(), rows.size(), row.imageWebp()));
 		}
 		return new StoredChoices(repository.saveAllAndFlush(rows).stream()
-				.map(row -> new StoredChoice(row.getId(), row.getLabel(), row.isCorrect())).toList());
+				.map(row -> new StoredChoice(row.getId(), row.getLabel(), row.isCorrect(), row.getImageWebp())).toList());
 	}
 
 	@Override

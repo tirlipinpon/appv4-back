@@ -14,12 +14,14 @@ public interface BackSubjectQuestionItemJpaRepository extends JpaRepository<Back
 		long getQuestionId();
 		Long getItemId();
 		String getLabel();
+		byte[] getImageWebp();
 		String getAxisLabel();
 		boolean getTimelineEnabled();
 	}
 
 	@Query("""
-			select q.id as questionId, i.id as itemId, i.label as label, i.axisLabel as axisLabel,
+			select q.id as questionId, i.id as itemId, i.label as label, i.imageWebp as imageWebp,
+				i.axisLabel as axisLabel,
 				coalesce(o.timelineEnabled, false) as timelineEnabled
 			from BackSubjectQuestionEntity q
 			left join BackSubjectQuestionItemEntity i on i.questionId = q.id

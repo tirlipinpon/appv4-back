@@ -42,17 +42,15 @@ public final class TrueFalseQuestionForm implements QuestionFormHandler {
 				if (statement == null) {
 					continue;
 				}
-				String label = statement.label() == null ? "" : statement.label().trim();
-				if (label.isEmpty()) {
+				PieceFaces.Face face = PieceFaces.optional(
+						statement.label(), statement.imageWebp(), PHRASE_MAX, PHRASE_TOO_LONG);
+				if (face == null) {
 					continue;
-				}
-				if (label.length() > PHRASE_MAX) {
-					throw bad(PHRASE_TOO_LONG);
 				}
 				if (statement.truthful() == null) {
 					throw bad(SIDE_REQUIRED);
 				}
-				kept.add(new TeacherQuestionPort.StatementDraft(label, statement.truthful()));
+				kept.add(new TeacherQuestionPort.StatementDraft(face.label(), statement.truthful(), face.imageWebp()));
 			}
 		}
 		if (kept.size() < 2) {

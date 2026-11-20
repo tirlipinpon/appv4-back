@@ -37,7 +37,9 @@ public class PairQuestionContentStore implements QuestionContentStore {
 			grouped.put(id, new ArrayList<>());
 		}
 		for (BackSubjectQuestionPairEntity row : repository.findByQuestionIdInOrderByQuestionIdAscSortOrderAsc(questionIds)) {
-			grouped.get(row.getQuestionId()).add(new StoredPair(row.getId(), row.getQuestionSide(), row.getAnswerSide()));
+			grouped.get(row.getQuestionId()).add(new StoredPair(
+					row.getId(), row.getQuestionSide(), row.getAnswerSide(),
+					row.getQuestionImageWebp(), row.getAnswerImageWebp()));
 		}
 		Map<Long, StoredContent> contents = new HashMap<>();
 		grouped.forEach((id, rows) -> contents.put(id, new StoredPairs(rows)));
@@ -51,10 +53,14 @@ public class PairQuestionContentStore implements QuestionContentStore {
 		}
 		List<BackSubjectQuestionPairEntity> rows = new ArrayList<>();
 		for (var row : draft.pairs()) {
-			rows.add(new BackSubjectQuestionPairEntity(questionId, row.questionSide(), row.answerSide(), rows.size()));
+			rows.add(new BackSubjectQuestionPairEntity(
+					questionId, row.questionSide(), row.answerSide(), rows.size(),
+					row.questionImageWebp(), row.answerImageWebp()));
 		}
 		return new StoredPairs(repository.saveAllAndFlush(rows).stream()
-				.map(row -> new StoredPair(row.getId(), row.getQuestionSide(), row.getAnswerSide())).toList());
+				.map(row -> new StoredPair(
+						row.getId(), row.getQuestionSide(), row.getAnswerSide(),
+						row.getQuestionImageWebp(), row.getAnswerImageWebp())).toList());
 	}
 
 	@Override

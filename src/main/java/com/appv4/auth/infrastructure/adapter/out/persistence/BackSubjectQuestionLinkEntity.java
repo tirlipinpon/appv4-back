@@ -28,11 +28,17 @@ public class BackSubjectQuestionLinkEntity {
 	@Column(name = "question_id", nullable = false)
 	private long questionId;
 
-	@Column(name = "left_label", nullable = false, length = 200)
+	@Column(name = "left_label", length = 200)
 	private String leftLabel;
 
-	@Column(name = "right_label", nullable = false, length = 200)
+	@Column(name = "right_label", length = 200)
 	private String rightLabel;
+
+	@Column(name = "left_image_webp")
+	private byte[] leftImageWebp;
+
+	@Column(name = "right_image_webp")
+	private byte[] rightImageWebp;
 
 	@Column(name = "sort_order", nullable = false)
 	private int sortOrder;
@@ -41,10 +47,18 @@ public class BackSubjectQuestionLinkEntity {
 	}
 
 	public BackSubjectQuestionLinkEntity(long questionId, String leftLabel, String rightLabel, int sortOrder) {
+		this(questionId, leftLabel, rightLabel, sortOrder, null, null);
+	}
+
+	public BackSubjectQuestionLinkEntity(
+			long questionId, String leftLabel, String rightLabel, int sortOrder,
+			byte[] leftImageWebp, byte[] rightImageWebp) {
 		this.questionId = questionId;
 		this.leftLabel = leftLabel;
 		this.rightLabel = rightLabel;
 		this.sortOrder = sortOrder;
+		this.leftImageWebp = leftImageWebp;
+		this.rightImageWebp = rightImageWebp;
 	}
 
 	public long getQuestionId() {
@@ -61,5 +75,13 @@ public class BackSubjectQuestionLinkEntity {
 
 	public String getRightLabel() {
 		return rightLabel;
+	}
+
+	public byte[] getLeftImageWebp() {
+		return leftImageWebp;
+	}
+
+	public byte[] getRightImageWebp() {
+		return rightImageWebp;
 	}
 }

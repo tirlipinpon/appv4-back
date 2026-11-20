@@ -341,13 +341,13 @@ class TeacherQuestionPersistenceTest {
 	@Test
 	void simonReplacementKeepsTheTypeAndTheElements() {
 		adapter.ensureForm(subjectId, "simon", "Simon", 7);
-		StoredQuestion saved = adapter.insert(subjectId, "simon", "", new SimonDraft("couleurs", List.of(
-				new SimonElementDraft("rouge", "#ff0000"),
-				new SimonElementDraft("bleu", "#0000ff"),
-				new SimonElementDraft("vert", "#00ff00"))));
+		StoredQuestion saved = adapter.insert(subjectId, "simon", "", new SimonDraft("libre", List.of(
+				new SimonElementDraft(null, "#ff0000"),
+				new SimonElementDraft(null, "#0000ff"),
+				new SimonElementDraft(null, "#00ff00"))));
 		assertThat(saved.simonSequence()).isEmpty();
 		// Charge la question en session comme le use case update (find puis replace).
-		assertThat(adapter.findInSubject(subjectId, saved.id()).orElseThrow().simonElementType()).isEqualTo("couleurs");
+		assertThat(adapter.findInSubject(subjectId, saved.id()).orElseThrow().simonElementType()).isEqualTo("libre");
 		adapter.replace(saved.id(), "Refais la suite.", new SimonDraft("lettres", List.of(
 				new SimonElementDraft("A", null),
 				new SimonElementDraft("B", null))));

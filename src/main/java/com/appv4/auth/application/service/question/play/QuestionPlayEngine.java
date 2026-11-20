@@ -59,14 +59,16 @@ public final class QuestionPlayEngine {
 	public static ChildPlayQuestionView project(
 			StoredQuestion question, UUID challengeId, List<Integer> sequence, boolean legacy) {
 		Payload content = switch (PlayableQuestionForm.require(question.formCode())) {
-			case QCM -> new PlayQcm(question.choices().stream().map(c -> new PlayChoice(c.id(), c.label())).toList());
+			case QCM -> new PlayQcm(question.choices().stream()
+					.map(c -> new PlayChoice(c.id(), c.label(), encoded(c.imageWebp()))).toList());
 			case TRUE_FALSE -> new PlayTrueFalse(question.statements().stream()
-					.map(row -> new PlayStatement(row.id(), row.label())).toList());
+					.map(row -> new PlayStatement(row.id(), row.label(), encoded(row.imageWebp()))).toList());
 			case MEMORY -> memory(question, legacy);
 			case ORDER -> order(question);
 			case CLASSIFICATION -> new PlayClassification(
 					question.columns().stream().map(c -> new PlayColumn(c.id(), c.label())).toList(),
-					shuffled(question.cards().stream().map(c -> new PlayCard(c.id(), c.label()))));
+					shuffled(question.cards().stream()
+							.map(c -> new PlayCard(c.id(), c.label(), encoded(c.imageWebp())))));
 			case LINKS -> links(question, legacy);
 			case GAPS -> new PlayGaps(question.sentence(), shuffled(
 					Stream.concat(question.answers().stream(), question.decoys().stream())
@@ -82,7 +84,9 @@ public final class QuestionPlayEngine {
 			}
 			case PUZZLE -> puzzle(question);
 			case SIMON -> new PlaySimon(question.simonElementType(), question.simonElements().stream()
-					.map(element -> new PlaySimonElement(element.label(), element.color())).toList(), sequence);
+					.map(element -> new PlaySimonElement(
+							element.label(), element.color(), encoded(element.imageWebp())))
+					.toList(), sequence);
 		};
 		String prompt = question.prompt() == null ? "" : question.prompt();
 		return new ChildPlayQuestionView(
@@ -151,14 +155,25 @@ public final class QuestionPlayEngine {
 					.map(pair -> new PlayPair(pair.id(), pair.questionSide(), pair.answerSide())).toList());
 		}
 		return new PlayMemory(shuffled(question.pairs().stream().flatMap(pair -> Stream.of(
-				new PlayMemoryCard(token(question, pair.id(), true), pair.questionSide()),
-				new PlayMemoryCard(token(question, pair.id(), false), pair.answerSide())))));
+				new PlayMemoryCard(
+						token(question, pair.id(), true),
+						pair.questionSide(),
+						encoded(pair.questionImageWebp())),
+				new PlayMemoryCard(
+						token(question, pair.id(), false),
+						pair.answerSide(),
+						encoded(pair.answerImageWebp()))))));
 	}
 
 	private static PlayOrder order(StoredQuestion question) {
 		boolean timeline = Boolean.TRUE.equals(question.timelineEnabled());
 		return new PlayOrder(shuffled(question.items().stream()
-				.map(item -> new PlayItem(item.id(), item.label(), timeline ? item.axisLabel() : null))), timeline);
+				.map(item -> new PlayItem(
+						item.id(),
+						item.label(),
+						timeline ? item.axisLabel() : null,
+						encoded(item.imageWebp())))),
+				timeline);
 	}
 
 	private static Payload links(StoredQuestion question, boolean legacy) {
@@ -168,9 +183,15 @@ public final class QuestionPlayEngine {
 		}
 		return new PlayLinks(
 				shuffled(question.links().stream()
-						.map(link -> new PlayLinkOption(token(question, link.id(), true), link.leftLabel()))),
+						.map(link -> new PlayLinkOption(
+								token(question, link.id(), true),
+								link.leftLabel(),
+								encoded(link.leftImageWebp())))),
 				shuffled(question.links().stream()
-						.map(link -> new PlayLinkOption(token(question, link.id(), false), link.rightLabel()))));
+						.map(link -> new PlayLinkOption(
+								token(question, link.id(), false),
+								link.rightLabel(),
+								encoded(link.rightImageWebp())))));
 	}
 
 	private static PlayImage image(StoredQuestion question) {
@@ -226,6 +247,9 @@ public final class QuestionPlayEngine {
 	}
 
 	private static String encoded(byte[] image) {
+		if (image == null || image.length == 0) {
+			return "";
+		}
 		return Base64.getEncoder().encodeToString(image);
 	}
 

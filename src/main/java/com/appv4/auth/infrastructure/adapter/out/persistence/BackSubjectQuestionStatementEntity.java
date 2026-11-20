@@ -28,8 +28,11 @@ public class BackSubjectQuestionStatementEntity {
 	@Column(name = "question_id", nullable = false)
 	private long questionId;
 
-	@Column(nullable = false, length = 200)
+	@Column(length = 200)
 	private String label;
+
+	@Column(name = "image_webp")
+	private byte[] imageWebp;
 
 	@Column(nullable = false)
 	private boolean truthful;
@@ -41,10 +44,16 @@ public class BackSubjectQuestionStatementEntity {
 	}
 
 	public BackSubjectQuestionStatementEntity(long questionId, String label, boolean truthful, int sortOrder) {
+		this(questionId, label, truthful, sortOrder, null);
+	}
+
+	public BackSubjectQuestionStatementEntity(
+			long questionId, String label, boolean truthful, int sortOrder, byte[] imageWebp) {
 		this.questionId = questionId;
 		this.label = label;
 		this.truthful = truthful;
 		this.sortOrder = sortOrder;
+		this.imageWebp = imageWebp;
 	}
 
 	public long getQuestionId() {
@@ -57,6 +66,10 @@ public class BackSubjectQuestionStatementEntity {
 
 	public String getLabel() {
 		return label;
+	}
+
+	public byte[] getImageWebp() {
+		return imageWebp;
 	}
 
 	public boolean isTruthful() {

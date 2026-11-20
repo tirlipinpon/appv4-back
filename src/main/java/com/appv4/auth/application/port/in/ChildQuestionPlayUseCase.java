@@ -12,13 +12,32 @@ public interface ChildQuestionPlayUseCase {
 
 	ChildPlayQuestionView question(String rawToken, long subjectId, long questionId, boolean legacy);
 
+	/**
+	 * Essais encore ouverts sur la page. Une page inconnue a tout son budget.
+	 *
+	 * <p><b>Business :</b> le compteur affiché à l'ouverture vient d'ici, avant toute réponse.
+	 * <p><b>Technique :</b> lit les essais déjà pris pour ce {@code playId}, ou zéro s'il est absent.
+	 * <p><b>Métier / flow :</b> POST ouvrir la page → ce décompte → question renvoyée avec le compteur.
+	 */
+	PlayAllowance allowance(String rawToken, long subjectId, long questionId, UUID playId);
+
+	record PlayAllowance(int maxAttempts, int attemptsRemaining) {
+	}
+
 	ChildAttemptResultView submit(String rawToken, long subjectId, long questionId, Submission submission);
 
 	ChildLetterLocksView letterLocks(String rawToken, long subjectId, long questionId, String attempt);
 
 	boolean memoryPair(String rawToken, long subjectId, long questionId, MemoryMatch match);
 
-	record Submission(String declaredForm, Answer answer, UUID submissionId, UUID challengeId) {
+	/**
+	 * Une validation. {@code playId} identifie la page ouverte : le budget d'essais vit avec elle.
+	 * Absent, la tentative n'est pas rattachée à une page (anciens clients).
+	 */
+	record Submission(String declaredForm, Answer answer, UUID submissionId, UUID challengeId, UUID playId) {
+		public Submission(String declaredForm, Answer answer, UUID submissionId, UUID challengeId) {
+			this(declaredForm, answer, submissionId, challengeId, null);
+		}
 	}
 
 	sealed interface Answer permits Choices, Statements, LegacyMemory, MemoryMatches, Order, Placements,

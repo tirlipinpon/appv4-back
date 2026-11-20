@@ -47,8 +47,10 @@ public class TeacherQuestionPreviewController {
 			@AuthenticationPrincipal AuthenticatedUser principal, @PathVariable long subjectId,
 			@PathVariable long questionId) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
+		int maxAttempts = questions.previewMaxAttempts(user.userId(), user.activeRole(), subjectId, questionId);
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(PlayQuestionResponse.from(
-				questions.preview(user.userId(), user.activeRole(), subjectId, questionId), forms));
+				questions.preview(user.userId(), user.activeRole(), subjectId, questionId), forms,
+				maxAttempts, maxAttempts));
 	}
 
 	@PostMapping("/attempts")

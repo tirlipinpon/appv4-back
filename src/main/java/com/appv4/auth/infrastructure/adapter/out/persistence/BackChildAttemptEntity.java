@@ -51,12 +51,27 @@ public class BackChildAttemptEntity {
 	@Column(name = "submission_id")
 	private UUID submissionId;
 
+	@Column(name = "attempt_rank", nullable = true)
+	private Integer attemptRank;
+
+	@Column(name = "attempts_remaining", nullable = true)
+	private Integer attemptsRemaining;
+
+	@Column(name = "points_awarded", nullable = true)
+	private Integer pointsAwarded;
+
 	protected BackChildAttemptEntity() {
 	}
 
 	public BackChildAttemptEntity(
 			long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed,
 			UUID submissionId) {
+		this(childId, subjectId, questionId, formCode, scorePercent, passed, submissionId, null, null, null);
+	}
+
+	public BackChildAttemptEntity(
+			long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed,
+			UUID submissionId, Integer attemptRank, Integer attemptsRemaining, Integer pointsAwarded) {
 		this.childId = childId;
 		this.subjectId = subjectId;
 		this.questionId = questionId;
@@ -64,6 +79,9 @@ public class BackChildAttemptEntity {
 		this.scorePercent = (short) scorePercent;
 		this.passed = passed;
 		this.submissionId = submissionId;
+		this.attemptRank = attemptRank;
+		this.attemptsRemaining = attemptsRemaining;
+		this.pointsAwarded = pointsAwarded;
 	}
 
 	public Long getId() {
@@ -92,5 +110,17 @@ public class BackChildAttemptEntity {
 
 	public boolean isPassed() {
 		return passed;
+	}
+
+	public Integer getAttemptRank() {
+		return attemptRank;
+	}
+
+	public Integer getAttemptsRemaining() {
+		return attemptsRemaining;
+	}
+
+	public Integer getPointsAwarded() {
+		return pointsAwarded;
 	}
 }

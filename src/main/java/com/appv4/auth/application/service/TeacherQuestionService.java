@@ -439,6 +439,13 @@ public class TeacherQuestionService implements TeacherQuestionUseCase {
 
 	@Override
 	@Transactional(readOnly = true)
+	public int previewMaxAttempts(long userId, String activeRole, long subjectId, long questionId) {
+		requirePreviewQuestion(userId, activeRole, subjectId, questionId);
+		return keep(questionId).maxAttempts();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public PreviewVerdict previewAnswer(long userId, String activeRole, long subjectId, long questionId,
 			Submission submission, List<Integer> previewSequence) {
 		StoredQuestion question = requirePreviewQuestion(userId, activeRole, subjectId, questionId);

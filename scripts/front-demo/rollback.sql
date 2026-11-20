@@ -31,6 +31,9 @@ DO $$ BEGIN
  OR EXISTS(SELECT 1 FROM back_child_attempts attempt
    WHERE (attempt.subject_id IN (SELECT id FROM demo_subjects))
       <> (attempt.child_id IN (SELECT id FROM demo_children)))
+ OR EXISTS(SELECT 1 FROM back_child_play_pages page
+   WHERE (page.subject_id IN (SELECT id FROM demo_subjects))
+      <> (page.child_id IN (SELECT id FROM demo_children)))
  OR EXISTS(SELECT 1 FROM back_child_simon_challenges challenge
    JOIN back_subject_questions question ON question.id = challenge.question_id
    WHERE (question.subject_id IN (SELECT id FROM demo_subjects))

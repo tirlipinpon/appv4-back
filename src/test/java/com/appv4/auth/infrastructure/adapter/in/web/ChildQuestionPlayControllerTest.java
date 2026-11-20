@@ -665,6 +665,59 @@ class ChildQuestionPlayControllerTest {
 	}
 
 	@Test
+	void submitFreeTextReportsThePageBudget() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		UUID page = UUID.fromString("11111111-1111-1111-1111-111111111111");
+		when(teacherQuestionPort.findInSubject(4L, 19L)).thenReturn(Optional.of(freeTextQuestion()));
+		when(teacherQuestionPort.gamificationOf(19L)).thenReturn(
+				new com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGamification(
+						2, "modere", true, false, List.of(20, 10)));
+		when(childQuestionAttemptPort.claim(page, 7L, 4L, 19L, 2))
+				.thenReturn(Optional.of(new com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim(2, 0)));
+		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
+				.thenReturn(new StoredAttempt(51L, 7L, 4L, 19L, "texte", 100, true));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/19/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"attempt":"Paris","playId":"11111111-1111-1111-1111-111111111111"}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.attemptId").value(51))
+				.andExpect(jsonPath("$.scorePercent").value(100))
+				.andExpect(jsonPath("$.passed").value(true))
+				.andExpect(jsonPath("$.attemptRank").value(2))
+				.andExpect(jsonPath("$.attemptsRemaining").value(0))
+				.andExpect(jsonPath("$.pointsAwarded").value(10))
+				.andExpect(jsonPath("$.replayAvailable").value(false));
+	}
+
+	@Test
+	void openTellsHowManyAttemptsThePageStillHas() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 19L)).thenReturn(Optional.of(freeTextQuestion()));
+		when(childQuestionAttemptPort.attemptsUsed(
+				UUID.fromString("11111111-1111-1111-1111-111111111111"), 7L, 4L, 19L)).thenReturn(1);
+		when(teacherQuestionPort.gamificationOf(19L)).thenReturn(
+				new com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGamification(
+						2, "facile", false, false, List.of()));
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/19/play")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"playId":"11111111-1111-1111-1111-111111111111"}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.maxAttempts").value(2))
+				.andExpect(jsonPath("$.attemptsRemaining").value(1))
+				.andExpect(jsonPath("$.formCode").value("texte"));
+	}
+
+	@Test
 	void submitFreeTextAcceptsAccentAndCase() throws Exception {
 		String token = loginAsLea();
 		stubLinkedChild();

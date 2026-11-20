@@ -46,7 +46,8 @@ public class QuestionOpenApiContract implements OpenApiCustomizer {
 		require(schemas, "PlaySimonElement", "label");
 		require(schemas, "ChildLearningQuestionsResponse", "subjectId", "subjectName", "questions");
 		require(schemas, "ChildLearningQuestionItem", "questionId", FORM, "prompt", "formLabel");
-		require(schemas, "ChildAttemptResultResponse", "attemptId", "scorePercent", "passed");
+		require(schemas, "ChildAttemptResultResponse", "attemptId", "scorePercent", "passed",
+				"attemptRank", "attemptsRemaining", "pointsAwarded", "replayAvailable");
 		require(schemas, "PreviewVerdict", "scorePercent", "passed");
 		require(schemas, "ChildLetterLocksResponse", "locks");
 		require(schemas, "MemoryPairResponse", "matched");
@@ -69,7 +70,9 @@ public class QuestionOpenApiContract implements OpenApiCustomizer {
 			variant.setProperties(new LinkedHashMap<>(base.getProperties()));
 			variant.addProperty(FORM, literal(form));
 			variant.addProperty("content", ref(content));
-			variant.setRequired(List.of("questionId", "subjectId", FORM, "prompt", "formLabel", "content"));
+			variant.setRequired(List.of(
+					"questionId", "subjectId", FORM, "prompt", "formLabel", "content",
+					"maxAttempts", "attemptsRemaining"));
 			String name = content + "Question";
 			schemas.put(name, variant);
 			variants.add(ref(name));
@@ -128,7 +131,7 @@ public class QuestionOpenApiContract implements OpenApiCustomizer {
 
 	private static Schema<?> answerVariant(Schema<?> base, String field) {
 		Schema<?> variant = new ObjectSchema();
-		copy(base, variant, List.of("submissionId", field));
+		copy(base, variant, List.of("submissionId", "playId", field));
 		variant.setAdditionalProperties(false);
 		return variant;
 	}

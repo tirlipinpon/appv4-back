@@ -18,6 +18,30 @@ public interface ChildQuestionAttemptPort {
 	/** Sérialise les soumissions rejouables de cet enfant jusqu'à la fin de la transaction. */
 	Optional<StoredAttempt> lockAndFind(long childId, UUID submissionId);
 
+	/**
+	 * Réserve le prochain essai de la page ouverte.
+	 *
+	 * <p><b>Business :</b> deux validations simultanées de la même page ne doivent pas dépasser le plafond.
+	 * <p><b>Technique :</b> l'adaptateur verrouille la ligne de la page.
+	 * <p><b>Métier / flow :</b> submit, après la correction, avant l'insert.
+	 *
+	 * @return vide si la page a déjà épuisé ses essais
+	 */
+	Optional<PageClaim> claim(UUID playId, long childId, long subjectId, long questionId, int maxAttempts);
+
+	/**
+	 * Essais déjà pris sur cette page. Zéro si la page n'a pas encore validé.
+	 *
+	 * <p><b>Business :</b> rouvrir la même page doit montrer ce qu'il reste vraiment.
+	 * <p><b>Technique :</b> lecture de {@code back_child_play_pages}, sans verrou.
+	 * <p><b>Métier / flow :</b> allowance, avant d'afficher la question.
+	 */
+	int attemptsUsed(UUID playId, long childId, long subjectId, long questionId);
+
+	/** Rang 1 = premier essai de la page. {@code attemptsRemaining} est ce qu'il reste après celui-ci. */
+	record PageClaim(int rank, int attemptsRemaining) {
+	}
+
 	record AnswerLine(
 			String targetKind,
 			long targetId,
@@ -34,7 +58,10 @@ public interface ChildQuestionAttemptPort {
 			int scorePercent,
 			boolean passed,
 			List<AnswerLine> answers,
-			UUID submissionId) {
+			UUID submissionId,
+			Integer attemptRank,
+			Integer attemptsRemaining,
+			Integer pointsAwarded) {
 		public NewAttempt {
 			answers = answers == null ? List.of() : List.copyOf(answers);
 		}
@@ -47,6 +74,13 @@ public interface ChildQuestionAttemptPort {
 			long questionId,
 			String formCode,
 			int scorePercent,
-			boolean passed) {
+			boolean passed,
+			Integer attemptRank,
+			Integer attemptsRemaining,
+			Integer pointsAwarded) {
+		public StoredAttempt(
+				long id, long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed) {
+			this(id, childId, subjectId, questionId, formCode, scorePercent, passed, null, null, null);
+		}
 	}
 }

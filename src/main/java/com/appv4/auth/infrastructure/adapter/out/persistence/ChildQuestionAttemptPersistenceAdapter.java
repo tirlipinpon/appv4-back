@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
 
 /**
  * Persiste les tentatives enfant (BACK-16).
@@ -42,6 +43,58 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 
 	@Override
 	@Transactional
+	public Optional<PageClaim> claim(UUID playId, long childId, long subjectId, long questionId, int maxAttempts) {
+		jdbc.sql("""
+				insert into back_child_play_pages (play_id, child_id, subject_id, question_id, attempts_used)
+				values (:playId, :childId, :subjectId, :questionId, 0)
+				on conflict (play_id) do nothing
+				""")
+				.param("playId", playId)
+				.param("childId", childId)
+				.param("subjectId", subjectId)
+				.param("questionId", questionId)
+				.update();
+		return jdbc.sql("""
+				select attempts_used from back_child_play_pages
+				where play_id = :playId and child_id = :childId
+				  and subject_id = :subjectId and question_id = :questionId
+				for update
+				""")
+				.param("playId", playId)
+				.param("childId", childId)
+				.param("subjectId", subjectId)
+				.param("questionId", questionId)
+				.query(Integer.class)
+				.optional()
+				.filter(used -> used < maxAttempts)
+				.map(used -> {
+					int rank = used + 1;
+					jdbc.sql("update back_child_play_pages set attempts_used = :used where play_id = :playId")
+							.param("used", rank)
+							.param("playId", playId)
+							.update();
+					return new PageClaim(rank, maxAttempts - rank);
+				});
+	}
+
+	@Override
+	public int attemptsUsed(UUID playId, long childId, long subjectId, long questionId) {
+		return jdbc.sql("""
+				select attempts_used from back_child_play_pages
+				where play_id = :playId and child_id = :childId
+				  and subject_id = :subjectId and question_id = :questionId
+				""")
+				.param("playId", playId)
+				.param("childId", childId)
+				.param("subjectId", subjectId)
+				.param("questionId", questionId)
+				.query(Integer.class)
+				.optional()
+				.orElse(0);
+	}
+
+	@Override
+	@Transactional
 	public StoredAttempt insert(NewAttempt attempt) {
 		BackChildAttemptEntity saved = attempts.save(new BackChildAttemptEntity(
 				attempt.childId(),
@@ -50,7 +103,10 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				attempt.formCode(),
 				attempt.scorePercent(),
 				attempt.passed(),
-				attempt.submissionId()));
+				attempt.submissionId(),
+				attempt.attemptRank(),
+				attempt.attemptsRemaining(),
+				attempt.pointsAwarded()));
 		long attemptId = saved.getId();
 		for (AnswerLine line : attempt.answers()) {
 			answers.save(new BackChildAttemptAnswerEntity(
@@ -72,6 +128,9 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				saved.getQuestionId(),
 				saved.getFormCode(),
 				saved.getScorePercent(),
-				saved.isPassed());
+				saved.isPassed(),
+				saved.getAttemptRank(),
+				saved.getAttemptsRemaining(),
+				saved.getPointsAwarded());
 	}
 }

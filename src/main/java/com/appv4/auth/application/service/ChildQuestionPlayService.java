@@ -12,6 +12,7 @@ import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.NewAttempt;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredAttempt;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSimonChallengePort;
@@ -21,6 +22,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.result.ChildAttemptResultView;
 import com.appv4.auth.application.result.ChildLetterLocksView;
 import com.appv4.auth.application.result.ChildPlayQuestionView;
+import com.appv4.auth.application.service.question.QuestionGamification;
 import com.appv4.auth.application.service.question.play.ChildAnswerGrade;
 import com.appv4.auth.application.service.question.play.PlayableQuestionForm;
 import com.appv4.auth.application.service.question.play.QuestionPlayEngine;
@@ -31,6 +33,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 	public static final String SUBJECT_MISSING = ReadChildLearningSubjectsService.SUBJECT_MISSING;
 	public static final String QUESTION_MISSING = "Question introuvable.";
 	public static final String FORM_UNSUPPORTED = PlayableQuestionForm.UNSUPPORTED;
+	public static final String ATTEMPTS_EXHAUSTED = "Cette partie n'a plus d'essai.";
 
 	private final ChildLoginPort childLoginPort;
 	private final ChildSessionTokenPort childSessionTokenPort;
@@ -55,6 +58,16 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		this.childSimonChallengePort = childSimonChallengePort;
 		this.updateChildProgressAfterAttemptService = updateChildProgressAfterAttemptService;
 		this.childDailyMissionService = childDailyMissionService;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public PlayAllowance allowance(String rawToken, long subjectId, long questionId, UUID playId) {
+		long childId = requireLinkedChild(rawToken, subjectId);
+		requireQuestion(subjectId, questionId);
+		QuestionGamification.Resolved scale = scaleOf(questionId);
+		int used = playId == null ? 0 : childQuestionAttemptPort.attemptsUsed(playId, childId, subjectId, questionId);
+		return new PlayAllowance(scale.maxAttempts(), Math.max(0, scale.maxAttempts() - used));
 	}
 
 	@Override
@@ -84,14 +97,19 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			return result(stored);
 		}
 		StoredQuestion question = requireQuestion(subjectId, questionId);
+		QuestionGamification.Resolved scale = scaleOf(questionId);
 		List<Integer> sequence = sequenceFor(childId, question, submission);
 		ChildAnswerGrade grade = QuestionPlayEngine.grade(question, submission, sequence);
+		PageClaim seat = seat(childId, subjectId, questionId, submission, scale);
+		int points = grade.passed() ? scale.points().get(seat.rank() - 1) : 0;
 		StoredAttempt saved = childQuestionAttemptPort.insert(new NewAttempt(
 				childId, subjectId, questionId, question.formCode(), grade.scorePercent(), grade.passed(), grade.answers(),
-				submission.submissionId()));
+				submission.submissionId(), seat.rank(), seat.attemptsRemaining(), points));
 		updateChildProgressAfterAttemptService.apply(childId, saved.scorePercent());
 		childDailyMissionService.recordUsefulAttempt(childId, subjectId, saved.scorePercent(), saved.passed());
-		return result(saved);
+		return new ChildAttemptResultView(
+				saved.id(), grade.scorePercent(), grade.passed(), seat.rank(), seat.attemptsRemaining(), points,
+				seat.attemptsRemaining() > 0);
 	}
 
 	@Override
@@ -129,8 +147,38 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		return PlayableQuestionForm.SIMON.code().equals(question.formCode());
 	}
 
+	/**
+	 * Le barème enregistré, ou le défaut (1 essai, Facile, 10 points) si la question n'en a pas.
+	 * Le drapeau « gamification coupée » n'est pas lu ici.
+	 */
+	private QuestionGamification.Resolved scaleOf(long questionId) {
+		var stored = teacherQuestionPort.gamificationOf(questionId);
+		return stored == null
+				? QuestionGamification.defaults()
+				: QuestionGamification.resolve(
+						stored.maxAttempts(), stored.difficulty(), stored.customizePoints(),
+						stored.gamificationDisabled(), stored.customPoints());
+	}
+
+	private PageClaim seat(
+			long childId, long subjectId, long questionId, Submission submission, QuestionGamification.Resolved scale) {
+		return submission.playId() == null
+				? new PageClaim(1, Math.max(0, scale.maxAttempts() - 1))
+				: childQuestionAttemptPort
+						.claim(submission.playId(), childId, subjectId, questionId, scale.maxAttempts())
+						.orElseThrow(() -> new AuthDomainException(AuthErrorCode.CONFLICT, ATTEMPTS_EXHAUSTED));
+	}
+
+	/**
+	 * Une tentative écrite avant le budget de page n'a pas ces colonnes.
+	 * On la relit alors comme un premier essai déjà clos, sans points de barème.
+	 */
 	private static ChildAttemptResultView result(StoredAttempt attempt) {
-		return new ChildAttemptResultView(attempt.id(), attempt.scorePercent(), attempt.passed());
+		int rank = attempt.attemptRank() == null ? 1 : attempt.attemptRank();
+		int remaining = attempt.attemptsRemaining() == null ? 0 : attempt.attemptsRemaining();
+		int points = attempt.pointsAwarded() == null ? 0 : attempt.pointsAwarded();
+		return new ChildAttemptResultView(
+				attempt.id(), attempt.scorePercent(), attempt.passed(), rank, remaining, points, remaining > 0);
 	}
 
 	private StoredQuestion requireQuestion(long subjectId, long questionId) {

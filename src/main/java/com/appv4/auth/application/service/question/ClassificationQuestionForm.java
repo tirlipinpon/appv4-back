@@ -85,19 +85,16 @@ public final class ClassificationQuestionForm implements QuestionFormHandler {
 				if (card == null) {
 					continue;
 				}
-				String label = card.label() == null ? "" : card.label().trim();
-				if (label.isEmpty()) {
+				PieceFaces.Face face = PieceFaces.optional(card.label(), card.imageWebp(), LABEL_MAX, CARD_LABEL_TOO_LONG);
+				if (face == null) {
 					throw bad(CARD_LABEL_REQUIRED);
-				}
-				if (label.length() > LABEL_MAX) {
-					throw bad(CARD_LABEL_TOO_LONG);
 				}
 				Integer index = card.columnIndex();
 				if (index == null || index < 0 || index >= columnCount) {
 					throw bad(CARD_COLUMN_REQUIRED);
 				}
 				usedColumns.add(index);
-				kept.add(new CardDraft(label, index));
+				kept.add(new CardDraft(face.label(), index, face.imageWebp()));
 			}
 		}
 		if (kept.size() < 2) {

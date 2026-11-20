@@ -49,21 +49,23 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 		public List<ChoiceLine> choices() {
 			return content instanceof StoredChoices value
 					? value.choices().stream()
-							.map(row -> new ChoiceLine(row.id(), row.label(), row.correct()))
+							.map(row -> new ChoiceLine(row.id(), row.label(), row.correct(), row.imageWebp()))
 							.toList() : List.of();
 		}
 
 		public List<PairLine> pairs() {
 			return content instanceof StoredPairs value
 					? value.pairs().stream()
-							.map(row -> new PairLine(row.id(), row.questionSide(), row.answerSide()))
+							.map(row -> new PairLine(
+									row.id(), row.questionSide(), row.answerSide(),
+									row.questionImageWebp(), row.answerImageWebp()))
 							.toList() : List.of();
 		}
 
 		public List<ItemLine> items() {
 			return content instanceof StoredItems value
 					? value.items().stream()
-							.map(row -> new ItemLine(row.id(), row.label(), row.axisLabel()))
+							.map(row -> new ItemLine(row.id(), row.label(), row.axisLabel(), row.imageWebp()))
 							.toList()
 					: List.of();
 		}
@@ -76,14 +78,17 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 		public List<StatementLine> statements() {
 			return content instanceof StoredStatements value
 					? value.statements().stream()
-							.map(row -> new StatementLine(row.id(), row.label(), row.truthful()))
+							.map(row -> new StatementLine(
+									row.id(), row.label(), row.truthful(), row.imageWebp()))
 							.toList() : List.of();
 		}
 
 		public List<LinkLine> links() {
 			return content instanceof StoredLinks value
 					? value.links().stream()
-							.map(row -> new LinkLine(row.id(), row.leftLabel(), row.rightLabel()))
+							.map(row -> new LinkLine(
+									row.id(), row.leftLabel(), row.rightLabel(),
+									row.leftImageWebp(), row.rightImageWebp()))
 							.toList() : List.of();
 		}
 
@@ -98,7 +103,8 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 		public List<CardLine> cards() {
 			return content instanceof StoredClassification value
 					? value.cards().stream()
-							.map(row -> new CardLine(row.id(), row.label(), row.correctColumnId()))
+							.map(row -> new CardLine(
+									row.id(), row.label(), row.correctColumnId(), row.imageWebp()))
 							.toList()
 					: List.of();
 		}
@@ -197,7 +203,8 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 		public List<SimonElementLine> elements() {
 			return content instanceof StoredSimon value
 					? value.elements().stream()
-							.map(row -> new SimonElementLine(row.id(), row.label(), row.color()))
+							.map(row -> new SimonElementLine(
+									row.id(), row.label(), row.color(), row.imageWebp()))
 							.toList()
 					: List.of();
 		}
@@ -209,28 +216,34 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 		}
 	}
 
-	public record ChoiceLine(long id, String label, boolean correct) {
+	public record ChoiceLine(long id, String label, boolean correct, byte[] imageWebp) {
 	}
 
-	public record PairLine(long id, String questionSide, String answerSide) {
+	public record PairLine(
+			long id, String questionSide, String answerSide, byte[] questionImageWebp, byte[] answerImageWebp) {
 	}
 
-	public record ItemLine(long id, String label, String axisLabel) {
+	public record ItemLine(long id, String label, String axisLabel, byte[] imageWebp) {
 		public ItemLine(long id, String label) {
-			this(id, label, null);
+			this(id, label, null, null);
+		}
+
+		public ItemLine(long id, String label, String axisLabel) {
+			this(id, label, axisLabel, null);
 		}
 	}
 
-	public record StatementLine(long id, String label, boolean truthful) {
+	public record StatementLine(long id, String label, boolean truthful, byte[] imageWebp) {
 	}
 
-	public record LinkLine(long id, String leftLabel, String rightLabel) {
+	public record LinkLine(
+			long id, String leftLabel, String rightLabel, byte[] leftImageWebp, byte[] rightImageWebp) {
 	}
 
 	public record ColumnLine(long id, String label) {
 	}
 
-	public record CardLine(long id, String label, long correctColumnId) {
+	public record CardLine(long id, String label, long correctColumnId, byte[] imageWebp) {
 	}
 
 	public record GapWordLine(long id, String label) {
@@ -260,6 +273,6 @@ public record TeacherSubjectQuestionsView(List<QuestionLine> questions, Long nex
 	}
 
 	/** Élément d'un Simon. {@code color} : code {@code #rrggbb} du genre couleurs, sinon null. */
-	public record SimonElementLine(long id, String label, String color) {
+	public record SimonElementLine(long id, String label, String color, byte[] imageWebp) {
 	}
 }

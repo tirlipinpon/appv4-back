@@ -58,7 +58,7 @@ public class ClassificationQuestionContentStore implements QuestionContentStore 
 		for (BackSubjectQuestionCardEntity row : cards
 				.findByQuestionIdInOrderByQuestionIdAscSortOrderAsc(questionIds)) {
 			cardsByQuestion.get(row.getQuestionId())
-					.add(new StoredCard(row.getId(), row.getLabel(), row.getCorrectColumnId()));
+					.add(new StoredCard(row.getId(), row.getLabel(), row.getCorrectColumnId(), row.getImageWebp()));
 		}
 		Map<Long, StoredContent> contents = new HashMap<>();
 		for (long id : questionIds) {
@@ -81,13 +81,14 @@ public class ClassificationQuestionContentStore implements QuestionContentStore 
 		List<BackSubjectQuestionCardEntity> cardRows = new ArrayList<>();
 		for (var card : draft.cards()) {
 			cardRows.add(new BackSubjectQuestionCardEntity(
-					questionId, card.label(), columnIds.get(card.columnIndex()), cardRows.size()));
+					questionId, card.label(), columnIds.get(card.columnIndex()), cardRows.size(), card.imageWebp()));
 		}
 		List<BackSubjectQuestionCardEntity> savedCards = cards.saveAllAndFlush(cardRows);
 		return new StoredClassification(
 				savedColumns.stream().map(row -> new StoredColumn(row.getId(), row.getLabel())).toList(),
 				savedCards.stream()
-						.map(row -> new StoredCard(row.getId(), row.getLabel(), row.getCorrectColumnId()))
+						.map(row -> new StoredCard(
+								row.getId(), row.getLabel(), row.getCorrectColumnId(), row.getImageWebp()))
 						.toList());
 	}
 

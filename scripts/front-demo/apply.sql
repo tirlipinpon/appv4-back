@@ -2,8 +2,8 @@ DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM dev_front_demo.installation) THEN
    RAISE EXCEPTION 'Demo already installed. Use status, rollback or reset (no duplicates created).';
  END IF;
- IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) IS DISTINCT FROM '69' THEN
-  RAISE EXCEPTION 'Fixtures validated against V69. Review schema changes before updating this guard.';
+ IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) IS DISTINCT FROM '70' THEN
+  RAISE EXCEPTION 'Fixtures validated against V70. Review schema changes before updating this guard.';
  END IF;
 END $$;
 
@@ -191,7 +191,7 @@ SELECT q.id,v.label,'rect',v.points,v.ord FROM questions q CROSS JOIN
 INSERT INTO back_subject_question_simon_options(question_id,element_type)
 SELECT id,(ARRAY['couleurs','nombres','lettres','formes'])[1+(n/12)%4] FROM questions WHERE code='simon';
 INSERT INTO back_subject_question_simon_elements(question_id,label,color,sort_order)
-SELECT q.id,v.label,v.color,v.ord FROM questions q
+SELECT q.id,CASE WHEN v.color IS NULL THEN v.label ELSE NULL END,v.color,v.ord FROM questions q
 JOIN back_subject_question_simon_options o ON o.question_id=q.id
 JOIN (VALUES
  ('couleurs','rouge','#ff0000',0),('couleurs','bleu','#0000ff',1),('couleurs','vert','#00ff00',2),('couleurs','jaune','#ffff00',3),

@@ -28,8 +28,11 @@ public class BackSubjectQuestionItemEntity {
 	@Column(name = "question_id", nullable = false)
 	private long questionId;
 
-	@Column(nullable = false, length = 200)
+	@Column(length = 200)
 	private String label;
+
+	@Column(name = "image_webp")
+	private byte[] imageWebp;
 
 	@Column(name = "axis_label", length = 80)
 	private String axisLabel;
@@ -41,10 +44,16 @@ public class BackSubjectQuestionItemEntity {
 	}
 
 	public BackSubjectQuestionItemEntity(long questionId, String label, String axisLabel, int sortOrder) {
+		this(questionId, label, axisLabel, sortOrder, null);
+	}
+
+	public BackSubjectQuestionItemEntity(
+			long questionId, String label, String axisLabel, int sortOrder, byte[] imageWebp) {
 		this.questionId = questionId;
 		this.label = label;
 		this.axisLabel = axisLabel;
 		this.sortOrder = sortOrder;
+		this.imageWebp = imageWebp;
 	}
 
 	public long getQuestionId() {
@@ -57,6 +66,10 @@ public class BackSubjectQuestionItemEntity {
 
 	public String getLabel() {
 		return label;
+	}
+
+	public byte[] getImageWebp() {
+		return imageWebp;
 	}
 
 	public String getAxisLabel() {

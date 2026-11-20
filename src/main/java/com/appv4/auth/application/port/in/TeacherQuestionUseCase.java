@@ -39,6 +39,8 @@ public interface TeacherQuestionUseCase {
 
 	TeacherSubjectQuestionsView list(long userId, String activeRole, long subjectId, long afterId, int limit);
 
+	QuestionLine get(long userId, String activeRole, long subjectId, long questionId);
+
 	ChildPlayQuestionView preview(long userId, String activeRole, long subjectId, long questionId);
 
 	PreviewVerdict previewAnswer(long userId, String activeRole, long subjectId, long questionId,
@@ -167,20 +169,30 @@ public interface TeacherQuestionUseCase {
 	/**
 	 * @param correct {@code null} compte comme faux
 	 */
-	record ChoiceInput(String label, Boolean correct) {
+	record ChoiceInput(String label, Boolean correct, String imageWebp) {
+		public ChoiceInput(String label, Boolean correct) {
+			this(label, correct, null);
+		}
 	}
 
 	/** Côté question et côté réponse d'une paire Memory. */
-	record PairInput(String questionSide, String answerSide) {
+	record PairInput(String questionSide, String answerSide, String questionImageWebp, String answerImageWebp) {
+		public PairInput(String questionSide, String answerSide) {
+			this(questionSide, answerSide, null, null);
+		}
 	}
 
 	/**
 	 * Texte d'un élément dans une liste déjà ordonnée.
 	 * {@code axisLabel} : jalon de frise (ignoré si timeline désactivée).
 	 */
-	record ItemInput(String label, String axisLabel) {
+	record ItemInput(String label, String axisLabel, String imageWebp) {
+		public ItemInput(String label, String axisLabel) {
+			this(label, axisLabel, null);
+		}
+
 		public ItemInput(String label) {
-			this(label, null);
+			this(label, null, null);
 		}
 	}
 
@@ -199,14 +211,20 @@ public interface TeacherQuestionUseCase {
 	/**
 	 * @param truthful {@code null} veut dire que le côté n'est pas choisi
 	 */
-	record StatementInput(String label, Boolean truthful) {
+	record StatementInput(String label, Boolean truthful, String imageWebp) {
+		public StatementInput(String label, Boolean truthful) {
+			this(label, truthful, null);
+		}
 	}
 
 	/** Couples mot / réponse d'un lien. Une ligne à moitié vide est refusée. */
 	record LinksInput(List<LinkInput> links) implements ContentInput {
 	}
 
-	record LinkInput(String leftLabel, String rightLabel) {
+	record LinkInput(String leftLabel, String rightLabel, String leftImageWebp, String rightImageWebp) {
+		public LinkInput(String leftLabel, String rightLabel) {
+			this(leftLabel, rightLabel, null, null);
+		}
 	}
 
 	/**
@@ -222,7 +240,10 @@ public interface TeacherQuestionUseCase {
 	/**
 	 * @param columnIndex index 0-based dans la liste {@code columns} de la même requête
 	 */
-	record CardInput(String label, Integer columnIndex) {
+	record CardInput(String label, Integer columnIndex, String imageWebp) {
+		public CardInput(String label, Integer columnIndex) {
+			this(label, columnIndex, null);
+		}
 	}
 
 	/** Phrase à trous, mots justes dans l'ordre des ___ et leurres de la banque. */
@@ -303,6 +324,9 @@ public interface TeacherQuestionUseCase {
 	/**
 	 * Un élément : son nom affiché, et pour le genre couleurs son code {@code #rrggbb}.
 	 */
-	record SimonElementInput(String label, String color) {
+	record SimonElementInput(String label, String color, String imageWebp) {
+		public SimonElementInput(String label, String color) {
+			this(label, color, null);
+		}
 	}
 }

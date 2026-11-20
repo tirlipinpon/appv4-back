@@ -738,9 +738,9 @@ class TeacherQuestionControllerTest {
 								  "prompt":"",
 								  "elementType":"couleurs",
 								  "elements":[
-								    {"label":"rouge","color":"#FF0000"},
-								    {"label":"bleu","color":"#0000ff"},
-								    {"label":"vert","color":"#00ff00"}
+								    {"color":"#FF0000"},
+								    {"color":"#0000ff"},
+								    {"color":"#00ff00"}
 								  ],
 								  "sequence":[0,1,2,0]
 								}
@@ -773,7 +773,7 @@ class TeacherQuestionControllerTest {
 								}
 								"""))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.message").value(TeacherQuestionService.SIMON_ELEMENT_NAME_REQUIRED));
+				.andExpect(jsonPath("$.message").value(TeacherQuestionService.SIMON_FACE));
 	}
 
 	@Test

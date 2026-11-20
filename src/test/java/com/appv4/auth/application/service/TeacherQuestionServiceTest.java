@@ -1581,11 +1581,11 @@ class TeacherQuestionServiceTest {
 
 		QuestionLine line = service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "simon", "  ",
-				new SimonInput("couleurs", List.of(
-						new SimonElementInput(" rouge ", "#FF0000"),
-						new SimonElementInput("bleu", "#0000ff"),
-						new SimonElementInput("vert", "#00ff00")),
-						List.of(0, 1, 2, 0)));
+				new SimonInput(null, List.of(
+						new SimonElementInput(null, " #FF0000 "),
+						new SimonElementInput(null, "#0000ff"),
+						new SimonElementInput(null, "#00FF00")),
+						List.of()));
 
 		assertThat(line.formLabel()).isEqualTo("Simon");
 		assertThat(line.elementType()).isEqualTo("couleurs");
@@ -1596,21 +1596,24 @@ class TeacherQuestionServiceTest {
 
 		ArgumentCaptor<SimonDraft> captor = ArgumentCaptor.forClass(SimonDraft.class);
 		verify(questions).insert(eq(SUBJECT_ID), eq("simon"), eq(""), captor.capture());
-		assertThat(captor.getValue()).isEqualTo(simonDraft());
+		assertThat(captor.getValue()).isEqualTo(new SimonDraft("libre", List.of(
+				new SimonElementDraft(null, "#ff0000"),
+				new SimonElementDraft(null, "#0000ff"),
+				new SimonElementDraft(null, "#00ff00"))));
 	}
 
 	@Test
-	void simonRefusesAColorAmongNumbers() {
+	void simonRefusesTextAndColorOnTheSameElement() {
 		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
 
 		assertThatThrownBy(() -> service.create(
 				TEACHER_ID, "teacher", SUBJECT_ID, "simon", "",
-				new SimonInput("nombres", List.of(
-						new SimonElementInput("1", null),
-						new SimonElementInput("rouge", "#ff0000")),
-						List.of(0, 1))))
+				new SimonInput(null, List.of(
+						new SimonElementInput("rouge", "#ff0000"),
+						new SimonElementInput("chat", null)),
+						List.of())))
 				.isInstanceOf(AuthDomainException.class)
-				.hasMessage(TeacherQuestionService.SIMON_NUMBER_REQUIRED);
+				.hasMessage(TeacherQuestionService.SIMON_FACE);
 
 		verify(questions, never()).insert(eq(SUBJECT_ID), eq("simon"), any(), any());
 	}
@@ -1630,7 +1633,7 @@ class TeacherQuestionServiceTest {
 
 		ArgumentCaptor<SimonDraft> captor = ArgumentCaptor.forClass(SimonDraft.class);
 		verify(questions).replace(eq(17L), eq(""), captor.capture());
-		assertThat(captor.getValue()).isEqualTo(new SimonDraft("lettres", List.of(
+		assertThat(captor.getValue()).isEqualTo(new SimonDraft("libre", List.of(
 				new SimonElementDraft("A", null),
 				new SimonElementDraft("B", null))));
 		verify(questions, never()).ensureForm(eq(SUBJECT_ID), eq("simon"), any(), anyInt());

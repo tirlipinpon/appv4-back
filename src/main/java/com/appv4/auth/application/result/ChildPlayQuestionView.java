@@ -57,31 +57,49 @@ public record ChildPlayQuestionView(
 			implements Payload {
 	}
 
-	public record PlayChoice(long choiceId, String label) {
+	public record PlayChoice(long choiceId, String label, String imageWebp) {
+		public PlayChoice(long choiceId, String label) {
+			this(choiceId, label, "");
+		}
 	}
 
-	public record PlayStatement(long statementId, String label) {
+	public record PlayStatement(long statementId, String label, String imageWebp) {
+		public PlayStatement(long statementId, String label) {
+			this(statementId, label, "");
+		}
 	}
 
 	public record PlayPair(long pairId, String questionSide, String answerSide) {
 	}
 
-	public record PlayMemoryCard(UUID cardId, String label) {
+	public record PlayMemoryCard(UUID cardId, String label, String imageWebp) {
+		public PlayMemoryCard(UUID cardId, String label) {
+			this(cardId, label, "");
+		}
 	}
 
-	public record PlayItem(long itemId, String label, String axisLabel) {
+	public record PlayItem(long itemId, String label, String axisLabel, String imageWebp) {
+		public PlayItem(long itemId, String label, String axisLabel) {
+			this(itemId, label, axisLabel, "");
+		}
 	}
 
 	public record PlayColumn(long columnId, String label) {
 	}
 
-	public record PlayCard(long cardId, String label) {
+	public record PlayCard(long cardId, String label, String imageWebp) {
+		public PlayCard(long cardId, String label) {
+			this(cardId, label, "");
+		}
 	}
 
 	public record PlayLink(long linkId, String leftLabel, String rightLabel) {
 	}
 
-	public record PlayLinkOption(UUID optionId, String label) {
+	public record PlayLinkOption(UUID optionId, String label, String imageWebp) {
+		public PlayLinkOption(UUID optionId, String label) {
+			this(optionId, label, "");
+		}
 	}
 
 	public record PlayGapWord(long wordId, String label) {
@@ -101,6 +119,9 @@ public record ChildPlayQuestionView(
 			Double slotX, Double slotY, Double slotWidth) {
 	}
 
-	public record PlaySimonElement(String label, String color) {
+	public record PlaySimonElement(String label, String color, String imageWebp) {
+		public PlaySimonElement(String label, String color) {
+			this(label, color, "");
+		}
 	}
 }

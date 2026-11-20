@@ -154,6 +154,19 @@ public class TeacherQuestionController {
 				teacherQuestionUseCase.list(user.userId(), user.activeRole(), subjectId, afterId, limit)));
 	}
 
+	@GetMapping("/subjects/{subjectId}/questions/{questionId}")
+	@Operation(operationId = "getTeacherSubjectQuestion", summary = "Lire une question avec ses images")
+	@ApiResponse(responseCode = "200", description = "Question, octets des images inclus")
+	@ApiResponse(responseCode = "404", description = "Matière ou question absente pour ce professeur")
+	public ResponseEntity<TeacherSubjectQuestionItem> get(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@PathVariable long questionId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		return ResponseEntity.ok(item(
+				teacherQuestionUseCase.get(user.userId(), user.activeRole(), subjectId, questionId), true));
+	}
+
 	@PostMapping("/subjects/{subjectId}/questions")
 	@Operation(operationId = "createTeacherSubjectQuestion", summary = "Ajouter une question à une matière")
 	@ApiResponse(responseCode = "200", description = "Question enregistrée")
@@ -187,7 +200,7 @@ public class TeacherQuestionController {
 				body.prompt(),
 				content(body),
 				gamification(body));
-		return ResponseEntity.ok(item(line));
+		return ResponseEntity.ok(item(line, true));
 	}
 
 	@PutMapping("/subjects/{subjectId}/questions/{questionId}")
@@ -225,7 +238,7 @@ public class TeacherQuestionController {
 				body.prompt(),
 				content(body),
 				gamification(body));
-		return ResponseEntity.ok(item(line));
+		return ResponseEntity.ok(item(line, true));
 	}
 
 	@PostMapping("/subjects/{subjectId}/questions/{questionId}/attempt")
@@ -422,7 +435,9 @@ public class TeacherQuestionController {
 		}
 		List<SimonElementInput> inputs = new ArrayList<>();
 		for (TeacherQuestionSimonElementInput element : elements) {
-			inputs.add(element == null ? null : new SimonElementInput(element.label(), element.color()));
+			inputs.add(element == null
+					? null
+					: new SimonElementInput(element.label(), element.color(), element.imageWebp()));
 		}
 		return inputs;
 	}
@@ -436,7 +451,7 @@ public class TeacherQuestionController {
 			if (choice == null) {
 				continue;
 			}
-			inputs.add(new ChoiceInput(choice.label(), choice.correct()));
+			inputs.add(new ChoiceInput(choice.label(), choice.correct(), choice.imageWebp()));
 		}
 		return inputs;
 	}
@@ -450,7 +465,8 @@ public class TeacherQuestionController {
 			if (pair == null) {
 				continue;
 			}
-			inputs.add(new PairInput(pair.questionSide(), pair.answerSide()));
+			inputs.add(new PairInput(
+					pair.questionSide(), pair.answerSide(), pair.questionImageWebp(), pair.answerImageWebp()));
 		}
 		return inputs;
 	}
@@ -464,7 +480,7 @@ public class TeacherQuestionController {
 			if (item == null) {
 				continue;
 			}
-			inputs.add(new ItemInput(item.label(), item.axisLabel()));
+			inputs.add(new ItemInput(item.label(), item.axisLabel(), item.imageWebp()));
 		}
 		return inputs;
 	}
@@ -478,7 +494,7 @@ public class TeacherQuestionController {
 			if (statement == null) {
 				continue;
 			}
-			inputs.add(new StatementInput(statement.label(), statement.truthful()));
+			inputs.add(new StatementInput(statement.label(), statement.truthful(), statement.imageWebp()));
 		}
 		return inputs;
 	}
@@ -555,7 +571,7 @@ public class TeacherQuestionController {
 			if (link == null) {
 				continue;
 			}
-			inputs.add(new LinkInput(link.leftLabel(), link.rightLabel()));
+			inputs.add(new LinkInput(link.leftLabel(), link.rightLabel(), link.leftImageWebp(), link.rightImageWebp()));
 		}
 		return inputs;
 	}
@@ -583,7 +599,7 @@ public class TeacherQuestionController {
 			if (card == null) {
 				continue;
 			}
-			inputs.add(new CardInput(card.label(), card.columnIndex()));
+			inputs.add(new CardInput(card.label(), card.columnIndex(), card.imageWebp()));
 		}
 		return inputs;
 	}
@@ -605,31 +621,43 @@ public class TeacherQuestionController {
 	private static TeacherSubjectQuestionsResponse questions(TeacherSubjectQuestionsView view) {
 		List<TeacherSubjectQuestionItem> items = new ArrayList<>();
 		for (QuestionLine line : view.questions()) {
-			items.add(item(line));
+			items.add(item(line, false));
 		}
 		return new TeacherSubjectQuestionsResponse(items, view.nextCursor());
 	}
 
-	private static TeacherSubjectQuestionItem item(QuestionLine line) {
+	private static TeacherSubjectQuestionItem item(QuestionLine line, boolean includeBytes) {
 		List<TeacherQuestionChoiceItem> choices = new ArrayList<>();
 		for (ChoiceLine choice : line.choices()) {
-			choices.add(new TeacherQuestionChoiceItem(choice.id(), choice.label(), choice.correct()));
+			choices.add(new TeacherQuestionChoiceItem(
+					choice.id(), choice.label(), choice.correct(),
+					bytes(choice.imageWebp(), includeBytes), hasImage(choice.imageWebp())));
 		}
 		List<TeacherQuestionPairItem> pairs = new ArrayList<>();
 		for (PairLine pair : line.pairs()) {
-			pairs.add(new TeacherQuestionPairItem(pair.id(), pair.questionSide(), pair.answerSide()));
+			pairs.add(new TeacherQuestionPairItem(
+					pair.id(), pair.questionSide(), pair.answerSide(),
+					bytes(pair.questionImageWebp(), includeBytes), hasImage(pair.questionImageWebp()),
+					bytes(pair.answerImageWebp(), includeBytes), hasImage(pair.answerImageWebp())));
 		}
 		List<TeacherQuestionItem> items = new ArrayList<>();
 		for (ItemLine orderItem : line.items()) {
-			items.add(new TeacherQuestionItem(orderItem.id(), orderItem.label(), orderItem.axisLabel()));
+			items.add(new TeacherQuestionItem(
+					orderItem.id(), orderItem.label(), orderItem.axisLabel(),
+					bytes(orderItem.imageWebp(), includeBytes), hasImage(orderItem.imageWebp())));
 		}
 		List<TeacherQuestionStatementItem> statements = new ArrayList<>();
 		for (StatementLine statement : line.statements()) {
-			statements.add(new TeacherQuestionStatementItem(statement.id(), statement.label(), statement.truthful()));
+			statements.add(new TeacherQuestionStatementItem(
+					statement.id(), statement.label(), statement.truthful(),
+					bytes(statement.imageWebp(), includeBytes), hasImage(statement.imageWebp())));
 		}
 		List<TeacherQuestionLinkItem> links = new ArrayList<>();
 		for (LinkLine link : line.links()) {
-			links.add(new TeacherQuestionLinkItem(link.id(), link.leftLabel(), link.rightLabel()));
+			links.add(new TeacherQuestionLinkItem(
+					link.id(), link.leftLabel(), link.rightLabel(),
+					bytes(link.leftImageWebp(), includeBytes), hasImage(link.leftImageWebp()),
+					bytes(link.rightImageWebp(), includeBytes), hasImage(link.rightImageWebp())));
 		}
 		List<TeacherQuestionColumnItem> columns = new ArrayList<>();
 		for (ColumnLine column : line.columns()) {
@@ -637,7 +665,9 @@ public class TeacherQuestionController {
 		}
 		List<TeacherQuestionCardItem> cards = new ArrayList<>();
 		for (CardLine card : line.cards()) {
-			cards.add(new TeacherQuestionCardItem(card.id(), card.label(), card.correctColumnId()));
+			cards.add(new TeacherQuestionCardItem(
+					card.id(), card.label(), card.correctColumnId(),
+					bytes(card.imageWebp(), includeBytes), hasImage(card.imageWebp())));
 		}
 		List<TeacherQuestionGapWordItem> answers = new ArrayList<>();
 		for (GapWordLine answer : line.answers()) {
@@ -670,13 +700,15 @@ public class TeacherQuestionController {
 		}
 		List<TeacherQuestionSimonElementItem> elements = new ArrayList<>();
 		for (SimonElementLine element : line.elements()) {
-			elements.add(new TeacherQuestionSimonElementItem(element.id(), element.label(), element.color()));
+			elements.add(new TeacherQuestionSimonElementItem(
+					element.id(), element.label(), element.color(),
+					bytes(element.imageWebp(), includeBytes), hasImage(element.imageWebp())));
 		}
 		return new TeacherSubjectQuestionItem(
 				line.id(), line.formCode(), line.formLabel(), line.prompt(),
 				choices, pairs, items, statements, links, columns, cards, line.sentence(), answers, decoys,
-				line.expectedAnswer(), base64(line.imageWebp()), line.boardMode(),
-				base64(line.boardImageWebp()), line.requireAllCorrect(), zones, pieces, line.snapDistance(),
+				line.expectedAnswer(), bytes(line.imageWebp(), includeBytes), line.boardMode(),
+				bytes(line.boardImageWebp(), includeBytes), line.requireAllCorrect(), zones, pieces, line.snapDistance(),
 				line.timelineEnabled(), line.clicksOrdered(), line.elementType(), elements, line.sequence(),
 				gamificationItem(line.gamification()));
 	}
@@ -710,6 +742,14 @@ public class TeacherQuestionController {
 			items.add(new TeacherQuestionPointItem(point.x(), point.y()));
 		}
 		return items;
+	}
+
+	private static String bytes(byte[] value, boolean include) {
+		return include ? base64(value) : "";
+	}
+
+	private static boolean hasImage(byte[] value) {
+		return value != null && value.length > 0;
 	}
 
 	private static String base64(byte[] bytes) {
@@ -825,23 +865,30 @@ public class TeacherQuestionController {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceItem")
-	public record TeacherQuestionChoiceItem(long id, String label, boolean correct) {
+	public record TeacherQuestionChoiceItem(
+			long id, String label, boolean correct, String imageWebp, boolean hasImage) {
 	}
 
 	@Schema(name = "TeacherQuestionPairItem")
-	public record TeacherQuestionPairItem(long id, String questionSide, String answerSide) {
+	public record TeacherQuestionPairItem(
+			long id, String questionSide, String answerSide,
+			String questionImageWebp, boolean questionHasImage,
+			String answerImageWebp, boolean answerHasImage) {
 	}
 
 	@Schema(name = "TeacherQuestionItem")
-	public record TeacherQuestionItem(long id, String label, String axisLabel) {
+	public record TeacherQuestionItem(long id, String label, String axisLabel, String imageWebp, boolean hasImage) {
 	}
 
 	@Schema(name = "TeacherQuestionStatementItem")
-	public record TeacherQuestionStatementItem(long id, String label, boolean truthful) {
+	public record TeacherQuestionStatementItem(
+			long id, String label, boolean truthful, String imageWebp, boolean hasImage) {
 	}
 
 	@Schema(name = "TeacherQuestionLinkItem")
-	public record TeacherQuestionLinkItem(long id, String leftLabel, String rightLabel) {
+	public record TeacherQuestionLinkItem(
+			long id, String leftLabel, String rightLabel,
+			String leftImageWebp, boolean leftHasImage, String rightImageWebp, boolean rightHasImage) {
 	}
 
 	@Schema(name = "TeacherQuestionColumnItem")
@@ -849,7 +896,8 @@ public class TeacherQuestionController {
 	}
 
 	@Schema(name = "TeacherQuestionCardItem")
-	public record TeacherQuestionCardItem(long id, String label, long correctColumnId) {
+	public record TeacherQuestionCardItem(
+			long id, String label, long correctColumnId, String imageWebp, boolean hasImage) {
 	}
 
 	@Schema(name = "TeacherQuestionGapWordItem")
@@ -925,19 +973,21 @@ public class TeacherQuestionController {
 
 	@Schema(name = "TeacherQuestionSimonElementInput")
 	public record TeacherQuestionSimonElementInput(
-			@Schema(description = "Nom affiché : rouge, 7, B, cercle. Nombres : un nombre. Lettres : une seule lettre.")
+			@Schema(description = "Texte libre. Absent si l'élément est une image ou une couleur.")
 			String label,
-			@Schema(description = "Genre couleurs seulement, obligatoire : code #rrggbb. "
-					+ "Absent pour les autres genres.")
-			String color) {
+			@Schema(description = "Code #rrggbb si l'élément est une couleur sans mot.")
+			String color,
+			@Schema(description = "WebP base64 si l'élément est une image.")
+			String imageWebp) {
 	}
 
 	@Schema(name = "TeacherQuestionSimonElementItem")
 	public record TeacherQuestionSimonElementItem(
 			long id,
 			String label,
-			@Schema(description = "Code #rrggbb en minuscules pour le genre couleurs. Absent pour les autres genres.")
-			String color) {
+			String color,
+			String imageWebp,
+			boolean hasImage) {
 	}
 
 	@Schema(name = "TeacherQuestionColumnInput")
@@ -945,7 +995,7 @@ public class TeacherQuestionController {
 	}
 
 	@Schema(name = "TeacherQuestionCardInput")
-	public record TeacherQuestionCardInput(String label, Integer columnIndex) {
+	public record TeacherQuestionCardInput(String label, Integer columnIndex, String imageWebp) {
 	}
 
 	@Schema(name = "TeacherQuestionPieceInput")
@@ -1001,23 +1051,25 @@ public class TeacherQuestionController {
 	}
 
 	@Schema(name = "TeacherQuestionChoiceInput")
-	public record TeacherQuestionChoiceInput(String label, Boolean correct) {
+	public record TeacherQuestionChoiceInput(String label, Boolean correct, String imageWebp) {
 	}
 
 	@Schema(name = "TeacherQuestionPairInput")
-	public record TeacherQuestionPairInput(String questionSide, String answerSide) {
+	public record TeacherQuestionPairInput(
+			String questionSide, String answerSide, String questionImageWebp, String answerImageWebp) {
 	}
 
 	@Schema(name = "TeacherQuestionItemInput")
-	public record TeacherQuestionItemInput(String label, String axisLabel) {
+	public record TeacherQuestionItemInput(String label, String axisLabel, String imageWebp) {
 	}
 
 	@Schema(name = "TeacherQuestionStatementInput")
-	public record TeacherQuestionStatementInput(String label, @NotNull Boolean truthful) {
+	public record TeacherQuestionStatementInput(String label, @NotNull Boolean truthful, String imageWebp) {
 	}
 
 	@Schema(name = "TeacherQuestionLinkInput")
-	public record TeacherQuestionLinkInput(String leftLabel, String rightLabel) {
+	public record TeacherQuestionLinkInput(
+			String leftLabel, String rightLabel, String leftImageWebp, String rightImageWebp) {
 	}
 
 	@Schema(name = "TeacherQuestionGapWordInput")

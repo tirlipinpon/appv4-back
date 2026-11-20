@@ -58,12 +58,9 @@ public final class OrderQuestionForm implements QuestionFormHandler {
 				if (item == null) {
 					continue;
 				}
-				String label = item.label() == null ? "" : item.label().trim();
-				if (label.isEmpty()) {
+				PieceFaces.Face face = PieceFaces.optional(item.label(), item.imageWebp(), CHOICE_MAX, ITEM_TOO_LONG);
+				if (face == null) {
 					continue;
-				}
-				if (label.length() > CHOICE_MAX) {
-					throw bad(ITEM_TOO_LONG);
 				}
 				String axis = item.axisLabel() == null ? "" : item.axisLabel().trim();
 				if (timelineEnabled) {
@@ -73,9 +70,9 @@ public final class OrderQuestionForm implements QuestionFormHandler {
 					if (axis.length() > AXIS_MAX) {
 						throw bad(AXIS_LABEL_TOO_LONG);
 					}
-					kept.add(new TeacherQuestionPort.ItemDraft(label, axis));
+					kept.add(new TeacherQuestionPort.ItemDraft(face.label(), axis, face.imageWebp()));
 				} else {
-					kept.add(new TeacherQuestionPort.ItemDraft(label, null));
+					kept.add(new TeacherQuestionPort.ItemDraft(face.label(), null, face.imageWebp()));
 				}
 			}
 		}

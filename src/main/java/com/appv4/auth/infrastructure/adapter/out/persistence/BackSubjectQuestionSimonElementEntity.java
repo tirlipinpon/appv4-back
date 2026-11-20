@@ -26,11 +26,14 @@ public class BackSubjectQuestionSimonElementEntity {
 	@Column(name = "question_id", nullable = false)
 	private long questionId;
 
-	@Column(name = "label", nullable = false, length = 200)
+	@Column(name = "label", length = 200)
 	private String label;
 
 	@Column(name = "color", length = 7)
 	private String color;
+
+	@Column(name = "image_webp")
+	private byte[] imageWebp;
 
 	@Column(name = "sort_order", nullable = false)
 	private int sortOrder;
@@ -39,10 +42,16 @@ public class BackSubjectQuestionSimonElementEntity {
 	}
 
 	public BackSubjectQuestionSimonElementEntity(long questionId, String label, String color, int sortOrder) {
+		this(questionId, label, color, sortOrder, null);
+	}
+
+	public BackSubjectQuestionSimonElementEntity(
+			long questionId, String label, String color, int sortOrder, byte[] imageWebp) {
 		this.questionId = questionId;
 		this.label = label;
 		this.color = color;
 		this.sortOrder = sortOrder;
+		this.imageWebp = imageWebp;
 	}
 
 	public Long getId() {
@@ -59,6 +68,10 @@ public class BackSubjectQuestionSimonElementEntity {
 
 	public String getColor() {
 		return color;
+	}
+
+	public byte[] getImageWebp() {
+		return imageWebp;
 	}
 
 	public int getSortOrder() {

@@ -40,15 +40,20 @@ public final class MemoryQuestionForm implements QuestionFormHandler {
 				if (pair == null) {
 					continue;
 				}
-				String questionSide = pair.questionSide() == null ? "" : pair.questionSide().trim();
-				String answerSide = pair.answerSide() == null ? "" : pair.answerSide().trim();
-				if (questionSide.isEmpty() || answerSide.isEmpty()) {
+				String questionSide = pair.questionSide();
+				String answerSide = pair.answerSide();
+				PieceFaces.Face questionFace = PieceFaces.optional(
+						questionSide, pair.questionImageWebp(), CHOICE_MAX, PAIR_TOO_LONG);
+				PieceFaces.Face answerFace = PieceFaces.optional(
+						answerSide, pair.answerImageWebp(), CHOICE_MAX, PAIR_TOO_LONG);
+				if (questionFace == null || answerFace == null) {
 					continue;
 				}
-				if (questionSide.length() > CHOICE_MAX || answerSide.length() > CHOICE_MAX) {
-					throw bad(PAIR_TOO_LONG);
-				}
-				kept.add(new TeacherQuestionPort.PairDraft(questionSide, answerSide));
+				kept.add(new TeacherQuestionPort.PairDraft(
+						questionFace.label(),
+						answerFace.label(),
+						questionFace.imageWebp(),
+						answerFace.imageWebp()));
 			}
 		}
 		if (kept.size() < 2) {

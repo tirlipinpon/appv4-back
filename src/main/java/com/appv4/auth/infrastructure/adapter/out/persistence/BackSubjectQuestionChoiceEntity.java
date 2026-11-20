@@ -26,8 +26,11 @@ public class BackSubjectQuestionChoiceEntity {
 	@Column(name = "question_id", nullable = false)
 	private long questionId;
 
-	@Column(nullable = false, length = 200)
+	@Column(nullable = true, length = 200)
 	private String label;
+
+	@Column(name = "image_webp")
+	private byte[] imageWebp;
 
 	@Column(nullable = false)
 	private boolean correct;
@@ -39,10 +42,16 @@ public class BackSubjectQuestionChoiceEntity {
 	}
 
 	public BackSubjectQuestionChoiceEntity(long questionId, String label, boolean correct, int sortOrder) {
+		this(questionId, label, correct, sortOrder, null);
+	}
+
+	public BackSubjectQuestionChoiceEntity(
+			long questionId, String label, boolean correct, int sortOrder, byte[] imageWebp) {
 		this.questionId = questionId;
 		this.label = label;
 		this.correct = correct;
 		this.sortOrder = sortOrder;
+		this.imageWebp = imageWebp;
 	}
 
 	public long getQuestionId() {
@@ -55,6 +64,10 @@ public class BackSubjectQuestionChoiceEntity {
 
 	public String getLabel() {
 		return label;
+	}
+
+	public byte[] getImageWebp() {
+		return imageWebp;
 	}
 
 	public boolean isCorrect() {

@@ -38,7 +38,8 @@ public class StatementQuestionContentStore implements QuestionContentStore {
 		}
 		for (BackSubjectQuestionStatementEntity row : repository
 				.findByQuestionIdInOrderByQuestionIdAscSortOrderAsc(questionIds)) {
-			grouped.get(row.getQuestionId()).add(new StoredStatement(row.getId(), row.getLabel(), row.isTruthful()));
+			grouped.get(row.getQuestionId()).add(new StoredStatement(
+					row.getId(), row.getLabel(), row.isTruthful(), row.getImageWebp()));
 		}
 		Map<Long, StoredContent> contents = new HashMap<>();
 		grouped.forEach((id, rows) -> contents.put(id, new StoredStatements(rows)));
@@ -52,10 +53,12 @@ public class StatementQuestionContentStore implements QuestionContentStore {
 		}
 		List<BackSubjectQuestionStatementEntity> rows = new ArrayList<>();
 		for (var row : draft.statements()) {
-			rows.add(new BackSubjectQuestionStatementEntity(questionId, row.label(), row.truthful(), rows.size()));
+			rows.add(new BackSubjectQuestionStatementEntity(
+					questionId, row.label(), row.truthful(), rows.size(), row.imageWebp()));
 		}
 		return new StoredStatements(repository.saveAllAndFlush(rows).stream()
-				.map(row -> new StoredStatement(row.getId(), row.getLabel(), row.isTruthful())).toList());
+				.map(row -> new StoredStatement(
+						row.getId(), row.getLabel(), row.isTruthful(), row.getImageWebp())).toList());
 	}
 
 	@Override

@@ -40,18 +40,18 @@ public final class LinkQuestionForm implements QuestionFormHandler {
 				if (link == null) {
 					continue;
 				}
-				String left = link.leftLabel() == null ? "" : link.leftLabel().trim();
-				String right = link.rightLabel() == null ? "" : link.rightLabel().trim();
-				if (left.isEmpty() && right.isEmpty()) {
+				PieceFaces.Face leftFace = PieceFaces.optional(
+						link.leftLabel(), link.leftImageWebp(), LABEL_MAX, LINK_TOO_LONG);
+				PieceFaces.Face rightFace = PieceFaces.optional(
+						link.rightLabel(), link.rightImageWebp(), LABEL_MAX, LINK_TOO_LONG);
+				if (leftFace == null && rightFace == null) {
 					continue;
 				}
-				if (left.isEmpty() || right.isEmpty()) {
+				if (leftFace == null || rightFace == null) {
 					throw bad(LINK_INCOMPLETE);
 				}
-				if (left.length() > LABEL_MAX || right.length() > LABEL_MAX) {
-					throw bad(LINK_TOO_LONG);
-				}
-				kept.add(new TeacherQuestionPort.LinkDraft(left, right));
+				kept.add(new TeacherQuestionPort.LinkDraft(
+						leftFace.label(), rightFace.label(), leftFace.imageWebp(), rightFace.imageWebp()));
 			}
 		}
 		if (kept.size() < 2) {

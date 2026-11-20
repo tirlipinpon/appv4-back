@@ -41,14 +41,11 @@ public final class QcmQuestionForm implements QuestionFormHandler {
 				if (choice == null) {
 					continue;
 				}
-				String label = choice.label() == null ? "" : choice.label().trim();
-				if (label.isEmpty()) {
+				PieceFaces.Face face = PieceFaces.optional(choice.label(), choice.imageWebp(), CHOICE_MAX, CHOICE_TOO_LONG);
+				if (face == null) {
 					continue;
 				}
-				if (label.length() > CHOICE_MAX) {
-					throw bad(CHOICE_TOO_LONG);
-				}
-				kept.add(new ChoiceDraft(label, Boolean.TRUE.equals(choice.correct())));
+				kept.add(new ChoiceDraft(face.label(), Boolean.TRUE.equals(choice.correct()), face.imageWebp()));
 			}
 		}
 		if (kept.size() < 2) {

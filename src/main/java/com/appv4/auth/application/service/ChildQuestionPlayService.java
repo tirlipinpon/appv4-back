@@ -12,25 +12,42 @@ import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.NewAttempt;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredAttempt;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSimonChallengePort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.QuestionMark;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.result.ChildAttemptResultView;
 import com.appv4.auth.application.result.ChildLetterLocksView;
 import com.appv4.auth.application.result.ChildPlayQuestionView;
+import com.appv4.auth.application.service.question.QuestionGamification;
 import com.appv4.auth.application.service.question.play.ChildAnswerGrade;
 import com.appv4.auth.application.service.question.play.PlayableQuestionForm;
 import com.appv4.auth.application.service.question.play.QuestionPlayEngine;
 
-/** Orchestration des parties enfant, de la correction à la progression. */
+/**
+ * Orchestration d'une page de jeu : budget, correction, étoile, paiement.
+ *
+ * <p><b>Business :</b> une page ratée jusqu'au bout pose une étoile noire. Une réussite au
+ * premier essai pose ou remplace par une étoile jaune. Une question déjà jaune ne rapporte
+ * plus de points, sauf si ce premier essai peut encore faire avancer la mission du jour.
+ * <p><b>Technique :</b> une seule transaction. La marque est verrouillée puis relue avant
+ * d'ajouter une étoile, puis réécrite. Le verdict fige l'étoile de cet essai pour qu'une
+ * relance renvoie la même.
+ * <p><b>Métier / flow :</b> jeton enfant → réserve de la page → correction → étoile →
+ * progression et mission seulement si l'essai est payé.
+ */
 public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 	public static final String INVALID_SESSION_MESSAGE = LoginChildService.INVALID_SESSION_MESSAGE;
 	public static final String SUBJECT_MISSING = ReadChildLearningSubjectsService.SUBJECT_MISSING;
 	public static final String QUESTION_MISSING = "Question introuvable.";
 	public static final String FORM_UNSUPPORTED = PlayableQuestionForm.UNSUPPORTED;
+	public static final String ATTEMPTS_EXHAUSTED = "Cette partie n'a plus d'essai.";
+	public static final String PAGE_REQUIRED = "Cette validation doit indiquer la page ouverte.";
 
 	private final ChildLoginPort childLoginPort;
 	private final ChildSessionTokenPort childSessionTokenPort;
@@ -55,6 +72,16 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		this.childSimonChallengePort = childSimonChallengePort;
 		this.updateChildProgressAfterAttemptService = updateChildProgressAfterAttemptService;
 		this.childDailyMissionService = childDailyMissionService;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public PlayAllowance allowance(String rawToken, long subjectId, long questionId, UUID playId) {
+		long childId = requireLinkedChild(rawToken, subjectId);
+		requireQuestion(subjectId, questionId);
+		QuestionGamification.Resolved scale = scaleOf(questionId);
+		int used = playId == null ? 0 : childQuestionAttemptPort.attemptsUsed(playId, childId, subjectId, questionId);
+		return new PlayAllowance(scale.maxAttempts(), Math.max(0, scale.maxAttempts() - used));
 	}
 
 	@Override
@@ -83,15 +110,48 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			}
 			return result(stored);
 		}
+		if (submission.playId() == null) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, PAGE_REQUIRED);
+		}
 		StoredQuestion question = requireQuestion(subjectId, questionId);
+		QuestionGamification.Resolved scale = scaleOf(questionId);
 		List<Integer> sequence = sequenceFor(childId, question, submission);
 		ChildAnswerGrade grade = QuestionPlayEngine.grade(question, submission, sequence);
+		PageClaim seat = seat(childId, subjectId, questionId, submission, scale);
+		StoredMark before = childQuestionAttemptPort.lockMark(childId, questionId)
+				.orElse(new StoredMark(QuestionMark.NONE, 0));
+		boolean alreadyYellow = before.code() == QuestionMark.YELLOW;
+		QuestionMark mark = before.code();
+		int yellowCount = before.yellowCount();
+		if (grade.passed() && seat.rank() == 1) {
+			mark = QuestionMark.YELLOW;
+			yellowCount = alreadyYellow ? before.yellowCount() + 1 : 1;
+		} else if (grade.passed() && alreadyYellow) {
+			mark = QuestionMark.YELLOW;
+			yellowCount = before.yellowCount() + 1;
+		} else if (!grade.passed() && seat.attemptsRemaining() == 0 && !alreadyYellow) {
+			mark = QuestionMark.BLACK;
+			yellowCount = 0;
+		}
+		boolean missionPaysYellow = alreadyYellow && grade.passed() && seat.rank() == 1
+				&& childDailyMissionService.subjectTaskHasRoom(childId, subjectId);
+		boolean pay = grade.passed() && (!alreadyYellow || missionPaysYellow);
+		int points = pay ? scale.points().get(seat.rank() - 1) : 0;
+		if (mark != QuestionMark.NONE && (yellowCount != before.yellowCount() || mark != before.code())) {
+			childQuestionAttemptPort.saveMark(childId, questionId, mark, yellowCount);
+		}
 		StoredAttempt saved = childQuestionAttemptPort.insert(new NewAttempt(
 				childId, subjectId, questionId, question.formCode(), grade.scorePercent(), grade.passed(), grade.answers(),
-				submission.submissionId()));
-		updateChildProgressAfterAttemptService.apply(childId, saved.scorePercent());
-		childDailyMissionService.recordUsefulAttempt(childId, subjectId, saved.scorePercent(), saved.passed());
-		return result(saved);
+				submission.submissionId(), seat.rank(), seat.attemptsRemaining(), points, mark, yellowCount));
+		if (pay) {
+			updateChildProgressAfterAttemptService.apply(childId, saved.scorePercent());
+		}
+		if (pay && seat.rank() == 1) {
+			childDailyMissionService.recordUsefulAttempt(childId, subjectId, saved.scorePercent(), saved.passed());
+		}
+		return new ChildAttemptResultView(
+				saved.id(), grade.scorePercent(), grade.passed(), seat.rank(), seat.attemptsRemaining(), points,
+				seat.attemptsRemaining() > 0, mark, yellowCount);
 	}
 
 	@Override
@@ -129,8 +189,39 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		return PlayableQuestionForm.SIMON.code().equals(question.formCode());
 	}
 
+	/**
+	 * Le barème enregistré, ou le défaut (1 essai, Facile, 10 points) si la question n'en a pas.
+	 * Le drapeau « gamification coupée » n'est pas lu ici.
+	 */
+	private QuestionGamification.Resolved scaleOf(long questionId) {
+		var stored = teacherQuestionPort.gamificationOf(questionId);
+		return stored == null
+				? QuestionGamification.defaults()
+				: QuestionGamification.resolve(
+						stored.maxAttempts(), stored.difficulty(), stored.customizePoints(),
+						stored.gamificationDisabled(), stored.customPoints());
+	}
+
+	private PageClaim seat(
+			long childId, long subjectId, long questionId, Submission submission, QuestionGamification.Resolved scale) {
+		return childQuestionAttemptPort
+				.claim(submission.playId(), childId, subjectId, questionId, scale.maxAttempts())
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.ATTEMPTS_EXHAUSTED, ATTEMPTS_EXHAUSTED));
+	}
+
+	/**
+	 * Une tentative écrite avant le budget de page n'a pas ces colonnes.
+	 * On la relit alors comme un premier essai déjà clos, sans points de barème et sans étoile.
+	 */
 	private static ChildAttemptResultView result(StoredAttempt attempt) {
-		return new ChildAttemptResultView(attempt.id(), attempt.scorePercent(), attempt.passed());
+		int rank = attempt.attemptRank() == null ? 1 : attempt.attemptRank();
+		int remaining = attempt.attemptsRemaining() == null ? 0 : attempt.attemptsRemaining();
+		int points = attempt.pointsAwarded() == null ? 0 : attempt.pointsAwarded();
+		QuestionMark mark = attempt.markCode() == null ? QuestionMark.NONE : attempt.markCode();
+		int yellowCount = attempt.yellowCount() == null ? 0 : attempt.yellowCount();
+		return new ChildAttemptResultView(
+				attempt.id(), attempt.scorePercent(), attempt.passed(), rank, remaining, points, remaining > 0,
+				mark, yellowCount);
 	}
 
 	private StoredQuestion requireQuestion(long subjectId, long questionId) {

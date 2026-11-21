@@ -43,6 +43,15 @@ public interface TeacherQuestionUseCase {
 
 	ChildPlayQuestionView preview(long userId, String activeRole, long subjectId, long questionId);
 
+	/**
+	 * Nombre d'essais du barème, pour un aperçu qui ne consomme pas de page enfant.
+	 *
+	 * <p><b>Business :</b> le professeur voit le même plafond que l'enfant, sur une simulation neuve.
+	 * <p><b>Technique :</b> lit le barème enregistré, sans écrire de tentative.
+	 * <p><b>Métier / flow :</b> GET aperçu → ce nombre devient le plafond et les essais restants.
+	 */
+	int previewMaxAttempts(long userId, String activeRole, long subjectId, long questionId);
+
 	PreviewVerdict previewAnswer(long userId, String activeRole, long subjectId, long questionId,
 			Submission submission, List<Integer> previewSequence);
 

@@ -15,6 +15,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * SCRUM-147 — vérifie le contrat et exporte {@code target/openapi.json} pour la CI.
  *
@@ -79,6 +82,19 @@ class OpenApiContractExportTest {
 		String switchRoleSlice = body.substring(switchRoleIdx, Math.min(body.length(), switchRoleIdx + 500));
 		assertThat(switchRoleSlice).contains("\"security\":[{\"bearer-jwt\":[]}]");
 
+		JsonNode contract = new ObjectMapper().readTree(body);
+		assertClosedMark(contract, "ChildAttemptResultResponse");
+		assertClosedMark(contract, "ChildLearningQuestionItem");
+		for (JsonNode variant : contract.at("/components/schemas/SubmitChildAttemptRequest/oneOf")) {
+			String ref = variant.path("$ref").asText();
+			String schemaName = ref.substring(ref.lastIndexOf('/') + 1);
+			boolean playIdRequired = false;
+			for (JsonNode field : contract.at("/components/schemas/" + schemaName + "/required")) {
+				playIdRequired = playIdRequired || "playId".equals(field.asText());
+			}
+			assertThat(playIdRequired).as(schemaName).isTrue();
+		}
+
 		Path targetOut = Path.of("target", "openapi.json");
 		Files.createDirectories(targetOut.getParent());
 		Files.writeString(targetOut, body);
@@ -94,5 +110,16 @@ class OpenApiContractExportTest {
 				.as("contrat généré dérivé de openapi/openapi.json — "
 						+ "copie target/openapi.json vers openapi/openapi.json après revue")
 				.isEqualTo(committed);
+	}
+
+	private static void assertClosedMark(JsonNode contract, String schemaName) {
+		JsonNode mark = contract.at("/components/schemas/" + schemaName + "/properties/mark");
+		if (mark.has("$ref")) {
+			String ref = mark.get("$ref").asText();
+			mark = contract.at("/components/schemas/" + ref.substring(ref.lastIndexOf('/') + 1));
+		}
+		assertThat(mark.path("enum").toString())
+				.as(schemaName)
+				.isEqualTo("[\"none\",\"black\",\"yellow\"]");
 	}
 }

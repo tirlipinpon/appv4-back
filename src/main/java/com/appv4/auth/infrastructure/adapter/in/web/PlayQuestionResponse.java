@@ -25,16 +25,18 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record PlayQuestionResponse(
 		long questionId, long subjectId, String formCode, String prompt,
 		String formLabel, String iconCode, String color, UUID challengeId,
+		int maxAttempts, int attemptsRemaining,
 		@Schema(oneOf = {PlayQcm.class, PlayTrueFalse.class, PlayMemory.class, PlayOrder.class,
 				PlayClassification.class, PlayLinks.class, PlayGaps.class, PlayImage.class,
 				PlayLetters.class, PlayText.class, PlayPuzzle.class, PlaySimon.class})
 		Payload content) {
 
-	static PlayQuestionResponse from(ChildPlayQuestionView view, QuestionFormRegistry registry) {
+	static PlayQuestionResponse from(
+			ChildPlayQuestionView view, QuestionFormRegistry registry, int maxAttempts, int attemptsRemaining) {
 		QuestionFormLooks.Look look = QuestionFormLooks.of(view.formCode());
 		return new PlayQuestionResponse(
 				view.questionId(), view.subjectId(), view.formCode(), view.prompt(), registry.labelOf(view.formCode()),
 				look == null ? null : look.iconCode(), look == null ? null : look.color(),
-				view.challengeId(), view.content());
+				view.challengeId(), maxAttempts, attemptsRemaining, view.content());
 	}
 }

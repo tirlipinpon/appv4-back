@@ -3,6 +3,8 @@ package com.appv4.auth.infrastructure.adapter.in.web;
 import java.util.List;
 import java.util.UUID;
 
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.PlayAllowance;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
+import com.appv4.auth.application.port.out.QuestionMark;
 import com.appv4.auth.application.result.ChildAttemptResultView;
 import com.appv4.auth.application.result.ChildPlayQuestionView.Payload;
 import com.appv4.auth.application.service.question.QuestionFormRegistry;
@@ -54,8 +57,11 @@ public class ChildQuestionPlayController {
 	public ResponseEntity<ChildPlayQuestionResponse> get(
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
 			@PathVariable long subjectId, @PathVariable long questionId) {
+		String token = bearer(authorization);
+		PlayAllowance allowance = play.allowance(token, subjectId, questionId, null);
 		PlayQuestionResponse body = PlayQuestionResponse.from(
-				play.question(bearer(authorization), subjectId, questionId, true), forms);
+				play.question(token, subjectId, questionId, true), forms,
+				allowance.maxAttempts(), allowance.attemptsRemaining());
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new ChildPlayQuestionResponse(
 				body.questionId(), body.subjectId(), body.formCode(), body.prompt(), body.formLabel(), body.iconCode(),
 				body.color(), body.challengeId(), body.content()));
@@ -70,9 +76,14 @@ public class ChildQuestionPlayController {
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	public ResponseEntity<PlayQuestionResponse> open(
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
-			@PathVariable long subjectId, @PathVariable long questionId) {
+			@PathVariable long subjectId, @PathVariable long questionId,
+			@RequestBody(required = false) OpenPlayRequest body) {
+		String token = bearer(authorization);
+		UUID playId = body == null ? null : body.playId();
+		PlayAllowance allowance = play.allowance(token, subjectId, questionId, playId);
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(PlayQuestionResponse.from(
-				play.question(bearer(authorization), subjectId, questionId, false), forms));
+				play.question(token, subjectId, questionId, false), forms,
+				allowance.maxAttempts(), allowance.attemptsRemaining()));
 	}
 
 	@PostMapping("/attempts")
@@ -84,15 +95,18 @@ public class ChildQuestionPlayController {
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	@ApiResponse(responseCode = "404", description = "Matière ou question absente",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
-	@ApiResponse(responseCode = "409", description = "Partie expirée, déjà jouée ou clé de soumission utilisée ailleurs",
+	@ApiResponse(responseCode = "409",
+			description = "Partie Simon expirée, clé de soumission utilisée ailleurs, ou page sans essai restant",
 			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
 	public ResponseEntity<ChildAttemptResultResponse> submit(
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
 			@PathVariable long subjectId, @PathVariable long questionId,
 			@Valid @RequestBody PlayAttemptRequest body) {
 		ChildAttemptResultView result = play.submit(bearer(authorization), subjectId, questionId, body.toSubmission());
-		return ResponseEntity.status(HttpStatus.CREATED).body(
-				new ChildAttemptResultResponse(result.attemptId(), result.scorePercent(), result.passed()));
+		return ResponseEntity.status(HttpStatus.CREATED).body(new ChildAttemptResultResponse(
+				result.attemptId(), result.scorePercent(), result.passed(), result.attemptRank(),
+				result.attemptsRemaining(), result.pointsAwarded(), result.replayAvailable(),
+				result.mark(), result.yellowCount()));
 	}
 
 	@PostMapping("/letter-locks")
@@ -133,6 +147,15 @@ public class ChildQuestionPlayController {
 	public record MemoryPairResponse(boolean matched) {
 	}
 
-	public record ChildAttemptResultResponse(long attemptId, int scorePercent, boolean passed) {
+	public record OpenPlayRequest(UUID playId) {
+	}
+
+	public record ChildAttemptResultResponse(
+			long attemptId, int scorePercent, boolean passed, int attemptRank, int attemptsRemaining,
+			int pointsAwarded, boolean replayAvailable,
+			@Schema(description = "Étoile après cet essai : none, black ou yellow.")
+			QuestionMark mark,
+			@Schema(description = "Nombre d'étoiles jaunes après cet essai. Zéro s'il n'y en a pas.")
+			int yellowCount) {
 	}
 }

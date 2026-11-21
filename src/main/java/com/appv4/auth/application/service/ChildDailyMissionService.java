@@ -67,7 +67,41 @@ public class ChildDailyMissionService implements ReadChildTodayUseCase {
 	}
 
 	/**
+	 * La tâche du jour de cette matière a encore de la place.
+	 *
+	 * <p><b>Business :</b> une question déjà jaune n'est repayée que si ce premier essai
+	 * peut encore faire avancer la mission d'aujourd'hui. Une matière absente des tâches
+	 * ne doit rien créer : l'enfant n'a pas ouvert « aujourd'hui ».
+	 * <p><b>Technique :</b> relit la mission si elle existe, sinon juge le plan en mémoire.
+	 * Aucun insert ici.
+	 * <p><b>Métier / flow :</b> le jeu demande ça avant de payer. L'insert reste dans
+	 * {@link #recordUsefulAttempt} et dans la vue du jour.
+	 */
+	@Transactional
+	public boolean subjectTaskHasRoom(long childId, long subjectId) {
+		Optional<StoredMission> existing = childDailyMissionPort.findByChildAndDate(childId, today());
+		if (existing.isPresent()) {
+			for (StoredTask task : existing.get().tasks()) {
+				if (task.subjectId() == subjectId) {
+					return task.progressCount() < task.targetCount();
+				}
+			}
+			return false;
+		}
+		for (NewTask task : plan(childId)) {
+			if (task.subjectId() == subjectId && task.targetCount() > 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Avance la tâche du jour dont la matière est celle de la tentative, si le score compte.
+	 *
+	 * <p><b>Business :</b> seule une réussite payée au premier essai doit appeler cette méthode.
+	 * <p><b>Technique :</b> incrémente {@code progress_count} tant que la cible n'est pas atteinte.
+	 * <p><b>Métier / flow :</b> après la décision de paiement du jeu.
 	 */
 	@Transactional
 	public void recordUsefulAttempt(long childId, long subjectId, int scorePercent, boolean passed) {

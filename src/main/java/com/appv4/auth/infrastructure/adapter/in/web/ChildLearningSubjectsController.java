@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
+import com.appv4.auth.application.port.out.QuestionMark;
 import com.appv4.auth.application.service.SubjectIcons;
 import com.appv4.auth.application.result.ChildLearningQuestionsView;
 import com.appv4.auth.application.result.ChildLearningSubjectsView;
@@ -78,7 +79,8 @@ public class ChildLearningSubjectsController {
 				bearer(authorization), subjectId, afterId, limit);
 		List<ChildLearningQuestionItem> items = view.questions().stream()
 				.map(q -> new ChildLearningQuestionItem(
-						q.questionId(), q.formCode(), q.prompt(), q.formLabel(), q.iconCode(), q.color()))
+						q.questionId(), q.formCode(), q.prompt(), q.formLabel(), q.iconCode(), q.color(),
+						q.mark(), q.yellowCount()))
 				.toList();
 		return ResponseEntity.ok(new ChildLearningQuestionsResponse(
 				view.subjectId(), view.subjectName(), items, view.nextCursor()));
@@ -125,6 +127,10 @@ public class ChildLearningSubjectsController {
 			@Schema(description = "Code du dessin de la forme. Null si la forme n'a pas d'identité.", nullable = true)
 			String iconCode,
 			@Schema(description = "Couleur #rrggbb de la forme. Null si pas d'identité.", nullable = true)
-			String color) {
+			String color,
+			@Schema(description = "Étoile de l'enfant sur cette question : none, black ou yellow.")
+			QuestionMark mark,
+			@Schema(description = "Nombre d'étoiles jaunes. Zéro s'il n'y en a pas.")
+			int yellowCount) {
 	}
 }

@@ -26,6 +26,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(name = "SubmitChildAttemptRequest")
 public record PlayAttemptRequest(
 		String formCode, UUID submissionId, UUID challengeId,
+		@Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID playId,
 		List<@NotNull @Positive Long> selectedChoiceIds,
 		List<@NotNull @Valid SubmitStatementAnswer> statements,
 		List<@NotNull @Positive Long> matchedPairIds,
@@ -73,7 +74,7 @@ public record PlayAttemptRequest(
 		if (variants.size() != 1 || (formCode != null && (matchedPairIds != null || linkMatches != null))) {
 			throw QuestionPlayEngine.invalidAnswer();
 		}
-		return new Submission(formCode, variants.getFirst(), submissionId, challengeId);
+		return new Submission(formCode, variants.getFirst(), submissionId, challengeId, playId);
 	}
 
 	private static <T, R> Answer fromRows(List<T> rows, Function<T, R> map, Function<List<R>, Answer> wrap) {

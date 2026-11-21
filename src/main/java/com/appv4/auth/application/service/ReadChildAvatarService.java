@@ -154,7 +154,13 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 		if (chosen != null && style.presets().stream().noneMatch(preset -> preset.id().equals(chosen))) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, UNKNOWN_PRESET);
 		}
-		List<StoredPin> next = pins == null ? keepPins(childId, style) : checkPins(style, xp, pins);
+		StoredAvatar previous = childAvatarPort.findByChildId(childId).orElse(null);
+		boolean styleChanges = previous == null || !style.code().equals(previous.styleCode());
+		List<StoredPin> requested = pins;
+		if (requested != null && styleChanges) {
+			requested = requested.stream().filter(pin -> knownPin(style, pin)).toList();
+		}
+		List<StoredPin> next = requested == null ? keepPins(childId, style) : checkPins(style, xp, requested);
 		childAvatarPort.save(childId, style.code(), chosen, next);
 		return avatar(rawToken);
 	}

@@ -119,6 +119,10 @@ import com.appv4.auth.application.service.ChildDailyMissionService;
 import com.appv4.auth.application.service.ReadChildSubjectBoardService;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
 import com.appv4.auth.application.service.ReadChildLearningSubjectsService;
+import com.appv4.auth.application.port.in.ReadChildBadgesUseCase;
+import com.appv4.auth.application.port.out.ChildBadgePort;
+import com.appv4.auth.application.service.ChildBadgeProgress;
+import com.appv4.auth.application.service.ReadChildBadgesService;
 import com.appv4.auth.application.service.ReadChildProgressService;
 import com.appv4.auth.application.service.UpdateChildProgressAfterAttemptService;
 import com.appv4.auth.application.service.TeacherSubjectService;
@@ -416,6 +420,30 @@ public class AuthConfiguration {
 	/**
 	 * Lecture XP / streak / palier / semaine (BACK-17).
 	 */
+	/**
+	 * Lecture des badges enfant (BACK-19). Le même objet reçoit aussi les essais du jeu.
+	 */
+	@Bean
+	ReadChildBadgesService readChildBadgesService(
+			ChildLoginPort childLoginPort,
+			ChildSessionTokenPort childSessionTokenPort,
+			ChildQuestionAttemptPort childQuestionAttemptPort,
+			ChildBadgePort childBadgePort,
+			java.time.Clock clock) {
+		return new ReadChildBadgesService(
+				childLoginPort, childSessionTokenPort, childQuestionAttemptPort, childBadgePort, clock);
+	}
+
+	@Bean
+	ReadChildBadgesUseCase readChildBadgesUseCase(ReadChildBadgesService readChildBadgesService) {
+		return readChildBadgesService;
+	}
+
+	@Bean
+	ChildBadgeProgress childBadgeProgress(ReadChildBadgesService readChildBadgesService) {
+		return readChildBadgesService;
+	}
+
 	@Bean
 	ReadChildProgressUseCase readChildProgressUseCase(
 			ChildLoginPort childLoginPort,
@@ -480,7 +508,8 @@ public class AuthConfiguration {
 			ChildQuestionAttemptPort childQuestionAttemptPort,
 			ChildSimonChallengePort childSimonChallengePort,
 			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService,
-			ChildDailyMissionService childDailyMissionService) {
+			ChildDailyMissionService childDailyMissionService,
+			ChildBadgeProgress childBadgeProgress) {
 		return new ChildQuestionPlayService(
 				childLoginPort,
 				childSessionTokenPort,
@@ -489,7 +518,8 @@ public class AuthConfiguration {
 				childQuestionAttemptPort,
 				childSimonChallengePort,
 				updateChildProgressAfterAttemptService,
-				childDailyMissionService);
+				childDailyMissionService,
+				childBadgeProgress);
 	}
 
 	/**

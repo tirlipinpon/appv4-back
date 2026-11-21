@@ -142,7 +142,19 @@ public class TestProfileConfiguration {
 	/** Tentatives enfant (BACK-16). Pas de Postgres dans les tests web. */
 	@Bean
 	ChildQuestionAttemptPort childQuestionAttemptPort() {
-		return mock(ChildQuestionAttemptPort.class, withSettings().strictness(Strictness.LENIENT));
+		ChildQuestionAttemptPort port = mock(ChildQuestionAttemptPort.class, withSettings().strictness(Strictness.LENIENT));
+		when(port.allMarks(anyLong())).thenReturn(java.util.Map.of());
+		return port;
+	}
+
+	/** Niveaux de badges (BACK-19). Pas de Postgres dans les tests web. */
+	@Bean
+	com.appv4.auth.application.port.out.ChildBadgePort childBadgePort() {
+		com.appv4.auth.application.port.out.ChildBadgePort port = mock(
+				com.appv4.auth.application.port.out.ChildBadgePort.class,
+				withSettings().strictness(Strictness.LENIENT));
+		when(port.load(anyLong())).thenReturn(java.util.Map.of());
+		return port;
 	}
 
 	/** Suite Simon tirée (BACK-55). Pas de Postgres dans les tests web. */

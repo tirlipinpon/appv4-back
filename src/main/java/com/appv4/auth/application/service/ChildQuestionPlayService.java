@@ -57,13 +57,15 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 	private final ChildSimonChallengePort childSimonChallengePort;
 	private final UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService;
 	private final ChildDailyMissionService childDailyMissionService;
+	private final ChildBadgeProgress childBadgeProgress;
 
 	public ChildQuestionPlayService(
 			ChildLoginPort childLoginPort, ChildSessionTokenPort childSessionTokenPort, ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort, ChildQuestionAttemptPort childQuestionAttemptPort,
 			ChildSimonChallengePort childSimonChallengePort,
 			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService,
-			ChildDailyMissionService childDailyMissionService) {
+			ChildDailyMissionService childDailyMissionService,
+			ChildBadgeProgress childBadgeProgress) {
 		this.childLoginPort = childLoginPort;
 		this.childSessionTokenPort = childSessionTokenPort;
 		this.childSubjectPort = childSubjectPort;
@@ -72,6 +74,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		this.childSimonChallengePort = childSimonChallengePort;
 		this.updateChildProgressAfterAttemptService = updateChildProgressAfterAttemptService;
 		this.childDailyMissionService = childDailyMissionService;
+		this.childBadgeProgress = childBadgeProgress;
 	}
 
 	@Override
@@ -137,12 +140,14 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 				&& childDailyMissionService.subjectTaskHasRoom(childId, subjectId);
 		boolean pay = grade.passed() && (!alreadyYellow || missionPaysYellow);
 		int points = pay ? scale.points().get(seat.rank() - 1) : 0;
+		childBadgeProgress.beforeAttempt(childId);
 		if (mark != QuestionMark.NONE && (yellowCount != before.yellowCount() || mark != before.code())) {
 			childQuestionAttemptPort.saveMark(childId, questionId, mark, yellowCount);
 		}
 		StoredAttempt saved = childQuestionAttemptPort.insert(new NewAttempt(
 				childId, subjectId, questionId, question.formCode(), grade.scorePercent(), grade.passed(), grade.answers(),
-				submission.submissionId(), seat.rank(), seat.attemptsRemaining(), points, mark, yellowCount));
+				submission.submissionId(), seat.rank(), seat.attemptsRemaining(), points, mark, yellowCount, pay));
+		childBadgeProgress.afterMarksChanged(childId);
 		if (pay) {
 			updateChildProgressAfterAttemptService.apply(childId, saved.scorePercent());
 		}

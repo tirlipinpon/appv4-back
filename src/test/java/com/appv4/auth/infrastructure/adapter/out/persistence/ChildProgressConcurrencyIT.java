@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.appv4.auth.application.service.UpdateChildProgressAfterAttemptService;
+import com.appv4.auth.application.service.ChildBadgeProgress;
 import com.appv4.auth.application.service.ChildDailyMissionService;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
 import com.appv4.auth.application.exception.AuthDomainException;
@@ -172,7 +173,7 @@ class ChildProgressConcurrencyIT {
 								new StoredSimonElement(3L, "3", null))))));
 		var progress = new UpdateChildProgressAfterAttemptService(adapter, Clock.systemUTC());
 		return new ChildQuestionPlayService(child, session, subjects, questions, attemptPort, challenges,
-				progress, mock(ChildDailyMissionService.class));
+				progress, mock(ChildDailyMissionService.class), mock(ChildBadgeProgress.class));
 	}
 
 	private ChildAttemptResultView send(ChildQuestionPlayService game, Fixture fixture, Submission submission) {

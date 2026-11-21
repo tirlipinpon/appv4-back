@@ -145,6 +145,22 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 	}
 
 	@Override
+	public Map<Long, StoredMark> allMarks(long childId) {
+		Map<Long, StoredMark> found = new HashMap<>();
+		jdbc.sql("""
+				select question_id, mark_code, yellow_count from back_child_question_marks
+				where child_id = :childId
+				""")
+				.param("childId", childId)
+				.query((rs, row) -> {
+					found.put(rs.getLong("question_id"), readStored(rs));
+					return null;
+				})
+				.list();
+		return found;
+	}
+
+	@Override
 	public int attemptsUsed(UUID playId, long childId, long subjectId, long questionId) {
 		return jdbc.sql("""
 				select attempts_used from back_child_play_pages
@@ -175,7 +191,8 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				attempt.attemptsRemaining(),
 				attempt.pointsAwarded(),
 				attempt.markCode() == null ? null : attempt.markCode().wire(),
-				attempt.yellowCount()));
+				attempt.yellowCount(),
+				attempt.pay()));
 		long attemptId = saved.getId();
 		for (AnswerLine line : attempt.answers()) {
 			answers.save(new BackChildAttemptAnswerEntity(
@@ -206,6 +223,7 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				saved.getAttemptsRemaining(),
 				saved.getPointsAwarded(),
 				saved.getMarkCode() == null ? null : QuestionMark.fromWire(saved.getMarkCode()),
-				saved.getYellowCount());
+				saved.getYellowCount(),
+				saved.getPay());
 	}
 }

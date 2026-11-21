@@ -79,6 +79,15 @@ public interface ChildQuestionAttemptPort {
 	 */
 	Map<Long, StoredMark> marksFor(long childId, Collection<Long> questionIds);
 
+	/**
+	 * Toutes les étoiles de cet enfant.
+	 *
+	 * <p><b>Business :</b> la somme des étoiles jaunes nourrit les badges, pas une liste de questions.
+	 * <p><b>Technique :</b> lecture de {@code back_child_question_marks} pour un enfant.
+	 * <p><b>Métier / flow :</b> lecture des badges, avant de décider un niveau.
+	 */
+	Map<Long, StoredMark> allMarks(long childId);
+
 	/** Rang 1 = premier essai de la page. {@code attemptsRemaining} est ce qu'il reste après celui-ci. */
 	record PageClaim(int rank, int attemptsRemaining) {
 	}
@@ -114,7 +123,8 @@ public interface ChildQuestionAttemptPort {
 			Integer attemptsRemaining,
 			Integer pointsAwarded,
 			QuestionMark markCode,
-			Integer yellowCount) {
+			Integer yellowCount,
+			Boolean pay) {
 		public NewAttempt {
 			answers = answers == null ? List.of() : List.copyOf(answers);
 		}
@@ -132,10 +142,11 @@ public interface ChildQuestionAttemptPort {
 			Integer attemptsRemaining,
 			Integer pointsAwarded,
 			QuestionMark markCode,
-			Integer yellowCount) {
+			Integer yellowCount,
+			Boolean pay) {
 		public StoredAttempt(
 				long id, long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed) {
-			this(id, childId, subjectId, questionId, formCode, scorePercent, passed, null, null, null, null, null);
+			this(id, childId, subjectId, questionId, formCode, scorePercent, passed, null, null, null, null, null, null);
 		}
 	}
 }

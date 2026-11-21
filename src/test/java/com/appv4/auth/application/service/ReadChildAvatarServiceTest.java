@@ -201,6 +201,26 @@ class ReadChildAvatarServiceTest {
 	}
 
 	@Test
+	void closedPinDoesNotBlockAPaletteOrAStyleThatCannotKeepIt() {
+		activeChild(7L);
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.of(progress(7L, 20)));
+		String mouth = zone(service.avatar("token"), "mouth").variants().get(0).code();
+		service.saveStyle("token", "lorelei", "bare", List.of(new StoredPin("mouth", mouth)));
+
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.empty());
+		ChildAvatarView palette = service.saveStyle("token", "lorelei", "sepia", null);
+
+		assertThat(palette.presetId()).isEqualTo("sepia");
+		assertThat(zone(palette, "mouth").open()).isFalse();
+		assertThat(zone(palette, "mouth").selectedCode()).isEqualTo(mouth);
+
+		ChildAvatarView adventurer = service.saveStyle("token", "adventurer", "bare", null);
+		assertThat(adventurer.styleCode()).isEqualTo("adventurer");
+		assertThat(adventurer.presetId()).isEqualTo("bare");
+		assertThat(zone(adventurer, "mouth").selectedCode()).isNull();
+	}
+
+	@Test
 	void openMouthPinStaysWhenThePaletteChanges() {
 		activeChild(7L);
 		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.of(progress(7L, 20)));

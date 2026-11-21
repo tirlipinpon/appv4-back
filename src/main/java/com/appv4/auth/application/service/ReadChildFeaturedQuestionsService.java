@@ -66,7 +66,7 @@ public class ReadChildFeaturedQuestionsService implements ReadChildFeaturedQuest
 		List<FeaturedQuestion> eligible = new ArrayList<>();
 		if (!chosenIds.isEmpty()) {
 			for (CatalogSubject subject : childSubjectPort.visibleByIds(chosenIds)) {
-				addEligible(eligible, childId, subject.id());
+				addEligible(eligible, childId, subject);
 			}
 		}
 		eligible.sort(Comparator.comparingLong(FeaturedQuestion::subjectId)
@@ -74,8 +74,8 @@ public class ReadChildFeaturedQuestionsService implements ReadChildFeaturedQuest
 		return new ChildFeaturedQuestionsView(eligible.stream().limit(MAX_FEATURED).toList());
 	}
 
-	private void addEligible(List<FeaturedQuestion> eligible, long childId, long subjectId) {
-		List<QuestionSummary> questions = summaries(subjectId);
+	private void addEligible(List<FeaturedQuestion> eligible, long childId, CatalogSubject subject) {
+		List<QuestionSummary> questions = summaries(subject.id());
 		Map<Long, StoredMark> marks = marksOf(childId, questions);
 		for (QuestionSummary question : questions) {
 			if (!PlayableQuestionForm.codes().contains(question.formCode())) {
@@ -85,7 +85,8 @@ public class ReadChildFeaturedQuestionsService implements ReadChildFeaturedQuest
 			if (mark != null && mark.code() == QuestionMark.YELLOW) {
 				continue;
 			}
-			eligible.add(new FeaturedQuestion(subjectId, question.id(), promptOf(question)));
+			eligible.add(new FeaturedQuestion(
+					subject.id(), subject.name(), question.id(), promptOf(question)));
 		}
 	}
 

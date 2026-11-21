@@ -3,6 +3,7 @@ package com.appv4.auth.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -10,12 +11,16 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.NewChildCommand;
+import com.appv4.auth.application.port.out.ChildAvatarPort;
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
@@ -33,6 +38,7 @@ class ParentChildrenServiceTest {
 
 	private MemoryChildren children;
 	private List<CatalogSchool> catalog;
+	private ChildAvatarPort avatars;
 	private ParentChildrenService service;
 
 	@BeforeEach
@@ -53,9 +59,31 @@ class ParentChildrenServiceTest {
 		NoChildSubjects links = new NoChildSubjects();
 		TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
 		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
+		avatars = mock(ChildAvatarPort.class);
+		when(avatars.findByChildId(anyLong())).thenReturn(Optional.empty());
+		when(avatars.findPins(anyLong())).thenReturn(List.of());
 		service = new ParentChildrenService(
 				children, () -> catalog, encoder, links,
-				new ChildSubjectService(children, links, () -> catalog, questions));
+				new ChildSubjectService(children, links, () -> catalog, questions),
+				avatars,
+				CharacterAvatarCatalog.load());
+	}
+
+	@Test
+	void listShowsLoreleiUntilTheChildSavesACharacter() {
+		ChildCard created = service.add(1L, "parent", command("Léa", "Martin", "7", "France", "CE1", null, "fox", "4821", "4821"));
+
+		assertThat(created.character().styleCode()).isEqualTo("lorelei");
+		assertThat(created.character().options()).isEmpty();
+		assertThat(created.character().pins()).isEmpty();
+
+		when(avatars.findByChildId(created.id())).thenReturn(Optional.of(new StoredAvatar(created.id(), "lorelei", "bare")));
+		when(avatars.findPins(created.id())).thenReturn(List.of(new StoredPin("mouth", "happy01"), new StoredPin("hair", "nope")));
+		ChildCard saved = service.list(1L, "parent").children().get(0);
+
+		assertThat(saved.character().styleCode()).isEqualTo("lorelei");
+		assertThat(saved.character().options()).containsKey("backgroundColor");
+		assertThat(saved.character().pins()).extracting(pin -> pin.zoneCode()).containsExactly("mouth");
 	}
 
 	@Test

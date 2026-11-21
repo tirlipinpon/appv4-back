@@ -13,6 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase;
+import com.appv4.auth.application.port.out.ChildAvatarPort;
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
@@ -24,6 +27,8 @@ import com.appv4.auth.application.port.out.ChildPort.NewChild;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.result.ParentChildrenView;
+import com.appv4.auth.application.result.ParentChildrenView.CharacterFace;
+import com.appv4.auth.application.result.ParentChildrenView.CharacterPin;
 import com.appv4.auth.application.result.ParentChildrenView.ChildCard;
 import com.appv4.auth.application.result.ParentChildrenView.GradeList;
 import com.appv4.auth.application.result.ParentChildrenView.KinshipMark;
@@ -74,18 +79,24 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	private final PasswordEncoder passwordEncoder;
 	private final ChildSubjectPort childSubjectPort;
 	private final ChildSubjectService childSubjectService;
+	private final ChildAvatarPort childAvatarPort;
+	private final CharacterAvatarCatalog avatarCatalog;
 
 	public ParentChildrenService(
 			ChildPort childPort,
 			SchoolCatalogPort schoolCatalogPort,
 			PasswordEncoder passwordEncoder,
 			ChildSubjectPort childSubjectPort,
-			ChildSubjectService childSubjectService) {
+			ChildSubjectService childSubjectService,
+			ChildAvatarPort childAvatarPort,
+			CharacterAvatarCatalog avatarCatalog) {
 		this.childPort = childPort;
 		this.schoolCatalogPort = schoolCatalogPort;
 		this.passwordEncoder = passwordEncoder;
 		this.childSubjectPort = childSubjectPort;
 		this.childSubjectService = childSubjectService;
+		this.childAvatarPort = childAvatarPort;
+		this.avatarCatalog = avatarCatalog;
 	}
 
 	/**
@@ -396,7 +407,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		return attached;
 	}
 
-	private static ChildCard card(
+	private ChildCard card(
 			ChildSaved child,
 			Map<Long, CatalogSchool> schools,
 			List<String> linkPhrases,
@@ -420,7 +431,37 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				linkPhrases,
 				subjectCounts[0],
 				subjectCounts[1],
-				links);
+				links,
+				characterOf(child.id()));
+	}
+
+	private CharacterFace characterOf(long childId) {
+		StoredAvatar saved = childAvatarPort.findByChildId(childId).orElse(null);
+		String requested = saved == null || saved.styleCode() == null ? "lorelei" : saved.styleCode();
+		CharacterAvatarCatalog.Style style = avatarCatalog.styles().stream()
+				.filter(candidate -> candidate.code().equals(requested))
+				.findFirst()
+				.orElseGet(() -> avatarCatalog.byCode("lorelei"));
+		String presetId = saved == null ? null : saved.presetId();
+		Map<String, Object> options = style.presets().stream()
+				.filter(preset -> preset.id().equals(presetId))
+				.findFirst()
+				.map(CharacterAvatarCatalog.Preset::options)
+				.orElse(Map.of());
+		List<CharacterPin> pins = childAvatarPort.findPins(childId).stream()
+				.filter(pin -> knownOn(style, pin))
+				.map(pin -> new CharacterPin(pin.zoneCode(), pin.variantCode()))
+				.toList();
+		return new CharacterFace(style.code(), options, pins);
+	}
+
+	private static boolean knownOn(CharacterAvatarCatalog.Style style, StoredPin pin) {
+		return style.zones().stream()
+				.filter(zone -> zone.code().equals(pin.zoneCode()))
+				.findFirst()
+				.map(zone -> zone.variants().contains(pin.variantCode())
+						|| ("none".equals(pin.variantCode()) && AvatarScale.removable(zone.code())))
+				.orElse(false);
 	}
 
 	private int[] countsFor(long parentUserId, ChildSaved child) {

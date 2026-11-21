@@ -828,9 +828,16 @@ public class AuthConfiguration {
 			SchoolCatalogPort schoolCatalogPort,
 			PasswordEncoder passwordEncoder,
 			ChildSubjectPort childSubjectPort,
-			ChildSubjectService childSubjectService) {
+			ChildSubjectService childSubjectService,
+			ChildAvatarPort childAvatarPort) {
 		return new ParentChildrenService(
-				childPort, schoolCatalogPort, passwordEncoder, childSubjectPort, childSubjectService);
+				childPort,
+				schoolCatalogPort,
+				passwordEncoder,
+				childSubjectPort,
+				childSubjectService,
+				childAvatarPort,
+				CharacterAvatarCatalog.load());
 	}
 
 	/**

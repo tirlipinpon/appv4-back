@@ -161,8 +161,17 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 
 	private List<StoredPin> keepPins(long childId, Style style) {
 		return childAvatarPort.findPins(childId).stream()
-				.filter(pin -> zone(style, pin.zoneCode()) != null)
+				.filter(pin -> knownPin(style, pin))
 				.toList();
+	}
+
+	private static boolean knownPin(Style style, StoredPin pin) {
+		Zone zone = zone(style, pin.zoneCode());
+		if (zone == null) {
+			return false;
+		}
+		return zone.variants().contains(pin.variantCode())
+				|| ("none".equals(pin.variantCode()) && AvatarScale.removable(zone.code()));
 	}
 
 	private List<StoredPin> checkPins(Style style, int xp, List<StoredPin> pins) {

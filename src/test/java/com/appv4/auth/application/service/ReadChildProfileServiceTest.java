@@ -41,7 +41,7 @@ class ReadChildProfileServiceTest {
 		when(childSessionTokenPort.read("token"))
 				.thenReturn(Optional.of(new ChildSessionTokenPort.ChildSession(7L)));
 		when(childLoginPort.findActiveProfileById(7L))
-				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", "fox", false)));
+				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", "fox", false, 8)));
 
 		ChildProfileView view = service.profile("token");
 
@@ -78,7 +78,7 @@ class ReadChildProfileServiceTest {
 		when(childSessionTokenPort.read("token"))
 				.thenReturn(Optional.of(new ChildSessionTokenPort.ChildSession(7L)));
 		when(childLoginPort.findActiveProfileById(7L))
-				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", null, true)));
+				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", null, true, 8)));
 		when(childLoginPort.findActivePhotoById(7L))
 				.thenReturn(Optional.of(new ChildPhotoBytes(new byte[] {1, 2}, "image/png")));
 
@@ -93,7 +93,7 @@ class ReadChildProfileServiceTest {
 		when(childSessionTokenPort.read("token"))
 				.thenReturn(Optional.of(new ChildSessionTokenPort.ChildSession(7L)));
 		when(childLoginPort.findActiveProfileById(7L))
-				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", "fox", false)));
+				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", "fox", false, 8)));
 		when(childLoginPort.findActivePhotoById(7L)).thenReturn(Optional.empty());
 
 		assertThatThrownBy(() -> service.photo("token"))

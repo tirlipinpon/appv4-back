@@ -45,7 +45,8 @@ public class ChildLoginPersistenceAdapter implements ChildLoginPort {
 						row.getId(),
 						row.getFirstName(),
 						row.getAvatarCode(),
-						row.getHasPhoto()));
+						row.getHasPhoto(),
+						row.getAge()));
 	}
 
 	@Override

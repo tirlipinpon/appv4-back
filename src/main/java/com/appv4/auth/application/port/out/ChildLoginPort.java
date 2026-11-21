@@ -33,7 +33,7 @@ public interface ChildLoginPort {
 	 * @param avatarCode code d'avatar, ou {@code null} si l'enfant a une photo
 	 * @param hasPhoto   vrai si une photo est stockée
 	 */
-	record ChildProfile(long id, String firstName, String avatarCode, boolean hasPhoto) {
+	record ChildProfile(long id, String firstName, String avatarCode, boolean hasPhoto, int age) {
 	}
 
 	record ChildPhotoBytes(byte[] bytes, String contentType) {

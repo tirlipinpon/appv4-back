@@ -85,7 +85,8 @@ public interface BackChildJpaRepository extends JpaRepository<BackChildEntity, L
 
 	@Query("""
 			select c.id as id, c.firstName as firstName, c.avatarCode as avatarCode,
-			(case when c.photo is null then false else true end) as hasPhoto
+			(case when c.photo is null then false else true end) as hasPhoto,
+			c.age as age
 			from BackChildEntity c
 			where c.id = :id and c.hidden = false and c.active = true
 			""")
@@ -102,5 +103,6 @@ public interface BackChildJpaRepository extends JpaRepository<BackChildEntity, L
 		String getFirstName();
 		String getAvatarCode();
 		boolean getHasPhoto();
+		int getAge();
 	}
 }

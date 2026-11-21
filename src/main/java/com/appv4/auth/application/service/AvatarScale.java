@@ -126,12 +126,29 @@ public final class AvatarScale {
 	private AvatarScale() {
 	}
 
+	/** Âge de référence : la table brute, sans majoration. */
+	public static final int REFERENCE_AGE = 6;
+
+	/** Majoration ajoutée pour chaque année au-dessus de l'âge de référence. */
+	public static final int PERCENT_PER_YEAR = 10;
+
 	public static int seuil(String zoneCode) {
-		Integer seuil = SEUIL.get(zoneCode);
-		if (seuil == null) {
+		return seuil(zoneCode, REFERENCE_AGE);
+	}
+
+	/**
+	 * Seuil de la zone pour cet âge.
+	 *
+	 * <p>Jusqu'à 6 ans, la table brute. Ensuite, +10 % par année :
+	 * 7 ans +10 %, 8 ans +20 %, 12 ans +60 %.
+	 */
+	public static int seuil(String zoneCode, int age) {
+		Integer base = SEUIL.get(zoneCode);
+		if (base == null) {
 			throw new IllegalStateException("Zone sans seuil : " + zoneCode);
 		}
-		return seuil;
+		int percent = Math.max(0, age - REFERENCE_AGE) * PERCENT_PER_YEAR;
+		return (base * (100 + percent) + 50) / 100;
 	}
 
 	public static String label(String zoneCode) {

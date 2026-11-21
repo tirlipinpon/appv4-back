@@ -26,10 +26,19 @@ public record ChildAvatarView(
 		zones = zones == null ? List.of() : List.copyOf(zones);
 	}
 
-	public record StyleCard(String code, String name, String credit, List<String> zoneCodes) {
+	public record StyleCard(
+			String code,
+			String name,
+			String credit,
+			List<String> zoneCodes,
+			List<StylePreset> presets) {
 		public StyleCard {
 			zoneCodes = zoneCodes == null ? List.of() : List.copyOf(zoneCodes);
+			presets = presets == null ? List.of() : List.copyOf(presets);
 		}
+	}
+
+	public record StylePreset(String id, String name) {
 	}
 
 	public record PresetCard(String id, String name, Map<String, Object> options) {

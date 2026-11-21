@@ -117,10 +117,24 @@ public class ChildAvatarController {
 			String code,
 			String name,
 			@Schema(nullable = true) String credit,
-			List<String> zoneCodes) {
+			List<String> zoneCodes,
+			List<ChildAvatarStylePreset> presets) {
 
 		static ChildAvatarStyleCard from(ChildAvatarView.StyleCard style) {
-			return new ChildAvatarStyleCard(style.code(), style.name(), style.credit(), style.zoneCodes());
+			return new ChildAvatarStyleCard(
+					style.code(),
+					style.name(),
+					style.credit(),
+					style.zoneCodes(),
+					style.presets().stream().map(ChildAvatarStylePreset::from).toList());
+		}
+	}
+
+	@Schema(name = "ChildAvatarStylePreset")
+	public record ChildAvatarStylePreset(String id, String name) {
+
+		static ChildAvatarStylePreset from(ChildAvatarView.StylePreset preset) {
+			return new ChildAvatarStylePreset(preset.id(), preset.name());
 		}
 	}
 

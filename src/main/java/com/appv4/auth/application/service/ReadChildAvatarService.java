@@ -18,6 +18,7 @@ import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.result.ChildAvatarView;
 import com.appv4.auth.application.result.ChildAvatarView.PresetCard;
 import com.appv4.auth.application.result.ChildAvatarView.StyleCard;
+import com.appv4.auth.application.result.ChildAvatarView.StylePreset;
 import com.appv4.auth.application.result.ChildAvatarView.VariantCard;
 import com.appv4.auth.application.result.ChildAvatarView.ZoneCard;
 import com.appv4.auth.application.service.CharacterAvatarCatalog.Preset;
@@ -87,7 +88,10 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 				.map(Zone::code)
 				.sorted(Comparator.comparingInt(AvatarScale::seuil))
 				.toList();
-		return new StyleCard(style.code(), style.name(), style.credit(), zoneCodes);
+		List<StylePreset> presets = style.presets().stream()
+				.map(preset -> new StylePreset(preset.id(), preset.name()))
+				.toList();
+		return new StyleCard(style.code(), style.name(), style.credit(), zoneCodes, presets);
 	}
 
 	private PresetCard presetCard(Preset preset) {

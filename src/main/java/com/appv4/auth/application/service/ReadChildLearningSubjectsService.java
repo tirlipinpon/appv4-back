@@ -31,9 +31,10 @@ import com.appv4.auth.application.service.question.QuestionFormRegistry;
  * Liste learning des matières liées à l'enfant (BACK-15).
  *
  * <p><b>Business :</b> une matière retirée ou inactive n'apparaît pas. Chaque question
- * montre l'étoile déjà enregistrée pour cet enfant, ou aucune.
- * <p><b>Technique :</b> jeton enfant → liens non exclus → catalogue visible + marques.
- * <p><b>Métier / flow :</b> port in → session enfant → questions → étoiles.
+ * montre l'étoile déjà enregistrée pour cet enfant, ou aucune. Les cours de classe
+ * manquants sont liés ici si le parent n'a jamais ouvert la page matières.
+ * <p><b>Technique :</b> jeton enfant → filet liens classe → liens non exclus → catalogue + marques.
+ * <p><b>Métier / flow :</b> port in → session enfant → ensure links → questions → étoiles.
  */
 public class ReadChildLearningSubjectsService implements ReadChildLearningSubjectsUseCase {
 
@@ -65,9 +66,10 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional
 	public ChildLearningSubjectsView list(String rawToken) {
 		long childId = requireActiveChild(rawToken);
+		childSubjectPort.ensureMissingClassLinksForChild(childId);
 		List<Long> chosenIds = chosenSubjectIds(childId);
 		if (chosenIds.isEmpty()) {
 			return new ChildLearningSubjectsView(List.of());

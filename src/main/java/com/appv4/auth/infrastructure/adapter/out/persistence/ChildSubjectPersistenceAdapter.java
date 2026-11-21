@@ -172,6 +172,19 @@ public class ChildSubjectPersistenceAdapter implements ChildSubjectPort {
 		links.insertDefaultsForParent(children.get(0).parentUserId());
 	}
 
+	/**
+	 * Filet learning : matières de classe liées sans visite parent.
+	 *
+	 * <p><b>Business :</b> {@code GET /api/ext/subjects} n'exige plus {@code GET /parent/subjects}.
+	 * <p><b>Technique :</b> {@link BackChildSubjectLinkJpaRepository#insertDefaultsForChild}.
+	 * <p><b>Métier / flow :</b> avant la lecture des liens non exclus de l'enfant.
+	 */
+	@Override
+	@Transactional
+	public void ensureMissingClassLinksForChild(long childId) {
+		links.insertDefaultsForChild(childId);
+	}
+
 	@Override
 	@Transactional
 	public void save(long childId, long subjectId, boolean excluded) {

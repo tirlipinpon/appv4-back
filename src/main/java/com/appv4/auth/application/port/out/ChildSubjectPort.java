@@ -107,6 +107,34 @@ public interface ChildSubjectPort {
 	}
 
 	/**
+	 * Filet learning : lie les matières actives de la classe de cet enfant.
+	 *
+	 * <p><b>Business :</b> l'enfant voit ses cours sans que le parent ouvre la page matières.
+	 * Un retrait explicite ({@code excluded = true}) n'est pas rouvert.
+	 * <p><b>Technique :</b> insert si absent ; no-op si l'enfant n'a pas d'école / année.
+	 * <p><b>Métier / flow :</b> avant {@code GET /api/ext/subjects}.
+	 */
+	default void ensureMissingClassLinksForChild(long childId) {
+		// Défaut : rien (tests / stubs). L'adapter Postgres fait l'INSERT…SELECT.
+	}
+
+	/**
+	 * Après création ou réactivation d'une matière : lie tous les enfants de la classe.
+	 *
+	 * <p><b>Business :</b> un nouveau cours apparaît chez les enfants scolarisés sans visite parent.
+	 * <p><b>Technique :</b> {@link #ensureDefault} par enfant encore proposé ; conflit = exclusion conservée.
+	 * <p><b>Métier / flow :</b> create / restore / reactivate matière professeur.
+	 */
+	default void ensureDefaultLinksForSubject(long subjectId, long schoolId, String grade) {
+		if (grade == null || grade.isBlank()) {
+			return;
+		}
+		for (FollowingChild child : activeInClass(schoolId, grade)) {
+			ensureDefault(child.id(), subjectId);
+		}
+	}
+
+	/**
 	 * Efface le lien. Sert aux cours extra-scolaires.
 	 *
 	 * @return faux s'il n'y avait pas de lien

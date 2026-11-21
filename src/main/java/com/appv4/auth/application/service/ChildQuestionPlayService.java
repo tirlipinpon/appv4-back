@@ -160,6 +160,9 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		childBadgeProgress.noteMission(childId);
 		String lessonFinishedLabel = ChildLessonMembership.finishedLabel(
 				lessonBefore, lessonRemaining(childId, subjectId));
+		if (lessonFinishedLabel != null) {
+			childBadgeProgress.noteLessonEmptied(childId);
+		}
 		return new ChildAttemptResultView(
 				saved.id(), grade.scorePercent(), grade.passed(), seat.rank(), seat.attemptsRemaining(), points,
 				seat.attemptsRemaining() > 0, mark, yellowCount, lessonFinishedLabel);

@@ -57,6 +57,7 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 	static final String JOURS_AFFILEE = "jours_affilee";
 	static final String JOURS_JOUES = "jours_joues";
 	static final String MISSIONS = "missions_terminees";
+	static final String LECONS = "lecons_finies";
 
 	private static final int ETOILES_FIRST = 5;
 
@@ -72,7 +73,8 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 			new Kind(JOUR, "Bonnes réponses du jour", 3),
 			new Kind(JOURS_AFFILEE, "Jours d'affilée", 2),
 			new Kind(JOURS_JOUES, "Jours joués", 3),
-			new Kind(MISSIONS, "Missions terminées", 1));
+			new Kind(MISSIONS, "Missions terminées", 1),
+			new Kind(LECONS, "Leçons finies", 1));
 
 	private final ChildLoginPort childLoginPort;
 	private final ChildSessionTokenPort childSessionTokenPort;
@@ -129,6 +131,15 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 			raiseSubject(childId, subjectId, today);
 		}
 		refreshActivity(childId);
+	}
+
+	@Override
+	@Transactional
+	public void noteLessonEmptied(long childId) {
+		initialize(childId);
+		StoredBadge previous = load(childId).get(LECONS);
+		int retained = (previous == null ? 0 : previous.retainedValue()) + 1;
+		grow(childId, LECONS, ChildBadgeRules.level(retained, 1), retained, today(), null);
 	}
 
 	@Override

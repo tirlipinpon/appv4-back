@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ReadChildSubjectBoardUseCase;
 import com.appv4.auth.application.service.SubjectIcons;
+import com.appv4.auth.application.port.out.QuestionMark;
+import com.appv4.auth.application.result.ChildLessonView;
 import com.appv4.auth.application.result.ChildSubjectBoardView;
 import com.appv4.auth.application.result.ChildSubjectBoardView.ContinueLesson;
 import com.appv4.auth.application.result.ChildSubjectBoardView.TopicCard;
@@ -84,7 +86,8 @@ public class ChildSubjectBoardController {
 			int lessonsTotal,
 			@Schema(nullable = true) Integer minutesLeft,
 			@Schema(nullable = true) ChildSubjectContinueLesson continueLesson,
-			List<ChildSubjectTopicCard> topics) {
+			List<ChildSubjectTopicCard> topics,
+			ChildSubjectLesson lesson) {
 
 		static ChildSubjectBoardResponse from(ChildSubjectBoardView view) {
 			return new ChildSubjectBoardResponse(
@@ -104,7 +107,34 @@ public class ChildSubjectBoardController {
 					view.lessonsTotal(),
 					view.minutesLeft(),
 					view.continueLesson() == null ? null : ChildSubjectContinueLesson.from(view.continueLesson()),
-					view.topics().stream().map(ChildSubjectTopicCard::from).toList());
+					view.topics().stream().map(ChildSubjectTopicCard::from).toList(),
+					ChildSubjectLesson.from(view.lesson()));
+		}
+	}
+
+	@Schema(name = "ChildSubjectLesson")
+	public record ChildSubjectLesson(int remainingCount, List<ChildSubjectLessonQuestion> questions) {
+
+		static ChildSubjectLesson from(ChildLessonView lesson) {
+			return new ChildSubjectLesson(
+					lesson.remainingCount(),
+					lesson.questions().stream().map(ChildSubjectLessonQuestion::from).toList());
+		}
+	}
+
+	@Schema(name = "ChildSubjectLessonQuestion")
+	public record ChildSubjectLessonQuestion(
+			long questionId,
+			String prompt,
+			QuestionMark mark,
+			int yellowCount) {
+
+		static ChildSubjectLessonQuestion from(ChildLessonView.Question question) {
+			return new ChildSubjectLessonQuestion(
+					question.questionId(),
+					question.prompt(),
+					question.mark(),
+					question.yellowCount());
 		}
 	}
 

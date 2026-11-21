@@ -19,9 +19,15 @@ import com.appv4.auth.application.port.out.ChildSubjectBoardPort.BoardMeta;
 import com.appv4.auth.application.port.out.ChildSubjectBoardPort.LessonQuestion;
 import com.appv4.auth.application.port.out.ChildSubjectBoardPort.StoredLesson;
 import com.appv4.auth.application.port.out.ChildSubjectBoardPort.StoredTopic;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageAttempt;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.QuestionSummary;
+import com.appv4.auth.application.result.ChildLessonView;
 import com.appv4.auth.application.result.ChildSubjectBoardView;
 import com.appv4.auth.application.result.ChildSubjectBoardView.ContinueLesson;
 import com.appv4.auth.application.result.ChildSubjectBoardView.TopicCard;
@@ -29,9 +35,10 @@ import com.appv4.auth.application.result.ChildSubjectBoardView.TopicCard;
 /**
  * Board matière de l'enfant (BACK-33).
  *
- * <p><b>Business :</b> progression et Continuer viennent des leçons et des tentatives.
- * <p><b>Technique :</b> matière liée → meta + thèmes → statut par questions réussies.
- * <p><b>Métier / flow :</b> Learn board → ce service → ports out board / sujets.
+ * <p><b>Business :</b> la leçon proposée se calcule sur les pages de l'enfant.
+ * Les thèmes déjà en base restent dans la réponse, et cet écran ne s'en sert pas.
+ * <p><b>Technique :</b> matière liée → questions jouables et essais → {@link ChildLessonMembership}.
+ * <p><b>Métier / flow :</b> Learn board → ce service → ports questions / essais, sans écrire.
  */
 public class ReadChildSubjectBoardService implements ReadChildSubjectBoardUseCase {
 
@@ -40,18 +47,26 @@ public class ReadChildSubjectBoardService implements ReadChildSubjectBoardUseCas
 
 	private final ChildLoginPort childLoginPort;
 	private final ChildSessionTokenPort childSessionTokenPort;
+	private static final int QUESTION_PAGE = 100;
+
 	private final ChildSubjectPort childSubjectPort;
 	private final ChildSubjectBoardPort childSubjectBoardPort;
+	private final TeacherQuestionPort teacherQuestionPort;
+	private final ChildQuestionAttemptPort childQuestionAttemptPort;
 
 	public ReadChildSubjectBoardService(
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildSubjectPort childSubjectPort,
-			ChildSubjectBoardPort childSubjectBoardPort) {
+			ChildSubjectBoardPort childSubjectBoardPort,
+			TeacherQuestionPort teacherQuestionPort,
+			ChildQuestionAttemptPort childQuestionAttemptPort) {
 		this.childLoginPort = childLoginPort;
 		this.childSessionTokenPort = childSessionTokenPort;
 		this.childSubjectPort = childSubjectPort;
 		this.childSubjectBoardPort = childSubjectBoardPort;
+		this.teacherQuestionPort = teacherQuestionPort;
+		this.childQuestionAttemptPort = childQuestionAttemptPort;
 	}
 
 	@Override
@@ -68,6 +83,7 @@ public class ReadChildSubjectBoardService implements ReadChildSubjectBoardUseCas
 				childSubjectBoardPort.questionsOfLessons(lessonIds));
 		Set<Long> passed = childSubjectBoardPort.passedQuestionIds(childId, subjectId);
 		int xpEarned = childSubjectBoardPort.xpEarned(childId, subjectId);
+		ChildLessonView childLesson = lessonOf(childId, subjectId);
 
 		int completed = 0;
 		int minutesLeft = 0;
@@ -129,7 +145,8 @@ public class ReadChildSubjectBoardService implements ReadChildSubjectBoardUseCas
 				lessons.size(),
 				minutesLeft == 0 ? null : minutesLeft,
 				continueLesson,
-				topicCards);
+				topicCards,
+				childLesson);
 	}
 
 	private static ContinueLesson toContinue(
@@ -187,6 +204,30 @@ public class ReadChildSubjectBoardService implements ReadChildSubjectBoardUseCas
 			byLesson.computeIfAbsent(row.lessonId(), id -> new ArrayList<>()).add(row.questionId());
 		}
 		return byLesson;
+	}
+
+	private ChildLessonView lessonOf(long childId, long subjectId) {
+		List<QuestionSummary> questions = summaries(subjectId);
+		Map<Long, StoredMark> marks = childQuestionAttemptPort.marksFor(
+				childId, questions.stream().map(QuestionSummary::id).toList());
+		List<PageAttempt> pages = childQuestionAttemptPort.pageAttempts(childId, subjectId);
+		return ChildLessonMembership.of(questions, marks, pages);
+	}
+
+	private List<QuestionSummary> summaries(long subjectId) {
+		List<QuestionSummary> all = new ArrayList<>();
+		long afterId = 0;
+		while (true) {
+			List<QuestionSummary> page = teacherQuestionPort.findSummariesBySubject(subjectId, afterId, QUESTION_PAGE);
+			if (page == null || page.isEmpty()) {
+				return all;
+			}
+			all.addAll(page);
+			afterId = page.get(page.size() - 1).id();
+			if (page.size() < QUESTION_PAGE) {
+				return all;
+			}
+		}
 	}
 
 	private CatalogSubject requireLinkedSubject(long childId, long subjectId) {

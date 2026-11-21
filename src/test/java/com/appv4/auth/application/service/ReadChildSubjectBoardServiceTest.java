@@ -23,9 +23,11 @@ import com.appv4.auth.application.port.out.ChildSubjectBoardPort.BoardMeta;
 import com.appv4.auth.application.port.out.ChildSubjectBoardPort.LessonQuestion;
 import com.appv4.auth.application.port.out.ChildSubjectBoardPort.StoredLesson;
 import com.appv4.auth.application.port.out.ChildSubjectBoardPort.StoredTopic;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.result.ChildSubjectBoardView;
 
 class ReadChildSubjectBoardServiceTest {
@@ -34,6 +36,8 @@ class ReadChildSubjectBoardServiceTest {
 	private final ChildSessionTokenPort childSessionTokenPort = Mockito.mock(ChildSessionTokenPort.class);
 	private final ChildSubjectPort childSubjectPort = Mockito.mock(ChildSubjectPort.class);
 	private final ChildSubjectBoardPort boardPort = Mockito.mock(ChildSubjectBoardPort.class);
+	private final TeacherQuestionPort teacherQuestionPort = Mockito.mock(TeacherQuestionPort.class);
+	private final ChildQuestionAttemptPort childQuestionAttemptPort = Mockito.mock(ChildQuestionAttemptPort.class);
 	private ReadChildSubjectBoardService service;
 
 	@BeforeEach
@@ -41,7 +45,8 @@ class ReadChildSubjectBoardServiceTest {
 		when(childSessionTokenPort.read("token")).thenReturn(Optional.of(new ChildSession(7L)));
 		when(childLoginPort.findActiveById(7L)).thenReturn(Optional.of(new ChildLoginCandidate(7L, "Léa", "x")));
 		service = new ReadChildSubjectBoardService(
-				childLoginPort, childSessionTokenPort, childSubjectPort, boardPort);
+				childLoginPort, childSessionTokenPort, childSubjectPort, boardPort,
+				teacherQuestionPort, childQuestionAttemptPort);
 	}
 
 	@Test

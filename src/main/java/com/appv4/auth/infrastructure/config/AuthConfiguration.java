@@ -122,6 +122,8 @@ import com.appv4.auth.application.service.ChildQuestionPlayService;
 import com.appv4.auth.application.service.ReadChildFeaturedQuestionsService;
 import com.appv4.auth.application.service.ReadChildLearningSubjectsService;
 import com.appv4.auth.application.port.in.ReadChildAvatarUseCase;
+import com.appv4.auth.application.port.in.SaveChildAvatarStyleUseCase;
+import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.in.ReadChildBadgesUseCase;
 import com.appv4.auth.application.port.out.ChildBadgePort;
 import com.appv4.auth.application.service.ChildBadgeProgress;
@@ -472,15 +474,27 @@ public class AuthConfiguration {
 	 * Personnage de l'enfant (BACK-48). La lecture ne recalcule pas l'XP.
 	 */
 	@Bean
-	ReadChildAvatarUseCase readChildAvatarUseCase(
+	ReadChildAvatarService readChildAvatarService(
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort,
-			ChildProgressPort childProgressPort) {
+			ChildProgressPort childProgressPort,
+			ChildAvatarPort childAvatarPort) {
 		return new ReadChildAvatarService(
 				childLoginPort,
 				childSessionTokenPort,
 				childProgressPort,
+				childAvatarPort,
 				CharacterAvatarCatalog.load());
+	}
+
+	@Bean
+	ReadChildAvatarUseCase readChildAvatarUseCase(ReadChildAvatarService readChildAvatarService) {
+		return readChildAvatarService;
+	}
+
+	@Bean
+	SaveChildAvatarStyleUseCase saveChildAvatarStyleUseCase(ReadChildAvatarService readChildAvatarService) {
+		return readChildAvatarService;
 	}
 
 	@Bean

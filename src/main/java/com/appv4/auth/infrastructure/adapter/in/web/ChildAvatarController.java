@@ -6,11 +6,14 @@ import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ReadChildAvatarUseCase;
+import com.appv4.auth.application.port.in.SaveChildAvatarStyleUseCase;
 import com.appv4.auth.application.result.ChildAvatarView;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,9 +35,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class ChildAvatarController {
 
 	private final ReadChildAvatarUseCase readChildAvatarUseCase;
+	private final SaveChildAvatarStyleUseCase saveChildAvatarStyleUseCase;
 
-	public ChildAvatarController(ReadChildAvatarUseCase readChildAvatarUseCase) {
+	public ChildAvatarController(
+			ReadChildAvatarUseCase readChildAvatarUseCase,
+			SaveChildAvatarStyleUseCase saveChildAvatarStyleUseCase) {
 		this.readChildAvatarUseCase = readChildAvatarUseCase;
+		this.saveChildAvatarStyleUseCase = saveChildAvatarStyleUseCase;
 	}
 
 	@GetMapping
@@ -49,11 +56,36 @@ public class ChildAvatarController {
 		return ResponseEntity.ok(ChildAvatarResponse.from(readChildAvatarUseCase.avatar(bearer(authorization))));
 	}
 
+	@PutMapping
+	@Operation(operationId = "saveChildAvatarStyle", summary = "Enregistrer le style et la palette de l'enfant")
+	@ApiResponse(responseCode = "200", description = "Personnage relu après enregistrement")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Style inconnu ou palette d'un autre style",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "401",
+			description = "Badge absent, adulte, expiré, ou fiche arrêtée",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<ChildAvatarResponse> save(
+			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+			@RequestBody SaveChildAvatarStyleRequest request) {
+		ChildAvatarView view = saveChildAvatarStyleUseCase.saveStyle(
+				bearer(authorization), request.styleCode(), request.presetId());
+		return ResponseEntity.ok(ChildAvatarResponse.from(view));
+	}
+
 	private static String bearer(String authorization) {
 		if (authorization == null || !authorization.startsWith("Bearer ")) {
 			return "";
 		}
 		return authorization.substring(7).trim();
+	}
+
+	@Schema(name = "SaveChildAvatarStyleRequest")
+	public record SaveChildAvatarStyleRequest(
+			String styleCode,
+			@Schema(nullable = true) String presetId) {
 	}
 
 	@Schema(name = "ChildAvatarResponse")

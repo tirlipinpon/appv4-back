@@ -77,6 +77,7 @@ class OpenApiContractExportTest {
 				.contains("/api/ext/progress")
 				.contains("/api/ext/avatar")
 				.contains("readChildAvatar")
+				.contains("saveChildAvatarStyle")
 				.contains("/api/ext/today");
 		assertThat(body).doesNotContain("/api/ext/hello", "/api/int/hello",
 				"/api/int/parent/hello", "/api/int/teacher/hello");

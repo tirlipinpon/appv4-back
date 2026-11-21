@@ -21,6 +21,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.ChildDailyMissionPort;
+import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildSubjectBoardPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
@@ -181,6 +182,14 @@ public class TestProfileConfiguration {
 		when(port.questionsOfLessons(any())).thenReturn(List.of());
 		when(port.passedQuestionIds(anyLong(), anyLong())).thenReturn(java.util.Set.of());
 		when(port.xpEarned(anyLong(), anyLong())).thenReturn(0);
+		return port;
+	}
+
+	/** Avatar enfant (BACK-66). Pas de Postgres dans les tests web. */
+	@Bean
+	ChildAvatarPort childAvatarPort() {
+		ChildAvatarPort port = mock(ChildAvatarPort.class, withSettings().strictness(Strictness.LENIENT));
+		when(port.findByChildId(anyLong())).thenReturn(Optional.empty());
 		return port;
 	}
 

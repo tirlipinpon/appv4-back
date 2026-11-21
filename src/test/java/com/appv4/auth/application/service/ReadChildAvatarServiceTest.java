@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildProgressPort;
@@ -35,6 +36,8 @@ class ReadChildAvatarServiceTest {
 	@Mock
 	private ChildProgressPort childProgressPort;
 
+	private final MemoryAvatar avatarPort = new MemoryAvatar();
+
 	private ReadChildAvatarService service;
 
 	@BeforeEach
@@ -43,6 +46,7 @@ class ReadChildAvatarServiceTest {
 				childLoginPort,
 				childSessionTokenPort,
 				childProgressPort,
+				avatarPort,
 				CharacterAvatarCatalog.load());
 	}
 
@@ -142,6 +146,55 @@ class ReadChildAvatarServiceTest {
 	}
 
 	@Test
+	void saveStyleAndPresetAtZeroXpThenReadThemBack() {
+		activeChild(7L);
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.empty());
+
+		ChildAvatarView saved = service.saveStyle("token", "lorelei", "bare");
+		ChildAvatarView again = service.avatar("token");
+
+		assertThat(saved.styleCode()).isEqualTo("lorelei");
+		assertThat(saved.presetId()).isEqualTo("bare");
+		assertThat(saved.seed()).isEqualTo("7");
+		assertThat(again.presetId()).isEqualTo("bare");
+		assertThat(again.seed()).isEqualTo(saved.seed());
+	}
+
+	@Test
+	void saveStyleWithoutPresetClearsThePalette() {
+		activeChild(7L);
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.empty());
+		service.saveStyle("token", "lorelei", "bare");
+
+		ChildAvatarView cleared = service.saveStyle("token", "fun-emoji", null);
+
+		assertThat(cleared.styleCode()).isEqualTo("fun-emoji");
+		assertThat(cleared.presetId()).isNull();
+		assertThat(cleared.credit()).isEqualTo("Davis Uche — CC BY 4.0");
+		assertThat(cleared.presets().get(0).id()).isEqualTo("plain");
+	}
+
+	@Test
+	void saveRefusesAPresetFromAnotherStyleAndAnUnknownStyle() {
+		activeChild(7L);
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.empty());
+		service.saveStyle("token", "lorelei", "bare");
+
+		assertThatThrownBy(() -> service.saveStyle("token", "fun-emoji", "bare"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(ReadChildAvatarService.UNKNOWN_PRESET)
+				.extracting("errorCode")
+				.isEqualTo(AuthErrorCode.BAD_REQUEST);
+		assertThat(service.avatar("token").styleCode()).isEqualTo("lorelei");
+		assertThat(service.avatar("token").presetId()).isEqualTo("bare");
+
+		assertThatThrownBy(() -> service.saveStyle("token", "not-a-style", null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(ReadChildAvatarService.UNKNOWN_STYLE);
+		assertThat(service.avatar("token").styleCode()).isEqualTo("lorelei");
+	}
+
+	@Test
 	void missingOrStoppedChildIsRefused() {
 		when(childSessionTokenPort.read("bad")).thenReturn(Optional.empty());
 		when(childSessionTokenPort.read("stopped"))
@@ -176,6 +229,24 @@ class ReadChildAvatarServiceTest {
 				.filter(zone -> zone.code().equals(code))
 				.findFirst()
 				.orElseThrow();
+	}
+
+	private static final class MemoryAvatar implements ChildAvatarPort {
+
+		private ChildAvatarPort.StoredAvatar stored;
+
+		@Override
+		public Optional<ChildAvatarPort.StoredAvatar> findByChildId(long childId) {
+			if (stored == null || stored.childId() != childId) {
+				return Optional.empty();
+			}
+			return Optional.of(stored);
+		}
+
+		@Override
+		public void saveStyle(long childId, String styleCode, String presetId) {
+			stored = new ChildAvatarPort.StoredAvatar(childId, styleCode, presetId);
+		}
 	}
 
 	private static StyleCard style(ChildAvatarView view, String code) {

@@ -9,6 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ReadChildAvatarUseCase;
+import com.appv4.auth.application.port.in.SaveChildAvatarStyleUseCase;
+import com.appv4.auth.application.port.out.ChildAvatarPort;
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
@@ -28,25 +31,32 @@ import com.appv4.auth.application.service.CharacterAvatarCatalog.Zone;
  * <p><b>Technique :</b> jeton enfant, XP déjà stocké, catalogue Characters 10.6.
  * <p><b>Métier / flow :</b> Profil → ce service → pas d'écriture, pas de second XP.
  */
-public class ReadChildAvatarService implements ReadChildAvatarUseCase {
+public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChildAvatarStyleUseCase {
 
 	public static final String INVALID_SESSION_MESSAGE = LoginChildService.INVALID_SESSION_MESSAGE;
+
+	public static final String UNKNOWN_STYLE = "Style inconnu.";
+
+	public static final String UNKNOWN_PRESET = "Palette inconnue pour ce style.";
 
 	static final String DEFAULT_STYLE = "lorelei";
 
 	private final ChildLoginPort childLoginPort;
 	private final ChildSessionTokenPort childSessionTokenPort;
 	private final ChildProgressPort childProgressPort;
+	private final ChildAvatarPort childAvatarPort;
 	private final CharacterAvatarCatalog catalog;
 
 	public ReadChildAvatarService(
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildProgressPort childProgressPort,
+			ChildAvatarPort childAvatarPort,
 			CharacterAvatarCatalog catalog) {
 		this.childLoginPort = childLoginPort;
 		this.childSessionTokenPort = childSessionTokenPort;
 		this.childProgressPort = childProgressPort;
+		this.childAvatarPort = childAvatarPort;
 		this.catalog = catalog;
 	}
 
@@ -57,12 +67,15 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase {
 		int xp = childProgressPort.findByChildId(childId)
 				.map(progress -> progress.xpTotal())
 				.orElse(0);
-		Style selected = catalog.byCode(DEFAULT_STYLE);
+		StoredAvatar saved = childAvatarPort.findByChildId(childId).orElse(null);
+		String styleCode = saved == null ? DEFAULT_STYLE : saved.styleCode();
+		Style selected = catalog.byCode(styleCode);
+		String presetId = saved == null ? null : saved.presetId();
 		return new ChildAvatarView(
 				Long.toString(childId),
 				selected.code(),
 				selected.name(),
-				null,
+				presetId,
 				selected.credit(),
 				catalog.styles().stream().map(this::styleCard).toList(),
 				selected.presets().stream().map(this::presetCard).toList(),
@@ -106,6 +119,22 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase {
 					variants));
 		}
 		return cards;
+	}
+
+	@Override
+	@Transactional
+	public ChildAvatarView saveStyle(String rawToken, String styleCode, String presetId) {
+		long childId = requireActiveChild(rawToken);
+		Style style = catalog.styles().stream()
+				.filter(candidate -> candidate.code().equals(styleCode))
+				.findFirst()
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.BAD_REQUEST, UNKNOWN_STYLE));
+		String chosen = presetId == null || presetId.isBlank() ? null : presetId;
+		if (chosen != null && style.presets().stream().noneMatch(preset -> preset.id().equals(chosen))) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, UNKNOWN_PRESET);
+		}
+		childAvatarPort.saveStyle(childId, style.code(), chosen);
+		return avatar(rawToken);
 	}
 
 	private long requireActiveChild(String rawToken) {

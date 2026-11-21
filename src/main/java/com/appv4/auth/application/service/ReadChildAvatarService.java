@@ -3,6 +3,8 @@ package com.appv4.auth.application.service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +14,7 @@ import com.appv4.auth.application.port.in.ReadChildAvatarUseCase;
 import com.appv4.auth.application.port.in.SaveChildAvatarStyleUseCase;
 import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
@@ -39,6 +42,12 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 	public static final String UNKNOWN_STYLE = "Style inconnu.";
 
 	public static final String UNKNOWN_PRESET = "Palette inconnue pour ce style.";
+
+	public static final String UNKNOWN_VARIANT = "Variante inconnue.";
+
+	public static final String ZONE_CLOSED = "Cette zone n'est pas encore ouverte.";
+
+	public static final String ZONE_ABSENT = "Cette zone n'existe pas sur ce style.";
 
 	static final String DEFAULT_STYLE = "lorelei";
 
@@ -72,6 +81,8 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 		String styleCode = saved == null ? DEFAULT_STYLE : saved.styleCode();
 		Style selected = catalog.byCode(styleCode);
 		String presetId = saved == null ? null : saved.presetId();
+		Map<String, String> pins = childAvatarPort.findPins(childId).stream()
+				.collect(Collectors.toMap(StoredPin::zoneCode, StoredPin::variantCode, (left, right) -> left));
 		return new ChildAvatarView(
 				Long.toString(childId),
 				selected.code(),
@@ -80,7 +91,7 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 				selected.credit(),
 				catalog.styles().stream().map(this::styleCard).toList(),
 				selected.presets().stream().map(this::presetCard).toList(),
-				zonesOf(selected, xp));
+				zonesOf(selected, xp, pins));
 	}
 
 	private StyleCard styleCard(Style style) {
@@ -98,7 +109,7 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 		return new PresetCard(preset.id(), preset.name(), preset.options());
 	}
 
-	private List<ZoneCard> zonesOf(Style style, int xp) {
+	private List<ZoneCard> zonesOf(Style style, int xp, Map<String, String> pins) {
 		List<Zone> ordered = style.zones().stream()
 				.sorted(Comparator.comparingInt(zone -> AvatarScale.seuil(zone.code())))
 				.toList();
@@ -120,15 +131,21 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 					open ? null : seuil + " XP",
 					open ? null : "encore " + (seuil - xp) + " XP",
 					open,
-					variants));
+					variants,
+					pins.get(zone.code())));
 		}
 		return cards;
 	}
 
+	public ChildAvatarView saveStyle(String rawToken, String styleCode, String presetId) {
+		return saveStyle(rawToken, styleCode, presetId, null);
+	}
+
 	@Override
 	@Transactional
-	public ChildAvatarView saveStyle(String rawToken, String styleCode, String presetId) {
+	public ChildAvatarView saveStyle(String rawToken, String styleCode, String presetId, List<StoredPin> pins) {
 		long childId = requireActiveChild(rawToken);
+		int xp = childProgressPort.findByChildId(childId).map(progress -> progress.xpTotal()).orElse(0);
 		Style style = catalog.styles().stream()
 				.filter(candidate -> candidate.code().equals(styleCode))
 				.findFirst()
@@ -137,8 +154,39 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 		if (chosen != null && style.presets().stream().noneMatch(preset -> preset.id().equals(chosen))) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, UNKNOWN_PRESET);
 		}
-		childAvatarPort.saveStyle(childId, style.code(), chosen);
+		List<StoredPin> next = pins == null ? keepPins(childId, style) : checkPins(style, xp, pins);
+		childAvatarPort.save(childId, style.code(), chosen, next);
 		return avatar(rawToken);
+	}
+
+	private List<StoredPin> keepPins(long childId, Style style) {
+		return childAvatarPort.findPins(childId).stream()
+				.filter(pin -> zone(style, pin.zoneCode()) != null)
+				.toList();
+	}
+
+	private List<StoredPin> checkPins(Style style, int xp, List<StoredPin> pins) {
+		List<StoredPin> next = new ArrayList<>();
+		for (StoredPin pin : pins) {
+			Zone zone = zone(style, pin.zoneCode());
+			if (zone == null) {
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, ZONE_ABSENT);
+			}
+			if (xp < AvatarScale.seuil(zone.code())) {
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, ZONE_CLOSED);
+			}
+			boolean known = zone.variants().contains(pin.variantCode())
+					|| ("none".equals(pin.variantCode()) && AvatarScale.removable(zone.code()));
+			if (!known) {
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, UNKNOWN_VARIANT);
+			}
+			next.add(pin);
+		}
+		return next;
+	}
+
+	private static Zone zone(Style style, String code) {
+		return style.zones().stream().filter(zone -> zone.code().equals(code)).findFirst().orElse(null);
 	}
 
 	private long requireActiveChild(String rawToken) {

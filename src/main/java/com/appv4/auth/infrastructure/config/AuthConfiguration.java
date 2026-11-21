@@ -121,9 +121,12 @@ import com.appv4.auth.application.service.ReadChildSubjectBoardService;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
 import com.appv4.auth.application.service.ReadChildFeaturedQuestionsService;
 import com.appv4.auth.application.service.ReadChildLearningSubjectsService;
+import com.appv4.auth.application.port.in.ReadChildAvatarUseCase;
 import com.appv4.auth.application.port.in.ReadChildBadgesUseCase;
 import com.appv4.auth.application.port.out.ChildBadgePort;
 import com.appv4.auth.application.service.ChildBadgeProgress;
+import com.appv4.auth.application.service.CharacterAvatarCatalog;
+import com.appv4.auth.application.service.ReadChildAvatarService;
 import com.appv4.auth.application.service.ReadChildBadgesService;
 import com.appv4.auth.application.service.ReadChildProgressService;
 import com.appv4.auth.application.service.UpdateChildProgressAfterAttemptService;
@@ -463,6 +466,21 @@ public class AuthConfiguration {
 	@Bean
 	ChildBadgeProgress childBadgeProgress(ReadChildBadgesService readChildBadgesService) {
 		return readChildBadgesService;
+	}
+
+	/**
+	 * Personnage de l'enfant (BACK-48). La lecture ne recalcule pas l'XP.
+	 */
+	@Bean
+	ReadChildAvatarUseCase readChildAvatarUseCase(
+			ChildLoginPort childLoginPort,
+			ChildSessionTokenPort childSessionTokenPort,
+			ChildProgressPort childProgressPort) {
+		return new ReadChildAvatarService(
+				childLoginPort,
+				childSessionTokenPort,
+				childProgressPort,
+				CharacterAvatarCatalog.load());
 	}
 
 	@Bean

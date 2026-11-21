@@ -75,6 +75,8 @@ class OpenApiContractExportTest {
 				.contains("/api/ext/subjects/{subjectId}/questions/{questionId}")
 				.contains("/api/ext/subjects/{subjectId}/questions/{questionId}/attempts")
 				.contains("/api/ext/progress")
+				.contains("/api/ext/avatar")
+				.contains("readChildAvatar")
 				.contains("/api/ext/today");
 		assertThat(body).doesNotContain("/api/ext/hello", "/api/int/hello",
 				"/api/int/parent/hello", "/api/int/teacher/hello");

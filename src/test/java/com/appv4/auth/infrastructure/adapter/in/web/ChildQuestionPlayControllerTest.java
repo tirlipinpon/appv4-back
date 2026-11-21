@@ -2,8 +2,11 @@ package com.appv4.auth.infrastructure.adapter.in.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -21,6 +24,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -40,6 +44,7 @@ import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSimonChallengePort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.NewAttempt;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredAttempt;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
@@ -114,6 +119,12 @@ class ChildQuestionPlayControllerTest {
 
 	@MockBean
 	private ChildSimonChallengePort childSimonChallengePort;
+
+	@BeforeEach
+	void claimKeepsOneSeat() {
+		lenient().when(childQuestionAttemptPort.claim(any(), anyLong(), anyLong(), anyLong(), anyInt()))
+				.thenReturn(Optional.of(new PageClaim(1, 0)));
+	}
 
 	@Test
 	void getTrueFalseHidesTruthful() throws Exception {
@@ -232,6 +243,7 @@ class ChildQuestionPlayControllerTest {
 			return new StoredAttempt(42L, attempt.childId(), attempt.subjectId(), attempt.questionId(),
 					attempt.formCode(), attempt.scorePercent(), attempt.passed());
 		});
+		answer.put("playId", UUID.randomUUID().toString());
 		mockMvc.perform(post(childUrl + "/attempts").header("Authorization", childAuth)
 						.contentType(MediaType.APPLICATION_JSON).content(answer.toString()))
 				.andExpect(status().isCreated()).andExpect(jsonPath("$.scorePercent").value(form.score()))
@@ -322,7 +334,7 @@ class ChildQuestionPlayControllerTest {
 						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"statements":[
+								{"playId":"22222222-2222-2222-2222-222222222222","statements":[
 								{"statementId":1,"value":true},
 								{"statementId":2,"value":false}
 								]}
@@ -374,7 +386,7 @@ class ChildQuestionPlayControllerTest {
 						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"matchedPairIds":[1,2]}
+								{"playId":"22222222-2222-2222-2222-222222222222","matchedPairIds":[1,2]}
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.attemptId").value(44))
@@ -423,7 +435,7 @@ class ChildQuestionPlayControllerTest {
 						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"orderedItemIds":[1,2,3]}
+								{"playId":"22222222-2222-2222-2222-222222222222","orderedItemIds":[1,2,3]}
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.attemptId").value(45))
@@ -472,7 +484,8 @@ class ChildQuestionPlayControllerTest {
 						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"linkMatches":[{"leftId":1,"rightId":1},{"leftId":2,"rightId":2}]}
+								{"playId":"22222222-2222-2222-2222-222222222222",
+								"linkMatches":[{"leftId":1,"rightId":1},{"leftId":2,"rightId":2}]}
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.attemptId").value(46))
@@ -499,7 +512,7 @@ class ChildQuestionPlayControllerTest {
 						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"selectedChoiceIds":[10]}
+								{"playId":"22222222-2222-2222-2222-222222222222","selectedChoiceIds":[10]}
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.scorePercent").value(0))
@@ -553,7 +566,8 @@ class ChildQuestionPlayControllerTest {
 						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"gapFills":[{"holeIndex":0,"wordId":10},{"holeIndex":1,"wordId":11}]}
+								{"playId":"22222222-2222-2222-2222-222222222222",
+								"gapFills":[{"holeIndex":0,"wordId":10},{"holeIndex":1,"wordId":11}]}
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.attemptId").value(47))
@@ -591,7 +605,7 @@ class ChildQuestionPlayControllerTest {
 						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"simonSequence":[0,1,2,0]}
+								{"playId":"22222222-2222-2222-2222-222222222222","simonSequence":[0,1,2,0]}
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.attemptId").value(48))
@@ -619,7 +633,7 @@ class ChildQuestionPlayControllerTest {
 						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"simonSequence":[0,2,1,0]}
+								{"playId":"22222222-2222-2222-2222-222222222222","simonSequence":[0,2,1,0]}
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.scorePercent").value(25))
@@ -729,7 +743,7 @@ class ChildQuestionPlayControllerTest {
 						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"attempt":"  Pâris  "}
+								{"playId":"22222222-2222-2222-2222-222222222222","attempt":"  Pâris  "}
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.attemptId").value(49))
@@ -756,7 +770,7 @@ class ChildQuestionPlayControllerTest {
 						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"attempt":"Lyon"}
+								{"playId":"22222222-2222-2222-2222-222222222222","attempt":"Lyon"}
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.scorePercent").value(0))
@@ -773,7 +787,7 @@ class ChildQuestionPlayControllerTest {
 						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
-								{"attempt":"   "}
+								{"playId":"22222222-2222-2222-2222-222222222222","attempt":"   "}
 								"""))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value(FreeTextChildAnswerGrader.BAD_ANSWER));

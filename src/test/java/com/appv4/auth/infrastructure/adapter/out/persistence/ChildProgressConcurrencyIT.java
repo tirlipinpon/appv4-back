@@ -123,7 +123,8 @@ class ChildProgressConcurrencyIT {
 			List<Integer> firstSequence = List.of(0, 1, 2);
 			var firstId = challenges.issue(fixture.child(), fixture.question(), firstSequence, false);
 			var secondId = challenges.issue(fixture.child(), fixture.question(), List.of(2, 1, 0), false);
-			Submission first = new Submission("simon", new Simon(firstSequence), UUID.randomUUID(), firstId);
+			Submission first = new Submission("simon", new Simon(firstSequence), UUID.randomUUID(), firstId,
+					UUID.randomUUID());
 			var start = new CountDownLatch(2);
 			Callable<ChildAttemptResultView> send = () -> {
 				start.countDown();
@@ -139,9 +140,10 @@ class ChildProgressConcurrencyIT {
 			}
 			assertThat(adapter.findByChildId(fixture.child()).orElseThrow().xpTotal()).isEqualTo(10);
 			assertThat(send(game, fixture, new Submission(
-					"simon", new Simon(List.of(2, 1, 0)), UUID.randomUUID(), secondId)).passed()).isTrue();
+					"simon", new Simon(List.of(2, 1, 0)), UUID.randomUUID(), secondId, UUID.randomUUID())).passed())
+					.isTrue();
 			assertThatThrownBy(() -> send(game, fixture, new Submission(
-					"simon", new Simon(firstSequence), UUID.randomUUID(), firstId)))
+					"simon", new Simon(firstSequence), UUID.randomUUID(), firstId, UUID.randomUUID())))
 					.isInstanceOf(AuthDomainException.class);
 			assertThat(jdbc.queryForObject("select count(*) from back_child_attempts where child_id = ?",
 					Integer.class, fixture.child())).isEqualTo(2);

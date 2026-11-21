@@ -45,9 +45,9 @@ public class QuestionOpenApiContract implements OpenApiCustomizer {
 		require(schemas, "PlayPuzzlePiece", "pieceId", "label", "shape", "points");
 		require(schemas, "PlaySimonElement", "label");
 		require(schemas, "ChildLearningQuestionsResponse", "subjectId", "subjectName", "questions");
-		require(schemas, "ChildLearningQuestionItem", "questionId", FORM, "prompt", "formLabel");
+		require(schemas, "ChildLearningQuestionItem", "questionId", FORM, "prompt", "formLabel", "mark", "yellowCount");
 		require(schemas, "ChildAttemptResultResponse", "attemptId", "scorePercent", "passed",
-				"attemptRank", "attemptsRemaining", "pointsAwarded", "replayAvailable");
+				"attemptRank", "attemptsRemaining", "pointsAwarded", "replayAvailable", "mark", "yellowCount");
 		require(schemas, "PreviewVerdict", "scorePercent", "passed");
 		require(schemas, "ChildLetterLocksResponse", "locks");
 		require(schemas, "MemoryPairResponse", "matched");

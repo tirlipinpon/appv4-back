@@ -1,5 +1,8 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -10,11 +13,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
 
 /**
  * Persiste les tentatives enfant (BACK-16).
  *
- * <p><b>Business :</b> une validation = une ligne attempt + ses réponses.
+ * <p><b>Business :</b> une validation = une ligne attempt + ses réponses, et l'étoile
+ * courante de la question pour cet enfant.
  * <p><b>Technique :</b> JPA sur {@code back_child_attempts}. Absent du profil {@code test}.
  * <p><b>Métier / flow :</b> adapter out du port {@link ChildQuestionAttemptPort}.
  */
@@ -78,6 +83,55 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 	}
 
 	@Override
+	public Optional<StoredMark> findMark(long childId, long questionId) {
+		return jdbc.sql("""
+				select mark_code, yellow_count from back_child_question_marks
+				where child_id = :childId and question_id = :questionId
+				""")
+				.param("childId", childId)
+				.param("questionId", questionId)
+				.query((rs, row) -> new StoredMark(rs.getString("mark_code"), rs.getInt("yellow_count")))
+				.optional();
+	}
+
+	@Override
+	@Transactional
+	public void saveMark(long childId, long questionId, String code, int yellowCount) {
+		jdbc.sql("""
+				insert into back_child_question_marks (child_id, question_id, mark_code, yellow_count)
+				values (:childId, :questionId, :code, :yellowCount)
+				on conflict (child_id, question_id) do update
+				set mark_code = excluded.mark_code, yellow_count = excluded.yellow_count
+				""")
+				.param("childId", childId)
+				.param("questionId", questionId)
+				.param("code", code)
+				.param("yellowCount", yellowCount)
+				.update();
+	}
+
+	@Override
+	public Map<Long, StoredMark> marksFor(long childId, Collection<Long> questionIds) {
+		if (questionIds == null || questionIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, StoredMark> found = new HashMap<>();
+		jdbc.sql("""
+				select question_id, mark_code, yellow_count from back_child_question_marks
+				where child_id = :childId and question_id in (:questionIds)
+				""")
+				.param("childId", childId)
+				.param("questionIds", questionIds)
+				.query((rs, row) -> {
+					found.put(rs.getLong("question_id"),
+							new StoredMark(rs.getString("mark_code"), rs.getInt("yellow_count")));
+					return null;
+				})
+				.list();
+		return found;
+	}
+
+	@Override
 	public int attemptsUsed(UUID playId, long childId, long subjectId, long questionId) {
 		return jdbc.sql("""
 				select attempts_used from back_child_play_pages
@@ -106,7 +160,9 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				attempt.submissionId(),
 				attempt.attemptRank(),
 				attempt.attemptsRemaining(),
-				attempt.pointsAwarded()));
+				attempt.pointsAwarded(),
+				attempt.markCode(),
+				attempt.yellowCount()));
 		long attemptId = saved.getId();
 		for (AnswerLine line : attempt.answers()) {
 			answers.save(new BackChildAttemptAnswerEntity(
@@ -131,6 +187,8 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				saved.isPassed(),
 				saved.getAttemptRank(),
 				saved.getAttemptsRemaining(),
-				saved.getPointsAwarded());
+				saved.getPointsAwarded(),
+				saved.getMarkCode(),
+				saved.getYellowCount());
 	}
 }

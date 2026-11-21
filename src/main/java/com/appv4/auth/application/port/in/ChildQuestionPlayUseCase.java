@@ -31,8 +31,11 @@ public interface ChildQuestionPlayUseCase {
 	boolean memoryPair(String rawToken, long subjectId, long questionId, MemoryMatch match);
 
 	/**
-	 * Une validation. {@code playId} identifie la page ouverte : le budget d'essais vit avec elle.
-	 * Absent, la tentative n'est pas rattachée à une page (anciens clients).
+	 * Une validation. {@code playId} identifie la page ouverte : le budget et l'étoile vivent avec elle.
+	 *
+	 * <p><b>Business :</b> sans page, on refuse : le budget et l'étoile ne peuvent pas être sautés.
+	 * <p><b>Technique :</b> {@code playId} null est un {@code BAD_REQUEST}, rien n'est enregistré.
+	 * <p><b>Métier / flow :</b> ouvrir la page donne l'id, Rejouer le garde, Valider l'envoie.
 	 */
 	record Submission(String declaredForm, Answer answer, UUID submissionId, UUID challengeId, UUID playId) {
 		public Submission(String declaredForm, Answer answer, UUID submissionId, UUID challengeId) {

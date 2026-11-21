@@ -10,6 +10,8 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
 import com.appv4.auth.application.port.out.ChildLoginPort;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
@@ -27,9 +29,10 @@ import com.appv4.auth.application.service.question.QuestionFormRegistry;
 /**
  * Liste learning des matières liées à l'enfant (BACK-15).
  *
- * <p><b>Business :</b> une matière retirée ou inactive n'apparaît pas.
- * <p><b>Technique :</b> jeton enfant → liens non exclus → catalogue visible + counts.
- * <p><b>Métier / flow :</b> port in → session enfant → ports out liens / questions.
+ * <p><b>Business :</b> une matière retirée ou inactive n'apparaît pas. Chaque question
+ * montre l'étoile déjà enregistrée pour cet enfant, ou aucune.
+ * <p><b>Technique :</b> jeton enfant → liens non exclus → catalogue visible + marques.
+ * <p><b>Métier / flow :</b> port in → session enfant → questions → étoiles.
  */
 public class ReadChildLearningSubjectsService implements ReadChildLearningSubjectsUseCase {
 
@@ -43,18 +46,21 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 	private final ChildSubjectPort childSubjectPort;
 	private final TeacherQuestionPort teacherQuestionPort;
 	private final QuestionFormRegistry questionFormRegistry;
+	private final ChildQuestionAttemptPort childQuestionAttemptPort;
 
 	public ReadChildLearningSubjectsService(
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
-			QuestionFormRegistry questionFormRegistry) {
+			QuestionFormRegistry questionFormRegistry,
+			ChildQuestionAttemptPort childQuestionAttemptPort) {
 		this.childLoginPort = childLoginPort;
 		this.childSessionTokenPort = childSessionTokenPort;
 		this.childSubjectPort = childSubjectPort;
 		this.teacherQuestionPort = teacherQuestionPort;
 		this.questionFormRegistry = questionFormRegistry;
+		this.childQuestionAttemptPort = childQuestionAttemptPort;
 	}
 
 	@Override
@@ -95,16 +101,23 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 		List<QuestionSummary> rows = teacherQuestionPort.findSummariesBySubject(
 				subjectId, Math.max(0, afterId), pageSize + 1);
 		Long nextCursor = rows.size() > pageSize ? rows.get(pageSize - 1).id() : null;
-		List<QuestionCard> cards = rows.stream().limit(pageSize)
+		List<QuestionSummary> page = rows.stream().limit(pageSize).toList();
+		Map<Long, StoredMark> loaded = childQuestionAttemptPort.marksFor(
+				childId, page.stream().map(QuestionSummary::id).toList());
+		Map<Long, StoredMark> marks = loaded == null ? Map.of() : loaded;
+		List<QuestionCard> cards = page.stream()
 				.map(q -> {
 					Look look = QuestionFormLooks.of(q.formCode());
+					StoredMark mark = marks.get(q.id());
 					return new QuestionCard(
 							q.id(),
 							q.formCode(),
 							q.prompt() == null ? "" : q.prompt(),
 							questionFormRegistry.labelOf(q.formCode()),
 							look == null ? null : look.iconCode(),
-							look == null ? null : look.color());
+							look == null ? null : look.color(),
+							mark == null ? "none" : mark.code(),
+							mark == null ? 0 : mark.yellowCount());
 				})
 				.toList();
 		return new ChildLearningQuestionsView(subject.id(), subject.name(), cards, nextCursor);

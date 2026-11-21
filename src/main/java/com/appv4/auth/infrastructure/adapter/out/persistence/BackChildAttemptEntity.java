@@ -14,6 +14,7 @@ import jakarta.persistence.Table;
  * Tentative enfant sur une question (BACK-16).
  *
  * <p><b>Business :</b> trace d'une partie pour score et lectures futures.
+ * L'étoile et son compte sont ceux de cet essai, pour qu'une relance ne les recalcule pas.
  * <p><b>Technique :</b> table {@code back_child_attempts}. Le score est un {@code SMALLINT}
  * (0–100), comme l'âge sur {@link BackChildEntity} : un {@code int} Java ferait échouer
  * {@code ddl-auto: validate} (Hibernate attendrait un {@code INTEGER}).
@@ -60,6 +61,12 @@ public class BackChildAttemptEntity {
 	@Column(name = "points_awarded", nullable = true)
 	private Integer pointsAwarded;
 
+	@Column(name = "mark_code", length = 16)
+	private String markCode;
+
+	@Column(name = "yellow_count")
+	private Integer yellowCount;
+
 	protected BackChildAttemptEntity() {
 	}
 
@@ -72,6 +79,14 @@ public class BackChildAttemptEntity {
 	public BackChildAttemptEntity(
 			long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed,
 			UUID submissionId, Integer attemptRank, Integer attemptsRemaining, Integer pointsAwarded) {
+		this(childId, subjectId, questionId, formCode, scorePercent, passed, submissionId,
+				attemptRank, attemptsRemaining, pointsAwarded, null, null);
+	}
+
+	public BackChildAttemptEntity(
+			long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed,
+			UUID submissionId, Integer attemptRank, Integer attemptsRemaining, Integer pointsAwarded,
+			String markCode, Integer yellowCount) {
 		this.childId = childId;
 		this.subjectId = subjectId;
 		this.questionId = questionId;
@@ -82,6 +97,8 @@ public class BackChildAttemptEntity {
 		this.attemptRank = attemptRank;
 		this.attemptsRemaining = attemptsRemaining;
 		this.pointsAwarded = pointsAwarded;
+		this.markCode = markCode;
+		this.yellowCount = yellowCount;
 	}
 
 	public Long getId() {
@@ -122,5 +139,13 @@ public class BackChildAttemptEntity {
 
 	public Integer getPointsAwarded() {
 		return pointsAwarded;
+	}
+
+	public String getMarkCode() {
+		return markCode;
+	}
+
+	public Integer getYellowCount() {
+		return yellowCount;
 	}
 }

@@ -389,9 +389,11 @@ public class AuthConfiguration {
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
-			QuestionFormRegistry questionFormRegistry) {
+			QuestionFormRegistry questionFormRegistry,
+			ChildQuestionAttemptPort childQuestionAttemptPort) {
 		return new ReadChildLearningSubjectsService(
-				childLoginPort, childSessionTokenPort, childSubjectPort, teacherQuestionPort, questionFormRegistry);
+				childLoginPort, childSessionTokenPort, childSubjectPort, teacherQuestionPort, questionFormRegistry,
+				childQuestionAttemptPort);
 	}
 
 	/**

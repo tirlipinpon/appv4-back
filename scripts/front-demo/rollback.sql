@@ -34,6 +34,10 @@ DO $$ BEGIN
  OR EXISTS(SELECT 1 FROM back_child_play_pages page
    WHERE (page.subject_id IN (SELECT id FROM demo_subjects))
       <> (page.child_id IN (SELECT id FROM demo_children)))
+ OR EXISTS(SELECT 1 FROM back_child_question_marks mark
+   JOIN back_subject_questions question ON question.id = mark.question_id
+   WHERE (question.subject_id IN (SELECT id FROM demo_subjects))
+      <> (mark.child_id IN (SELECT id FROM demo_children)))
  OR EXISTS(SELECT 1 FROM back_child_simon_challenges challenge
    JOIN back_subject_questions question ON question.id = challenge.question_id
    WHERE (question.subject_id IN (SELECT id FROM demo_subjects))

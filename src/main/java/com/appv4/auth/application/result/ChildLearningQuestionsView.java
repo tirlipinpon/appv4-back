@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Questions d'une matière pour l'enfant connecté (BACK-15).
  *
- * <p><b>Business :</b> lecture seule : id, forme et énoncé. Pas de correction ici.
+ * <p><b>Business :</b> lecture seule : id, forme, énoncé, et l'étoile déjà enregistrée pour cet enfant.
  */
 public record ChildLearningQuestionsView(long subjectId, String subjectName, List<QuestionCard> questions,
 		Long nextCursor) {
@@ -17,7 +17,9 @@ public record ChildLearningQuestionsView(long subjectId, String subjectName, Lis
 	/**
 	 * @param formLabel libellé de la forme, celui du catalogue
 	 * @param iconCode  dessin de la forme, ou null
-	 * @param color     teinte #rrggbb de la forme, ou null
+	 * @param color       teinte #rrggbb de la forme, ou null
+	 * @param mark        étoile de l'enfant : {@code none}, {@code black} ou {@code yellow}
+	 * @param yellowCount nombre d'étoiles jaunes, zéro s'il n'y en a pas
 	 */
 	public record QuestionCard(
 			long questionId,
@@ -25,6 +27,8 @@ public record ChildLearningQuestionsView(long subjectId, String subjectName, Lis
 			String prompt,
 			String formLabel,
 			String iconCode,
-			String color) {
+			String color,
+			String mark,
+			int yellowCount) {
 	}
 }

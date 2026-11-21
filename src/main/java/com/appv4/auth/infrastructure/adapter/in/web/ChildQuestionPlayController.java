@@ -104,7 +104,8 @@ public class ChildQuestionPlayController {
 		ChildAttemptResultView result = play.submit(bearer(authorization), subjectId, questionId, body.toSubmission());
 		return ResponseEntity.status(HttpStatus.CREATED).body(new ChildAttemptResultResponse(
 				result.attemptId(), result.scorePercent(), result.passed(), result.attemptRank(),
-				result.attemptsRemaining(), result.pointsAwarded(), result.replayAvailable()));
+				result.attemptsRemaining(), result.pointsAwarded(), result.replayAvailable(),
+				result.mark(), result.yellowCount()));
 	}
 
 	@PostMapping("/letter-locks")
@@ -150,6 +151,10 @@ public class ChildQuestionPlayController {
 
 	public record ChildAttemptResultResponse(
 			long attemptId, int scorePercent, boolean passed, int attemptRank, int attemptsRemaining,
-			int pointsAwarded, boolean replayAvailable) {
+			int pointsAwarded, boolean replayAvailable,
+			@Schema(description = "Étoile après cet essai : none, black ou yellow.")
+			String mark,
+			@Schema(description = "Nombre d'étoiles jaunes après cet essai. Zéro s'il n'y en a pas.")
+			int yellowCount) {
 	}
 }

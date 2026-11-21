@@ -1,5 +1,6 @@
 package com.appv4.auth.application.port.out;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -13,11 +14,16 @@ public interface ChildAvatarPort {
 
 	Optional<StoredAvatar> findByChildId(long childId);
 
-	void saveStyle(long childId, String styleCode, String presetId);
+	List<StoredPin> findPins(long childId);
+
+	void save(long childId, String styleCode, String presetId, List<StoredPin> pins);
 
 	/**
 	 * @param presetId identifiant de palette, ou {@code null} si aucune n'est choisie
 	 */
 	record StoredAvatar(long childId, String styleCode, String presetId) {
+	}
+
+	record StoredPin(String zoneCode, String variantCode) {
 	}
 }

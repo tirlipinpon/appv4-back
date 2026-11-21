@@ -1,5 +1,8 @@
 package com.appv4.auth.application.port.in;
 
+import java.util.List;
+
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 import com.appv4.auth.application.result.ChildAvatarView;
 
 /**
@@ -11,5 +14,5 @@ import com.appv4.auth.application.result.ChildAvatarView;
  */
 public interface SaveChildAvatarStyleUseCase {
 
-	ChildAvatarView saveStyle(String rawToken, String styleCode, String presetId);
+	ChildAvatarView saveStyle(String rawToken, String styleCode, String presetId, List<StoredPin> pins);
 }

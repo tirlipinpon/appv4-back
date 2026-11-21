@@ -1,5 +1,6 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.context.annotation.Profile;
@@ -20,9 +21,13 @@ import com.appv4.auth.application.port.out.ChildAvatarPort;
 public class ChildAvatarPersistenceAdapter implements ChildAvatarPort {
 
 	private final BackChildAvatarJpaRepository repository;
+	private final BackChildAvatarPinJpaRepository pins;
 
-	public ChildAvatarPersistenceAdapter(BackChildAvatarJpaRepository repository) {
+	public ChildAvatarPersistenceAdapter(
+			BackChildAvatarJpaRepository repository,
+			BackChildAvatarPinJpaRepository pins) {
 		this.repository = repository;
+		this.pins = pins;
 	}
 
 	@Override
@@ -33,11 +38,24 @@ public class ChildAvatarPersistenceAdapter implements ChildAvatarPort {
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public List<StoredPin> findPins(long childId) {
+		return pins.findByChildId(childId).stream()
+				.map(pin -> new StoredPin(pin.getZoneCode(), pin.getVariantCode()))
+				.toList();
+	}
+
+	@Override
 	@Transactional
-	public void saveStyle(long childId, String styleCode, String presetId) {
+	public void save(long childId, String styleCode, String presetId, List<StoredPin> nextPins) {
 		BackChildAvatarEntity entity = repository.findById(childId)
 				.orElseGet(() -> new BackChildAvatarEntity(childId, styleCode, presetId));
 		entity.apply(styleCode, presetId);
 		repository.save(entity);
+		pins.deleteByChildId(childId);
+		pins.flush();
+		for (StoredPin pin : nextPins) {
+			pins.save(new BackChildAvatarPinEntity(childId, pin.zoneCode(), pin.variantCode()));
+		}
 	}
 }

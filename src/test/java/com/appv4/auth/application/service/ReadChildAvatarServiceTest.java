@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.ChildAvatarPort;
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildProgressPort;
@@ -197,6 +199,67 @@ class ReadChildAvatarServiceTest {
 	}
 
 	@Test
+	void openMouthPinStaysWhenThePaletteChanges() {
+		activeChild(7L);
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.of(progress(7L, 20)));
+		String mouth = zone(service.avatar("token"), "mouth").variants().get(0).code();
+
+		service.saveStyle("token", "lorelei", "bare", List.of(new StoredPin("mouth", mouth)));
+		ChildAvatarView afterPalette = service.saveStyle("token", "lorelei", "sepia");
+
+		assertThat(zone(afterPalette, "mouth").selectedCode()).isEqualTo(mouth);
+		assertThat(zone(afterPalette, "eyes").open()).isFalse();
+		assertThat(zone(afterPalette, "eyes").selectedCode()).isNull();
+		assertThat(afterPalette.presetId()).isEqualTo("sepia");
+	}
+
+	@Test
+	void noneOnOpenGlassesIsStoredAndNoneOnMouthIsRefused() {
+		activeChild(7L);
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.of(progress(7L, 210)));
+		String mouth = zone(service.avatar("token"), "mouth").variants().get(0).code();
+		service.saveStyle("token", "lorelei", "bare", List.of(new StoredPin("mouth", mouth)));
+
+		ChildAvatarView glasses = service.saveStyle(
+				"token", "lorelei", "bare", List.of(new StoredPin("glasses", "none")));
+		assertThat(zone(glasses, "glasses").selectedCode()).isEqualTo("none");
+
+		assertThatThrownBy(() -> service.saveStyle(
+				"token", "lorelei", "bare", List.of(new StoredPin("mouth", "none"))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(ReadChildAvatarService.UNKNOWN_VARIANT);
+		assertThat(zone(service.avatar("token"), "glasses").selectedCode()).isEqualTo("none");
+	}
+
+	@Test
+	void closedHairPinIsRefusedAndFunEmojiKeepsOnlyTheMouth() {
+		activeChild(7L);
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.of(progress(7L, 20)));
+		ChildAvatarView current = service.avatar("token");
+		String mouth = zone(current, "mouth").variants().get(0).code();
+		String hair = zone(current, "hair").variants().get(0).code();
+		service.saveStyle("token", "lorelei", "bare", List.of(new StoredPin("mouth", mouth)));
+
+		assertThatThrownBy(() -> service.saveStyle(
+				"token", "lorelei", "bare", List.of(new StoredPin("hair", hair))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(ReadChildAvatarService.ZONE_CLOSED);
+		assertThat(zone(service.avatar("token"), "mouth").selectedCode()).isEqualTo(mouth);
+
+		String emojiMouth = CharacterAvatarCatalog.load().byCode("fun-emoji").zones().stream()
+				.filter(zone -> zone.code().equals("mouth"))
+				.findFirst()
+				.orElseThrow()
+				.variants()
+				.get(0);
+		ChildAvatarView emoji = service.saveStyle(
+				"token", "fun-emoji", "plain", List.of(new StoredPin("mouth", emojiMouth)));
+		assertThat(emoji.styleCode()).isEqualTo("fun-emoji");
+		assertThat(emoji.zones().stream().map(ZoneCard::code)).doesNotContain("hair");
+		assertThat(zone(emoji, "mouth").selectedCode()).isEqualTo(emojiMouth);
+	}
+
+	@Test
 	void missingOrStoppedChildIsRefused() {
 		when(childSessionTokenPort.read("bad")).thenReturn(Optional.empty());
 		when(childSessionTokenPort.read("stopped"))
@@ -237,6 +300,8 @@ class ReadChildAvatarServiceTest {
 
 		private ChildAvatarPort.StoredAvatar stored;
 
+		private List<ChildAvatarPort.StoredPin> pins = List.of();
+
 		@Override
 		public Optional<ChildAvatarPort.StoredAvatar> findByChildId(long childId) {
 			if (stored == null || stored.childId() != childId) {
@@ -246,8 +311,17 @@ class ReadChildAvatarServiceTest {
 		}
 
 		@Override
-		public void saveStyle(long childId, String styleCode, String presetId) {
+		public List<ChildAvatarPort.StoredPin> findPins(long childId) {
+			if (stored == null || stored.childId() != childId) {
+				return List.of();
+			}
+			return pins;
+		}
+
+		@Override
+		public void save(long childId, String styleCode, String presetId, List<ChildAvatarPort.StoredPin> nextPins) {
 			stored = new ChildAvatarPort.StoredAvatar(childId, styleCode, presetId);
+			pins = List.copyOf(nextPins);
 		}
 	}
 

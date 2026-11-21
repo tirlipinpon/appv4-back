@@ -51,7 +51,8 @@ public record ChildAvatarView(
 			String thresholdLabel,
 			String missingLabel,
 			boolean open,
-			List<VariantCard> variants) {
+			List<VariantCard> variants,
+			String selectedCode) {
 		public ZoneCard {
 			variants = variants == null ? List.of() : List.copyOf(variants);
 		}

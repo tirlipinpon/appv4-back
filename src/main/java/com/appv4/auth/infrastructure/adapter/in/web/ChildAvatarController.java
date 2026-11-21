@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ReadChildAvatarUseCase;
 import com.appv4.auth.application.port.in.SaveChildAvatarStyleUseCase;
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 import com.appv4.auth.application.result.ChildAvatarView;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -70,8 +71,13 @@ public class ChildAvatarController {
 	public ResponseEntity<ChildAvatarResponse> save(
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
 			@RequestBody SaveChildAvatarStyleRequest request) {
+		List<StoredPin> pins = request.pins() == null
+				? null
+				: request.pins().stream()
+						.map(pin -> new StoredPin(pin.zoneCode(), pin.variantCode()))
+						.toList();
 		ChildAvatarView view = saveChildAvatarStyleUseCase.saveStyle(
-				bearer(authorization), request.styleCode(), request.presetId());
+				bearer(authorization), request.styleCode(), request.presetId(), pins);
 		return ResponseEntity.ok(ChildAvatarResponse.from(view));
 	}
 
@@ -85,7 +91,12 @@ public class ChildAvatarController {
 	@Schema(name = "SaveChildAvatarStyleRequest")
 	public record SaveChildAvatarStyleRequest(
 			String styleCode,
-			@Schema(nullable = true) String presetId) {
+			@Schema(nullable = true) String presetId,
+			@Schema(nullable = true) List<AvatarPinRequest> pins) {
+	}
+
+	@Schema(name = "AvatarPinRequest")
+	public record AvatarPinRequest(String zoneCode, String variantCode) {
 	}
 
 	@Schema(name = "ChildAvatarResponse")
@@ -154,7 +165,8 @@ public class ChildAvatarController {
 			@Schema(nullable = true) String thresholdLabel,
 			@Schema(nullable = true) String missingLabel,
 			boolean open,
-			List<ChildAvatarVariantCard> variants) {
+			List<ChildAvatarVariantCard> variants,
+			@Schema(nullable = true) String selectedCode) {
 
 		static ChildAvatarZoneCard from(ChildAvatarView.ZoneCard zone) {
 			return new ChildAvatarZoneCard(
@@ -164,7 +176,8 @@ public class ChildAvatarController {
 					zone.thresholdLabel(),
 					zone.missingLabel(),
 					zone.open(),
-					zone.variants().stream().map(ChildAvatarVariantCard::from).toList());
+					zone.variants().stream().map(ChildAvatarVariantCard::from).toList(),
+					zone.selectedCode());
 		}
 	}
 

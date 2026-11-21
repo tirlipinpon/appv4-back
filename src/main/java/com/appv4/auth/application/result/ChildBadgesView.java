@@ -19,13 +19,22 @@ public record ChildBadgesView(List<Badge> badges, List<Gained> gainedToday, Noti
 		gainedToday = List.copyOf(gainedToday);
 	}
 
+	/**
+	 * Une carte de la collection.
+	 *
+	 * <p><b>Business :</b> {@code retainedValue} est le record qui a donné le niveau.
+	 * {@code progressValue} remplit la jauge : la série en cours pour Bonnes réponses
+	 * d'affilée, le record pour les autres badges.
+	 * <p><b>Technique :</b> les deux nombres partent dans le JSON. La jauge ne recalcule pas.
+	 */
 	public record Badge(
 			String code,
 			String name,
 			int level,
 			int retainedValue,
 			Integer nextThreshold,
-			LocalDate unlockedOn) {
+			LocalDate unlockedOn,
+			int progressValue) {
 	}
 
 	public record Gained(String code, String name, int level) {

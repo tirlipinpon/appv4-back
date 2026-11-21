@@ -82,12 +82,13 @@ public class ChildBadgesController {
 			int level,
 			int retainedValue,
 			Integer nextThreshold,
-			LocalDate unlockedOn) {
+			LocalDate unlockedOn,
+			int progressValue) {
 
 		static BadgeResponse from(ChildBadgesView.Badge badge) {
 			return new BadgeResponse(
 					badge.code(), badge.name(), badge.level(), badge.retainedValue(),
-					badge.nextThreshold(), badge.unlockedOn());
+					badge.nextThreshold(), badge.unlockedOn(), badge.progressValue());
 		}
 	}
 

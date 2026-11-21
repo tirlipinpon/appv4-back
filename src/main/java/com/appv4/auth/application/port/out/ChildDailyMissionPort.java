@@ -26,6 +26,31 @@ public interface ChildDailyMissionPort {
 
 	void setProgress(long taskId, int progressCount);
 
+	/**
+	 * Missions encore en base pour cet enfant.
+	 *
+	 * <p><b>Business :</b> une mission dont toutes les tâches sont encore là et finies compte une fois.
+	 * <p><b>Technique :</b> défaut vide pour les tests qui ne s'en servent pas.
+	 * <p><b>Métier / flow :</b> reprise des badges, avant le premier essai nouveau.
+	 */
+	default List<StoredMission> missionsOf(long childId) {
+		return List.of();
+	}
+
+	/**
+	 * Garde le jour où la mission a été finie, sans ses tâches.
+	 *
+	 * <p><b>Business :</b> supprimer une question ensuite n'efface pas ce jour.
+	 * <p><b>Technique :</b> {@code back_child_mission_days}.
+	 * <p><b>Métier / flow :</b> après une tentative qui termine la mission, et pendant la reprise.
+	 */
+	default void rememberFinishedDay(long childId, LocalDate missionDate) {
+	}
+
+	default List<LocalDate> finishedDays(long childId) {
+		return List.of();
+	}
+
 	record NewMission(long childId, LocalDate missionDate, String objective, List<NewTask> tasks) {
 		public NewMission {
 			tasks = tasks == null ? List.of() : List.copyOf(tasks);

@@ -9,8 +9,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.List;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -18,6 +19,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredMission;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredTask;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.AttemptTrace;
 import com.appv4.auth.application.port.out.ChildBadgePort;
 import com.appv4.auth.application.port.out.ChildBadgePort.StoredBadge;
 import com.appv4.auth.application.port.out.ChildLoginPort;
@@ -44,6 +49,8 @@ class ChildBadgesTest {
 	private final ChildSubjectPort subjects = mock(ChildSubjectPort.class);
 	private final TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
 	private final MemoryBadges stored = new MemoryBadges();
+	private final MemoryMissions missionPort = new MemoryMissions();
+	private final List<AttemptTrace> history = new ArrayList<>();
 	private final Map<Long, StoredMark> marks = new HashMap<>();
 	private ReadChildBadgesService badges;
 
@@ -55,8 +62,10 @@ class ChildBadgesTest {
 		when(children.findActiveById(8L)).thenReturn(Optional.of(new ChildLoginCandidate(8L, "Nao", "hash")));
 		when(attempts.allMarks(7L)).thenAnswer(invocation -> Map.copyOf(marks));
 		when(attempts.allMarks(8L)).thenReturn(Map.of());
+		when(attempts.traces(7L)).thenAnswer(invocation -> List.copyOf(history));
+		when(attempts.traces(8L)).thenReturn(List.of());
 		badges = new ReadChildBadgesService(
-				children, session, attempts, stored, subjects, questions,
+				children, session, attempts, stored, subjects, questions, missionPort,
 				Clock.fixed(Instant.parse("2026-11-21T12:00:00Z"), ZoneOffset.UTC));
 	}
 
@@ -263,6 +272,107 @@ class ChildBadgesTest {
 		return new CatalogSubject(4L, "Mathématiques", "Mme X", 1L, "CE1", "math");
 	}
 
+	@Test
+	void unRattrapageCompteUneFoisEtGardeSaDate() {
+		history.add(trace(1L, 18, QuestionMark.BLACK, false, false));
+		history.add(trace(1L, 19, QuestionMark.YELLOW, true, true));
+		history.add(trace(1L, 20, QuestionMark.YELLOW, true, true));
+
+		Badge badge = badges.badges("lea").badges().get(3);
+
+		assertThat(badge.level()).isEqualTo(1);
+		assertThat(badge.retainedValue()).isEqualTo(1);
+		assertThat(badge.unlockedOn()).isEqualTo(LocalDate.of(2026, 11, 19));
+		assertThat(badges.badges("lea").gainedToday()).extracting(ChildBadgesView.Gained::code)
+				.doesNotContain(ReadChildBadgesService.RATTRAPAGE);
+	}
+
+	@Test
+	void deuxJoursDEchecsAvancentLesJoursJouesEtPasLaSerie() {
+		history.add(trace(1L, 18, null, false, false));
+		history.add(trace(1L, 19, null, false, false));
+
+		ChildBadgesView view = badges.badges("lea");
+
+		assertThat(view.badges().get(7).retainedValue()).isEqualTo(2);
+		assertThat(view.badges().get(7).level()).isZero();
+		assertThat(view.badges().get(7).nextThreshold()).isEqualTo(3);
+		assertThat(view.badges().get(6).level()).isZero();
+		assertThat(view.badges().get(6).retainedValue()).isZero();
+	}
+
+	@Test
+	void deuxJoursPayesDeSuiteDonnentLaSerieSansEntrerDansAujourdhui() {
+		history.add(trace(1L, 18, QuestionMark.YELLOW, true, true));
+		history.add(trace(1L, 19, QuestionMark.YELLOW, true, true));
+
+		Badge streak = badges.badges("lea").badges().get(6);
+
+		assertThat(streak.level()).isEqualTo(1);
+		assertThat(streak.unlockedOn()).isEqualTo(LocalDate.of(2026, 11, 19));
+		assertThat(badges.badges("lea").gainedToday()).isEmpty();
+	}
+
+	@Test
+	void troisReponsesPayeesPuisUnEchecGardentLeNiveau() {
+		history.add(trace(1L, 18, QuestionMark.YELLOW, true, true));
+		history.add(trace(2L, 18, QuestionMark.YELLOW, true, true));
+		history.add(trace(3L, 18, QuestionMark.YELLOW, true, true));
+		badges.badges("lea");
+		history.add(trace(3L, 18, QuestionMark.YELLOW, false, false));
+
+		ChildBadgesView view = badges.badges("lea");
+
+		assertThat(view.badges().get(4).level()).isEqualTo(1);
+		assertThat(view.badges().get(4).retainedValue()).isEqualTo(3);
+		assertThat(view.badges().get(5).level()).isEqualTo(1);
+		assertThat(view.badges().get(5).retainedValue()).isEqualTo(3);
+	}
+
+	@Test
+	void unRejeuJauneNonPayeNeCassePasLEnchainement() {
+		history.add(trace(1L, 18, QuestionMark.YELLOW, true, true));
+		history.add(trace(1L, 18, QuestionMark.YELLOW, true, false));
+		history.add(trace(2L, 18, QuestionMark.YELLOW, true, true));
+		history.add(trace(3L, 18, QuestionMark.YELLOW, true, true));
+
+		assertThat(badges.badges("lea").badges().get(4).level()).isEqualTo(1);
+		assertThat(badges.badges("lea").badges().get(4).retainedValue()).isEqualTo(3);
+	}
+
+	@Test
+	void unEssaiSansPayNeNourritPasLesBonnesReponses() {
+		history.add(trace(1L, 18, QuestionMark.YELLOW, true, null));
+		history.add(trace(2L, 18, QuestionMark.YELLOW, true, null));
+		history.add(trace(3L, 18, QuestionMark.YELLOW, true, null));
+
+		assertThat(badges.badges("lea").badges().get(4).level()).isZero();
+		assertThat(badges.badges("lea").badges().get(6).level()).isZero();
+	}
+
+	@Test
+	void uneMissionFinieResteApresLaDisparitionDeSesTaches() {
+		missionPort.missions.add(doneMission(LocalDate.of(2026, 11, 18)));
+
+		assertThat(badges.badges("lea").badges().get(8).level()).isEqualTo(1);
+		assertThat(badges.badges("lea").badges().get(8).unlockedOn()).isEqualTo(LocalDate.of(2026, 11, 18));
+
+		missionPort.missions.clear();
+
+		assertThat(badges.badges("lea").badges().get(8).level()).isEqualTo(1);
+	}
+
+	private static AttemptTrace trace(
+			long questionId, int day, QuestionMark mark, boolean passed, Boolean pay) {
+		Instant at = LocalDate.of(2026, 11, day).atStartOfDay(ReadChildBadgesService.ZONE).toInstant();
+		return new AttemptTrace(questionId, at, mark, passed, pay);
+	}
+
+	private static StoredMission doneMission(LocalDate date) {
+		return new StoredMission(1L, 7L, date, "Joue 1 question aujourd'hui", List.of(
+				new StoredTask(1L, 1, "Question", 1, 1, 10, 4L, 1L)));
+	}
+
 	private void yellow(long questionId, int count) {
 		marks.put(questionId, new StoredMark(QuestionMark.YELLOW, count));
 	}
@@ -289,6 +399,42 @@ class ChildBadgesTest {
 		@Override
 		public void save(long childId, StoredBadge badge) {
 			rows.computeIfAbsent(childId, ignored -> new HashMap<>()).put(badge.code(), badge);
+		}
+	}
+
+	private static final class MemoryMissions implements ChildDailyMissionPort {
+		private final List<StoredMission> missions = new ArrayList<>();
+		private final List<LocalDate> days = new ArrayList<>();
+
+		@Override
+		public Optional<StoredMission> findByChildAndDate(long childId, LocalDate missionDate) {
+			return missions.stream().filter(mission -> mission.missionDate().equals(missionDate)).findFirst();
+		}
+
+		@Override
+		public StoredMission insert(NewMission mission) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public void setProgress(long taskId, int progressCount) {
+		}
+
+		@Override
+		public List<StoredMission> missionsOf(long childId) {
+			return List.copyOf(missions);
+		}
+
+		@Override
+		public void rememberFinishedDay(long childId, LocalDate missionDate) {
+			if (!days.contains(missionDate)) {
+				days.add(missionDate);
+			}
+		}
+
+		@Override
+		public List<LocalDate> finishedDays(long childId) {
+			return List.copyOf(days);
 		}
 	}
 }

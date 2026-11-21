@@ -84,6 +84,47 @@ public class ChildDailyMissionPersistenceAdapter implements ChildDailyMissionPor
 	}
 
 	@Override
+	@Transactional(readOnly = true)
+	public List<StoredMission> missionsOf(long childId) {
+		return missions.findByChildIdOrderByMissionDateAsc(childId).stream().map(this::toStored).toList();
+	}
+
+	@Override
+	@Transactional
+	public void rememberFinishedDay(long childId, LocalDate missionDate) {
+		entityManager.createNativeQuery("""
+				INSERT INTO back_child_mission_days (child_id, mission_date)
+				VALUES (:childId, :missionDate)
+				ON CONFLICT DO NOTHING
+				""")
+				.setParameter("childId", childId)
+				.setParameter("missionDate", missionDate)
+				.executeUpdate();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	@SuppressWarnings("unchecked")
+	public List<LocalDate> finishedDays(long childId) {
+		List<Object> rows = entityManager.createNativeQuery("""
+				SELECT mission_date FROM back_child_mission_days
+				WHERE child_id = :childId
+				ORDER BY mission_date
+				""")
+				.setParameter("childId", childId)
+				.getResultList();
+		List<LocalDate> days = new ArrayList<>();
+		for (Object row : rows) {
+			if (row instanceof LocalDate date) {
+				days.add(date);
+			} else if (row instanceof java.sql.Date date) {
+				days.add(date.toLocalDate());
+			}
+		}
+		return days;
+	}
+
+	@Override
 	@Transactional
 	public void setProgress(long taskId, int progressCount) {
 		BackChildDailyTaskEntity task = tasks.findById(taskId)

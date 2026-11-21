@@ -1,5 +1,6 @@
 package com.appv4.auth.application.port.out;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +88,26 @@ public interface ChildQuestionAttemptPort {
 	 * <p><b>Métier / flow :</b> lecture des badges, avant de décider un niveau.
 	 */
 	Map<Long, StoredMark> allMarks(long childId);
+
+	/**
+	 * Essais de l'enfant, du plus ancien au plus récent.
+	 *
+	 * <p><b>Business :</b> les badges de jours, de rattrapage et de bonnes réponses se lisent ici.
+	 * {@code pay} null veut dire un essai ancien : il ne nourrit pas ces badges-là, sauf les jours joués.
+	 * <p><b>Technique :</b> {@code back_child_attempts} ordonné par date puis id.
+	 * <p><b>Métier / flow :</b> lecture des badges et reprise, après l'enregistrement d'un essai.
+	 */
+	default List<AttemptTrace> traces(long childId) {
+		return List.of();
+	}
+
+	record AttemptTrace(
+			long questionId,
+			Instant createdAt,
+			QuestionMark markCode,
+			boolean passed,
+			Boolean pay) {
+	}
 
 	/** Rang 1 = premier essai de la page. {@code attemptsRemaining} est ce qu'il reste après celui-ci. */
 	record PageClaim(int rank, int attemptsRemaining) {

@@ -154,6 +154,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		if (pay && seat.rank() == 1) {
 			childDailyMissionService.recordUsefulAttempt(childId, subjectId, saved.scorePercent(), saved.passed());
 		}
+		childBadgeProgress.noteMission(childId);
 		return new ChildAttemptResultView(
 				saved.id(), grade.scorePercent(), grade.passed(), seat.rank(), seat.attemptsRemaining(), points,
 				seat.attemptsRemaining() > 0, mark, yellowCount);

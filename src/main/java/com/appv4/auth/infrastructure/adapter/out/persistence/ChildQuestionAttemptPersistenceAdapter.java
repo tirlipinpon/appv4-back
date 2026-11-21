@@ -2,6 +2,7 @@ package com.appv4.auth.infrastructure.adapter.out.persistence;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.AttemptTrace;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
 import com.appv4.auth.application.port.out.QuestionMark;
@@ -154,6 +156,30 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				.param("childId", childId)
 				.query((rs, row) -> {
 					found.put(rs.getLong("question_id"), readStored(rs));
+					return null;
+				})
+				.list();
+		return found;
+	}
+
+	@Override
+	public List<AttemptTrace> traces(long childId) {
+		List<AttemptTrace> found = new java.util.ArrayList<>();
+		jdbc.sql("""
+				select question_id, created_at, mark_code, passed, pay
+				from back_child_attempts
+				where child_id = :childId
+				order by created_at, id
+				""")
+				.param("childId", childId)
+				.query((rs, row) -> {
+					String mark = rs.getString("mark_code");
+					found.add(new AttemptTrace(
+							rs.getLong("question_id"),
+							rs.getTimestamp("created_at").toInstant(),
+							mark == null ? null : QuestionMark.fromWire(mark),
+							rs.getBoolean("passed"),
+							(Boolean) rs.getObject("pay")));
 					return null;
 				})
 				.list();

@@ -1,11 +1,15 @@
 package com.appv4.auth.application.service;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,7 +18,10 @@ import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ReadChildBadgesUseCase;
 import com.appv4.auth.application.port.out.ChildBadgePort;
 import com.appv4.auth.application.port.out.ChildBadgePort.StoredBadge;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredMission;
 import com.appv4.auth.application.port.out.ChildLoginPort;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.AttemptTrace;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
@@ -73,6 +80,7 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 	private final ChildBadgePort badges;
 	private final ChildSubjectPort subjects;
 	private final TeacherQuestionPort questions;
+	private final ChildDailyMissionPort missions;
 	private final Clock clock;
 
 	public ReadChildBadgesService(
@@ -82,6 +90,7 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 			ChildBadgePort badges,
 			ChildSubjectPort subjects,
 			TeacherQuestionPort questions,
+			ChildDailyMissionPort missions,
 			Clock clock) {
 		this.childLoginPort = childLoginPort;
 		this.childSessionTokenPort = childSessionTokenPort;
@@ -89,6 +98,7 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 		this.badges = badges;
 		this.subjects = subjects;
 		this.questions = questions;
+		this.missions = missions;
 		this.clock = clock;
 	}
 
@@ -97,6 +107,7 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 	public ChildBadgesView badges(String rawToken) {
 		long childId = requireActiveChild(rawToken);
 		initialize(childId);
+		refreshActivity(childId);
 		return view(childId, today());
 	}
 
@@ -117,6 +128,20 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 		if (becameYellow(before, after) && fullyYellow(childId, subjectId)) {
 			raiseSubject(childId, subjectId, today);
 		}
+		refreshActivity(childId);
+	}
+
+	@Override
+	@Transactional
+	public void noteMission(long childId) {
+		initialize(childId);
+		LocalDate today = today();
+		missions.findByChildAndDate(childId, today).ifPresent(mission -> {
+			if (complete(mission)) {
+				missions.rememberFinishedDay(childId, today);
+			}
+		});
+		refreshActivity(childId);
 	}
 
 	private void initialize(long childId) {
@@ -182,7 +207,186 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 			Integer next = ChildBadgeRules.nextThreshold(level, ETOILES_FIRST);
 			return new Badge(kind.code(), kind.name(), level, sum, next, date);
 		}
-		return new Badge(kind.code(), kind.name(), 0, 0, kind.firstThreshold(), null);
+		int level = stored == null ? 0 : stored.level();
+		int retained = stored == null ? 0 : stored.retainedValue();
+		Integer next = kind.firstThreshold() == null
+				? null
+				: ChildBadgeRules.nextThreshold(level, kind.firstThreshold());
+		LocalDate date = stored == null ? null : stored.unlockedOn();
+		return new Badge(kind.code(), kind.name(), level, retained, next, date);
+	}
+
+	private void refreshActivity(long childId) {
+		List<AttemptTrace> traces = attempts.traces(childId);
+		if (traces == null) {
+			traces = List.of();
+		}
+		rememberCompleteMissions(childId);
+		List<LocalDate> finished = missions.finishedDays(childId);
+		if (finished == null) {
+			finished = List.of();
+		}
+		saveCounter(childId, RATTRAPAGE, rattrapage(traces), 1);
+		saveCounter(childId, JOURS_JOUES, countedDays(allDays(traces), 3), 3);
+		saveCounter(childId, JOURS_AFFILEE, payStreak(traces), 2);
+		saveCounter(childId, AFFILEE, answerRun(traces), 3);
+		saveCounter(childId, JOUR, bestDay(traces), 3);
+		saveCounter(childId, MISSIONS, countedDays(finished, 1), 1);
+	}
+
+	private void rememberCompleteMissions(long childId) {
+		List<StoredMission> missionsOf = missions.missionsOf(childId);
+		if (missionsOf == null) {
+			return;
+		}
+		for (StoredMission mission : missionsOf) {
+			if (complete(mission)) {
+				missions.rememberFinishedDay(childId, mission.missionDate());
+			}
+		}
+	}
+
+	private static boolean complete(StoredMission mission) {
+		return mission.tasks() != null
+				&& !mission.tasks().isEmpty()
+				&& mission.tasks().stream().allMatch(task -> task.progressCount() >= task.targetCount());
+	}
+
+	private void saveCounter(long childId, String code, Outcome outcome, int first) {
+		StoredBadge previous = load(childId).get(code);
+		int oldLevel = previous == null ? 0 : previous.level();
+		int level = Math.max(oldLevel, ChildBadgeRules.level(outcome.value(), first));
+		int retained = Math.max(previous == null ? 0 : previous.retainedValue(), outcome.value());
+		LocalDate date = previous == null ? null : previous.unlockedOn();
+		if (level > oldLevel) {
+			date = outcome.crossed();
+		}
+		if (level == 0 && retained == 0) {
+			return;
+		}
+		Long subjectId = previous == null ? null : previous.subjectId();
+		badges.save(childId, new StoredBadge(code, level, retained, date, subjectId));
+	}
+
+	private Outcome rattrapage(List<AttemptTrace> traces) {
+		Map<Long, Boolean> sawBlack = new HashMap<>();
+		Set<Long> recovered = new HashSet<>();
+		List<LocalDate> dates = new ArrayList<>();
+		for (AttemptTrace trace : traces) {
+			if (trace.markCode() == QuestionMark.BLACK) {
+				sawBlack.put(trace.questionId(), true);
+			}
+			if (trace.markCode() == QuestionMark.YELLOW
+					&& sawBlack.getOrDefault(trace.questionId(), false)
+					&& recovered.add(trace.questionId())) {
+				dates.add(paris(trace.createdAt()));
+			}
+		}
+		return outcome(dates.size(), dates, 1);
+	}
+
+	private Outcome payStreak(List<AttemptTrace> traces) {
+		List<LocalDate> days = payDays(traces);
+		int best = 0;
+		LocalDate crossed = null;
+		int run = 0;
+		LocalDate previous = null;
+		LocalDate runStart = null;
+		for (LocalDate day : days) {
+			if (previous != null && day.equals(previous.plusDays(1))) {
+				run++;
+			} else {
+				run = 1;
+				runStart = day;
+			}
+			if (run > best) {
+				best = run;
+				int level = ChildBadgeRules.level(best, 2);
+				if (level > 0) {
+					int threshold = ChildBadgeRules.nextThreshold(level - 1, 2);
+					crossed = runStart.plusDays(threshold - 1L);
+				}
+			}
+			previous = day;
+		}
+		return new Outcome(best, best == 0 ? null : crossed);
+	}
+
+	private Outcome answerRun(List<AttemptTrace> traces) {
+		int run = 0;
+		int best = 0;
+		LocalDate crossed = null;
+		for (AttemptTrace trace : traces) {
+			if (trace.pay() == null) {
+				continue;
+			}
+			if (Boolean.TRUE.equals(trace.pay())) {
+				int before = ChildBadgeRules.level(best, 3);
+				run++;
+				if (run > best) {
+					best = run;
+					if (ChildBadgeRules.level(best, 3) > before) {
+						crossed = paris(trace.createdAt());
+					}
+				}
+			} else if (!trace.passed()) {
+				run = 0;
+			}
+		}
+		return new Outcome(best, crossed);
+	}
+
+	private Outcome bestDay(List<AttemptTrace> traces) {
+		Map<LocalDate, Integer> counts = new HashMap<>();
+		for (AttemptTrace trace : traces) {
+			if (Boolean.TRUE.equals(trace.pay())) {
+				counts.merge(paris(trace.createdAt()), 1, Integer::sum);
+			}
+		}
+		int best = 0;
+		LocalDate day = null;
+		for (Map.Entry<LocalDate, Integer> entry : counts.entrySet()) {
+			if (entry.getValue() > best || (entry.getValue() == best && day != null && entry.getKey().isBefore(day))) {
+				best = entry.getValue();
+				day = entry.getKey();
+			}
+		}
+		int level = ChildBadgeRules.level(best, 3);
+		return new Outcome(best, level == 0 ? null : day);
+	}
+
+	private static List<LocalDate> allDays(List<AttemptTrace> traces) {
+		return traces.stream().map(trace -> paris(trace.createdAt())).distinct().sorted().toList();
+	}
+
+	private static List<LocalDate> payDays(List<AttemptTrace> traces) {
+		return traces.stream()
+				.filter(trace -> Boolean.TRUE.equals(trace.pay()))
+				.map(trace -> paris(trace.createdAt()))
+				.distinct()
+				.sorted()
+				.toList();
+	}
+
+	private static Outcome countedDays(List<LocalDate> days, int first) {
+		List<LocalDate> sorted = days.stream().distinct().sorted().toList();
+		return outcome(sorted.size(), sorted, first);
+	}
+
+	private static Outcome outcome(int value, List<LocalDate> dates, int first) {
+		int level = ChildBadgeRules.level(value, first);
+		if (level == 0) {
+			return new Outcome(value, null);
+		}
+		int threshold = ChildBadgeRules.nextThreshold(level - 1, first);
+		return new Outcome(value, dates.get(threshold - 1));
+	}
+
+	private static LocalDate paris(Instant instant) {
+		return LocalDate.ofInstant(instant, ZONE);
+	}
+
+	private record Outcome(int value, LocalDate crossed) {
 	}
 
 	private void raiseSubject(long childId, long subjectId, LocalDate today) {

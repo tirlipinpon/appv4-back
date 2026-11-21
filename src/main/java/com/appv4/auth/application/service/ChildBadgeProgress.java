@@ -21,4 +21,7 @@ public interface ChildBadgeProgress {
 	 * ou noire à jaune, puis que la matière est toute jaune.
 	 */
 	void afterAttempt(long childId, long subjectId, long questionId, QuestionMark before, QuestionMark after);
+
+	/** Relit la mission du jour après qu'une tentative a pu la terminer. */
+	void noteMission(long childId);
 }

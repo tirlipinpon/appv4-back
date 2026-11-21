@@ -431,10 +431,11 @@ public class AuthConfiguration {
 			ChildBadgePort childBadgePort,
 			ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
+			ChildDailyMissionPort childDailyMissionPort,
 			java.time.Clock clock) {
 		return new ReadChildBadgesService(
 				childLoginPort, childSessionTokenPort, childQuestionAttemptPort, childBadgePort,
-				childSubjectPort, teacherQuestionPort, clock);
+				childSubjectPort, teacherQuestionPort, childDailyMissionPort, clock);
 	}
 
 	@Bean

@@ -181,6 +181,13 @@ class ChildSubjectLessonTest {
 		return service.board("lea", 4L).lesson().questions().stream().map(Question::questionId).toList();
 	}
 
+	@Test
+	void uneLeconQuiPasseDeUneQuestionAZeroDitLeconFinie() {
+		assertThat(ChildLessonMembership.finishedLabel(1, 0)).isEqualTo("Leçon finie.");
+		assertThat(ChildLessonMembership.finishedLabel(2, 1)).isNull();
+		assertThat(ChildLessonMembership.finishedLabel(0, 0)).isNull();
+	}
+
 	static PageAttempt attempt(
 			long id, long questionId, String at, boolean passed, Integer rank, Integer remaining) {
 		return new PageAttempt(id, questionId, Instant.parse(at), passed, rank, remaining);

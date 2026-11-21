@@ -106,7 +106,7 @@ public class ChildQuestionPlayController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(new ChildAttemptResultResponse(
 				result.attemptId(), result.scorePercent(), result.passed(), result.attemptRank(),
 				result.attemptsRemaining(), result.pointsAwarded(), result.replayAvailable(),
-				result.mark(), result.yellowCount()));
+				result.mark(), result.yellowCount(), result.lessonFinishedLabel()));
 	}
 
 	@PostMapping("/letter-locks")
@@ -156,6 +156,8 @@ public class ChildQuestionPlayController {
 			@Schema(description = "Étoile après cet essai : none, black ou yellow.")
 			QuestionMark mark,
 			@Schema(description = "Nombre d'étoiles jaunes après cet essai. Zéro s'il n'y en a pas.")
-			int yellowCount) {
+			int yellowCount,
+			@Schema(nullable = true, description = "Leçon finie. si cet essai vide la leçon.")
+			String lessonFinishedLabel) {
 	}
 }

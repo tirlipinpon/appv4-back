@@ -25,10 +25,12 @@ public record ChildSubjectBoardView(
 		int lessonsTotal,
 		Integer minutesLeft,
 		ContinueLesson continueLesson,
-		List<TopicCard> topics) {
+		List<TopicCard> topics,
+		ChildLessonView lesson) {
 
 	public ChildSubjectBoardView {
 		topics = topics == null ? List.of() : List.copyOf(topics);
+		lesson = lesson == null ? new ChildLessonView(0, List.of()) : lesson;
 	}
 
 	public record ContinueLesson(

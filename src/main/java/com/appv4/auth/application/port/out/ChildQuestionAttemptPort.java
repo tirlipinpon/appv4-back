@@ -101,6 +101,26 @@ public interface ChildQuestionAttemptPort {
 		return List.of();
 	}
 
+	/**
+	 * Essais d'une matière, du plus ancien au plus récent.
+	 *
+	 * <p><b>Business :</b> la leçon se lit sur les pages déjà jouées, pas sur une leçon saisie par le professeur.
+	 * <p><b>Technique :</b> {@code back_child_attempts} pour cet enfant et cette matière, date puis id.
+	 * <p><b>Métier / flow :</b> lecture du board, avant de décider quelles questions restent.
+	 */
+	default List<PageAttempt> pageAttempts(long childId, long subjectId) {
+		return List.of();
+	}
+
+	record PageAttempt(
+			long id,
+			long questionId,
+			Instant createdAt,
+			boolean passed,
+			Integer attemptRank,
+			Integer attemptsRemaining) {
+	}
+
 	record AttemptTrace(
 			long questionId,
 			Instant createdAt,

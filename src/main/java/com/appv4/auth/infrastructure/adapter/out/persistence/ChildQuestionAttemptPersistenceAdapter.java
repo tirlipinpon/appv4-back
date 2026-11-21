@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.AttemptTrace;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageAttempt;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
 import com.appv4.auth.application.port.out.QuestionMark;
@@ -156,6 +157,31 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				.param("childId", childId)
 				.query((rs, row) -> {
 					found.put(rs.getLong("question_id"), readStored(rs));
+					return null;
+				})
+				.list();
+		return found;
+	}
+
+	@Override
+	public List<PageAttempt> pageAttempts(long childId, long subjectId) {
+		List<PageAttempt> found = new java.util.ArrayList<>();
+		jdbc.sql("""
+				select id, question_id, created_at, passed, attempt_rank, attempts_remaining
+				from back_child_attempts
+				where child_id = :childId and subject_id = :subjectId
+				order by created_at, id
+				""")
+				.param("childId", childId)
+				.param("subjectId", subjectId)
+				.query((rs, row) -> {
+					found.add(new PageAttempt(
+							rs.getLong("id"),
+							rs.getLong("question_id"),
+							rs.getTimestamp("created_at").toInstant(),
+							rs.getBoolean("passed"),
+							(Integer) rs.getObject("attempt_rank"),
+							(Integer) rs.getObject("attempts_remaining")));
 					return null;
 				})
 				.list();

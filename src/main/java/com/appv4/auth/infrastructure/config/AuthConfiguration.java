@@ -483,9 +483,12 @@ public class AuthConfiguration {
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildSubjectPort childSubjectPort,
-			ChildSubjectBoardPort childSubjectBoardPort) {
+			ChildSubjectBoardPort childSubjectBoardPort,
+			TeacherQuestionPort teacherQuestionPort,
+			ChildQuestionAttemptPort childQuestionAttemptPort) {
 		return new ReadChildSubjectBoardService(
-				childLoginPort, childSessionTokenPort, childSubjectPort, childSubjectBoardPort);
+				childLoginPort, childSessionTokenPort, childSubjectPort, childSubjectBoardPort,
+				teacherQuestionPort, childQuestionAttemptPort);
 	}
 
 	/**

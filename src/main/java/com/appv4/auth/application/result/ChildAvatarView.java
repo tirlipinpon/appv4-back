@@ -38,7 +38,10 @@ public record ChildAvatarView(
 		}
 	}
 
-	public record StylePreset(String id, String name) {
+	public record StylePreset(String id, String name, Map<String, Object> options) {
+		public StylePreset {
+			options = options == null ? Map.of() : Map.copyOf(options);
+		}
 	}
 
 	public record PresetCard(String id, String name, Map<String, Object> options) {

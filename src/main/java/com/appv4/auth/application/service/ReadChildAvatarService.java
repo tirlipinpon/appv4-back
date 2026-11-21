@@ -100,7 +100,7 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 				.sorted(Comparator.comparingInt(AvatarScale::seuil))
 				.toList();
 		List<StylePreset> presets = style.presets().stream()
-				.map(preset -> new StylePreset(preset.id(), preset.name()))
+				.map(preset -> new StylePreset(preset.id(), preset.name(), preset.options()))
 				.toList();
 		return new StyleCard(style.code(), style.name(), style.credit(), zoneCodes, presets);
 	}

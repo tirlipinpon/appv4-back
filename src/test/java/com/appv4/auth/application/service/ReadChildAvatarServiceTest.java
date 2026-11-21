@@ -138,7 +138,9 @@ class ReadChildAvatarServiceTest {
 		assertThat(view.styles().get(0).code()).isEqualTo("adventurer");
 		assertThat(style(view, "fun-emoji").zoneCodes()).containsExactly("mouth", "eyes");
 		assertThat(style(view, "lorelei").presets().get(0).id()).isEqualTo("bare");
+		assertThat(style(view, "lorelei").presets().get(0).options()).containsKey("backgroundColor");
 		assertThat(style(view, "fun-emoji").presets().get(0).id()).isEqualTo("plain");
+		assertThat(style(view, "fun-emoji").presets().get(0).options()).isNotEmpty();
 		assertThat(style(view, "avataaars").zoneCodes()).contains("top").doesNotContain("hair");
 		assertThat(style(view, "micah").credit()).isEqualTo("Micah Lanier — CC BY 4.0");
 		assertThat(style(view, "lorelei").credit()).isNull();

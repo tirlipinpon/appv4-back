@@ -142,10 +142,10 @@ public class ChildAvatarController {
 	}
 
 	@Schema(name = "ChildAvatarStylePreset")
-	public record ChildAvatarStylePreset(String id, String name) {
+	public record ChildAvatarStylePreset(String id, String name, Map<String, Object> options) {
 
 		static ChildAvatarStylePreset from(ChildAvatarView.StylePreset preset) {
-			return new ChildAvatarStylePreset(preset.id(), preset.name());
+			return new ChildAvatarStylePreset(preset.id(), preset.name(), preset.options());
 		}
 	}
 

@@ -67,6 +67,10 @@ public class BackChildAttemptEntity {
 	@Column(name = "yellow_count")
 	private Integer yellowCount;
 
+	/** Décision pay de l'XP. Null : essai ancien, les badges qui suivent pay l'ignorent. */
+	@Column(name = "pay")
+	private Boolean pay;
+
 	protected BackChildAttemptEntity() {
 	}
 
@@ -80,13 +84,13 @@ public class BackChildAttemptEntity {
 			long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed,
 			UUID submissionId, Integer attemptRank, Integer attemptsRemaining, Integer pointsAwarded) {
 		this(childId, subjectId, questionId, formCode, scorePercent, passed, submissionId,
-				attemptRank, attemptsRemaining, pointsAwarded, null, null);
+				attemptRank, attemptsRemaining, pointsAwarded, null, null, null);
 	}
 
 	public BackChildAttemptEntity(
 			long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed,
 			UUID submissionId, Integer attemptRank, Integer attemptsRemaining, Integer pointsAwarded,
-			String markCode, Integer yellowCount) {
+			String markCode, Integer yellowCount, Boolean pay) {
 		this.childId = childId;
 		this.subjectId = subjectId;
 		this.questionId = questionId;
@@ -99,6 +103,11 @@ public class BackChildAttemptEntity {
 		this.pointsAwarded = pointsAwarded;
 		this.markCode = markCode;
 		this.yellowCount = yellowCount;
+		this.pay = pay;
+	}
+
+	public Boolean getPay() {
+		return pay;
 	}
 
 	public Long getId() {

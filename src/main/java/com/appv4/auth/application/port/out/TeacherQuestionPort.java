@@ -24,6 +24,31 @@ public interface TeacherQuestionPort {
 
 	List<QuestionSummary> findSummariesBySubject(long subjectId, long afterId, int limit);
 
+	/**
+	 * Identifiants des questions de la matière, du plus ancien au plus récent.
+	 *
+	 * <p><b>Business :</b> une matière au jaune se juge sur toutes ses questions, pas sur une page.
+	 * <p><b>Technique :</b> enchaîne {@link #findSummariesBySubject} tant qu'il en reste.
+	 * <p><b>Métier / flow :</b> lecture des badges, pour l'avertissement et le passage de niveau.
+	 */
+	default List<Long> questionIds(long subjectId) {
+		List<Long> ids = new java.util.ArrayList<>();
+		long afterId = 0;
+		while (true) {
+			List<QuestionSummary> page = findSummariesBySubject(subjectId, afterId, 100);
+			if (page == null || page.isEmpty()) {
+				return ids;
+			}
+			for (QuestionSummary summary : page) {
+				ids.add(summary.id());
+			}
+			afterId = page.get(page.size() - 1).id();
+			if (page.size() < 100) {
+				return ids;
+			}
+		}
+	}
+
 	Optional<Long> firstQuestionIdByForm(long subjectId, Set<String> formCodes);
 
 	record QuestionSummary(long id, String formCode, String prompt) {

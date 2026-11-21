@@ -73,7 +73,7 @@ class ChildQuestionPlayBudgetTest {
 				new StoredQuestion(19L, 4L, "texte", "Capitale de la France", new StoredFreeText("Paris"))));
 		game = new ChildQuestionPlayService(
 				child, session, subjects, questions, attempts, mock(ChildSimonChallengePort.class),
-				progress, mission);
+				progress, mission, mock(ChildBadgeProgress.class));
 	}
 
 	@Test
@@ -148,7 +148,7 @@ class ChildQuestionPlayBudgetTest {
 				child, session, subjects, questions, missions, Clock.systemUTC());
 		ChildQuestionPlayService played = new ChildQuestionPlayService(
 				child, session, subjects, questions, attempts, mock(ChildSimonChallengePort.class),
-				progress, realMission);
+				progress, realMission, mock(ChildBadgeProgress.class));
 
 		ChildAttemptResultView result = played.submit("lea", 4L, 19L, answer("Paris", UUID.randomUUID()));
 
@@ -386,6 +386,16 @@ class ChildQuestionPlayBudgetTest {
 		assertThat(fresh.yellowCount()).isEqualTo(2);
 	}
 
+	@Test
+	void unEssaiPayeAZeroPointGardeLaDecisionPay() {
+		when(questions.gamificationOf(19L)).thenReturn(new StoredGamification(1, "facile", true, false, List.of(0)));
+
+		ChildAttemptResultView result = game.submit("lea", 4L, 19L, answer("Paris", UUID.randomUUID()));
+
+		assertThat(result.pointsAwarded()).isZero();
+		assertThat(attempts.latest().pay()).isTrue();
+	}
+
 	private static Submission answer(String text, UUID playId) {
 		return new Submission("texte", new Text(text), UUID.randomUUID(), null, playId);
 	}
@@ -428,7 +438,7 @@ class ChildQuestionPlayBudgetTest {
 			StoredAttempt stored = new StoredAttempt(
 					sequence, attempt.childId(), attempt.subjectId(), attempt.questionId(), attempt.formCode(),
 					attempt.scorePercent(), attempt.passed(), attempt.attemptRank(), attempt.attemptsRemaining(),
-					attempt.pointsAwarded(), attempt.markCode(), attempt.yellowCount());
+					attempt.pointsAwarded(), attempt.markCode(), attempt.yellowCount(), attempt.pay());
 			saved.add(stored);
 			if (attempt.submissionId() != null) {
 				bySubmission.put(attempt.submissionId(), stored);
@@ -481,6 +491,22 @@ class ChildQuestionPlayBudgetTest {
 				}
 			}
 			return found;
+		}
+
+		@Override
+		public java.util.Map<Long, StoredMark> allMarks(long childId) {
+			java.util.Map<Long, StoredMark> found = new java.util.HashMap<>();
+			String prefix = childId + ":";
+			committed.forEach((key, mark) -> {
+				if (key.startsWith(prefix)) {
+					found.put(Long.parseLong(key.substring(prefix.length())), mark);
+				}
+			});
+			return found;
+		}
+
+		private StoredAttempt latest() {
+			return saved.get(saved.size() - 1);
 		}
 
 		private static String key(long childId, long questionId) {

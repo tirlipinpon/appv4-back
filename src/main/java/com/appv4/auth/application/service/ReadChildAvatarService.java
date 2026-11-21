@@ -92,12 +92,12 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 				selected.name(),
 				presetId,
 				selected.credit(),
-				catalog.styles().stream().map(this::styleCard).toList(),
+				catalog.styles().stream().map(style -> styleCard(style, xp, pins, selected.code())).toList(),
 				selected.presets().stream().map(this::presetCard).toList(),
 				zonesOf(selected, xp, pins, age));
 	}
 
-	private StyleCard styleCard(Style style) {
+	private StyleCard styleCard(Style style, int xp, Map<String, String> pins, String selectedCode) {
 		List<String> zoneCodes = style.zones().stream()
 				.map(Zone::code)
 				.sorted(Comparator.comparingInt(AvatarScale::seuil))
@@ -105,7 +105,14 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 		List<StylePreset> presets = style.presets().stream()
 				.map(preset -> new StylePreset(preset.id(), preset.name(), preset.options()))
 				.toList();
-		return new StyleCard(style.code(), style.name(), style.credit(), zoneCodes, presets);
+		Map<String, String> kept = style.code().equals(selectedCode) ? pins : Map.of();
+		return new StyleCard(
+				style.code(),
+				style.name(),
+				style.credit(),
+				zoneCodes,
+				presets,
+				zonesOf(style, xp, kept));
 	}
 
 	private PresetCard presetCard(Preset preset) {

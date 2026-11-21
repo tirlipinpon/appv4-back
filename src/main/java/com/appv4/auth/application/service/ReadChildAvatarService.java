@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,7 @@ import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 import com.appv4.auth.application.port.out.ChildLoginPort;
+import com.appv4.auth.application.port.out.ChildLoginPort.ChildProfile;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.result.ChildAvatarView;
@@ -74,6 +76,7 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 	@Transactional(readOnly = true)
 	public ChildAvatarView avatar(String rawToken) {
 		long childId = requireActiveChild(rawToken);
+		int age = ageOf(childId);
 		int xp = childProgressPort.findByChildId(childId)
 				.map(progress -> progress.xpTotal())
 				.orElse(0);
@@ -91,7 +94,7 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 				selected.credit(),
 				catalog.styles().stream().map(this::styleCard).toList(),
 				selected.presets().stream().map(this::presetCard).toList(),
-				zonesOf(selected, xp, pins));
+				zonesOf(selected, xp, pins, age));
 	}
 
 	private StyleCard styleCard(Style style) {
@@ -109,13 +112,13 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 		return new PresetCard(preset.id(), preset.name(), preset.options());
 	}
 
-	private List<ZoneCard> zonesOf(Style style, int xp, Map<String, String> pins) {
+	private List<ZoneCard> zonesOf(Style style, int xp, Map<String, String> pins, int age) {
 		List<Zone> ordered = style.zones().stream()
 				.sorted(Comparator.comparingInt(zone -> AvatarScale.seuil(zone.code())))
 				.toList();
 		List<ZoneCard> cards = new ArrayList<>();
 		for (Zone zone : ordered) {
-			int seuil = AvatarScale.seuil(zone.code());
+			int seuil = AvatarScale.seuil(zone.code(), age);
 			boolean open = xp >= seuil;
 			List<VariantCard> variants = new ArrayList<>();
 			for (String code : zone.variants()) {
@@ -145,6 +148,7 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 	@Transactional
 	public ChildAvatarView saveStyle(String rawToken, String styleCode, String presetId, List<StoredPin> pins) {
 		long childId = requireActiveChild(rawToken);
+		int age = ageOf(childId);
 		int xp = childProgressPort.findByChildId(childId).map(progress -> progress.xpTotal()).orElse(0);
 		Style style = catalog.styles().stream()
 				.filter(candidate -> candidate.code().equals(styleCode))
@@ -160,7 +164,7 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 		if (requested != null && styleChanges) {
 			requested = requested.stream().filter(pin -> knownPin(style, pin)).toList();
 		}
-		List<StoredPin> next = requested == null ? keepPins(childId, style) : checkPins(style, xp, requested);
+		List<StoredPin> next = requested == null ? keepPins(childId, style) : checkPins(style, xp, age, requested);
 		childAvatarPort.save(childId, style.code(), chosen, next);
 		return avatar(rawToken);
 	}
@@ -180,14 +184,22 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 				|| ("none".equals(pin.variantCode()) && AvatarScale.removable(zone.code()));
 	}
 
-	private List<StoredPin> checkPins(Style style, int xp, List<StoredPin> pins) {
+	private int ageOf(long childId) {
+		Optional<ChildProfile> profile = childLoginPort.findActiveProfileById(childId);
+		if (profile == null || profile.isEmpty()) {
+			return AvatarScale.REFERENCE_AGE;
+		}
+		return profile.get().age();
+	}
+
+	private List<StoredPin> checkPins(Style style, int xp, int age, List<StoredPin> pins) {
 		List<StoredPin> next = new ArrayList<>();
 		for (StoredPin pin : pins) {
 			Zone zone = zone(style, pin.zoneCode());
 			if (zone == null) {
 				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, ZONE_ABSENT);
 			}
-			if (xp < AvatarScale.seuil(zone.code())) {
+			if (xp < AvatarScale.seuil(zone.code(), age)) {
 				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, ZONE_CLOSED);
 			}
 			boolean known = zone.variants().contains(pin.variantCode())

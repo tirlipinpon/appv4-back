@@ -45,7 +45,7 @@ class ChildProfileControllerTest {
 	void meReturnsProfileForChildToken() throws Exception {
 		String token = loginAsLea();
 		when(childLoginPort.findActiveProfileById(7L))
-				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", "fox", false)));
+				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", "fox", false, 8)));
 
 		mockMvc.perform(get("/api/ext/me").header("Authorization", "Bearer " + token))
 				.andExpect(status().isOk())
@@ -59,7 +59,7 @@ class ChildProfileControllerTest {
 	void photoReturnsBinaryWhenPresent() throws Exception {
 		String token = loginAsLea();
 		when(childLoginPort.findActiveProfileById(7L))
-				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", null, true)));
+				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", null, true, 8)));
 		when(childLoginPort.findActivePhotoById(7L))
 				.thenReturn(Optional.of(new ChildPhotoBytes(new byte[] {9, 8}, "image/png")));
 
@@ -80,7 +80,7 @@ class ChildProfileControllerTest {
 	void photoMissingIsNotFound() throws Exception {
 		String token = loginAsLea();
 		when(childLoginPort.findActiveProfileById(7L))
-				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", "fox", false)));
+				.thenReturn(Optional.of(new ChildProfile(7L, "Léa", "fox", false, 8)));
 		when(childLoginPort.findActivePhotoById(7L)).thenReturn(Optional.empty());
 
 		mockMvc.perform(get("/api/ext/me/photo").header("Authorization", "Bearer " + token))

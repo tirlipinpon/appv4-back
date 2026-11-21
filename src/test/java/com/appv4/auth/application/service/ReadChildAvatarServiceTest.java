@@ -18,6 +18,7 @@ import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 import com.appv4.auth.application.port.out.ChildLoginPort;
+import com.appv4.auth.application.port.out.ChildLoginPort.ChildProfile;
 import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildProgressPort.StoredProgress;
@@ -299,6 +300,21 @@ class ReadChildAvatarServiceTest {
 		assertThat(emoji.styleCode()).isEqualTo("fun-emoji");
 		assertThat(emoji.zones().stream().map(ZoneCard::code)).doesNotContain("hair");
 		assertThat(zone(emoji, "mouth").selectedCode()).isEqualTo(emojiMouth);
+	}
+
+	@Test
+	void eightYearOldPaysTwentyPercentMoreToOpenAZone() {
+		activeChild(7L);
+		when(childLoginPort.findActiveProfileById(7L))
+				.thenReturn(Optional.of(new ChildProfile(7L, "akira", null, true, 8)));
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.empty());
+
+		ZoneCard mouth = zone(service.avatar("token"), "mouth");
+
+		assertThat(mouth.seuil()).isEqualTo(24);
+		assertThat(mouth.thresholdLabel()).isEqualTo("24 XP");
+		assertThat(mouth.missingLabel()).isEqualTo("encore 24 XP");
+		assertThat(mouth.open()).isFalse();
 	}
 
 	@Test

@@ -52,7 +52,7 @@ public class ChildFeaturedQuestionsController {
 		ChildFeaturedQuestionsView view = readChildFeaturedQuestionsUseCase.read(bearer(authorization));
 		List<ChildFeaturedQuestionItem> items = view.questions().stream()
 				.map(question -> new ChildFeaturedQuestionItem(
-						question.subjectId(), question.questionId(), question.prompt()))
+						question.subjectId(), question.subjectName(), question.questionId(), question.prompt()))
 				.toList();
 		return ResponseEntity.ok(items);
 	}
@@ -65,6 +65,6 @@ public class ChildFeaturedQuestionsController {
 	}
 
 	@Schema(name = "ChildFeaturedQuestionItem")
-	public record ChildFeaturedQuestionItem(long subjectId, long questionId, String prompt) {
+	public record ChildFeaturedQuestionItem(long subjectId, String subjectName, long questionId, String prompt) {
 	}
 }

@@ -81,6 +81,9 @@ class ChildFeaturedQuestionsTest {
 						tuple(4L, 11L, "Combien font 2 + 2 ?"),
 						tuple(4L, 12L, "Combien font 3 + 1 ?"),
 						tuple(5L, 21L, "Quel est le contraire de grand ?"));
+		assertThat(view.questions())
+				.extracting(FeaturedQuestion::subjectName)
+				.containsExactly("Mathématiques", "Mathématiques", "Mots");
 	}
 
 	@Test

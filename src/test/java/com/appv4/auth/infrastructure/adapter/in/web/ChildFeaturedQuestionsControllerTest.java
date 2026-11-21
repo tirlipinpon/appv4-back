@@ -92,6 +92,7 @@ class ChildFeaturedQuestionsControllerTest {
 				.andExpect(jsonPath("$").isArray())
 				.andExpect(jsonPath("$.length()").value(1))
 				.andExpect(jsonPath("$[0].subjectId").value(4))
+				.andExpect(jsonPath("$[0].subjectName").value("Mathématiques"))
 				.andExpect(jsonPath("$[0].questionId").value(11))
 				.andExpect(jsonPath("$[0].prompt").value("Combien font 2 + 2 ?"))
 				.andExpect(jsonPath("$[0].mark").doesNotExist())

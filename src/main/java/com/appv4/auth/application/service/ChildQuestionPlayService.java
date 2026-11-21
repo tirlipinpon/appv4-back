@@ -18,6 +18,7 @@ import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSimonChallengePort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.QuestionMark;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.result.ChildAttemptResultView;
@@ -34,8 +35,9 @@ import com.appv4.auth.application.service.question.play.QuestionPlayEngine;
  * <p><b>Business :</b> une page ratée jusqu'au bout pose une étoile noire. Une réussite au
  * premier essai pose ou remplace par une étoile jaune. Une question déjà jaune ne rapporte
  * plus de points, sauf si ce premier essai peut encore faire avancer la mission du jour.
- * <p><b>Technique :</b> une seule transaction. La marque est relue puis réécrite. Le verdict
- * fige l'étoile de cet essai pour qu'une relance renvoie la même.
+ * <p><b>Technique :</b> une seule transaction. La marque est verrouillée puis relue avant
+ * d'ajouter une étoile, puis réécrite. Le verdict fige l'étoile de cet essai pour qu'une
+ * relance renvoie la même.
  * <p><b>Métier / flow :</b> jeton enfant → réserve de la page → correction → étoile →
  * progression et mission seulement si l'essai est payé.
  */
@@ -116,26 +118,26 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		List<Integer> sequence = sequenceFor(childId, question, submission);
 		ChildAnswerGrade grade = QuestionPlayEngine.grade(question, submission, sequence);
 		PageClaim seat = seat(childId, subjectId, questionId, submission, scale);
-		StoredMark before = childQuestionAttemptPort.findMark(childId, questionId)
-				.orElse(new StoredMark("none", 0));
-		boolean alreadyYellow = "yellow".equals(before.code());
-		String mark = before.code();
+		StoredMark before = childQuestionAttemptPort.lockMark(childId, questionId)
+				.orElse(new StoredMark(QuestionMark.NONE, 0));
+		boolean alreadyYellow = before.code() == QuestionMark.YELLOW;
+		QuestionMark mark = before.code();
 		int yellowCount = before.yellowCount();
 		if (grade.passed() && seat.rank() == 1) {
-			mark = "yellow";
+			mark = QuestionMark.YELLOW;
 			yellowCount = alreadyYellow ? before.yellowCount() + 1 : 1;
 		} else if (grade.passed() && alreadyYellow) {
-			mark = "yellow";
+			mark = QuestionMark.YELLOW;
 			yellowCount = before.yellowCount() + 1;
 		} else if (!grade.passed() && seat.attemptsRemaining() == 0 && !alreadyYellow) {
-			mark = "black";
+			mark = QuestionMark.BLACK;
 			yellowCount = 0;
 		}
 		boolean missionPaysYellow = alreadyYellow && grade.passed() && seat.rank() == 1
 				&& childDailyMissionService.subjectTaskHasRoom(childId, subjectId);
 		boolean pay = grade.passed() && (!alreadyYellow || missionPaysYellow);
 		int points = pay ? scale.points().get(seat.rank() - 1) : 0;
-		if (!"none".equals(mark) && (yellowCount != before.yellowCount() || !mark.equals(before.code()))) {
+		if (mark != QuestionMark.NONE && (yellowCount != before.yellowCount() || mark != before.code())) {
 			childQuestionAttemptPort.saveMark(childId, questionId, mark, yellowCount);
 		}
 		StoredAttempt saved = childQuestionAttemptPort.insert(new NewAttempt(
@@ -204,7 +206,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			long childId, long subjectId, long questionId, Submission submission, QuestionGamification.Resolved scale) {
 		return childQuestionAttemptPort
 				.claim(submission.playId(), childId, subjectId, questionId, scale.maxAttempts())
-				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.CONFLICT, ATTEMPTS_EXHAUSTED));
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.ATTEMPTS_EXHAUSTED, ATTEMPTS_EXHAUSTED));
 	}
 
 	/**
@@ -215,7 +217,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		int rank = attempt.attemptRank() == null ? 1 : attempt.attemptRank();
 		int remaining = attempt.attemptsRemaining() == null ? 0 : attempt.attemptsRemaining();
 		int points = attempt.pointsAwarded() == null ? 0 : attempt.pointsAwarded();
-		String mark = attempt.markCode() == null ? "none" : attempt.markCode();
+		QuestionMark mark = attempt.markCode() == null ? QuestionMark.NONE : attempt.markCode();
 		int yellowCount = attempt.yellowCount() == null ? 0 : attempt.yellowCount();
 		return new ChildAttemptResultView(
 				attempt.id(), attempt.scorePercent(), attempt.passed(), rank, remaining, points, remaining > 0,

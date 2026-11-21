@@ -48,6 +48,7 @@ public class QuestionOpenApiContract implements OpenApiCustomizer {
 		require(schemas, "ChildLearningQuestionItem", "questionId", FORM, "prompt", "formLabel", "mark", "yellowCount");
 		require(schemas, "ChildAttemptResultResponse", "attemptId", "scorePercent", "passed",
 				"attemptRank", "attemptsRemaining", "pointsAwarded", "replayAvailable", "mark", "yellowCount");
+		closedMark(schemas);
 		require(schemas, "PreviewVerdict", "scorePercent", "passed");
 		require(schemas, "ChildLetterLocksResponse", "locks");
 		require(schemas, "MemoryPairResponse", "matched");
@@ -102,11 +103,16 @@ public class QuestionOpenApiContract implements OpenApiCustomizer {
 				Schema<?> child = answerVariant(base, descriptor.answerField());
 				child.addProperty(FORM, literal(form));
 				copy(base, child, List.of("challengeId"));
-				child.setRequired(List.of(FORM, descriptor.answerField(), "challengeId"));
+				child.setRequired(List.of(FORM, descriptor.answerField(), "challengeId", "playId"));
 				schemas.put("PlaySimonChildAttempt", child);
 				variants.add(ref("PlaySimonChildAttempt"));
 			} else {
-				variants.add(ref(name));
+				Schema<?> child = answerVariant(base, descriptor.answerField());
+				child.addProperty(FORM, literal(form));
+				child.setRequired(List.of(FORM, descriptor.answerField(), "playId"));
+				String childName = name + "Child";
+				schemas.put(childName, child);
+				variants.add(ref(childName));
 			}
 			String legacyField = descriptor.legacyAnswerField();
 			if (legacyFields.add(legacyField)) {
@@ -114,7 +120,7 @@ public class QuestionOpenApiContract implements OpenApiCustomizer {
 				if (form == PlayableQuestionForm.SIMON) {
 					copy(base, legacy, List.of("challengeId"));
 				}
-				legacy.setRequired(List.of(legacyField));
+				legacy.setRequired(List.of(legacyField, "playId"));
 				schemas.put(name + "Legacy", legacy);
 				variants.add(ref(name + "Legacy"));
 			}
@@ -161,6 +167,35 @@ public class QuestionOpenApiContract implements OpenApiCustomizer {
 		}
 		union(base, variants);
 		base.setDiscriminator(discriminator);
+	}
+
+	private static void closedMark(Map<String, Schema> schemas) {
+		List<String> values = List.of("none", "black", "yellow");
+		for (String name : List.of("ChildAttemptResultResponse", "ChildLearningQuestionItem")) {
+			Schema<?> model = schemas.get(name);
+			if (model == null || model.getProperties() == null) {
+				continue;
+			}
+			Object property = model.getProperties().get("mark");
+			if (!(property instanceof Schema<?> mark)) {
+				continue;
+			}
+			if (mark.get$ref() != null) {
+				String ref = mark.get$ref();
+				wireMark(schemas.get(ref.substring(ref.lastIndexOf('/') + 1)), values);
+				continue;
+			}
+			wireMark(mark, values);
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private static void wireMark(Schema schema, List<String> values) {
+		if (schema == null) {
+			return;
+		}
+		schema.setType("string");
+		schema.setEnum(values);
 	}
 
 	private static void require(Map<String, Schema> schemas, String name, String... fields) {

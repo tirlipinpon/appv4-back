@@ -20,6 +20,8 @@ public enum AuthErrorCode {
 	NOT_FOUND,
 	/** Conflit d'unicité / état concurrent. */
 	CONFLICT,
+	/** La page ouverte n'a plus d'essai. */
+	ATTEMPTS_EXHAUSTED,
 	/** Fournisseur OAuth ou dépendance externe non configurée. */
 	SERVICE_UNAVAILABLE,
 	/** Défaillance technique inattendue côté serveur. */

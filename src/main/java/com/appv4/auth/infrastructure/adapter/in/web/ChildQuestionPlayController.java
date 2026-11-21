@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
+import com.appv4.auth.application.port.out.QuestionMark;
 import com.appv4.auth.application.result.ChildAttemptResultView;
 import com.appv4.auth.application.result.ChildPlayQuestionView.Payload;
 import com.appv4.auth.application.service.question.QuestionFormRegistry;
@@ -153,7 +154,7 @@ public class ChildQuestionPlayController {
 			long attemptId, int scorePercent, boolean passed, int attemptRank, int attemptsRemaining,
 			int pointsAwarded, boolean replayAvailable,
 			@Schema(description = "Étoile après cet essai : none, black ou yellow.")
-			String mark,
+			QuestionMark mark,
 			@Schema(description = "Nombre d'étoiles jaunes après cet essai. Zéro s'il n'y en a pas.")
 			int yellowCount) {
 	}

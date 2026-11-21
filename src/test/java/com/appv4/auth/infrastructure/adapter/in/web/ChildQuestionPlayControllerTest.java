@@ -709,6 +709,27 @@ class ChildQuestionPlayControllerTest {
 	}
 
 	@Test
+	void unePageEpuiseeRepondAttemptsExhausted() throws Exception {
+		String token = loginAsLea();
+		stubLinkedChild();
+		when(teacherQuestionPort.findInSubject(4L, 19L)).thenReturn(Optional.of(freeTextQuestion()));
+		when(childQuestionAttemptPort.claim(any(), anyLong(), anyLong(), anyLong(), anyInt()))
+				.thenReturn(Optional.empty());
+
+		mockMvc.perform(post("/api/ext/subjects/4/questions/19/attempts")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"playId":"33333333-3333-3333-3333-333333333333","attempt":"Paris"}
+								"""))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("ATTEMPTS_EXHAUSTED"))
+				.andExpect(jsonPath("$.message").value(ChildQuestionPlayService.ATTEMPTS_EXHAUSTED));
+
+		verify(childQuestionAttemptPort, never()).insert(any(NewAttempt.class));
+	}
+
+	@Test
 	void openTellsHowManyAttemptsThePageStillHas() throws Exception {
 		String token = loginAsLea();
 		stubLinkedChild();

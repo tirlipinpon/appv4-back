@@ -11,6 +11,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +24,9 @@ import org.junit.jupiter.api.Test;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.Submission;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.Text;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort.NewMission;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredMission;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
@@ -29,6 +34,7 @@ import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.NewAttempt;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredAttempt;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
+import com.appv4.auth.application.port.out.QuestionMark;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort.ChildSession;
 import com.appv4.auth.application.port.out.ChildSimonChallengePort;
@@ -40,6 +46,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGamification;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.result.ChildAttemptResultView;
+import com.appv4.auth.application.service.question.play.PlayableQuestionForm;
 
 /**
  * Barème d'une page de jeu : le budget meurt avec la page, les points partent seulement si la réponse est juste.
@@ -89,10 +96,20 @@ class ChildQuestionPlayBudgetTest {
 		assertThat(result.passed()).isTrue();
 		assertThat(result.attemptRank()).isEqualTo(1);
 		assertThat(result.pointsAwarded()).isEqualTo(10);
-		assertThat(result.mark()).isEqualTo("yellow");
+		assertThat(result.mark()).isEqualTo(QuestionMark.YELLOW);
 		assertThat(result.yellowCount()).isEqualTo(1);
 		verify(progress).apply(7L, 100);
 		verify(mission).recordUsefulAttempt(7L, 4L, 100, true);
+	}
+
+	@Test
+	void uneDeuxiemeReussiteVoitLeCompteEcritParLaPremiere() {
+		ChildAttemptResultView first = game.submit("lea", 4L, 19L, answer("Paris", UUID.randomUUID()));
+		ChildAttemptResultView second = game.submit("lea", 4L, 19L, answer("Paris", UUID.randomUUID()));
+
+		assertThat(first.yellowCount()).isEqualTo(1);
+		assertThat(second.mark()).isEqualTo(QuestionMark.YELLOW);
+		assertThat(second.yellowCount()).isEqualTo(2);
 	}
 
 	@Test
@@ -103,11 +120,43 @@ class ChildQuestionPlayBudgetTest {
 		ChildAttemptResultView again = game.submit("lea", 4L, 19L, answer("Paris", UUID.randomUUID()));
 
 		assertThat(again.attemptRank()).isEqualTo(1);
-		assertThat(again.mark()).isEqualTo("yellow");
+		assertThat(again.mark()).isEqualTo(QuestionMark.YELLOW);
 		assertThat(again.yellowCount()).isEqualTo(2);
 		assertThat(again.pointsAwarded()).isZero();
 		verify(progress, never()).apply(anyLong(), anyInt());
 		verify(mission, never()).recordUsefulAttempt(anyLong(), anyLong(), anyInt(), anyBoolean());
+	}
+
+	@Test
+	void uneQuestionJauneAuPremierEssaiHorsDesTachesNePaiePasEtNeCreePasDeMission() {
+		attempts.saveMark(7L, 19L, QuestionMark.YELLOW, 1);
+		var child = mock(ChildLoginPort.class);
+		when(child.findActiveById(7L)).thenReturn(Optional.of(new ChildLoginCandidate(7L, "Léa", "hash")));
+		var session = mock(ChildSessionTokenPort.class);
+		when(session.read("lea")).thenReturn(Optional.of(new ChildSession(7L)));
+		var subjects = mock(ChildSubjectPort.class);
+		when(subjects.linksOf(7L)).thenReturn(List.of(new StoredLink(4L, false), new StoredLink(5L, false)));
+		when(subjects.visibleByIds(List.of(4L)))
+				.thenReturn(List.of(new CatalogSubject(4L, "Mathématiques", "Mme X", 1L, "CE1", "math")));
+		when(subjects.visibleByIds(List.of(4L, 5L))).thenReturn(List.of(
+				new CatalogSubject(4L, "Mathématiques", "Mme X", 1L, "CE1", "math"),
+				new CatalogSubject(5L, "Mots", "M. Y", 1L, "CE1", "words")));
+		when(questions.firstQuestionIdByForm(4L, PlayableQuestionForm.codes())).thenReturn(Optional.empty());
+		when(questions.firstQuestionIdByForm(5L, PlayableQuestionForm.codes())).thenReturn(Optional.of(21L));
+		CountingMissionPort missions = new CountingMissionPort();
+		ChildDailyMissionService realMission = new ChildDailyMissionService(
+				child, session, subjects, questions, missions, Clock.systemUTC());
+		ChildQuestionPlayService played = new ChildQuestionPlayService(
+				child, session, subjects, questions, attempts, mock(ChildSimonChallengePort.class),
+				progress, realMission);
+
+		ChildAttemptResultView result = played.submit("lea", 4L, 19L, answer("Paris", UUID.randomUUID()));
+
+		assertThat(result.attemptRank()).isEqualTo(1);
+		assertThat(result.pointsAwarded()).isZero();
+		assertThat(result.mark()).isEqualTo(QuestionMark.YELLOW);
+		verify(progress, never()).apply(anyLong(), anyInt());
+		assertThat(missions.inserts).isZero();
 	}
 
 	@Test
@@ -120,7 +169,7 @@ class ChildQuestionPlayBudgetTest {
 
 		assertThat(again.attemptRank()).isEqualTo(1);
 		assertThat(again.pointsAwarded()).isEqualTo(10);
-		assertThat(again.mark()).isEqualTo("yellow");
+		assertThat(again.mark()).isEqualTo(QuestionMark.YELLOW);
 		assertThat(again.yellowCount()).isEqualTo(2);
 		verify(progress).apply(7L, 100);
 		verify(mission).recordUsefulAttempt(7L, 4L, 100, true);
@@ -133,7 +182,7 @@ class ChildQuestionPlayBudgetTest {
 		assertThat(result.passed()).isFalse();
 		assertThat(result.pointsAwarded()).isZero();
 		assertThat(result.attemptsRemaining()).isZero();
-		assertThat(result.mark()).isEqualTo("black");
+		assertThat(result.mark()).isEqualTo(QuestionMark.BLACK);
 		assertThat(result.yellowCount()).isZero();
 	}
 
@@ -157,17 +206,17 @@ class ChildQuestionPlayBudgetTest {
 		ChildAttemptResultView found = game.submit("lea", 4L, 19L, answer("Paris", page));
 
 		assertThat(missed.pointsAwarded()).isZero();
-		assertThat(missed.mark()).isEqualTo("none");
+		assertThat(missed.mark()).isEqualTo(QuestionMark.NONE);
 		assertThat(missed.attemptsRemaining()).isEqualTo(1);
 		assertThat(found.attemptRank()).isEqualTo(2);
 		assertThat(found.pointsAwarded()).isEqualTo(10);
-		assertThat(found.mark()).isEqualTo("none");
+		assertThat(found.mark()).isEqualTo(QuestionMark.NONE);
 		assertThat(found.yellowCount()).isZero();
 
 		ChildAttemptResultView firstTry = game.submit("lea", 4L, 19L, answer("Paris", UUID.randomUUID()));
 		assertThat(firstTry.attemptRank()).isEqualTo(1);
 		assertThat(firstTry.pointsAwarded()).isEqualTo(20);
-		assertThat(firstTry.mark()).isEqualTo("yellow");
+		assertThat(firstTry.mark()).isEqualTo(QuestionMark.YELLOW);
 		assertThat(firstTry.yellowCount()).isEqualTo(1);
 	}
 
@@ -209,7 +258,7 @@ class ChildQuestionPlayBudgetTest {
 
 		ChildAttemptResultView again = game.submit("lea", 4L, 19L, answer("Lyon", UUID.randomUUID()));
 
-		assertThat(again.mark()).isEqualTo("black");
+		assertThat(again.mark()).isEqualTo(QuestionMark.BLACK);
 		assertThat(again.yellowCount()).isZero();
 		assertThat(again.pointsAwarded()).isZero();
 	}
@@ -220,7 +269,7 @@ class ChildQuestionPlayBudgetTest {
 
 		ChildAttemptResultView found = game.submit("lea", 4L, 19L, answer("Paris", UUID.randomUUID()));
 
-		assertThat(found.mark()).isEqualTo("yellow");
+		assertThat(found.mark()).isEqualTo(QuestionMark.YELLOW);
 		assertThat(found.yellowCount()).isEqualTo(1);
 		assertThat(found.pointsAwarded()).isEqualTo(10);
 		verify(progress).apply(7L, 100);
@@ -233,7 +282,7 @@ class ChildQuestionPlayBudgetTest {
 
 		ChildAttemptResultView missed = game.submit("lea", 4L, 19L, answer("Lyon", UUID.randomUUID()));
 
-		assertThat(missed.mark()).isEqualTo("yellow");
+		assertThat(missed.mark()).isEqualTo(QuestionMark.YELLOW);
 		assertThat(missed.yellowCount()).isEqualTo(1);
 		assertThat(missed.pointsAwarded()).isZero();
 		verify(progress, never()).apply(anyLong(), anyInt());
@@ -251,7 +300,7 @@ class ChildQuestionPlayBudgetTest {
 
 		assertThat(found.attemptRank()).isEqualTo(2);
 		assertThat(found.pointsAwarded()).isEqualTo(5);
-		assertThat(found.mark()).isEqualTo("none");
+		assertThat(found.mark()).isEqualTo(QuestionMark.NONE);
 		verify(progress).apply(7L, 100);
 		verify(mission, never()).recordUsefulAttempt(anyLong(), anyLong(), anyInt(), anyBoolean());
 	}
@@ -268,7 +317,7 @@ class ChildQuestionPlayBudgetTest {
 
 		assertThat(second.attemptRank()).isEqualTo(2);
 		assertThat(second.pointsAwarded()).isZero();
-		assertThat(second.mark()).isEqualTo("yellow");
+		assertThat(second.mark()).isEqualTo(QuestionMark.YELLOW);
 		assertThat(second.yellowCount()).isEqualTo(2);
 		verify(progress, never()).apply(anyLong(), anyInt());
 		verify(mission, never()).recordUsefulAttempt(anyLong(), anyLong(), anyInt(), anyBoolean());
@@ -286,7 +335,7 @@ class ChildQuestionPlayBudgetTest {
 		assertThat(partial.passed()).isFalse();
 		assertThat(partial.scorePercent()).isEqualTo(80);
 		assertThat(partial.pointsAwarded()).isZero();
-		assertThat(partial.mark()).isEqualTo("black");
+		assertThat(partial.mark()).isEqualTo(QuestionMark.BLACK);
 		verify(progress, never()).apply(anyLong(), anyInt());
 		verify(mission, never()).recordUsefulAttempt(anyLong(), anyLong(), anyInt(), anyBoolean());
 	}
@@ -298,7 +347,7 @@ class ChildQuestionPlayBudgetTest {
 		ChildAttemptResultView result = game.submit("lea", 4L, 19L, answer("Paris", UUID.randomUUID()));
 
 		assertThat(result.pointsAwarded()).isEqualTo(7);
-		assertThat(result.mark()).isEqualTo("yellow");
+		assertThat(result.mark()).isEqualTo(QuestionMark.YELLOW);
 		assertThat(result.yellowCount()).isEqualTo(1);
 		verify(progress).apply(7L, 100);
 	}
@@ -333,7 +382,7 @@ class ChildQuestionPlayBudgetTest {
 		assertThat(fresh.attemptRank()).isEqualTo(1);
 		assertThat(fresh.attemptsRemaining()).isZero();
 		assertThat(fresh.pointsAwarded()).isZero();
-		assertThat(fresh.mark()).isEqualTo("yellow");
+		assertThat(fresh.mark()).isEqualTo(QuestionMark.YELLOW);
 		assertThat(fresh.yellowCount()).isEqualTo(2);
 	}
 
@@ -341,11 +390,35 @@ class ChildQuestionPlayBudgetTest {
 		return new Submission("texte", new Text(text), UUID.randomUUID(), null, playId);
 	}
 
-	/** Réserve les essais d'une page et retient l'étoile. Le verrou SQL vit dans l'adaptateur. */
+	/** Mission absente : on compte les insertions, sans en fabriquer une pour le test. */
+	private static final class CountingMissionPort implements ChildDailyMissionPort {
+		private int inserts;
+
+		@Override
+		public Optional<StoredMission> findByChildAndDate(long childId, LocalDate missionDate) {
+			return Optional.empty();
+		}
+
+		@Override
+		public StoredMission insert(NewMission mission) {
+			inserts++;
+			return new StoredMission(1L, mission.childId(), mission.missionDate(), mission.objective(), List.of());
+		}
+
+		@Override
+		public void setProgress(long taskId, int progressCount) {
+		}
+	}
+
+	/**
+	 * Réserve les essais d'une page et retient l'étoile.
+	 * {@code lockMark} relit le compte écrit. {@code findMark} garde l'instantané d'avant le verrou.
+	 */
 	private static final class MemoryAttempts implements ChildQuestionAttemptPort {
 		private final ConcurrentHashMap<UUID, Integer> used = new ConcurrentHashMap<>();
 		private final ConcurrentHashMap<UUID, StoredAttempt> bySubmission = new ConcurrentHashMap<>();
-		private final ConcurrentHashMap<String, StoredMark> marks = new ConcurrentHashMap<>();
+		private final ConcurrentHashMap<String, StoredMark> committed = new ConcurrentHashMap<>();
+		private final ConcurrentHashMap<String, StoredMark> unlocked = new ConcurrentHashMap<>();
 		private final List<StoredAttempt> saved = new java.util.ArrayList<>();
 		private long sequence = 40;
 
@@ -375,12 +448,24 @@ class ChildQuestionPlayBudgetTest {
 
 		@Override
 		public Optional<StoredMark> findMark(long childId, long questionId) {
-			return Optional.ofNullable(marks.get(childId + ":" + questionId));
+			return Optional.ofNullable(unlocked.get(key(childId, questionId)));
 		}
 
 		@Override
-		public void saveMark(long childId, long questionId, String code, int yellowCount) {
-			marks.put(childId + ":" + questionId, new StoredMark(code, yellowCount));
+		public Optional<StoredMark> lockMark(long childId, long questionId) {
+			String key = key(childId, questionId);
+			StoredMark live = committed.get(key);
+			if (live == null) {
+				unlocked.remove(key);
+			} else {
+				unlocked.put(key, live);
+			}
+			return Optional.ofNullable(live);
+		}
+
+		@Override
+		public void saveMark(long childId, long questionId, QuestionMark code, int yellowCount) {
+			committed.put(key(childId, questionId), new StoredMark(code, yellowCount));
 		}
 
 		@Override
@@ -390,12 +475,16 @@ class ChildQuestionPlayBudgetTest {
 				return found;
 			}
 			for (Long questionId : questionIds) {
-				StoredMark mark = marks.get(childId + ":" + questionId);
+				StoredMark mark = committed.get(key(childId, questionId));
 				if (mark != null) {
 					found.put(questionId, mark);
 				}
 			}
 			return found;
+		}
+
+		private static String key(long childId, long questionId) {
+			return childId + ":" + questionId;
 		}
 
 		@Override

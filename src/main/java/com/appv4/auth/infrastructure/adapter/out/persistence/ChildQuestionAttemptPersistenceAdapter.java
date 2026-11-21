@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
+import com.appv4.auth.application.port.out.QuestionMark;
 
 /**
  * Persiste les tentatives enfant (BACK-16).
@@ -84,19 +85,32 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 
 	@Override
 	public Optional<StoredMark> findMark(long childId, long questionId) {
-		return jdbc.sql("""
+		return readMark(childId, questionId, false);
+	}
+
+	@Override
+	public Optional<StoredMark> lockMark(long childId, long questionId) {
+		return readMark(childId, questionId, true);
+	}
+
+	private Optional<StoredMark> readMark(long childId, long questionId, boolean lock) {
+		String sql = """
 				select mark_code, yellow_count from back_child_question_marks
 				where child_id = :childId and question_id = :questionId
-				""")
+				""";
+		if (lock) {
+			sql = sql + " for update";
+		}
+		return jdbc.sql(sql)
 				.param("childId", childId)
 				.param("questionId", questionId)
-				.query((rs, row) -> new StoredMark(rs.getString("mark_code"), rs.getInt("yellow_count")))
+				.query((rs, row) -> readStored(rs))
 				.optional();
 	}
 
 	@Override
 	@Transactional
-	public void saveMark(long childId, long questionId, String code, int yellowCount) {
+	public void saveMark(long childId, long questionId, QuestionMark code, int yellowCount) {
 		jdbc.sql("""
 				insert into back_child_question_marks (child_id, question_id, mark_code, yellow_count)
 				values (:childId, :questionId, :code, :yellowCount)
@@ -105,7 +119,7 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				""")
 				.param("childId", childId)
 				.param("questionId", questionId)
-				.param("code", code)
+				.param("code", code.wire())
 				.param("yellowCount", yellowCount)
 				.update();
 	}
@@ -123,8 +137,7 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				.param("childId", childId)
 				.param("questionIds", questionIds)
 				.query((rs, row) -> {
-					found.put(rs.getLong("question_id"),
-							new StoredMark(rs.getString("mark_code"), rs.getInt("yellow_count")));
+					found.put(rs.getLong("question_id"), readStored(rs));
 					return null;
 				})
 				.list();
@@ -161,7 +174,7 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				attempt.attemptRank(),
 				attempt.attemptsRemaining(),
 				attempt.pointsAwarded(),
-				attempt.markCode(),
+				attempt.markCode() == null ? null : attempt.markCode().wire(),
 				attempt.yellowCount()));
 		long attemptId = saved.getId();
 		for (AnswerLine line : attempt.answers()) {
@@ -176,6 +189,10 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 		return stored(saved);
 	}
 
+	private static StoredMark readStored(java.sql.ResultSet rs) throws java.sql.SQLException {
+		return new StoredMark(QuestionMark.fromWire(rs.getString("mark_code")), rs.getInt("yellow_count"));
+	}
+
 	private static StoredAttempt stored(BackChildAttemptEntity saved) {
 		return new StoredAttempt(
 				saved.getId(),
@@ -188,7 +205,7 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				saved.getAttemptRank(),
 				saved.getAttemptsRemaining(),
 				saved.getPointsAwarded(),
-				saved.getMarkCode(),
+				saved.getMarkCode() == null ? null : QuestionMark.fromWire(saved.getMarkCode()),
 				saved.getYellowCount());
 	}
 }

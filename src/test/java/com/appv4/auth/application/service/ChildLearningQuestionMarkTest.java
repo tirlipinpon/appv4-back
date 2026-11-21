@@ -17,6 +17,7 @@ import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
+import com.appv4.auth.application.port.out.QuestionMark;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort.ChildSession;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
@@ -52,8 +53,8 @@ class ChildLearningQuestionMarkTest {
 				new QuestionSummary(12L, "qcm", "Déjà jaune"),
 				new QuestionSummary(13L, "qcm", "Ratée")));
 		when(attempts.marksFor(eq(7L), any())).thenReturn(Map.of(
-				12L, new StoredMark("yellow", 3),
-				13L, new StoredMark("black", 0)));
+				12L, new StoredMark(QuestionMark.YELLOW, 3),
+				13L, new StoredMark(QuestionMark.BLACK, 0)));
 		list = new ReadChildLearningSubjectsService(
 				child, session, subjects, questions, new QuestionFormRegistry(List.of()), attempts);
 	}
@@ -66,11 +67,14 @@ class ChildLearningQuestionMarkTest {
 		QuestionCard yellow = view.questions().get(1);
 		QuestionCard black = view.questions().get(2);
 		assertThat(unmarked.questionId()).isEqualTo(11L);
-		assertThat(unmarked.mark()).isEqualTo("none");
+		assertThat(unmarked.mark()).isEqualTo(QuestionMark.NONE);
+		assertThat(unmarked.mark().wire()).isEqualTo("none");
 		assertThat(unmarked.yellowCount()).isZero();
-		assertThat(yellow.mark()).isEqualTo("yellow");
+		assertThat(yellow.mark()).isEqualTo(QuestionMark.YELLOW);
+		assertThat(yellow.mark().wire()).isEqualTo("yellow");
 		assertThat(yellow.yellowCount()).isEqualTo(3);
-		assertThat(black.mark()).isEqualTo("black");
+		assertThat(black.mark()).isEqualTo(QuestionMark.BLACK);
+		assertThat(black.mark().wire()).isEqualTo("black");
 		assertThat(black.yellowCount()).isZero();
 	}
 }

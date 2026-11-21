@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
+import com.appv4.auth.application.port.out.QuestionMark;
 import com.appv4.auth.application.service.SubjectIcons;
 import com.appv4.auth.application.result.ChildLearningQuestionsView;
 import com.appv4.auth.application.result.ChildLearningSubjectsView;
@@ -128,7 +129,7 @@ public class ChildLearningSubjectsController {
 			@Schema(description = "Couleur #rrggbb de la forme. Null si pas d'identité.", nullable = true)
 			String color,
 			@Schema(description = "Étoile de l'enfant sur cette question : none, black ou yellow.")
-			String mark,
+			QuestionMark mark,
 			@Schema(description = "Nombre d'étoiles jaunes. Zéro s'il n'y en a pas.")
 			int yellowCount) {
 	}

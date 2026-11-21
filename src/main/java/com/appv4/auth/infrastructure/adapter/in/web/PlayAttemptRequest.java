@@ -25,7 +25,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 /** Une seule réponse est autorisée. Les anciens clients omettent formCode et submissionId. */
 @Schema(name = "SubmitChildAttemptRequest")
 public record PlayAttemptRequest(
-		String formCode, UUID submissionId, UUID challengeId, UUID playId,
+		String formCode, UUID submissionId, UUID challengeId,
+		@Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID playId,
 		List<@NotNull @Positive Long> selectedChoiceIds,
 		List<@NotNull @Valid SubmitStatementAnswer> statements,
 		List<@NotNull @Positive Long> matchedPairIds,

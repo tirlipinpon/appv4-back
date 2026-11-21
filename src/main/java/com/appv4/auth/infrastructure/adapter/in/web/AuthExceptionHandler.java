@@ -39,6 +39,7 @@ public class AuthExceptionHandler {
 			case FORBIDDEN -> HttpStatus.FORBIDDEN;
 			case NOT_FOUND -> HttpStatus.NOT_FOUND;
 			case CONFLICT -> HttpStatus.CONFLICT;
+			case ATTEMPTS_EXHAUSTED -> HttpStatus.CONFLICT;
 			case SERVICE_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
 			case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
 			case BAD_REQUEST, SUBJECT_RESTORABLE, SUBJECT_SHARE_AVAILABLE -> HttpStatus.BAD_REQUEST;

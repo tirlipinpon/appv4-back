@@ -12,6 +12,7 @@ import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
+import com.appv4.auth.application.port.out.QuestionMark;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
@@ -116,7 +117,7 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 							questionFormRegistry.labelOf(q.formCode()),
 							look == null ? null : look.iconCode(),
 							look == null ? null : look.color(),
-							mark == null ? "none" : mark.code(),
+							mark == null ? QuestionMark.NONE : mark.code(),
 							mark == null ? 0 : mark.yellowCount());
 				})
 				.toList();

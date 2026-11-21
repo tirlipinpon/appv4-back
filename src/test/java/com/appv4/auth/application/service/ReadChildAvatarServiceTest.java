@@ -221,6 +221,26 @@ class ReadChildAvatarServiceTest {
 	}
 
 	@Test
+	void changingStyleDropsVariantsThatDoNotExistThere() {
+		activeChild(7L);
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.of(progress(7L, 30)));
+		ChildAvatarView bottts = service.saveStyle("token", "bottts", "sepia", List.of(
+				new StoredPin("mouth", "diagram"),
+				new StoredPin("eyes", "eva")));
+		assertThat(zone(bottts, "mouth").selectedCode()).isEqualTo("diagram");
+		assertThat(zone(bottts, "eyes").selectedCode()).isEqualTo("eva");
+
+		ChildAvatarView saved = service.saveStyle("token", "adventurer", "sepia", List.of(
+				new StoredPin("mouth", "diagram"),
+				new StoredPin("eyes", "eva")));
+
+		assertThat(saved.styleCode()).isEqualTo("adventurer");
+		assertThat(saved.presetId()).isEqualTo("sepia");
+		assertThat(zone(saved, "mouth").selectedCode()).isNull();
+		assertThat(zone(saved, "eyes").selectedCode()).isNull();
+	}
+
+	@Test
 	void openMouthPinStaysWhenThePaletteChanges() {
 		activeChild(7L);
 		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.of(progress(7L, 20)));

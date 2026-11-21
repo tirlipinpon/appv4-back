@@ -24,5 +24,6 @@ public record ChildAttemptResultView(
 		int pointsAwarded,
 		boolean replayAvailable,
 		QuestionMark mark,
-		int yellowCount) {
+		int yellowCount,
+		String lessonFinishedLabel) {
 }

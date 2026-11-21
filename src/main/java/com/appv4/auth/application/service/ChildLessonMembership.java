@@ -27,6 +27,15 @@ public final class ChildLessonMembership {
 	private ChildLessonMembership() {
 	}
 
+	public static final String FINISHED_LABEL = "Leçon finie.";
+
+	public static String finishedLabel(int before, int after) {
+		if (before > 0 && after == 0) {
+			return FINISHED_LABEL;
+		}
+		return null;
+	}
+
 	public static ChildLessonView of(
 			List<QuestionSummary> questions, Map<Long, StoredMark> marks, List<PageAttempt> attempts) {
 		List<QuestionSummary> ordered = questions == null ? List.of() : questions;

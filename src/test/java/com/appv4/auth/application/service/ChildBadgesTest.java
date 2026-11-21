@@ -370,6 +370,57 @@ class ChildBadgesTest {
 	}
 
 	@Test
+	void laJaugeDAffileeSuitLaSerieEnCoursEtGardeLeRecord() {
+		yellow(3, 1);
+		history.add(trace(1L, 18, QuestionMark.YELLOW, true, true));
+		history.add(trace(2L, 18, QuestionMark.YELLOW, true, true));
+		history.add(trace(3L, 18, QuestionMark.YELLOW, true, true));
+
+		Badge afterThree = badges.badges("lea").badges().get(4);
+
+		assertThat(afterThree.level()).isEqualTo(1);
+		assertThat(afterThree.retainedValue()).isEqualTo(3);
+		assertThat(afterThree.progressValue()).isEqualTo(3);
+		assertThat(afterThree.nextThreshold()).isEqualTo(4);
+		assertThat(afterThree.unlockedOn()).isEqualTo(LocalDate.of(2026, 11, 18));
+
+		history.add(trace(3L, 21, QuestionMark.YELLOW, false, false));
+		ChildBadgesView afterMiss = badges.badges("lea");
+		Badge broken = afterMiss.badges().get(4);
+
+		assertThat(broken.level()).isEqualTo(1);
+		assertThat(broken.retainedValue()).isEqualTo(3);
+		assertThat(broken.progressValue()).isZero();
+		assertThat(broken.unlockedOn()).isEqualTo(LocalDate.of(2026, 11, 18));
+		assertThat(afterMiss.badges().get(2).retainedValue()).isEqualTo(1);
+		assertThat(afterMiss.badges().get(5).retainedValue()).isEqualTo(3);
+		assertThat(afterMiss.badges().get(5).progressValue()).isEqualTo(3);
+		assertThat(afterMiss.gainedToday()).extracting(ChildBadgesView.Gained::code)
+				.doesNotContain(ReadChildBadgesService.AFFILEE);
+
+		history.add(trace(4L, 21, QuestionMark.YELLOW, true, true));
+		history.add(trace(5L, 21, QuestionMark.YELLOW, true, true));
+		Badge twoMore = badges.badges("lea").badges().get(4);
+
+		assertThat(twoMore.level()).isEqualTo(1);
+		assertThat(twoMore.progressValue()).isEqualTo(2);
+		assertThat(twoMore.retainedValue()).isEqualTo(3);
+
+		history.add(trace(1L, 21, QuestionMark.YELLOW, true, false));
+		assertThat(badges.badges("lea").badges().get(4).progressValue()).isEqualTo(2);
+
+		history.add(trace(6L, 21, QuestionMark.YELLOW, true, true));
+		history.add(trace(7L, 21, QuestionMark.YELLOW, true, true));
+		Badge levelTwo = badges.badges("lea").badges().get(4);
+
+		assertThat(levelTwo.level()).isEqualTo(2);
+		assertThat(levelTwo.retainedValue()).isEqualTo(4);
+		assertThat(levelTwo.progressValue()).isEqualTo(4);
+		assertThat(levelTwo.nextThreshold()).isEqualTo(6);
+		assertThat(levelTwo.unlockedOn()).isEqualTo(TODAY);
+	}
+
+	@Test
 	void troisReponsesPayeesPuisUnEchecGardentLeNiveau() {
 		history.add(trace(1L, 18, QuestionMark.YELLOW, true, true));
 		history.add(trace(2L, 18, QuestionMark.YELLOW, true, true));

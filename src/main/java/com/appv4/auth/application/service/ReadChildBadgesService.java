@@ -45,6 +45,7 @@ import com.appv4.auth.application.result.ChildBadgesView.Notice;
  * <p><b>Technique :</b> la somme vient des marques. Le niveau gardé ne redescend pas.
  * <p><b>Métier / flow :</b> GET /api/ext/badges, et le jeu avant puis après chaque essai enregistré.
  * Les gains du jour sortent du plus récent au plus ancien. La collection garde l'ordre du catalogue.
+ * La jauge de Bonnes réponses d'affilée montre la série en cours. Le niveau reste celui du record.
  */
 public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadgeProgress {
 
@@ -191,11 +192,12 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 	private ChildBadgesView view(long childId, LocalDate today) {
 		Map<String, StoredBadge> stored = load(childId);
 		int sum = yellowSum(childId);
+		int streakNow = currentStreak(childId);
 		List<Badge> cards = new ArrayList<>();
 		List<TodayGain> todayGains = new ArrayList<>();
 		for (Kind kind : CATALOG) {
 			StoredBadge row = stored.get(kind.code());
-			Badge card = card(kind, row, sum);
+			Badge card = card(kind, row, sum, streakNow);
 			cards.add(card);
 			if (card.unlockedOn() != null && card.unlockedOn().equals(today) && card.level() > 0) {
 				Instant at = row == null ? null : row.gainedAt();
@@ -207,16 +209,17 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 		return new ChildBadgesView(cards, gained, notice(childId, stored.get(MATIERE)));
 	}
 
-	private Badge card(Kind kind, StoredBadge stored, int sum) {
+	private Badge card(Kind kind, StoredBadge stored, int sum, int streakNow) {
 		if (PREMIERE.equals(kind.code())) {
 			int level = sum >= 1 ? 1 : 0;
+			int retained = level == 0 ? 0 : 1;
 			LocalDate date = stored != null && stored.level() == level ? stored.unlockedOn() : null;
-			return new Badge(kind.code(), kind.name(), level, level == 0 ? 0 : 1, null, date);
+			return new Badge(kind.code(), kind.name(), level, retained, null, date, retained);
 		}
 		if (MATIERE.equals(kind.code())) {
 			int level = stored == null ? 0 : stored.level();
 			LocalDate date = stored == null ? null : stored.unlockedOn();
-			return new Badge(kind.code(), kind.name(), level, level, null, date);
+			return new Badge(kind.code(), kind.name(), level, level, null, date, level);
 		}
 		if (ETOILES.equals(kind.code())) {
 			int computed = ChildBadgeRules.level(sum, ETOILES_FIRST);
@@ -224,7 +227,7 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 			int level = Math.max(computed, kept);
 			LocalDate date = stored != null && stored.level() == level ? stored.unlockedOn() : null;
 			Integer next = ChildBadgeRules.nextThreshold(level, ETOILES_FIRST);
-			return new Badge(kind.code(), kind.name(), level, sum, next, date);
+			return new Badge(kind.code(), kind.name(), level, sum, next, date, sum);
 		}
 		int level = stored == null ? 0 : stored.level();
 		int retained = stored == null ? 0 : stored.retainedValue();
@@ -232,7 +235,16 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 				? null
 				: ChildBadgeRules.nextThreshold(level, kind.firstThreshold());
 		LocalDate date = stored == null ? null : stored.unlockedOn();
-		return new Badge(kind.code(), kind.name(), level, retained, next, date);
+		int progress = AFFILEE.equals(kind.code()) ? streakNow : retained;
+		return new Badge(kind.code(), kind.name(), level, retained, next, date, progress);
+	}
+
+	private int currentStreak(long childId) {
+		List<AttemptTrace> traces = attempts.traces(childId);
+		if (traces == null) {
+			return 0;
+		}
+		return answerRun(traces).current();
 	}
 
 	private void refreshActivity(long childId) {
@@ -248,7 +260,8 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 		saveCounter(childId, RATTRAPAGE, rattrapage(traces), 1);
 		saveCounter(childId, JOURS_JOUES, countedDays(allDays(traces), 3), 3);
 		saveCounter(childId, JOURS_AFFILEE, payStreak(traces), 2);
-		saveCounter(childId, AFFILEE, answerRun(traces), 3);
+		AnswerRun answers = answerRun(traces);
+		saveCounter(childId, AFFILEE, new Outcome(answers.best(), answers.crossed()), 3);
 		saveCounter(childId, JOUR, bestDay(traces), 3);
 		saveCounter(childId, MISSIONS, countedDays(finished, 1), 1);
 	}
@@ -333,7 +346,7 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 		return new Outcome(best, best == 0 ? null : crossed);
 	}
 
-	private Outcome answerRun(List<AttemptTrace> traces) {
+	private AnswerRun answerRun(List<AttemptTrace> traces) {
 		int run = 0;
 		int best = 0;
 		LocalDate crossed = null;
@@ -354,7 +367,7 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 				run = 0;
 			}
 		}
-		return new Outcome(best, crossed);
+		return new AnswerRun(best, run, crossed);
 	}
 
 	private Outcome bestDay(List<AttemptTrace> traces) {
@@ -408,6 +421,10 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 	}
 
 	private record Outcome(int value, LocalDate crossed) {
+	}
+
+	/** Record gardé pour le niveau, et longueur encore en cours pour la jauge. */
+	private record AnswerRun(int best, int current, LocalDate crossed) {
 	}
 
 	private record TodayGain(Gained gained, Instant at) {

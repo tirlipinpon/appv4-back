@@ -429,9 +429,12 @@ public class AuthConfiguration {
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildQuestionAttemptPort childQuestionAttemptPort,
 			ChildBadgePort childBadgePort,
+			ChildSubjectPort childSubjectPort,
+			TeacherQuestionPort teacherQuestionPort,
 			java.time.Clock clock) {
 		return new ReadChildBadgesService(
-				childLoginPort, childSessionTokenPort, childQuestionAttemptPort, childBadgePort, clock);
+				childLoginPort, childSessionTokenPort, childQuestionAttemptPort, childBadgePort,
+				childSubjectPort, teacherQuestionPort, clock);
 	}
 
 	@Bean

@@ -1,5 +1,7 @@
 package com.appv4.auth.application.service;
 
+import com.appv4.auth.application.port.out.QuestionMark;
+
 /**
  * Mise à jour des badges autour d'un essai enregistré (BACK-19).
  *
@@ -12,6 +14,11 @@ public interface ChildBadgeProgress {
 	/** Reprend les badges déjà prouvés avant d'appliquer l'essai en cours. */
 	void beforeAttempt(long childId);
 
-	/** Relit les étoiles après l'enregistrement de l'essai. */
-	void afterMarksChanged(long childId);
+	/**
+	 * Relit les étoiles après l'essai.
+	 *
+	 * <p><b>Business :</b> Matière au jaune ne monte que si la marque passe de aucune
+	 * ou noire à jaune, puis que la matière est toute jaune.
+	 */
+	void afterAttempt(long childId, long subjectId, long questionId, QuestionMark before, QuestionMark after);
 }

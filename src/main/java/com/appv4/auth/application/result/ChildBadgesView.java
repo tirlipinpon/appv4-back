@@ -12,7 +12,7 @@ import java.util.List;
  * <p><b>Technique :</b> record avant le JSON.
  * <p><b>Métier / flow :</b> lecture des badges → accueil et Récompenses.
  */
-public record ChildBadgesView(List<Badge> badges, List<Gained> gainedToday, String notice) {
+public record ChildBadgesView(List<Badge> badges, List<Gained> gainedToday, Notice notice) {
 
 	public ChildBadgesView {
 		badges = List.copyOf(badges);
@@ -29,5 +29,9 @@ public record ChildBadgesView(List<Badge> badges, List<Gained> gainedToday, Stri
 	}
 
 	public record Gained(String code, String name, int level) {
+	}
+
+	/** Questions encore à jaunir sur la matière qui a donné le badge. */
+	public record Notice(String label, String subjectName, int remainingCount) {
 	}
 }

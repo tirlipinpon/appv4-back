@@ -147,7 +147,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		StoredAttempt saved = childQuestionAttemptPort.insert(new NewAttempt(
 				childId, subjectId, questionId, question.formCode(), grade.scorePercent(), grade.passed(), grade.answers(),
 				submission.submissionId(), seat.rank(), seat.attemptsRemaining(), points, mark, yellowCount, pay));
-		childBadgeProgress.afterMarksChanged(childId);
+		childBadgeProgress.afterAttempt(childId, subjectId, questionId, before.code(), mark);
 		if (pay) {
 			updateChildProgressAfterAttemptService.apply(childId, saved.scorePercent());
 		}

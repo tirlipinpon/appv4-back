@@ -20,6 +20,6 @@ public interface ChildBadgePort {
 
 	void save(long childId, StoredBadge badge);
 
-	record StoredBadge(String code, int level, int retainedValue, LocalDate unlockedOn) {
+	record StoredBadge(String code, int level, int retainedValue, LocalDate unlockedOn, Long subjectId) {
 	}
 }

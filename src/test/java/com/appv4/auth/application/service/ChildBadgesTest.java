@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -25,7 +26,11 @@ import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort.ChildSession;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
+import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.QuestionMark;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.result.ChildBadgesView;
 import com.appv4.auth.application.result.ChildBadgesView.Badge;
 
@@ -36,6 +41,8 @@ class ChildBadgesTest {
 	private final ChildSessionTokenPort session = mock(ChildSessionTokenPort.class);
 	private final ChildLoginPort children = mock(ChildLoginPort.class);
 	private final ChildQuestionAttemptPort attempts = mock(ChildQuestionAttemptPort.class);
+	private final ChildSubjectPort subjects = mock(ChildSubjectPort.class);
+	private final TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
 	private final MemoryBadges stored = new MemoryBadges();
 	private final Map<Long, StoredMark> marks = new HashMap<>();
 	private ReadChildBadgesService badges;
@@ -49,7 +56,8 @@ class ChildBadgesTest {
 		when(attempts.allMarks(7L)).thenAnswer(invocation -> Map.copyOf(marks));
 		when(attempts.allMarks(8L)).thenReturn(Map.of());
 		badges = new ReadChildBadgesService(
-				children, session, attempts, stored, Clock.fixed(Instant.parse("2026-11-21T12:00:00Z"), ZoneOffset.UTC));
+				children, session, attempts, stored, subjects, questions,
+				Clock.fixed(Instant.parse("2026-11-21T12:00:00Z"), ZoneOffset.UTC));
 	}
 
 	@Test
@@ -112,7 +120,7 @@ class ChildBadgesTest {
 		badges.badges("lea");
 		marks.put(2L, new StoredMark(QuestionMark.YELLOW, 1));
 
-		badges.afterMarksChanged(7L);
+		badges.afterAttempt(7L, 4L, 2L, QuestionMark.NONE, QuestionMark.YELLOW);
 		ChildBadgesView view = badges.badges("lea");
 
 		Badge stars = view.badges().get(2);
@@ -121,6 +129,101 @@ class ChildBadgesTest {
 		assertThat(stars.unlockedOn()).isEqualTo(TODAY);
 		assertThat(view.gainedToday()).extracting(ChildBadgesView.Gained::name).containsExactly("Étoiles jaunes");
 		assertThat(view.badges().get(0).unlockedOn()).isNull();
+	}
+
+	@Test
+	void uneMatiereTouteJauneMonteAuPremierPassage() {
+		openMath(1L);
+		yellow(1L, 1);
+
+		badges.afterAttempt(7L, 4L, 1L, QuestionMark.NONE, QuestionMark.YELLOW);
+		ChildBadgesView view = badges.badges("lea");
+
+		Badge subject = view.badges().get(1);
+		assertThat(subject.level()).isEqualTo(1);
+		assertThat(subject.unlockedOn()).isEqualTo(TODAY);
+		assertThat(view.notice()).isNull();
+		assertThat(view.gainedToday()).extracting(ChildBadgesView.Gained::name).contains("Matière au jaune");
+	}
+
+	@Test
+	void uneRepriseJauneNeFaitPasMonterLaMatiere() {
+		openMath(1L);
+		yellow(1L, 1);
+		badges.afterAttempt(7L, 4L, 1L, QuestionMark.NONE, QuestionMark.YELLOW);
+
+		yellow(1L, 2);
+		badges.afterAttempt(7L, 4L, 1L, QuestionMark.YELLOW, QuestionMark.YELLOW);
+
+		assertThat(badges.badges("lea").badges().get(1).level()).isEqualTo(1);
+	}
+
+	@Test
+	void desQuestionsAjouteesLaissentLeNiveauEtAvertissent() {
+		openMath(1L);
+		yellow(1L, 1);
+		badges.afterAttempt(7L, 4L, 1L, QuestionMark.NONE, QuestionMark.YELLOW);
+		when(questions.questionIds(4L)).thenReturn(List.of(1L, 2L));
+
+		ChildBadgesView view = badges.badges("lea");
+
+		assertThat(view.badges().get(1).level()).isEqualTo(1);
+		assertThat(view.notice().subjectName()).isEqualTo("Mathématiques");
+		assertThat(view.notice().remainingCount()).isEqualTo(1);
+		assertThat(view.notice().label()).isEqualTo("Mathématiques : 1 question n'est pas encore jaune.");
+	}
+
+	@Test
+	void rejaunirLesQuestionsAjouteesMonteDunNiveau() {
+		openMath(1L);
+		yellow(1L, 1);
+		badges.afterAttempt(7L, 4L, 1L, QuestionMark.NONE, QuestionMark.YELLOW);
+		when(questions.questionIds(4L)).thenReturn(List.of(1L, 2L));
+		yellow(2L, 1);
+
+		badges.afterAttempt(7L, 4L, 2L, QuestionMark.BLACK, QuestionMark.YELLOW);
+		ChildBadgesView view = badges.badges("lea");
+
+		assertThat(view.badges().get(1).level()).isEqualTo(2);
+		assertThat(view.notice()).isNull();
+	}
+
+	@Test
+	void retirerLesQuestionsAjouteesNAugmentePasLeNiveau() {
+		openMath(1L, 2L);
+		yellow(1L, 1);
+		yellow(2L, 1);
+		badges.afterAttempt(7L, 4L, 2L, QuestionMark.NONE, QuestionMark.YELLOW);
+		when(questions.questionIds(4L)).thenReturn(List.of(1L));
+
+		ChildBadgesView view = badges.badges("lea");
+
+		assertThat(view.badges().get(1).level()).isEqualTo(1);
+		assertThat(view.notice()).isNull();
+	}
+
+	@Test
+	void uneMatiereFermeeGardeLeNiveauSansAvertissementNiTransfert() {
+		openMath(1L);
+		yellow(1L, 1);
+		badges.afterAttempt(7L, 4L, 1L, QuestionMark.NONE, QuestionMark.YELLOW);
+		when(subjects.linksOf(7L)).thenReturn(List.of());
+		openWords(3L);
+		yellow(3L, 1);
+		badges.afterAttempt(7L, 5L, 3L, QuestionMark.NONE, QuestionMark.YELLOW);
+
+		ChildBadgesView view = badges.badges("lea");
+
+		assertThat(view.badges().get(1).level()).isEqualTo(1);
+		assertThat(view.notice()).isNull();
+	}
+
+	@Test
+	void laRepriseNeDonnePasLaMatiereMemeSiElleEstTouteJaune() {
+		openMath(1L);
+		yellow(1L, 1);
+
+		assertThat(badges.badges("lea").badges().get(1).level()).isZero();
 	}
 
 	@Test
@@ -138,6 +241,26 @@ class ChildBadgesTest {
 	void sansJetonLaLectureEstRefusee() {
 		assertThatThrownBy(() -> badges.badges(""))
 				.isInstanceOf(AuthDomainException.class);
+	}
+
+	private void openMath(long... questionIds) {
+		when(subjects.linksOf(7L)).thenReturn(List.of(new StoredLink(4L, false)));
+		when(subjects.visibleByIds(List.of(4L))).thenReturn(List.of(math()));
+		when(questions.questionIds(4L)).thenReturn(ids(questionIds));
+	}
+
+	private void openWords(long... questionIds) {
+		when(subjects.visibleByIds(List.of(5L))).thenReturn(List.of(
+				new CatalogSubject(5L, "Mots", "M. Y", 1L, "CE1", "words")));
+		when(questions.questionIds(5L)).thenReturn(ids(questionIds));
+	}
+
+	private static List<Long> ids(long... questionIds) {
+		return java.util.Arrays.stream(questionIds).boxed().toList();
+	}
+
+	private static CatalogSubject math() {
+		return new CatalogSubject(4L, "Mathématiques", "Mme X", 1L, "CE1", "math");
 	}
 
 	private void yellow(long questionId, int count) {

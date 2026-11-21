@@ -48,14 +48,16 @@ public class ChildBadgePersistenceAdapter implements ChildBadgePort {
 	public Map<String, StoredBadge> load(long childId) {
 		Map<String, StoredBadge> found = new HashMap<>();
 		jdbc.sql("""
-				select code, level, retained_value, unlocked_on
+				select code, level, retained_value, unlocked_on, subject_id
 				from back_child_badges where child_id = :childId
 				""")
 				.param("childId", childId)
 				.query((rs, row) -> {
 					String code = rs.getString("code");
 					LocalDate unlocked = rs.getObject("unlocked_on", LocalDate.class);
-					found.put(code, new StoredBadge(code, rs.getInt("level"), rs.getInt("retained_value"), unlocked));
+					Long subjectId = rs.getObject("subject_id", Long.class);
+					found.put(code, new StoredBadge(
+							code, rs.getInt("level"), rs.getInt("retained_value"), unlocked, subjectId));
 					return null;
 				})
 				.list();
@@ -65,18 +67,20 @@ public class ChildBadgePersistenceAdapter implements ChildBadgePort {
 	@Override
 	public void save(long childId, StoredBadge badge) {
 		jdbc.sql("""
-				insert into back_child_badges (child_id, code, level, retained_value, unlocked_on)
-				values (:childId, :code, :level, :retained, :unlocked)
+				insert into back_child_badges (child_id, code, level, retained_value, unlocked_on, subject_id)
+				values (:childId, :code, :level, :retained, :unlocked, :subjectId)
 				on conflict (child_id, code) do update
 				set level = excluded.level,
 				    retained_value = excluded.retained_value,
-				    unlocked_on = excluded.unlocked_on
+				    unlocked_on = excluded.unlocked_on,
+				    subject_id = excluded.subject_id
 				""")
 				.param("childId", childId)
 				.param("code", badge.code())
 				.param("level", badge.level())
 				.param("retained", badge.retainedValue())
 				.param("unlocked", badge.unlockedOn())
+				.param("subjectId", badge.subjectId())
 				.update();
 	}
 }

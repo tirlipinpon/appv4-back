@@ -58,14 +58,21 @@ public class ChildBadgesController {
 	}
 
 	@Schema(name = "ChildBadgesResponse")
-	public record ChildBadgesResponse(List<BadgeResponse> badges, List<GainedResponse> gainedToday, String notice) {
+	public record ChildBadgesResponse(
+			List<BadgeResponse> badges, List<GainedResponse> gainedToday, NoticeResponse notice) {
 
 		static ChildBadgesResponse from(ChildBadgesView view) {
+			ChildBadgesView.Notice notice = view.notice();
 			return new ChildBadgesResponse(
 					view.badges().stream().map(BadgeResponse::from).toList(),
 					view.gainedToday().stream().map(GainedResponse::from).toList(),
-					view.notice());
+					notice == null ? null : new NoticeResponse(
+							notice.label(), notice.subjectName(), notice.remainingCount()));
 		}
+	}
+
+	@Schema(name = "ChildBadgeNoticeResponse")
+	public record NoticeResponse(String label, String subjectName, int remainingCount) {
 	}
 
 	@Schema(name = "ChildBadgeResponse")

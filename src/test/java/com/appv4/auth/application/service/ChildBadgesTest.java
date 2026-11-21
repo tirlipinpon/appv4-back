@@ -70,7 +70,22 @@ class ChildBadgesTest {
 	}
 
 	@Test
-	void sansEtoileLaCollectionMontreNeufBadgesAZero() {
+	void uneLeconVideeMonteLeconsFiniesSansReconstruireLePasse() {
+		badges.badges("lea");
+		badges.noteLessonEmptied(7L);
+
+		ChildBadgesView view = badges.badges("lea");
+		Badge lesson = view.badges().get(view.badges().size() - 1);
+		assertThat(lesson.name()).isEqualTo("Leçons finies");
+		assertThat(lesson.level()).isEqualTo(1);
+		assertThat(lesson.retainedValue()).isEqualTo(1);
+		assertThat(lesson.nextThreshold()).isEqualTo(2);
+		assertThat(lesson.unlockedOn()).isEqualTo(TODAY);
+		assertThat(view.gainedToday()).extracting(gained -> gained.name()).contains("Leçons finies");
+	}
+
+	@Test
+	void sansEtoileLaCollectionMontreDixBadgesAZero() {
 		ChildBadgesView view = badges.badges("lea");
 
 		assertThat(view.badges()).extracting(Badge::name).containsExactly(
@@ -82,7 +97,8 @@ class ChildBadgesTest {
 				"Bonnes réponses du jour",
 				"Jours d'affilée",
 				"Jours joués",
-				"Missions terminées");
+				"Missions terminées",
+				"Leçons finies");
 		Badge stars = view.badges().get(2);
 		assertThat(stars.level()).isZero();
 		assertThat(stars.retainedValue()).isZero();

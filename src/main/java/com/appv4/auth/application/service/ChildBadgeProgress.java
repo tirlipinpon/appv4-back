@@ -24,4 +24,13 @@ public interface ChildBadgeProgress {
 
 	/** Relit la mission du jour après qu'une tentative a pu la terminer. */
 	void noteMission(long childId);
+
+	/**
+	 * Compte une leçon qui vient de passer d'au moins une question à aucune.
+	 *
+	 * <p><b>Business :</b> le niveau ne redescend pas si une question revient ensuite.
+	 * <p><b>Technique :</b> le compte retenu augmente de un, le niveau suit le seuil 1 puis × 1,3.
+	 * <p><b>Métier / flow :</b> après l'essai enregistré, seulement si la leçon est vide.
+	 */
+	void noteLessonEmptied(long childId);
 }

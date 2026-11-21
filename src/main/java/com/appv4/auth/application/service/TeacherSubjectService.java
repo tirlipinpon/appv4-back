@@ -18,6 +18,7 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
@@ -176,18 +177,21 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 	private final SchoolCatalogPort schoolCatalogPort;
 	private final ActiveRolePort activeRolePort;
 	private final TeacherQuestionPort teacherQuestionPort;
+	private final ChildSubjectPort childSubjectPort;
 
 	public TeacherSubjectService(
 			TeacherSubjectPort teacherSubjectPort,
 			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort,
 			ActiveRolePort activeRolePort,
-			TeacherQuestionPort teacherQuestionPort) {
+			TeacherQuestionPort teacherQuestionPort,
+			ChildSubjectPort childSubjectPort) {
 		this.teacherSubjectPort = teacherSubjectPort;
 		this.teacherProfilePort = teacherProfilePort;
 		this.schoolCatalogPort = schoolCatalogPort;
 		this.activeRolePort = activeRolePort;
 		this.teacherQuestionPort = teacherQuestionPort;
+		this.childSubjectPort = childSubjectPort;
 	}
 
 	@Override
@@ -228,6 +232,7 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 			icon = SubjectIcons.pickFree(iconsInClass(schoolId, grade));
 		}
 		StoredSubject saved = teacherSubjectPort.insert(userId, schoolId, grade, trimmed, key, icon);
+		childSubjectPort.ensureDefaultLinksForSubject(saved.id(), schoolId, grade);
 		return line(userId, saved);
 	}
 
@@ -281,7 +286,9 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		if (saved == null || saved.isEmpty()) {
 			throw missing();
 		}
-		return line(userId, saved.get());
+		StoredSubject restored = saved.get();
+		childSubjectPort.ensureDefaultLinksForSubject(restored.id(), schoolId, grade);
+		return line(userId, restored);
 	}
 
 	@Override
@@ -376,6 +383,8 @@ public class TeacherSubjectService implements TeacherSubjectUseCase {
 		if (!teacherSubjectPort.reactivate(userId, subjectId)) {
 			throw missing();
 		}
+		teacherSubjectPort.findOwned(userId, subjectId).ifPresent(subject ->
+				childSubjectPort.ensureDefaultLinksForSubject(subject.id(), subject.schoolId(), subject.grade()));
 	}
 
 	@Override

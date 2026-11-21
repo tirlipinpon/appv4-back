@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.ActiveRolePort;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
@@ -79,7 +80,9 @@ class TeacherSubjectServiceTest {
 				new CatalogSchool(BELGIAN_SCHOOL, "École belge", "Belgique", "Primaire", "1000"));
 		questions = mock(TeacherQuestionPort.class);
 		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
-		service = new TeacherSubjectService(subjects, profiles, () -> catalog, roles, questions);
+		ChildSubjectPort childLinks = mock(ChildSubjectPort.class);
+		service = new TeacherSubjectService(
+				subjects, profiles, () -> catalog, roles, questions, childLinks);
 	}
 
 	@Test

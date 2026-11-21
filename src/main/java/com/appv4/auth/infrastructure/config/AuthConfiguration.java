@@ -662,13 +662,15 @@ public class AuthConfiguration {
 			TeacherProfilePort teacherProfilePort,
 			SchoolCatalogPort schoolCatalogPort,
 			ActiveRolePort activeRolePort,
-			TeacherQuestionPort teacherQuestionPort) {
+			TeacherQuestionPort teacherQuestionPort,
+			ChildSubjectPort childSubjectPort) {
 		return new TeacherSubjectService(
 				teacherSubjectPort,
 				teacherProfilePort,
 				schoolCatalogPort,
 				activeRolePort,
-				teacherQuestionPort);
+				teacherQuestionPort,
+				childSubjectPort);
 	}
 
 	/**

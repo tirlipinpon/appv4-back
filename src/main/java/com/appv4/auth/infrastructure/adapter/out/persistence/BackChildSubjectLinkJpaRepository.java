@@ -53,6 +53,27 @@ public interface BackChildSubjectLinkJpaRepository extends JpaRepository<BackChi
 			""", nativeQuery = true)
 	int insertDefaultsForParent(@Param("parentUserId") long parentUserId);
 
+	/**
+	 * Une passe pour un enfant (filet learning). Le conflit laisse une exclusion déjà posée.
+	 */
+	@Modifying(flushAutomatically = true)
+	@Query(value = """
+			insert into back_child_subject_links (child_id, subject_id, excluded)
+			select c.id, s.id, false
+			from back_children c
+			join back_teacher_subjects s
+			  on s.school_id = c.school_id
+			 and s.grade_label = c.grade_label
+			 and s.hidden = false
+			 and s.active = true
+			where c.id = :childId
+			  and c.hidden = false
+			  and c.school_id is not null
+			  and btrim(c.grade_label) <> ''
+			on conflict (child_id, subject_id) do nothing
+			""", nativeQuery = true)
+	int insertDefaultsForChild(@Param("childId") long childId);
+
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("""
 			delete from BackChildSubjectLinkEntity link

@@ -31,10 +31,12 @@ public record ChildAvatarView(
 			String name,
 			String credit,
 			List<String> zoneCodes,
-			List<StylePreset> presets) {
+			List<StylePreset> presets,
+			List<ZoneCard> zones) {
 		public StyleCard {
 			zoneCodes = zoneCodes == null ? List.of() : List.copyOf(zoneCodes);
 			presets = presets == null ? List.of() : List.copyOf(presets);
+			zones = zones == null ? List.of() : List.copyOf(zones);
 		}
 	}
 

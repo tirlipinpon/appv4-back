@@ -137,6 +137,10 @@ class ReadChildAvatarServiceTest {
 		assertThat(view.styles()).hasSize(38);
 		assertThat(view.styles().get(0).code()).isEqualTo("adventurer");
 		assertThat(style(view, "fun-emoji").zoneCodes()).containsExactly("mouth", "eyes");
+		assertThat(style(view, "fun-emoji").zones()).extracting(ZoneCard::code).containsExactly("mouth", "eyes");
+		assertThat(style(view, "fun-emoji").zones().get(0).open()).isFalse();
+		assertThat(style(view, "fun-emoji").zones().get(0).thresholdLabel()).isEqualTo("20 XP");
+		assertThat(style(view, "bottts").zones()).extracting(ZoneCard::code).contains("mouth", "eyes").doesNotContain("hair");
 		assertThat(style(view, "lorelei").presets().get(0).id()).isEqualTo("bare");
 		assertThat(style(view, "lorelei").presets().get(0).options()).containsKey("backgroundColor");
 		assertThat(style(view, "fun-emoji").presets().get(0).id()).isEqualTo("plain");

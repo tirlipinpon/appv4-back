@@ -1,5 +1,6 @@
 package com.appv4.auth.application.port.out;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
 
@@ -20,6 +21,19 @@ public interface ChildBadgePort {
 
 	void save(long childId, StoredBadge badge);
 
-	record StoredBadge(String code, int level, int retainedValue, LocalDate unlockedOn, Long subjectId) {
+	/**
+	 * Niveau déjà écrit pour un enfant.
+	 *
+	 * <p><b>Business :</b> {@code gainedAt} est l'instant du dernier niveau monté.
+	 * L'accueil s'en sert pour montrer le gain le plus récent en premier, le même jour.
+	 * <p><b>Technique :</b> colonne {@code gained_at}. Null si le niveau n'a pas été daté.
+	 */
+	record StoredBadge(
+			String code,
+			int level,
+			int retainedValue,
+			LocalDate unlockedOn,
+			Long subjectId,
+			Instant gainedAt) {
 	}
 }

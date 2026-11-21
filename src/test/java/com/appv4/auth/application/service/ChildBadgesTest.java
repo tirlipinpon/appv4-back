@@ -8,7 +8,9 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -52,6 +54,7 @@ class ChildBadgesTest {
 	private final MemoryMissions missionPort = new MemoryMissions();
 	private final List<AttemptTrace> history = new ArrayList<>();
 	private final Map<Long, StoredMark> marks = new HashMap<>();
+	private final MoveableClock clock = new MoveableClock(Instant.parse("2026-11-21T12:00:00Z"));
 	private ReadChildBadgesService badges;
 
 	@BeforeEach
@@ -65,8 +68,45 @@ class ChildBadgesTest {
 		when(attempts.traces(7L)).thenAnswer(invocation -> List.copyOf(history));
 		when(attempts.traces(8L)).thenReturn(List.of());
 		badges = new ReadChildBadgesService(
-				children, session, attempts, stored, subjects, questions, missionPort,
-				Clock.fixed(Instant.parse("2026-11-21T12:00:00Z"), ZoneOffset.UTC));
+				children, session, attempts, stored, subjects, questions, missionPort, clock);
+	}
+
+	@Test
+	void lesGainsDuJourSuiventLeDernierNiveauEtLaCollectionResteFixe() {
+		yellow(1, 4);
+		badges.badges("lea");
+		marks.put(1L, new StoredMark(QuestionMark.YELLOW, 5));
+		badges.afterAttempt(7L, 4L, 1L, QuestionMark.NONE, QuestionMark.YELLOW);
+
+		clock.plusMinutes(5);
+		history.add(trace(9L, 21, QuestionMark.BLACK, false, false));
+		history.add(trace(9L, 21, QuestionMark.YELLOW, true, true));
+		ChildBadgesView afterRecovery = badges.badges("lea");
+
+		assertThat(afterRecovery.gainedToday()).extracting(ChildBadgesView.Gained::name)
+				.containsExactly("Rattrapage", "Étoiles jaunes");
+		assertThat(afterRecovery.badges()).extracting(Badge::name).containsExactly(
+				"Première étoile jaune",
+				"Matière au jaune",
+				"Étoiles jaunes",
+				"Rattrapage",
+				"Bonnes réponses d'affilée",
+				"Bonnes réponses du jour",
+				"Jours d'affilée",
+				"Jours joués",
+				"Missions terminées",
+				"Leçons finies");
+
+		clock.plusMinutes(5);
+		marks.put(1L, new StoredMark(QuestionMark.YELLOW, 7));
+		badges.afterAttempt(7L, 4L, 1L, QuestionMark.YELLOW, QuestionMark.YELLOW);
+		ChildBadgesView afterSecondStarLevel = badges.badges("lea");
+
+		assertThat(afterSecondStarLevel.badges().get(2).level()).isEqualTo(2);
+		assertThat(afterSecondStarLevel.gainedToday()).extracting(ChildBadgesView.Gained::name)
+				.containsExactly("Étoiles jaunes", "Rattrapage");
+		assertThat(badges.badges("lea").gainedToday()).extracting(ChildBadgesView.Gained::name)
+				.containsExactly("Étoiles jaunes", "Rattrapage");
 	}
 
 	@Test
@@ -391,6 +431,33 @@ class ChildBadgesTest {
 
 	private void yellow(long questionId, int count) {
 		marks.put(questionId, new StoredMark(QuestionMark.YELLOW, count));
+	}
+
+	private static final class MoveableClock extends Clock {
+		private Instant instant;
+
+		private MoveableClock(Instant instant) {
+			this.instant = instant;
+		}
+
+		private void plusMinutes(long minutes) {
+			instant = instant.plus(minutes, ChronoUnit.MINUTES);
+		}
+
+		@Override
+		public ZoneId getZone() {
+			return ZoneOffset.UTC;
+		}
+
+		@Override
+		public Clock withZone(ZoneId zone) {
+			return Clock.fixed(instant, zone);
+		}
+
+		@Override
+		public Instant instant() {
+			return instant;
+		}
 	}
 
 	private static final class MemoryBadges implements ChildBadgePort {

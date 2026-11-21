@@ -1,6 +1,7 @@
 package com.appv4.auth.application.result;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Liste des enfants et écoles proposables (SCRUM-156).
@@ -43,12 +44,30 @@ public record ParentChildrenView(
 			List<String> linkPhrases,
 			int schoolSubjectCount,
 			int extraSubjectCount,
-			List<KinshipMark> links) {
+			List<KinshipMark> links,
+			CharacterFace character) {
 
 		public ChildCard {
 			linkPhrases = linkPhrases == null ? List.of() : List.copyOf(linkPhrases);
 			links = links == null ? List.of() : List.copyOf(links);
 		}
+	}
+
+	/**
+	 * Personnage déjà choisi par l'enfant.
+	 *
+	 * <p><b>Business :</b> le parent voit le même visage que l'enfant, à côté de la photo.
+	 * <p><b>Technique :</b> style, couleurs de la palette et variantes. Sans choix, Lorelei.
+	 * <p><b>Métier / flow :</b> relu avec la liste des enfants, pas un second appel.
+	 */
+	public record CharacterFace(String styleCode, Map<String, Object> options, List<CharacterPin> pins) {
+		public CharacterFace {
+			options = options == null ? Map.of() : Map.copyOf(options);
+			pins = pins == null ? List.of() : List.copyOf(pins);
+		}
+	}
+
+	public record CharacterPin(String zoneCode, String variantCode) {
 	}
 
 	/**

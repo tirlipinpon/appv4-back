@@ -1,6 +1,7 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -223,6 +224,13 @@ public class ParentChildrenController {
 		return new ParentChildrenResponse(children, schools, curricula);
 	}
 
+	private static ParentChildCharacter toCharacter(ParentChildrenView.CharacterFace face) {
+		List<ParentChildCharacterPin> pins = face.pins().stream()
+				.map(pin -> new ParentChildCharacterPin(pin.zoneCode(), pin.variantCode()))
+				.toList();
+		return new ParentChildCharacter(face.styleCode(), face.options(), pins);
+	}
+
 	private static ParentChildResponse toChild(ChildCard card) {
 		List<ParentChildLink> links = card.links().stream()
 				.map(mark -> new ParentChildLink(mark.otherChildId(), mark.label()))
@@ -244,7 +252,8 @@ public class ParentChildrenController {
 				card.linkPhrases(),
 				card.schoolSubjectCount(),
 				card.extraSubjectCount(),
-				links);
+				links,
+				toCharacter(card.character()));
 	}
 
 	@Schema(name = "ParentChildrenResponse")
@@ -282,7 +291,20 @@ public class ParentChildrenController {
 			@Schema(description = "Autres matières visibles, hors de sa classe")
 			int extraSubjectCount,
 			@Schema(description = "L'autre enfant du lien, pour afficher sa photo ou son avatar, et le mot court.")
-			List<ParentChildLink> links) {
+			List<ParentChildLink> links,
+			@Schema(description = "Personnage choisi par l'enfant. Lorelei s'il n'a encore rien enregistré.")
+			ParentChildCharacter character) {
+	}
+
+	@Schema(name = "ParentChildCharacter")
+	public record ParentChildCharacter(
+			String styleCode,
+			Map<String, Object> options,
+			List<ParentChildCharacterPin> pins) {
+	}
+
+	@Schema(name = "ParentChildCharacterPin")
+	public record ParentChildCharacterPin(String zoneCode, String variantCode) {
 	}
 
 	@Schema(name = "ParentChildLink")

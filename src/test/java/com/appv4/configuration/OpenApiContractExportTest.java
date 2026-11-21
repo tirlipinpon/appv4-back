@@ -68,6 +68,8 @@ class OpenApiContractExportTest {
 				.contains("/api/ext/auth/session")
 				.contains("/api/ext/me")
 				.contains("/api/ext/subjects")
+				.contains("/api/ext/featured")
+				.contains("readChildFeaturedQuestions")
 				.contains("/api/ext/subjects/{subjectId}")
 				.contains("/api/ext/subjects/{subjectId}/questions")
 				.contains("/api/ext/subjects/{subjectId}/questions/{questionId}")

@@ -47,6 +47,7 @@ import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
 import com.appv4.auth.application.port.in.ResumeAppleOAuthCallbackUseCase;
 import com.appv4.auth.application.port.in.LoginChildUseCase;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
+import com.appv4.auth.application.port.in.ReadChildFeaturedQuestionsUseCase;
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
 import com.appv4.auth.application.port.in.ReadChildProfileUseCase;
 import com.appv4.auth.application.port.in.ReadChildProgressUseCase;
@@ -118,6 +119,7 @@ import com.appv4.auth.application.service.TeacherQuestionService;
 import com.appv4.auth.application.service.ChildDailyMissionService;
 import com.appv4.auth.application.service.ReadChildSubjectBoardService;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
+import com.appv4.auth.application.service.ReadChildFeaturedQuestionsService;
 import com.appv4.auth.application.service.ReadChildLearningSubjectsService;
 import com.appv4.auth.application.port.in.ReadChildBadgesUseCase;
 import com.appv4.auth.application.port.out.ChildBadgePort;
@@ -397,6 +399,21 @@ public class AuthConfiguration {
 			ChildQuestionAttemptPort childQuestionAttemptPort) {
 		return new ReadChildLearningSubjectsService(
 				childLoginPort, childSessionTokenPort, childSubjectPort, teacherQuestionPort, questionFormRegistry,
+				childQuestionAttemptPort);
+	}
+
+	/**
+	 * Questions d'accueil de l'enfant connecté (BACK-20).
+	 */
+	@Bean
+	ReadChildFeaturedQuestionsUseCase readChildFeaturedQuestionsUseCase(
+			ChildLoginPort childLoginPort,
+			ChildSessionTokenPort childSessionTokenPort,
+			ChildSubjectPort childSubjectPort,
+			TeacherQuestionPort teacherQuestionPort,
+			ChildQuestionAttemptPort childQuestionAttemptPort) {
+		return new ReadChildFeaturedQuestionsService(
+				childLoginPort, childSessionTokenPort, childSubjectPort, teacherQuestionPort,
 				childQuestionAttemptPort);
 	}
 

@@ -196,6 +196,70 @@ public class ParentChildrenController {
 		return ResponseEntity.noContent().build();
 	}
 
+	@PostMapping("/demandes")
+	@Operation(operationId = "requestChildShare", summary = "Demander une fiche par email, prénom et nom")
+	@ApiResponse(responseCode = "200", description = "Demande envoyée, sans dire si l'enfant existe")
+	public ResponseEntity<InvitationReceiptResponse> requestShare(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@RequestBody ShareRequestBody request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		ShareRequestBody body = request == null ? new ShareRequestBody(null, null, null) : request;
+		var receipt = parentChildrenUseCase.requestShare(
+				user.userId(), user.activeRole(), body.email(), body.firstName(), body.lastName());
+		return ResponseEntity.ok(new InvitationReceiptResponse(receipt.message()));
+	}
+
+	@GetMapping("/demandes")
+	@Operation(operationId = "listChildShareRequests", summary = "Lire les demandes adressées au parent référent")
+	public ResponseEntity<List<ShareRequestResponse>> shareRequests(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		List<ShareRequestResponse> body = parentChildrenUseCase.shareRequests(user.userId(), user.activeRole())
+				.stream()
+				.map(item -> new ShareRequestResponse(
+						item.id(),
+						item.firstName(),
+						item.lastName(),
+						item.matches().stream()
+								.map(match -> new ShareRequestChildResponse(
+										match.childId(), match.firstName(), match.lastName()))
+								.toList()))
+				.toList();
+		return ResponseEntity.ok(body);
+	}
+
+	@PostMapping("/demandes/{requestId}/accept")
+	@Operation(operationId = "acceptChildShareRequest", summary = "Accepter une demande pour une fiche")
+	public ResponseEntity<Void> acceptShare(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long requestId,
+			@RequestBody AcceptShareRequestBody request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.acceptShareRequest(
+				user.userId(), user.activeRole(), requestId, request == null ? 0 : request.childId());
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/demandes/{requestId}/refuse")
+	@Operation(operationId = "refuseChildShareRequest", summary = "Refuser une demande de partage")
+	public ResponseEntity<Void> refuseShare(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long requestId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.refuseShareRequest(user.userId(), user.activeRole(), requestId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@DeleteMapping("/demandes/{requestId}")
+	@Operation(operationId = "cancelChildShareRequest", summary = "Annuler sa demande de partage")
+	public ResponseEntity<Void> cancelShare(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long requestId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.cancelShareRequest(user.userId(), user.activeRole(), requestId);
+		return ResponseEntity.noContent().build();
+	}
+
 	@PostMapping("/{id}/invitations")
 	@Operation(operationId = "inviteParentOnChild", summary = "Inviter un email sur la fiche")
 	@ApiResponse(responseCode = "200", description = "Invitation envoyée, sans dire si le compte existe")
@@ -294,7 +358,8 @@ public class ParentChildrenController {
 				toCharacter(card.character()),
 				card.interests(),
 				card.referent(),
-				card.pendingInvitationCount());
+				card.pendingInvitationCount(),
+				card.pendingDemandeCount());
 	}
 
 	@Schema(name = "ParentChildrenResponse")
@@ -340,7 +405,9 @@ public class ParentChildrenController {
 			@Schema(description = "Vrai si ce parent gère la fiche.")
 			boolean referent,
 			@Schema(description = "Invitations encore en attente. Zéro si ce parent ne gère pas la fiche.")
-			int pendingInvitationCount) {
+			int pendingInvitationCount,
+			@Schema(description = "Demandes de partage encore en attente pour ce nom. Zéro si ce parent ne gère pas la fiche.")
+			int pendingDemandeCount) {
 	}
 
 	@Schema(name = "ParentChildCharacter")
@@ -363,6 +430,23 @@ public class ParentChildrenController {
 
 	@Schema(name = "ParentSchoolOption")
 	public record ParentSchoolOption(long id, String name, String country, List<String> grades) {
+	}
+
+	@Schema(name = "ShareRequestBody")
+	public record ShareRequestBody(String email, String firstName, String lastName) {
+	}
+
+	@Schema(name = "ShareRequestChildResponse")
+	public record ShareRequestChildResponse(long childId, String firstName, String lastName) {
+	}
+
+	@Schema(name = "ShareRequestResponse")
+	public record ShareRequestResponse(
+			long id, String firstName, String lastName, List<ShareRequestChildResponse> matches) {
+	}
+
+	@Schema(name = "AcceptShareRequestBody")
+	public record AcceptShareRequestBody(long childId) {
 	}
 
 	@Schema(name = "InviteParentRequest")

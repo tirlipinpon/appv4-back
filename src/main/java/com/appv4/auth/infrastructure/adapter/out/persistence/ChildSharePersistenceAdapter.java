@@ -23,14 +23,17 @@ public class ChildSharePersistenceAdapter implements ChildSharePort {
 	private final BackChildJpaRepository children;
 	private final BackChildHolderJpaRepository holders;
 	private final BackChildInvitationJpaRepository invitations;
+	private final BackChildShareRequestJpaRepository demandes;
 
 	public ChildSharePersistenceAdapter(
 			BackChildJpaRepository children,
 			BackChildHolderJpaRepository holders,
-			BackChildInvitationJpaRepository invitations) {
+			BackChildInvitationJpaRepository invitations,
+			BackChildShareRequestJpaRepository demandes) {
 		this.children = children;
 		this.holders = holders;
 		this.invitations = invitations;
+		this.demandes = demandes;
 	}
 
 	@Override
@@ -101,6 +104,72 @@ public class ChildSharePersistenceAdapter implements ChildSharePort {
 	@Transactional
 	public int pendingCount(long childId) {
 		return invitations.findByChildIdAndStatus(childId, BackChildInvitationEntity.PENDING).size();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public boolean pendingDemande(long senderId, long referentId, String firstName, String lastName) {
+		return demandes.findPending(senderId, referentId, firstName, lastName).isPresent();
+	}
+
+	@Override
+	@Transactional
+	public StoredDemande saveDemande(long senderId, long referentId, String firstName, String lastName) {
+		BackChildShareRequestEntity saved = demandes.save(
+				new BackChildShareRequestEntity(senderId, referentId, firstName, lastName));
+		return toDemande(saved);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<StoredDemande> demandesForReferent(long referentId) {
+		return demandes.findByReferentUserIdAndStatus(referentId, BackChildShareRequestEntity.PENDING).stream()
+				.map(ChildSharePersistenceAdapter::toDemande)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<StoredDemande> findDemande(long id) {
+		return demandes.findById(id).map(ChildSharePersistenceAdapter::toDemande);
+	}
+
+	@Override
+	@Transactional
+	public void markDemande(long id, String status) {
+		demandes.findById(id).ifPresent(row -> row.setStatus(status));
+	}
+
+	@Override
+	@Transactional
+	public void grantShare(long childId, long userId) {
+		if (!holders.existsByChildIdAndUserId(childId, userId)) {
+			holders.save(new BackChildHolderEntity(childId, userId, false));
+		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public int pendingDemandesForChild(long referentId, String firstName, String lastName) {
+		return demandes.countPendingForName(referentId, firstName, lastName);
+	}
+
+	@Override
+	@Transactional
+	public void cancelDemandes(long referentId, String firstName, String lastName) {
+		for (BackChildShareRequestEntity row : demandes.findPendingForName(referentId, firstName, lastName)) {
+			row.setStatus(BackChildShareRequestEntity.CANCELLED);
+		}
+	}
+
+	private static StoredDemande toDemande(BackChildShareRequestEntity row) {
+		return new StoredDemande(
+				row.getId(),
+				row.getSenderUserId(),
+				row.getReferentUserId(),
+				row.getFirstName(),
+				row.getLastName(),
+				row.getStatus());
 	}
 
 	@Override

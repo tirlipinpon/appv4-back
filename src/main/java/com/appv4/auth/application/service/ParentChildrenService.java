@@ -16,10 +16,13 @@ import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.InvitationReceipt;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.PendingInvitation;
+import com.appv4.auth.application.port.in.ParentChildrenUseCase.ShareRequestChild;
+import com.appv4.auth.application.port.in.ParentChildrenUseCase.ShareRequestView;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildSharePort;
+import com.appv4.auth.application.port.out.ChildSharePort.StoredDemande;
 import com.appv4.auth.application.port.out.ChildSharePort.StoredInvitation;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
 import com.appv4.auth.application.port.out.ChildPort;
@@ -74,6 +77,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	public static final String WRONG_ACCOUNT = "Cette invitation ne s'adresse pas à ce compte.";
 	public static final String ONLY_REFERENT = "Seul le parent référent peut faire ça.";
 	public static final String EMAIL_REQUIRED = "L'email est manquant.";
+	public static final String DEMANDE_SENT = "Demande envoyée";
+	public static final String ALREADY_YOURS = "Cette fiche est déjà chez vous.";
 	public static final String LINK_UNKNOWN = "Ce lien n'est pas proposé.";
 	public static final String LINK_NEEDS_CHILD = "Choisis l'enfant de départ.";
 	public static final String LINK_SELF = "Un enfant ne se lie pas à lui-même.";
@@ -280,10 +285,15 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	public void hide(long parentUserId, String activeRole, long childId) {
 		requireParent(activeRole);
 		requireReferent(parentUserId, childId);
+		ChildSaved current = childPort.findOwned(parentUserId, childId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
 		if (!childPort.hide(parentUserId, childId)) {
 			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
 		}
 		childSharePort.cancelPending(childId);
+		if (matching(parentUserId, current.firstName(), current.lastName()).isEmpty()) {
+			childSharePort.cancelDemandes(parentUserId, current.firstName(), current.lastName());
+		}
 	}
 
 	@Override
@@ -347,6 +357,130 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				childAvatarPort.findByChildId(saved.id()).orElse(null),
 				ChildInterestList.spellings(childPort.findInterests(saved.id())),
 				parentUserId);
+	}
+
+	@Override
+	@Transactional
+	public InvitationReceipt requestShare(
+			long parentUserId, String activeRole, String email, String firstName, String lastName) {
+		requireParent(activeRole);
+		String normalizedEmail = email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT);
+		String first = firstName == null ? "" : firstName.trim();
+		String last = lastName == null ? "" : lastName.trim();
+		if (normalizedEmail.isBlank() || first.isBlank() || last.isBlank()) {
+			return new InvitationReceipt(DEMANDE_SENT);
+		}
+		var account = accounts.findByEmail(normalizedEmail);
+		if (account.isEmpty() || !referentOfAny(account.get().id())) {
+			return new InvitationReceipt(DEMANDE_SENT);
+		}
+		long referentId = account.get().id();
+		List<ChildSaved> open = matching(referentId, first, last).stream()
+				.filter(child -> !holds(parentUserId, child.id()))
+				.toList();
+		if (open.isEmpty()) {
+			if (matching(referentId, first, last).isEmpty()) {
+				return new InvitationReceipt(DEMANDE_SENT);
+			}
+			throw bad(ALREADY_YOURS);
+		}
+		if (!childSharePort.pendingDemande(parentUserId, referentId, first, last)) {
+			childSharePort.saveDemande(parentUserId, referentId, first, last);
+		}
+		return new InvitationReceipt(DEMANDE_SENT);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<ShareRequestView> shareRequests(long parentUserId, String activeRole) {
+		requireParent(activeRole);
+		List<ShareRequestView> views = new java.util.ArrayList<>();
+		for (StoredDemande demande : childSharePort.demandesForReferent(parentUserId)) {
+			if (!"pending".equals(demande.status())) {
+				continue;
+			}
+			List<ShareRequestChild> matches = matching(parentUserId, demande.firstName(), demande.lastName()).stream()
+					.filter(child -> !holds(demande.senderId(), child.id()))
+					.map(child -> new ShareRequestChild(child.id(), child.firstName(), child.lastName()))
+					.toList();
+			if (matches.isEmpty()) {
+				continue;
+			}
+			views.add(new ShareRequestView(demande.id(), demande.firstName(), demande.lastName(), matches));
+		}
+		return List.copyOf(views);
+	}
+
+	@Override
+	@Transactional
+	public void acceptShareRequest(long parentUserId, String activeRole, long requestId, long childId) {
+		requireParent(activeRole);
+		StoredDemande demande = pendingDemande(requestId);
+		if (demande.referentId() != parentUserId || !referent(parentUserId, childId)) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+		ChildSaved child = childPort.findOwned(parentUserId, childId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
+		if (!sameName(child, demande.firstName(), demande.lastName()) || holds(demande.senderId(), childId)) {
+			throw bad(ALREADY_YOURS);
+		}
+		childSharePort.grantShare(childId, demande.senderId());
+		childSharePort.markDemande(requestId, "accepted");
+	}
+
+	@Override
+	@Transactional
+	public void refuseShareRequest(long parentUserId, String activeRole, long requestId) {
+		requireParent(activeRole);
+		StoredDemande demande = pendingDemande(requestId);
+		if (demande.referentId() != parentUserId) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+		childSharePort.markDemande(requestId, "refused");
+	}
+
+	@Override
+	@Transactional
+	public void cancelShareRequest(long parentUserId, String activeRole, long requestId) {
+		requireParent(activeRole);
+		StoredDemande demande = pendingDemande(requestId);
+		if (demande.senderId() != parentUserId) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+		childSharePort.markDemande(requestId, "cancelled");
+	}
+
+	private StoredDemande pendingDemande(long requestId) {
+		StoredDemande demande = childSharePort.findDemande(requestId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
+		if (!"pending".equals(demande.status())) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+		return demande;
+	}
+
+	private boolean referentOfAny(long userId) {
+		for (ChildSaved child : childPort.findByParent(userId)) {
+			if (referent(userId, child.id())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private List<ChildSaved> matching(long referentId, String firstName, String lastName) {
+		List<ChildSaved> found = new java.util.ArrayList<>();
+		for (ChildSaved child : childPort.findByParent(referentId)) {
+			if (referent(referentId, child.id()) && sameName(child, firstName, lastName)) {
+				found.add(child);
+			}
+		}
+		return found;
+	}
+
+	private static boolean sameName(ChildSaved child, String firstName, String lastName) {
+		return child.firstName().trim().equalsIgnoreCase(firstName.trim())
+				&& child.lastName().trim().equalsIgnoreCase(lastName.trim());
 	}
 
 	@Override
@@ -542,7 +676,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				characterOf(avatar),
 				interests,
 				manages,
-				manages ? childSharePort.pendingCount(child.id()) : 0);
+				manages ? childSharePort.pendingCount(child.id()) : 0,
+				manages ? childSharePort.pendingDemandesForChild(viewerId, child.firstName(), child.lastName()) : 0);
 	}
 
 	private CharacterFace characterOf(StoredAvatar saved) {

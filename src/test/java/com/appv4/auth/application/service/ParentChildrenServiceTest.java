@@ -26,12 +26,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.NewChildCommand;
+import com.appv4.auth.application.port.in.ParentChildrenUseCase.ShareRequestChild;
 import com.appv4.auth.application.port.in.ReadParentHumeursUseCase.ParentChildHumeur;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.HumeurAnswerPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildSharePort;
+import com.appv4.auth.application.port.out.ChildSharePort.StoredDemande;
 import com.appv4.auth.application.port.out.ChildSharePort.StoredInvitation;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
@@ -722,6 +724,51 @@ class ParentChildrenServiceTest {
 				.hasMessage(SpaceAccess.DENIED);
 	}
 
+	@Test
+	void aShareRequestStaysClosedUntilTheReferentChoosesOneFiche() {
+		ChildCard lea = service.add(1L, "parent", fiche(List.of()));
+		ChildCard twin = service.add(1L, "parent", new NewChildCommand(
+				"Léa", "Martin", "FILLE", "9", "France", "CE2", null, "bear",
+				null, null, "1357", "1357", null, null, List.of()));
+		when(accounts.findById(1L)).thenReturn(Optional.of(new AuthUserAccount(1L, "test1@test.com", "test1", true)));
+		when(accounts.findByEmail("test1@test.com"))
+				.thenReturn(Optional.of(new AuthUserAccount(1L, "test1@test.com", "test1", true)));
+		when(accounts.findByEmail("inconnu@exemple.fr")).thenReturn(Optional.empty());
+
+		assertThat(service.requestShare(2L, "parent", "inconnu@exemple.fr", "Léa", "Martin").message())
+				.isEqualTo(ParentChildrenService.DEMANDE_SENT);
+		assertThat(service.shareRequests(1L, "parent")).isEmpty();
+
+		assertThat(service.requestShare(2L, "parent", "test1@test.com", "Léa", "Martin").message())
+				.isEqualTo(ParentChildrenService.DEMANDE_SENT);
+		assertThat(service.list(2L, "parent").children()).isEmpty();
+		var request = service.shareRequests(1L, "parent").getFirst();
+		assertThat(request.matches()).extracting(ShareRequestChild::childId).containsExactly(lea.id(), twin.id());
+
+		service.acceptShareRequest(1L, "parent", request.id(), lea.id());
+		assertThat(service.list(2L, "parent").children()).extracting(ChildCard::id).containsExactly(lea.id());
+		assertThat(service.list(1L, "parent").children()).extracting(ChildCard::id).contains(twin.id());
+		assertThat(service.shareRequests(1L, "parent")).isEmpty();
+
+		service.requestShare(2L, "parent", "test1@test.com", "Léa", "Martin");
+		var again = service.shareRequests(1L, "parent").getFirst();
+		assertThat(again.matches()).extracting(ShareRequestChild::childId).containsExactly(twin.id());
+		service.refuseShareRequest(1L, "parent", again.id());
+		assertThat(service.list(2L, "parent").children()).extracting(ChildCard::id).containsExactly(lea.id());
+
+		service.requestShare(2L, "parent", "test1@test.com", "Léa", "Martin");
+		long pending = service.shareRequests(1L, "parent").getFirst().id();
+		service.cancelShareRequest(2L, "parent", pending);
+		assertThat(service.shareRequests(1L, "parent")).isEmpty();
+
+		service.acceptShareRequest(1L, "parent",
+				service.requestShare(2L, "parent", "test1@test.com", "Léa", "Martin").message() == null
+						? 0 : service.shareRequests(1L, "parent").getFirst().id(),
+				twin.id());
+		assertThatThrownBy(() -> service.requestShare(2L, "parent", "test1@test.com", "Léa", "Martin"))
+				.hasMessage(ParentChildrenService.ALREADY_YOURS);
+	}
+
 	private static NewChildCommand fiche(List<String> interests) {
 		return new NewChildCommand(
 				"Léa", "Martin", "FILLE", "7", "France", "CE1", null, "fox",
@@ -751,7 +798,9 @@ class ParentChildrenServiceTest {
 		private final List<ChildSaved> all = new ArrayList<>();
 		private final List<Share> shares = new ArrayList<>();
 		private final List<StoredInvitation> invitations = new ArrayList<>();
+		private final List<StoredDemande> demandes = new ArrayList<>();
 		private long nextInvitation = 1;
+		private long nextDemande = 1;
 		private final Map<Long, List<InterestCopy>> interests = new LinkedHashMap<>();
 		private final List<NewChild> inserted = new ArrayList<>();
 		private final List<StoredLink> links = new ArrayList<>();
@@ -988,6 +1037,65 @@ class ParentChildrenServiceTest {
 		}
 
 		@Override
+		public boolean pendingDemande(long senderId, long referentId, String firstName, String lastName) {
+			return demandes.stream().anyMatch(item -> item.senderId() == senderId
+					&& item.referentId() == referentId
+					&& item.firstName().equalsIgnoreCase(firstName)
+					&& item.lastName().equalsIgnoreCase(lastName)
+					&& "pending".equals(item.status()));
+		}
+
+		public StoredDemande saveDemande(long senderId, long referentId, String firstName, String lastName) {
+			StoredDemande demande = new StoredDemande(nextDemande++, senderId, referentId, firstName, lastName, "pending");
+			demandes.add(demande);
+			return demande;
+		}
+
+		public List<StoredDemande> demandesForReferent(long referentId) {
+			return demandes.stream()
+					.filter(item -> item.referentId() == referentId && "pending".equals(item.status()))
+					.toList();
+		}
+
+		public java.util.Optional<StoredDemande> findDemande(long id) {
+			return demandes.stream().filter(item -> item.id() == id).findFirst();
+		}
+
+		public void markDemande(long id, String status) {
+			findDemande(id).ifPresent(current -> {
+				demandes.remove(current);
+				demandes.add(new StoredDemande(
+						current.id(), current.senderId(), current.referentId(),
+						current.firstName(), current.lastName(), status));
+			});
+		}
+
+		public void grantShare(long childId, long userId) {
+			shares.add(new Share(childId, userId, false));
+		}
+
+		public int pendingDemandesForChild(long referentId, String firstName, String lastName) {
+			int count = 0;
+			for (StoredDemande demande : demandes) {
+				if (demande.referentId() == referentId && "pending".equals(demande.status())
+						&& demande.firstName().equalsIgnoreCase(firstName)
+						&& demande.lastName().equalsIgnoreCase(lastName)) {
+					count++;
+				}
+			}
+			return count;
+		}
+
+		public void cancelDemandes(long referentId, String firstName, String lastName) {
+			for (StoredDemande demande : List.copyOf(demandes)) {
+				if (demande.referentId() == referentId
+						&& demande.firstName().equalsIgnoreCase(firstName)
+						&& demande.lastName().equalsIgnoreCase(lastName)) {
+					markDemande(demande.id(), "cancelled");
+				}
+			}
+		}
+
 		public int pendingCount(long childId) {
 			int count = 0;
 			for (StoredInvitation invitation : invitations) {

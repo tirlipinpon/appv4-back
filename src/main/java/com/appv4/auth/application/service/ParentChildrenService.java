@@ -15,7 +15,6 @@ import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase;
 import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
-import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
@@ -156,7 +155,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				catalogById(saved.schoolId()),
 				attached.phrases(),
 				countsFor(parentUserId, saved),
-				attached.marks());
+				attached.marks(),
+				childAvatarPort.findByChildId(saved.id()).orElse(null));
 	}
 
 	/**
@@ -220,7 +220,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				catalogById(saved.schoolId()),
 				attached.phrases(),
 				countsFor(parentUserId, saved),
-				attached.marks());
+				attached.marks(),
+				childAvatarPort.findByChildId(saved.id()).orElse(null));
 	}
 
 	@Override
@@ -338,11 +339,12 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		}
 		Map<Long, Attached> attached = attachedByChild(parentUserId);
 		Map<Long, int[]> counts = subjectCounts(parentUserId);
+		Map<Long, StoredAvatar> avatars = childAvatarPort.findByChildIds(family.stream().map(ChildSaved::id).toList());
 		List<ChildCard> cards = new ArrayList<>();
 		for (ChildSaved child : family) {
 			Attached links = attached.getOrDefault(child.id(), Attached.NONE);
 			int[] pair = counts.getOrDefault(child.id(), new int[] {0, 0});
-			cards.add(card(child, schools, links.phrases(), pair, links.marks()));
+			cards.add(card(child, schools, links.phrases(), pair, links.marks(), avatars.get(child.id())));
 		}
 		List<SchoolChoice> choices = new ArrayList<>();
 		for (CatalogSchool school : schools.values()) {
@@ -412,7 +414,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 			Map<Long, CatalogSchool> schools,
 			List<String> linkPhrases,
 			int[] subjectCounts,
-			List<KinshipMark> links) {
+			List<KinshipMark> links,
+			StoredAvatar avatar) {
 		CatalogSchool school = child.schoolId() == null ? null : schools.get(child.schoolId());
 		return new ChildCard(
 				child.id(),
@@ -432,36 +435,16 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				subjectCounts[0],
 				subjectCounts[1],
 				links,
-				characterOf(child.id()));
+				characterOf(avatar));
 	}
 
-	private CharacterFace characterOf(long childId) {
-		StoredAvatar saved = childAvatarPort.findByChildId(childId).orElse(null);
-		String requested = saved == null || saved.styleCode() == null ? "lorelei" : saved.styleCode();
-		CharacterAvatarCatalog.Style style = avatarCatalog.styles().stream()
-				.filter(candidate -> candidate.code().equals(requested))
-				.findFirst()
-				.orElseGet(() -> avatarCatalog.byCode("lorelei"));
-		String presetId = saved == null ? null : saved.presetId();
-		Map<String, Object> options = style.presets().stream()
-				.filter(preset -> preset.id().equals(presetId))
-				.findFirst()
-				.map(CharacterAvatarCatalog.Preset::options)
-				.orElse(Map.of());
-		List<CharacterPin> pins = childAvatarPort.findPins(childId).stream()
-				.filter(pin -> knownOn(style, pin))
+	private CharacterFace characterOf(StoredAvatar saved) {
+		var avatar = avatarCatalog.resolve(saved);
+		Map<String, Object> options = avatar.preset() == null ? Map.of() : avatar.preset().options();
+		List<CharacterPin> pins = avatar.pins().stream()
 				.map(pin -> new CharacterPin(pin.zoneCode(), pin.variantCode()))
 				.toList();
-		return new CharacterFace(style.code(), options, pins);
-	}
-
-	private static boolean knownOn(CharacterAvatarCatalog.Style style, StoredPin pin) {
-		return style.zones().stream()
-				.filter(zone -> zone.code().equals(pin.zoneCode()))
-				.findFirst()
-				.map(zone -> zone.variants().contains(pin.variantCode())
-						|| ("none".equals(pin.variantCode()) && AvatarScale.removable(zone.code())))
-				.orElse(false);
+		return new CharacterFace(avatar.style().code(), options, pins);
 	}
 
 	private int[] countsFor(long parentUserId, ChildSaved child) {

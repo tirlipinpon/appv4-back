@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -21,6 +24,8 @@ import com.appv4.auth.application.port.in.ParentChildrenUseCase.NewChildCommand;
 import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
+import com.appv4.auth.application.port.out.ChildLoginPort;
+import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
@@ -29,10 +34,14 @@ import com.appv4.auth.application.port.out.ChildPort.NewChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
+import com.appv4.auth.application.port.out.ChildProgressPort;
+import com.appv4.auth.application.port.out.ChildSessionTokenPort;
+import com.appv4.auth.application.port.out.ChildSessionTokenPort.ChildSession;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.result.ParentChildrenView.ChildCard;
 import com.appv4.auth.application.result.ParentChildrenView.KinshipMark;
+import com.appv4.auth.application.result.ChildAvatarView;
 
 class ParentChildrenServiceTest {
 
@@ -61,7 +70,6 @@ class ParentChildrenServiceTest {
 		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
 		avatars = mock(ChildAvatarPort.class);
 		when(avatars.findByChildId(anyLong())).thenReturn(Optional.empty());
-		when(avatars.findPins(anyLong())).thenReturn(List.of());
 		service = new ParentChildrenService(
 				children, () -> catalog, encoder, links,
 				new ChildSubjectService(children, links, () -> catalog, questions),
@@ -70,20 +78,53 @@ class ParentChildrenServiceTest {
 	}
 
 	@Test
-	void listShowsLoreleiUntilTheChildSavesACharacter() {
+	void listReadsTheCharactersOfItsOwnFamilyInOneBatch() {
 		ChildCard created = service.add(1L, "parent", command("Léa", "Martin", "7", "France", "CE1", null, "fox", "4821", "4821"));
+		ChildCard sibling = service.add(1L, "parent",
+				command("Noah", "Martin", "8", "France", "CE1", null, "bear", "1144", "1144"));
+		service.add(2L, "parent", command("Camille", "Dubois", "7", "France", "CE1", null, "fox", "4821", "4821"));
 
 		assertThat(created.character().styleCode()).isEqualTo("lorelei");
 		assertThat(created.character().options()).isEmpty();
 		assertThat(created.character().pins()).isEmpty();
 
-		when(avatars.findByChildId(created.id())).thenReturn(Optional.of(new StoredAvatar(created.id(), "lorelei", "bare")));
-		when(avatars.findPins(created.id())).thenReturn(List.of(new StoredPin("mouth", "happy01"), new StoredPin("hair", "nope")));
-		ChildCard saved = service.list(1L, "parent").children().get(0);
+		StoredAvatar avatar = new StoredAvatar(created.id(), "lorelei", "bare",
+				List.of(new StoredPin("mouth", "happy01"), new StoredPin("hair", "nope")));
+		List<Long> familyIds = List.of(created.id(), sibling.id());
+		when(avatars.findByChildIds(familyIds)).thenReturn(Map.of(created.id(), avatar));
+		clearInvocations(avatars);
+		List<ChildCard> family = service.list(1L, "parent").children();
 
+		assertThat(family).extracting(ChildCard::id).containsExactly(created.id(), sibling.id());
+		ChildCard saved = family.getFirst();
 		assertThat(saved.character().styleCode()).isEqualTo("lorelei");
 		assertThat(saved.character().options()).containsKey("backgroundColor");
 		assertThat(saved.character().pins()).extracting(pin -> pin.zoneCode()).containsExactly("mouth");
+		assertThat(family.getLast().character()).isEqualTo(created.character());
+		verify(avatars).findByChildIds(familyIds);
+		verifyNoMoreInteractions(avatars);
+
+		when(avatars.findByChildId(created.id())).thenReturn(Optional.of(avatar));
+		ChildLoginPort login = mock(ChildLoginPort.class);
+		when(login.findActiveById(created.id())).thenReturn(Optional.of(new ChildLoginCandidate(created.id(), "Léa", "hash")));
+		ChildSessionTokenPort tokens = mock(ChildSessionTokenPort.class);
+		when(tokens.read("lea")).thenReturn(Optional.of(new ChildSession(created.id())));
+		var profiles = new ReadChildAvatarService(
+				login, tokens, mock(ChildProgressPort.class), avatars, CharacterAvatarCatalog.load());
+		ChildAvatarView profile = profiles.avatar("lea");
+		assertThat(profile.styleCode()).isEqualTo(saved.character().styleCode());
+		assertThat(profile.presets()).filteredOn(preset -> preset.id().equals(profile.presetId()))
+				.singleElement().satisfies(preset -> assertThat(preset.options()).isEqualTo(saved.character().options()));
+		assertThat(profile.zones()).filteredOn(zone -> zone.selectedCode() != null)
+				.extracting(ChildAvatarView.ZoneCard::selectedCode)
+				.containsExactly(saved.character().pins().getFirst().variantCode());
+
+		when(login.findActiveById(sibling.id())).thenReturn(Optional.of(new ChildLoginCandidate(sibling.id(), "Noah", "hash")));
+		when(tokens.read("noah")).thenReturn(Optional.of(new ChildSession(sibling.id())));
+		ChildAvatarView defaultProfile = profiles.avatar("noah");
+		assertThat(defaultProfile.styleCode()).isEqualTo(family.getLast().character().styleCode());
+		assertThat(defaultProfile.presetId()).isNull();
+		assertThat(defaultProfile.zones()).allMatch(zone -> zone.selectedCode() == null);
 	}
 
 	@Test

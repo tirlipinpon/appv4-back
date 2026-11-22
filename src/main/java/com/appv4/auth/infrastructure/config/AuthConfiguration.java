@@ -471,6 +471,11 @@ public class AuthConfiguration {
 		return readChildBadgesService;
 	}
 
+	@Bean
+	CharacterAvatarCatalog characterAvatarCatalog() {
+		return CharacterAvatarCatalog.load();
+	}
+
 	/**
 	 * Personnage de l'enfant (BACK-48). La lecture ne recalcule pas l'XP.
 	 */
@@ -479,13 +484,14 @@ public class AuthConfiguration {
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildProgressPort childProgressPort,
-			ChildAvatarPort childAvatarPort) {
+			ChildAvatarPort childAvatarPort,
+			CharacterAvatarCatalog characterAvatarCatalog) {
 		return new ReadChildAvatarService(
 				childLoginPort,
 				childSessionTokenPort,
 				childProgressPort,
 				childAvatarPort,
-				CharacterAvatarCatalog.load());
+				characterAvatarCatalog);
 	}
 
 	@Bean
@@ -837,7 +843,8 @@ public class AuthConfiguration {
 			PasswordEncoder passwordEncoder,
 			ChildSubjectPort childSubjectPort,
 			ChildSubjectService childSubjectService,
-			ChildAvatarPort childAvatarPort) {
+			ChildAvatarPort childAvatarPort,
+			CharacterAvatarCatalog characterAvatarCatalog) {
 		return new ParentChildrenService(
 				childPort,
 				schoolCatalogPort,
@@ -845,7 +852,7 @@ public class AuthConfiguration {
 				childSubjectPort,
 				childSubjectService,
 				childAvatarPort,
-				CharacterAvatarCatalog.load());
+				characterAvatarCatalog);
 	}
 
 	/**

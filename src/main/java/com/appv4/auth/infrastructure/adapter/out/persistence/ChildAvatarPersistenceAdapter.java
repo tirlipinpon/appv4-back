@@ -1,13 +1,15 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.ChildAvatarPort;
+import com.appv4.auth.infrastructure.adapter.out.persistence.BackChildAvatarJpaRepository.AvatarRow;
 
 /**
  * Persiste le style et la palette (BACK-66).
@@ -32,17 +34,23 @@ public class ChildAvatarPersistenceAdapter implements ChildAvatarPort {
 
 	@Override
 	@Transactional(readOnly = true)
-	public Optional<StoredAvatar> findByChildId(long childId) {
-		return repository.findById(childId).map(entity -> new StoredAvatar(
-				entity.getChildId(), entity.getStyleCode(), entity.getPresetId()));
+	public Map<Long, StoredAvatar> findByChildIds(List<Long> childIds) {
+		if (childIds.isEmpty()) {
+			return Map.of();
+		}
+		return repository.findAvatarsWithPins(childIds).stream()
+				.collect(Collectors.groupingBy(AvatarRow::getChildId))
+				.entrySet().stream()
+				.collect(Collectors.toMap(Map.Entry::getKey, entry -> storedAvatar(entry.getValue())));
 	}
 
-	@Override
-	@Transactional(readOnly = true)
-	public List<StoredPin> findPins(long childId) {
-		return pins.findByChildId(childId).stream()
-				.map(pin -> new StoredPin(pin.getZoneCode(), pin.getVariantCode()))
+	private static StoredAvatar storedAvatar(List<AvatarRow> rows) {
+		AvatarRow avatar = rows.getFirst();
+		List<StoredPin> variants = rows.stream()
+				.filter(row -> row.getZoneCode() != null)
+				.map(row -> new StoredPin(row.getZoneCode(), row.getVariantCode()))
 				.toList();
+		return new StoredAvatar(avatar.getChildId(), avatar.getStyleCode(), avatar.getPresetId(), variants);
 	}
 
 	@Override

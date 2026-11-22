@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -154,6 +155,21 @@ class ReadChildAvatarServiceTest {
 		ZoneCard glasses = zone(view, "glasses");
 		assertThat(glasses.variants()).anyMatch(variant -> variant.code().equals("none") && variant.label().equals("sans"));
 		assertThat(zone(view, "mouth").variants()).noneMatch(variant -> variant.code().equals("none"));
+	}
+
+	@Test
+	void oldStyleAndVariantCodesFallBackToAPlayableAvatar() {
+		activeChild(7L);
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.empty());
+		avatarPort.save(7L, "ancien-style", "ancien-preset", List.of(
+				new StoredPin("mouth", "unknown"), new StoredPin("glasses", "none")));
+
+		ChildAvatarView view = service.avatar("token");
+
+		assertThat(view.styleCode()).isEqualTo("lorelei");
+		assertThat(view.presetId()).isNull();
+		assertThat(zone(view, "mouth").selectedCode()).isNull();
+		assertThat(zone(view, "glasses").selectedCode()).isEqualTo("none");
 	}
 
 	@Test
@@ -381,28 +397,14 @@ class ReadChildAvatarServiceTest {
 
 		private ChildAvatarPort.StoredAvatar stored;
 
-		private List<ChildAvatarPort.StoredPin> pins = List.of();
-
 		@Override
-		public Optional<ChildAvatarPort.StoredAvatar> findByChildId(long childId) {
-			if (stored == null || stored.childId() != childId) {
-				return Optional.empty();
-			}
-			return Optional.of(stored);
-		}
-
-		@Override
-		public List<ChildAvatarPort.StoredPin> findPins(long childId) {
-			if (stored == null || stored.childId() != childId) {
-				return List.of();
-			}
-			return pins;
+		public Map<Long, ChildAvatarPort.StoredAvatar> findByChildIds(List<Long> childIds) {
+			return stored != null && childIds.contains(stored.childId()) ? Map.of(stored.childId(), stored) : Map.of();
 		}
 
 		@Override
 		public void save(long childId, String styleCode, String presetId, List<ChildAvatarPort.StoredPin> nextPins) {
-			stored = new ChildAvatarPort.StoredAvatar(childId, styleCode, presetId);
-			pins = List.copyOf(nextPins);
+			stored = new ChildAvatarPort.StoredAvatar(childId, styleCode, presetId, nextPins);
 		}
 	}
 

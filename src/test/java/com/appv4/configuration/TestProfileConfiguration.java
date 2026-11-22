@@ -27,6 +27,7 @@ import com.appv4.auth.application.port.out.ChildSubjectBoardPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSimonChallengePort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.ChildInterestSuggestionPort;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
@@ -135,6 +136,12 @@ public class TestProfileConfiguration {
 	@Bean
 	ChildPort childPort() {
 		return mock(ChildPort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	/** Suggestions de centres d'intérêt (BACK-73). Pas de Postgres dans les tests web. */
+	@Bean
+	ChildInterestSuggestionPort childInterestSuggestionPort() {
+		return mock(ChildInterestSuggestionPort.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
 	/** Login de l'app enfant (BACK-13). Pas de Postgres dans les tests web. */

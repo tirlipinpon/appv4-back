@@ -79,6 +79,8 @@ import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSimonChallengePort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.in.SuggestChildInterestsUseCase;
+import com.appv4.auth.application.port.out.ChildInterestSuggestionPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
@@ -114,6 +116,7 @@ import com.appv4.auth.application.service.LoginWithFacebookService;
 import com.appv4.auth.application.service.LoginWithGoogleService;
 import com.appv4.auth.application.service.ChildSubjectService;
 import com.appv4.auth.application.service.ParentChildrenService;
+import com.appv4.auth.application.service.SuggestChildInterestsService;
 import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
@@ -900,6 +903,18 @@ public class AuthConfiguration {
 				childAvatarPort,
 				characterAvatarCatalog,
 				Clock.systemUTC());
+	}
+
+	/**
+	 * Suggestions de centres d'intérêt.
+	 *
+	 * <p><b>Business :</b> le parent voit un mot déjà écrit par deux familles, sans savoir lesquelles.
+	 * <p><b>Technique :</b> lecture des copies encore actives et affichées.
+	 * <p><b>Métier / flow :</b> bean du port in {@code GET /api/int/parent/interest-suggestions}.
+	 */
+	@Bean
+	SuggestChildInterestsUseCase suggestChildInterestsUseCase(ChildInterestSuggestionPort suggestions) {
+		return new SuggestChildInterestsService(suggestions);
 	}
 
 	/**

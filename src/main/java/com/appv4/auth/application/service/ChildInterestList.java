@@ -152,7 +152,7 @@ public final class ChildInterestList {
 		return folded.toString();
 	}
 
-	private static int compareForms(String left, String right) {
+	static int compareForms(String left, String right) {
 		int leftIndex = 0;
 		int rightIndex = 0;
 		while (leftIndex < left.length() && rightIndex < right.length()) {

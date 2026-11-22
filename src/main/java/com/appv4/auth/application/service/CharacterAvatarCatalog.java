@@ -7,9 +7,13 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 
 /**
  * Familles Characters figées, DiceBear 10.6 (BACK-48).
@@ -19,6 +23,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * <p><b>Métier / flow :</b> la lecture d'avatar s'appuie sur ce catalogue.
  */
 public final class CharacterAvatarCatalog {
+
+	private static final String DEFAULT_STYLE = "lorelei";
 
 	private final List<Style> styles;
 
@@ -48,10 +54,21 @@ public final class CharacterAvatarCatalog {
 	}
 
 	public Style byCode(String code) {
+		return findStyle(code).orElseThrow(() -> new IllegalStateException("Style absent du catalogue : " + code));
+	}
+
+	Optional<Style> findStyle(String code) {
 		return styles.stream()
 				.filter(style -> style.code().equals(code))
-				.findFirst()
-				.orElseThrow(() -> new IllegalStateException("Style absent du catalogue : " + code));
+				.findFirst();
+	}
+
+	ResolvedAvatar resolve(StoredAvatar saved) {
+		if (saved == null) {
+			return new ResolvedAvatar(byCode(DEFAULT_STYLE), null, List.of());
+		}
+		Style style = findStyle(saved.styleCode()).orElseGet(() -> byCode(DEFAULT_STYLE));
+		return new ResolvedAvatar(style, style.findPreset(saved.presetId()).orElse(null), style.compatiblePins(saved.pins()));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -83,9 +100,28 @@ public final class CharacterAvatarCatalog {
 	}
 
 	public record Style(String code, String name, String credit, List<Zone> zones, List<Preset> presets) {
+		Optional<Preset> findPreset(String id) {
+			return presets.stream().filter(preset -> preset.id().equals(id)).findFirst();
+		}
+
+		Optional<Zone> findZone(String code) {
+			return zones.stream().filter(zone -> zone.code().equals(code)).findFirst();
+		}
+
+		List<StoredPin> compatiblePins(List<StoredPin> pins) {
+			return pins.stream()
+					.filter(pin -> findZone(pin.zoneCode()).map(zone -> zone.allows(pin.variantCode())).orElse(false))
+					.toList();
+		}
 	}
 
 	public record Zone(String code, List<String> variants) {
+		boolean allows(String variantCode) {
+			return variants.contains(variantCode) || ("none".equals(variantCode) && AvatarScale.removable(code));
+		}
+	}
+
+	record ResolvedAvatar(Style style, Preset preset, List<StoredPin> pins) {
 	}
 
 	public record Preset(String id, String name, Map<String, Object> options) {

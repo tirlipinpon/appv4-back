@@ -190,7 +190,6 @@ public class TestProfileConfiguration {
 	ChildAvatarPort childAvatarPort() {
 		ChildAvatarPort port = mock(ChildAvatarPort.class, withSettings().strictness(Strictness.LENIENT));
 		when(port.findByChildId(anyLong())).thenReturn(Optional.empty());
-		when(port.findPins(anyLong())).thenReturn(List.of());
 		return port;
 	}
 

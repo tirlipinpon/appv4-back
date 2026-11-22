@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.out.ChildInterestSuggestionPort;
+import com.appv4.auth.application.port.out.ChildInterestSuggestionPort.SuggestableInterest;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
@@ -24,7 +26,7 @@ import com.appv4.auth.application.service.ParentChildrenService;
  */
 @Component
 @Profile("!test")
-public class ChildPersistenceAdapter implements ChildPort {
+public class ChildPersistenceAdapter implements ChildPort, ChildInterestSuggestionPort {
 
 	private final BackChildJpaRepository childRepository;
 	private final BackChildLinkJpaRepository linkRepository;
@@ -210,6 +212,20 @@ public class ChildPersistenceAdapter implements ChildPort {
 	public List<InterestCopy> findInterests(long childId) {
 		return interestRepository.findByChildId(childId).stream()
 				.map(row -> new InterestCopy(row.getLabel(), row.getWrittenAt()))
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<SuggestableInterest> findAll() {
+		return interestRepository.findWithChild().stream()
+				.map(row -> new SuggestableInterest(
+						row.getId(),
+						row.getParentUserId(),
+						row.getLabel(),
+						row.getWrittenAt(),
+						row.isActive(),
+						row.isHidden()))
 				.toList();
 	}
 

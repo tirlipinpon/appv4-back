@@ -10,8 +10,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +35,7 @@ import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
+import com.appv4.auth.application.port.out.ChildPort.InterestCopy;
 import com.appv4.auth.application.port.out.ChildPort.NewChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
@@ -48,6 +54,7 @@ class ParentChildrenServiceTest {
 	private MemoryChildren children;
 	private List<CatalogSchool> catalog;
 	private ChildAvatarPort avatars;
+	private ManualClock clock;
 	private ParentChildrenService service;
 
 	@BeforeEach
@@ -70,11 +77,13 @@ class ParentChildrenServiceTest {
 		when(questions.countBySubjectIds(anyList())).thenReturn(Map.of());
 		avatars = mock(ChildAvatarPort.class);
 		when(avatars.findByChildId(anyLong())).thenReturn(Optional.empty());
+		clock = new ManualClock(Instant.parse("2026-03-01T10:00:00Z"));
 		service = new ParentChildrenService(
 				children, () -> catalog, encoder, links,
 				new ChildSubjectService(children, links, () -> catalog, questions),
 				avatars,
-				CharacterAvatarCatalog.load());
+				CharacterAvatarCatalog.load(),
+				clock);
 	}
 
 	@Test
@@ -204,7 +213,8 @@ class ParentChildrenServiceTest {
 				"9090",
 				"9090",
 				null,
-				null);
+				null,
+				List.of());
 		ChildCard card = service.add(1L, "parent", withPhoto);
 		assertThat(card.avatarCode()).isNull();
 		assertThat(card.hasPhoto()).isTrue();
@@ -212,7 +222,8 @@ class ParentChildrenServiceTest {
 
 		NewChildCommand text = new NewChildCommand(
 				"Noah", "Martin", "GARCON", "8", "Belgique", "3e primaire", null, null,
-				Base64.getEncoder().encodeToString("bonjour".getBytes()), "text/plain", "9090", "9090", null, null);
+				Base64.getEncoder().encodeToString("bonjour".getBytes()),
+				"text/plain", "9090", "9090", null, null, List.of());
 		assertThatThrownBy(() -> service.add(1L, "parent", text))
 				.hasMessage(ParentChildrenService.NOT_AN_IMAGE);
 	}
@@ -256,7 +267,8 @@ class ParentChildrenServiceTest {
 				pin,
 				confirmation,
 				null,
-				null);
+				null,
+				List.of());
 	}
 
 	@Test
@@ -359,7 +371,7 @@ class ParentChildrenServiceTest {
 		ChildCard created = service.add(1L, "parent",
 				command("Léa", "Martin", "7", "France", "CE1", null, "fox", "4821", "4821"));
 		NewChildCommand rename = new NewChildCommand(
-				"Léa", "Durand", "FILLE", "8", "France", "CP", null, null, null, null, "", "", null, null);
+				"Léa", "Durand", "FILLE", "8", "France", "CP", null, null, null, null, "", "", null, null, List.of());
 
 		ChildCard updated = service.update(1L, "parent", created.id(), rename);
 
@@ -383,7 +395,7 @@ class ParentChildrenServiceTest {
 		ChildCard noah = service.add(1L, "parent",
 				new NewChildCommand(
 						"Noah", "Martin", "GARCON", "8", "France", "CM1",
-						null, "cat", null, null, "1357", "1357", null, null));
+						null, "cat", null, null, "1357", "1357", null, null, List.of()));
 
 		ChildCard linked = service.update(1L, "parent", noah.id(),
 				rename(noah, lea.id(), "FRERE"));
@@ -422,7 +434,8 @@ class ParentChildrenServiceTest {
 				"",
 				"",
 				otherId,
-				link);
+				link,
+				List.of());
 	}
 
 	private static NewChildCommand from(
@@ -450,7 +463,8 @@ class ParentChildrenServiceTest {
 				pin,
 				confirmation,
 				sourceId,
-				link);
+				link,
+				List.of());
 	}
 
 	/** Le code du test donne un sexe cohérent. En production, c'est la fiche qui décide. */
@@ -464,8 +478,186 @@ class ParentChildrenServiceTest {
 		};
 	}
 
+	@Test
+	void parentKeepsInterestsSortedAndSharingOneMoment() {
+		ChildCard card = service.add(1L, "parent", fiche(List.of("Pokémon", "formule 1")));
+
+		assertThat(card.interests()).containsExactly("formule 1", "Pokémon");
+		assertThat(service.list(1L, "parent").children().getFirst().interests())
+				.containsExactly("formule 1", "Pokémon");
+		assertThat(children.copies(card.id())).extracting(InterestCopy::text)
+				.containsExactly("Pokémon", "formule 1");
+		assertThat(children.copies(card.id())).extracting(InterestCopy::writtenAt)
+				.containsOnly(Instant.parse("2026-03-01T10:00:00Z"));
+	}
+
+	@Test
+	void emptyInterestListClearsCopiesAndCollapsedSpacesAreStoredOnce() {
+		ChildCard card = service.add(1L, "parent", fiche(List.of("Pokémon")));
+
+		ChildCard cleared = service.update(1L, "parent", card.id(), revise(card, "Léa"));
+		assertThat(cleared.interests()).isEmpty();
+		assertThat(children.copies(card.id())).isEmpty();
+
+		ChildCard spaced = service.update(1L, "parent", card.id(), revise(card, "Léa", "star  wars"));
+		assertThat(spaced.interests()).containsExactly("star wars");
+		ChildCard tabbed = service.update(1L, "parent", card.id(), revise(card, "Léa", "star\twars"));
+		assertThat(tabbed.interests()).containsExactly("star wars");
+		ChildCard broken = service.update(1L, "parent", card.id(), revise(card, "Léa", "star\nwars"));
+		assertThat(children.copies(card.id())).extracting(InterestCopy::text).containsExactly("star wars");
+		assertThat(broken.interests()).containsExactly("star wars");
+		ChildCard separated = service.update(1L, "parent", card.id(), revise(card, "Léa", "star\u2028wars"));
+		assertThat(separated.interests()).containsExactly("star wars");
+	}
+
+	@Test
+	void refusedInterestListLeavesTheFicheAndTheCopiesUntouched() {
+		ChildCard card = service.add(1L, "parent", fiche(List.of("foot")));
+
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Zoé", "pokemon", "Pokémon")))
+				.hasMessage(ChildInterestList.DUPLICATE);
+		assertThat(service.list(1L, "parent").children().getFirst().firstName()).isEqualTo("Léa");
+		assertThat(children.copies(card.id())).extracting(InterestCopy::text).containsExactly("foot");
+
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "a")))
+				.hasMessage(ChildInterestList.LENGTH);
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "a".repeat(41))))
+				.hasMessage(ChildInterestList.LENGTH);
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "   ")))
+				.hasMessage(ChildInterestList.LENGTH);
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "go\uD83D\uDE00")))
+				.hasMessage(ChildInterestList.CHARSET);
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "tiret\u2014long")))
+				.hasMessage(ChildInterestList.CHARSET);
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "go\fto")))
+				.hasMessage(ChildInterestList.CHARSET);
+		assertThatThrownBy(() -> service.add(1L, "parent", fiche(null)))
+				.hasMessage(ChildInterestList.MISSING);
+		assertThat(children.all).hasSize(1);
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", (String[]) null)))
+				.hasMessage(ChildInterestList.MISSING);
+		assertThat(service.list(1L, "parent").children().getFirst().firstName()).isEqualTo("Léa");
+	}
+
+	@Test
+	void interestRulesStopAtTheFirstFailureAndKeepDistinctWords() {
+		ChildCard card = service.add(1L, "parent", fiche(List.of("foot")));
+		List<String> eleven = new ArrayList<>();
+		for (int index = 1; index <= 11; index++) {
+			eleven.add("mot" + index);
+		}
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", eleven.toArray(String[]::new))))
+				.hasMessage(ChildInterestList.MAXIMUM);
+
+		List<String> badFirst = new ArrayList<>();
+		badFirst.add("x");
+		badFirst.addAll(eleven.subList(0, 10));
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", badFirst.toArray(String[]::new))))
+				.hasMessage(ChildInterestList.LENGTH);
+
+		ChildCard both = service.update(1L, "parent", card.id(), revise(
+				card, "Léa", "dinosaure", "dinosaures", "formule 1", "formule-1", "l'eau", "leau", "sø", "so"));
+		assertThat(both.interests()).containsExactly(
+				"dinosaure", "dinosaures", "formule 1", "formule-1", "l'eau", "leau", "so", "sø");
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "œufs", "oeufs")))
+				.hasMessage(ChildInterestList.DUPLICATE);
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "bå", "ba")))
+				.hasMessage(ChildInterestList.DUPLICATE);
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "l'eau", "l\u2019eau")))
+				.hasMessage(ChildInterestList.DUPLICATE);
+
+		ChildCard numbers = service.update(1L, "parent", card.id(), revise(card, "Léa", "2b", "10"));
+		assertThat(numbers.interests()).containsExactly("10", "2b");
+	}
+
+	@Test
+	void rewritingTheSameInterestKeepsItsMoment() {
+		ChildCard card = service.add(1L, "parent", fiche(List.of("pokemon", "foot")));
+		Instant first = children.copies(card.id()).getFirst().writtenAt();
+		clock.advanceMinutes(5);
+
+		ChildCard renamed = service.update(1L, "parent", card.id(), revise(card, "Léa", "Pokémon"));
+		assertThat(renamed.interests()).containsExactly("Pokémon");
+		assertThat(children.copies(card.id())).singleElement().satisfies(copy -> {
+			assertThat(copy.text()).isEqualTo("Pokémon");
+			assertThat(copy.writtenAt()).isEqualTo(first);
+		});
+
+		clock.advanceMinutes(5);
+		ChildCard next = service.update(1L, "parent", card.id(),
+				revise(card, "Léa", "Pokémon", "danse", "judo"));
+		assertThat(next.interests()).containsExactly("danse", "judo", "Pokémon");
+		assertThat(children.copies(card.id())).extracting(InterestCopy::text)
+				.containsExactly("Pokémon", "danse", "judo");
+		Instant kept = children.copies(card.id()).getFirst().writtenAt();
+		Instant added = children.copies(card.id()).get(1).writtenAt();
+		assertThat(kept).isEqualTo(first);
+		assertThat(children.copies(card.id()).get(2).writtenAt()).isEqualTo(added).isAfter(first);
+
+		ChildCard straight = service.update(1L, "parent", card.id(), revise(card, "Léa", "l'eau"));
+		Instant quoted = children.copies(card.id()).getFirst().writtenAt();
+		clock.advanceMinutes(5);
+		ChildCard curly = service.update(1L, "parent", card.id(), revise(card, "Léa", "l\u2019eau"));
+		assertThat(curly.interests()).containsExactly("l\u2019eau");
+		assertThat(children.copies(card.id()).getFirst().writtenAt()).isEqualTo(quoted);
+	}
+
+	@Test
+	void interestsStayWithTheChildAndDoNotCopyFromASibling() {
+		ChildCard lea = service.add(1L, "parent", fiche(List.of("espace")));
+		ChildCard noah = service.add(1L, "parent",
+				from(lea.id(), "Noah", "Martin", "8", "France", "CM1", "fox", "1357", "1357", "FRERE"));
+
+		assertThat(noah.interests()).isEmpty();
+		assertThat(service.list(1L, "parent").children().getFirst().interests()).containsExactly("espace");
+
+		service.deactivate(1L, "parent", lea.id());
+		assertThat(service.list(1L, "parent").children().getFirst().interests()).containsExactly("espace");
+		service.hide(1L, "parent", lea.id());
+		assertThat(children.copies(lea.id())).extracting(InterestCopy::text).containsExactly("espace");
+		assertThatThrownBy(() -> service.update(1L, "parent", lea.id(), revise(lea, "Léa", "espace")))
+				.hasMessage(ParentChildrenService.CHILD_UNKNOWN);
+
+		assertThatThrownBy(() -> service.update(2L, "parent", noah.id(), revise(noah, "Noah", "foot")))
+				.hasMessage(ParentChildrenService.CHILD_UNKNOWN);
+		assertThat(children.copies(noah.id())).isEmpty();
+
+		assertThatThrownBy(() -> service.add(1L, "teacher", fiche(List.of("foot"))))
+				.hasMessage(SpaceAccess.DENIED);
+		assertThatThrownBy(() -> service.list(1L, "child"))
+				.hasMessage(SpaceAccess.DENIED);
+		assertThatThrownBy(() -> service.update(1L, "admin", noah.id(), revise(noah, "Noah")))
+				.hasMessage(SpaceAccess.DENIED);
+	}
+
+	private static NewChildCommand fiche(List<String> interests) {
+		return new NewChildCommand(
+				"Léa", "Martin", "FILLE", "7", "France", "CE1", null, "fox",
+				null, null, "4821", "4821", null, null, interests);
+	}
+
+	private static NewChildCommand revise(ChildCard child, String firstName, String... words) {
+		return new NewChildCommand(
+				firstName,
+				child.lastName(),
+				child.sex(),
+				String.valueOf(child.age()),
+				child.country(),
+				child.grade(),
+				child.schoolId(),
+				null,
+				null,
+				null,
+				"",
+				"",
+				null,
+				null,
+				words == null ? null : List.of(words));
+	}
+
 	private static final class MemoryChildren implements ChildPort {
 		private final List<ChildSaved> all = new ArrayList<>();
+		private final Map<Long, List<InterestCopy>> interests = new LinkedHashMap<>();
 		private final List<NewChild> inserted = new ArrayList<>();
 		private final List<StoredLink> links = new ArrayList<>();
 		private final List<Boolean> activeFlags = new ArrayList<>();
@@ -669,7 +861,18 @@ class ParentChildrenServiceTest {
 			return all.stream().filter(child -> child.id() == childId).findFirst().orElseThrow();
 		}
 
-		private record StoredLink(long parentUserId, long subjectChildId, long relatedChildId, String relation) {
+		@Override
+		public List<InterestCopy> findInterests(long childId) {
+			return List.copyOf(interests.getOrDefault(childId, List.of()));
+		}
+
+		@Override
+		public void replaceInterests(long childId, List<InterestCopy> copies) {
+			interests.put(childId, List.copyOf(copies));
+		}
+
+		private List<InterestCopy> copies(long childId) {
+			return findInterests(childId);
 		}
 
 		@Override
@@ -684,6 +887,36 @@ class ParentChildrenServiceTest {
 				return java.util.Optional.empty();
 			}
 			return java.util.Optional.of(new ChildPhoto(match.photo(), match.photoContentType()));
+		}
+
+		private record StoredLink(long parentUserId, long subjectChildId, long relatedChildId, String relation) {
+		}
+	}
+
+	private static final class ManualClock extends Clock {
+		private Instant instant;
+
+		private ManualClock(Instant instant) {
+			this.instant = instant;
+		}
+
+		private void advanceMinutes(long minutes) {
+			instant = instant.plusSeconds(minutes * 60);
+		}
+
+		@Override
+		public ZoneId getZone() {
+			return ZoneOffset.UTC;
+		}
+
+		@Override
+		public Clock withZone(ZoneId zone) {
+			return this;
+		}
+
+		@Override
+		public Instant instant() {
+			return instant;
 		}
 	}
 

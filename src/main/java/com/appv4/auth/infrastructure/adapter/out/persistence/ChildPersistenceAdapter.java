@@ -12,13 +12,14 @@ import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
+import com.appv4.auth.application.port.out.ChildPort.InterestCopy;
 import com.appv4.auth.application.service.ParentChildrenService;
 
 /**
  * Persiste les enfants du parent (SCRUM-156).
  *
  * <p><b>Business :</b> la fiche est liée au parent connecté. Le PIN reste hashé.
- * <p><b>Technique :</b> {@code back_children}. Absent du profil {@code test}.
+ * <p><b>Technique :</b> {@code back_children} et {@code back_child_interests}. Absent du profil {@code test}.
  * <p><b>Métier / flow :</b> adapter out du port {@link ChildPort}.
  */
 @Component
@@ -27,12 +28,15 @@ public class ChildPersistenceAdapter implements ChildPort {
 
 	private final BackChildJpaRepository childRepository;
 	private final BackChildLinkJpaRepository linkRepository;
+	private final BackChildInterestJpaRepository interestRepository;
 
 	public ChildPersistenceAdapter(
 			BackChildJpaRepository childRepository,
-			BackChildLinkJpaRepository linkRepository) {
+			BackChildLinkJpaRepository linkRepository,
+			BackChildInterestJpaRepository interestRepository) {
 		this.childRepository = childRepository;
 		this.linkRepository = linkRepository;
+		this.interestRepository = interestRepository;
 	}
 
 	@Override
@@ -199,6 +203,31 @@ public class ChildPersistenceAdapter implements ChildPort {
 		return childRepository.findByIdAndParentUserIdAndHiddenFalse(childId, parentUserId)
 				.filter(child -> child.getPhoto() != null)
 				.map(child -> new ChildPhoto(child.getPhoto(), child.getPhotoContentType()));
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<InterestCopy> findInterests(long childId) {
+		return interestRepository.findByChildId(childId).stream()
+				.map(row -> new InterestCopy(row.getLabel(), row.getWrittenAt()))
+				.toList();
+	}
+
+	/**
+	 * Remplace les copies de cet enfant.
+	 *
+	 * <p><b>Business :</b> la liste acceptée devient la liste entière. Une liste vide efface.
+	 * <p><b>Technique :</b> supprime les lignes, vide le contexte, puis réécrit le texte et le moment.
+	 * <p><b>Métier / flow :</b> après un ajout ou une correction de fiche déjà acceptés.
+	 */
+	@Override
+	@Transactional
+	public void replaceInterests(long childId, List<InterestCopy> copies) {
+		interestRepository.deleteByChildId(childId);
+		interestRepository.flush();
+		for (InterestCopy copy : copies) {
+			interestRepository.save(new BackChildInterestEntity(childId, copy.text(), copy.writtenAt()));
+		}
 	}
 
 	private static ChildSaved toSaved(BackChildEntity child) {

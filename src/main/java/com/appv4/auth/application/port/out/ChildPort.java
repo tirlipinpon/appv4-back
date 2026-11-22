@@ -1,5 +1,6 @@
 package com.appv4.auth.application.port.out;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -71,6 +72,24 @@ public interface ChildPort {
 	Optional<ChildPhoto> findPhoto(long parentUserId, long childId);
 
 	/**
+	 * Copies de centres d'intérêt de cet enfant, même s'il est retiré de l'affichage.
+	 *
+	 * <p><b>Business :</b> masquer ou désactiver la fiche ne les efface pas.
+	 * <p><b>Technique :</b> lignes {@code back_child_interests}. L'ordre n'est pas le contrat.
+	 * <p><b>Métier / flow :</b> relu pour trier la fiche, et pour garder le moment d'une réécriture.
+	 */
+	List<InterestCopy> findInterests(long childId);
+
+	/**
+	 * Remplace toutes les copies de cet enfant.
+	 *
+	 * <p><b>Business :</b> la liste envoyée est la liste entière. Une liste vide efface.
+	 * <p><b>Technique :</b> supprime puis réécrit. Le moment vient de l'appelant.
+	 * <p><b>Métier / flow :</b> après un ajout ou une correction de fiche déjà acceptés.
+	 */
+	void replaceInterests(long childId, List<InterestCopy> copies);
+
+	/**
 	 * @param pinHash hash du PIN, jamais les 4 chiffres
 	 */
 	record NewChild(
@@ -104,6 +123,16 @@ public interface ChildPort {
 	}
 
 	record ChildPhoto(byte[] bytes, String contentType) {
+	}
+
+	/**
+	 * Une copie de centre d'intérêt.
+	 *
+	 * <p><b>Business :</b> l'orthographe affichée, et le moment où cette copie a été écrite.
+	 * <p><b>Technique :</b> pas la forme comparée.
+	 * <p><b>Métier / flow :</b> gardée avec la fiche, remplacée en bloc à l'enregistrement.
+	 */
+	record InterestCopy(String text, Instant writtenAt) {
 	}
 
 	/**

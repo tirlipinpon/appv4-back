@@ -91,5 +91,9 @@ DO $$ BEGIN
   WHERE a.lesson_finished
   GROUP BY a.child_id,a.play_id HAVING count(*)>1
  ) THEN RAISE EXCEPTION 'Multiple lesson finishes on the same page'; END IF;
+ IF EXISTS (
+  SELECT 1 FROM back_child_interests interest
+  JOIN dev_front_demo.roots r ON r.kind='child' AND r.id=interest.child_id
+ ) THEN RAISE EXCEPTION 'Demo children must have no centre d''intérêt'; END IF;
 END $$;
 SELECT 'Demo integrity OK' AS result;

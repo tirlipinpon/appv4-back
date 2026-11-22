@@ -84,7 +84,7 @@ public class ParentChildrenController {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		CreateParentChildRequest body = request == null
 				? new CreateParentChildRequest(
-						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		ChildCard card = parentChildrenUseCase.add(
 				user.userId(),
@@ -103,14 +103,15 @@ public class ParentChildrenController {
 						body.pin(),
 						body.pinConfirmation(),
 						body.fromChildId(),
-						body.link()));
+						body.link(),
+						body.interests()));
 		return ResponseEntity.ok(toChild(card));
 	}
 
 	private static NewChildCommand toCommand(CreateParentChildRequest request) {
 		CreateParentChildRequest body = request == null
 				? new CreateParentChildRequest(
-						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: request;
 		return new NewChildCommand(
 				body.firstName(),
@@ -126,7 +127,8 @@ public class ParentChildrenController {
 				body.pin(),
 				body.pinConfirmation(),
 				body.fromChildId(),
-				body.link());
+				body.link(),
+				body.interests());
 	}
 
 	@PutMapping("/{id}")
@@ -253,7 +255,8 @@ public class ParentChildrenController {
 				card.schoolSubjectCount(),
 				card.extraSubjectCount(),
 				links,
-				toCharacter(card.character()));
+				toCharacter(card.character()),
+				card.interests());
 	}
 
 	@Schema(name = "ParentChildrenResponse")
@@ -293,7 +296,9 @@ public class ParentChildrenController {
 			@Schema(description = "L'autre enfant du lien, pour afficher sa photo ou son avatar, et le mot court.")
 			List<ParentChildLink> links,
 			@Schema(description = "Personnage choisi par l'enfant. Lorelei s'il n'a encore rien enregistré.")
-			ParentChildCharacter character) {
+			ParentChildCharacter character,
+			@Schema(description = "Centres d'intérêt, dans l'ordre renvoyé par l'API.")
+			List<String> interests) {
 	}
 
 	@Schema(name = "ParentChildCharacter")
@@ -336,6 +341,8 @@ public class ParentChildrenController {
 			@Schema(description = "Enfant de départ. Absent pour un formulaire vide.")
 			Long fromChildId,
 			@Schema(description = "AUCUN, FRERE, SOEUR, DEMI_FRERE, DEMI_SOEUR, JUMEAU, JUMELLE, COUSIN ou COUSINE.")
-			String link) {
+			String link,
+			@Schema(description = "Centres d'intérêt envoyés avec la fiche. Absent : refus. Vide : efface.")
+			List<String> interests) {
 	}
 }

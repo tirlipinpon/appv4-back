@@ -43,10 +43,34 @@ public interface ParentChildrenUseCase {
 	/** Le compte dont l'email est celui de l'invitation reçoit la fiche. */
 	ParentChildrenView.ChildCard acceptInvitation(long parentUserId, String activeRole, long invitationId);
 
+	/**
+	 * Demande une fiche par l'email du parent référent, le prénom et le nom.
+	 *
+	 * <p><b>Business :</b> l'écran dit toujours que c'est envoyé, sauf si la fiche est déjà chez le demandeur.
+	 */
+	InvitationReceipt requestShare(long parentUserId, String activeRole, String email, String firstName, String lastName);
+
+	List<ShareRequestView> shareRequests(long parentUserId, String activeRole);
+
+	void acceptShareRequest(long parentUserId, String activeRole, long requestId, long childId);
+
+	void refuseShareRequest(long parentUserId, String activeRole, long requestId);
+
+	void cancelShareRequest(long parentUserId, String activeRole, long requestId);
+
 	record InvitationReceipt(String message) {
 	}
 
 	record PendingInvitation(long id, long childId, String firstName, String lastName) {
+	}
+
+	record ShareRequestChild(long childId, String firstName, String lastName) {
+	}
+
+	record ShareRequestView(long id, String firstName, String lastName, List<ShareRequestChild> matches) {
+		public ShareRequestView {
+			matches = matches == null ? List.of() : List.copyOf(matches);
+		}
 	}
 
 	/**

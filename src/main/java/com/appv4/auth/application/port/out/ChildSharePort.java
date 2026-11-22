@@ -37,9 +37,32 @@ public interface ChildSharePort {
 
 	int pendingCount(long childId);
 
+	boolean pendingDemande(long senderId, long referentId, String firstName, String lastName);
+
+	StoredDemande saveDemande(long senderId, long referentId, String firstName, String lastName);
+
+	List<StoredDemande> demandesForReferent(long referentId);
+
+	Optional<StoredDemande> findDemande(long id);
+
+	void markDemande(long id, String status);
+
+	void grantShare(long childId, long userId);
+
+	int pendingDemandesForChild(long referentId, String firstName, String lastName);
+
+	void cancelDemandes(long referentId, String firstName, String lastName);
+
 	/**
 	 * @param email déjà coupé et en minuscules
 	 */
 	record StoredInvitation(long id, long childId, String email) {
+	}
+
+	/**
+	 * @param firstName prénom saisi, déjà coupé
+	 * @param lastName nom saisi, déjà coupé
+	 */
+	record StoredDemande(long id, long senderId, long referentId, String firstName, String lastName, String status) {
 	}
 }

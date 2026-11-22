@@ -48,7 +48,8 @@ public record ParentChildrenView(
 			CharacterFace character,
 			List<String> interests,
 			boolean referent,
-			int pendingInvitationCount) {
+			int pendingInvitationCount,
+			int pendingDemandeCount) {
 
 		public ChildCard {
 			linkPhrases = linkPhrases == null ? List.of() : List.copyOf(linkPhrases);

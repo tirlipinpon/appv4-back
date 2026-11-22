@@ -66,12 +66,18 @@ DO $$ BEGIN
  OR EXISTS(SELECT 1 FROM back_child_holders holder
    JOIN back_children child ON child.id = holder.child_id
    WHERE (child.id IN (SELECT id FROM demo_children))
-     <> (holder.user_id IN (SELECT id FROM demo_users))) THEN
+     <> (holder.user_id IN (SELECT id FROM demo_users)))
+ OR EXISTS(SELECT 1 FROM back_child_share_requests request
+   WHERE (request.sender_user_id IN (SELECT id FROM demo_users))
+     <> (request.referent_user_id IN (SELECT id FROM demo_users))) THEN
    RAISE EXCEPTION 'Real/demo cross-links detected. Unlink them in the app before rollback; nothing deleted.';
  END IF;
 END $$;
 DELETE FROM back_teacher_subjects WHERE id IN (SELECT id FROM demo_subjects);
 DELETE FROM back_child_interests WHERE child_id IN (SELECT id FROM demo_children);
+DELETE FROM back_child_share_requests
+ WHERE sender_user_id IN (SELECT id FROM demo_users)
+    OR referent_user_id IN (SELECT id FROM demo_users);
 DELETE FROM back_child_invitations WHERE child_id IN (SELECT id FROM demo_children);
 DELETE FROM back_child_holders WHERE child_id IN (SELECT id FROM demo_children);
 DELETE FROM back_children WHERE id IN (SELECT id FROM demo_children);

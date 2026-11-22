@@ -7,7 +7,7 @@ import java.util.List;
  * Copies lisibles pour proposer un centre d'intérêt.
  *
  * <p><b>Business :</b> une suggestion ne dit pas à qui appartient le mot.
- * Seul un enfant encore actif et encore affiché compte.
+ * Un enfant désactivé ou retiré de l'affichage ne compte pas.
  * <p><b>Technique :</b> une ligne par copie, avec le parent de la fiche.
  * <p><b>Métier / flow :</b> lecture de {@code GET /api/int/parent/interest-suggestions}.
  */

@@ -15,9 +15,9 @@ import com.appv4.auth.application.port.out.ChildInterestSuggestionPort.Suggestab
 /**
  * Choisit les centres d'intérêt proposés pendant la saisie.
  *
- * <p><b>Business :</b> un mot n'est proposé que s'il est porté par deux parents différents,
- * chacun sur un enfant encore actif et encore affiché. L'orthographe est celle de la copie
- * la plus ancienne. À moment égal, c'est le plus petit numéro.
+ * <p><b>Business :</b> un mot déjà écrit sur un enfant actif et affiché est proposé.
+ * L'orthographe est celle de la copie la plus ancienne. À moment égal, c'est le plus petit numéro.
+ * L'écran retire ceux déjà posés sur la fiche en cours.
  * <p><b>Technique :</b> le préfixe et le tri utilisent la forme comparée. Huit mots au plus.
  * <p><b>Métier / flow :</b> port in appelé par {@code GET /api/int/parent/interest-suggestions}.
  */
@@ -55,9 +55,6 @@ public class SuggestChildInterestsService implements SuggestChildInterestsUseCas
 		List<String> forms = new ArrayList<>();
 		Map<String, String> spelling = new LinkedHashMap<>();
 		for (Map.Entry<String, List<SuggestableInterest>> entry : groups.entrySet()) {
-			if (parentsOf(entry.getValue()).size() < 2) {
-				continue;
-			}
 			forms.add(entry.getKey());
 			spelling.put(entry.getKey(), oldest(entry.getValue()).text());
 		}
@@ -70,16 +67,6 @@ public class SuggestChildInterestsService implements SuggestChildInterestsUseCas
 			words.add(spelling.get(form));
 		}
 		return List.copyOf(words);
-	}
-
-	private static List<Long> parentsOf(List<SuggestableInterest> copies) {
-		List<Long> parents = new ArrayList<>();
-		for (SuggestableInterest copy : copies) {
-			if (!parents.contains(copy.parentUserId())) {
-				parents.add(copy.parentUserId());
-			}
-		}
-		return parents;
 	}
 
 	private static SuggestableInterest oldest(List<SuggestableInterest> copies) {

@@ -49,9 +49,25 @@ public interface BackChildJpaRepository extends JpaRepository<BackChildEntity, L
 			c.lastName as lastName, c.sex as sex, c.age as age, c.curriculum as curriculum,
 			c.gradeLabel as gradeLabel, c.schoolId as schoolId, c.avatarCode as avatarCode,
 			(case when c.photo is null then false else true end) as hasPhoto, c.active as active
-			from BackChildEntity c where c.parentUserId = :parentUserId and c.hidden = false order by c.id
+			from BackChildEntity c
+			where c.hidden = false and (
+				c.parentUserId = :parentUserId
+				or exists (
+					select h.childId from BackChildHolderEntity h
+					where h.childId = c.id and h.userId = :parentUserId))
+			order by c.id
 			""")
 	List<ChildSummary> findParentSummaries(@Param("parentUserId") long parentUserId);
+
+	@Query("""
+			select c from BackChildEntity c
+			where c.id = :id and c.hidden = false and (
+				c.parentUserId = :userId
+				or exists (
+					select h.childId from BackChildHolderEntity h
+					where h.childId = c.id and h.userId = :userId))
+			""")
+	Optional<BackChildEntity> findVisibleTo(@Param("id") long id, @Param("userId") long userId);
 
 	Optional<BackChildEntity> findByIdAndParentUserIdAndHiddenFalse(long id, long parentUserId);
 

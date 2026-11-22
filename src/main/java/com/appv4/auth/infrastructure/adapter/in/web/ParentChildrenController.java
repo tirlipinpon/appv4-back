@@ -196,6 +196,42 @@ public class ParentChildrenController {
 		return ResponseEntity.noContent().build();
 	}
 
+	@PostMapping("/{id}/invitations")
+	@Operation(operationId = "inviteParentOnChild", summary = "Inviter un email sur la fiche")
+	@ApiResponse(responseCode = "200", description = "Invitation envoyée, sans dire si le compte existe")
+	public ResponseEntity<InvitationReceiptResponse> invite(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id,
+			@RequestBody InviteParentRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		var receipt = parentChildrenUseCase.invite(
+				user.userId(), user.activeRole(), id, request == null ? null : request.email());
+		return ResponseEntity.ok(new InvitationReceiptResponse(receipt.message()));
+	}
+
+	@GetMapping("/invitations")
+	@Operation(operationId = "listParentChildInvitations", summary = "Lire les invitations adressées au compte")
+	public ResponseEntity<List<PendingInvitationResponse>> invitations(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		List<PendingInvitationResponse> body = parentChildrenUseCase
+				.pendingInvitations(user.userId(), user.activeRole())
+				.stream()
+				.map(item -> new PendingInvitationResponse(item.id(), item.childId(), item.firstName(), item.lastName()))
+				.toList();
+		return ResponseEntity.ok(body);
+	}
+
+	@PostMapping("/invitations/{invitationId}/accept")
+	@Operation(operationId = "acceptParentChildInvitation", summary = "Accepter une invitation et recevoir la fiche")
+	public ResponseEntity<ParentChildResponse> acceptInvitation(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long invitationId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		return ResponseEntity.ok(toChild(
+				parentChildrenUseCase.acceptInvitation(user.userId(), user.activeRole(), invitationId)));
+	}
+
 	@GetMapping("/{id}/photo")
 	@Operation(operationId = "getParentChildPhoto", summary = "Lire la photo d'un enfant du parent connecté")
 	@ApiResponse(responseCode = "200", description = "Image de l'enfant")
@@ -321,6 +357,18 @@ public class ParentChildrenController {
 
 	@Schema(name = "ParentSchoolOption")
 	public record ParentSchoolOption(long id, String name, String country, List<String> grades) {
+	}
+
+	@Schema(name = "InviteParentRequest")
+	public record InviteParentRequest(String email) {
+	}
+
+	@Schema(name = "InvitationReceiptResponse")
+	public record InvitationReceiptResponse(String message) {
+	}
+
+	@Schema(name = "PendingInvitationResponse")
+	public record PendingInvitationResponse(long id, long childId, String firstName, String lastName) {
 	}
 
 	@Schema(name = "CreateParentChildRequest")

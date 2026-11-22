@@ -2,8 +2,8 @@ DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM dev_front_demo.installation) THEN
    RAISE EXCEPTION 'Demo already installed. Use status, rollback or reset (no duplicates created).';
  END IF;
- IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) IS DISTINCT FROM '82' THEN
-  RAISE EXCEPTION 'Fixtures validated against V82. Review schema changes before updating this guard.';
+ IF (SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1) IS DISTINCT FROM '83' THEN
+  RAISE EXCEPTION 'Fixtures validated against V83. Review schema changes before updating this guard.';
  END IF;
 END $$;
 

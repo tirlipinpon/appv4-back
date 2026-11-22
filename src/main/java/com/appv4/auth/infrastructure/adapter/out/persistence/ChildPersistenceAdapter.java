@@ -74,13 +74,13 @@ public class ChildPersistenceAdapter implements ChildPort, ChildInterestSuggesti
 	@Override
 	@Transactional(readOnly = true)
 	public Optional<ChildSaved> findOwned(long parentUserId, long childId) {
-		return listed(parentUserId, childId).map(ChildPersistenceAdapter::toSaved);
+		return visibleTo(parentUserId, childId).map(ChildPersistenceAdapter::toSaved);
 	}
 
 	@Override
 	@Transactional
 	public Optional<ChildSaved> update(long parentUserId, long childId, ChildChanges changes) {
-		return listed(parentUserId, childId).map(entity -> {
+		return visibleTo(parentUserId, childId).map(entity -> {
 			entity.applyChanges(
 					changes.firstName(),
 					changes.lastName(),
@@ -116,8 +116,20 @@ public class ChildPersistenceAdapter implements ChildPort, ChildInterestSuggesti
 		return changeListed(parentUserId, childId, BackChildEntity::hide);
 	}
 
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<ChildSaved> findVisible(long childId) {
+		return childRepository.findById(childId)
+				.filter(child -> !child.isHidden())
+				.map(ChildPersistenceAdapter::toSaved);
+	}
+
 	private Optional<BackChildEntity> listed(long parentUserId, long childId) {
 		return childRepository.findByIdAndParentUserIdAndHiddenFalse(childId, parentUserId);
+	}
+
+	private Optional<BackChildEntity> visibleTo(long parentUserId, long childId) {
+		return childRepository.findVisibleTo(childId, parentUserId);
 	}
 
 	private boolean changeListed(long parentUserId, long childId, java.util.function.Consumer<BackChildEntity> change) {
@@ -202,7 +214,7 @@ public class ChildPersistenceAdapter implements ChildPort, ChildInterestSuggesti
 	@Override
 	@Transactional(readOnly = true)
 	public Optional<ChildPhoto> findPhoto(long parentUserId, long childId) {
-		return childRepository.findByIdAndParentUserIdAndHiddenFalse(childId, parentUserId)
+		return visibleTo(parentUserId, childId)
 				.filter(child -> child.getPhoto() != null)
 				.map(child -> new ChildPhoto(child.getPhoto(), child.getPhotoContentType()));
 	}

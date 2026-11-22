@@ -895,7 +895,9 @@ public class AuthConfiguration {
 			ChildSubjectPort childSubjectPort,
 			ChildSubjectService childSubjectService,
 			ChildAvatarPort childAvatarPort,
-			CharacterAvatarCatalog characterAvatarCatalog) {
+			CharacterAvatarCatalog characterAvatarCatalog,
+			com.appv4.auth.application.port.out.ChildSharePort childSharePort,
+			com.appv4.auth.application.port.out.AuthUserAccountPort authUserAccountPort) {
 		return new ParentChildrenService(
 				childPort,
 				schoolCatalogPort,
@@ -904,7 +906,9 @@ public class AuthConfiguration {
 				childSubjectService,
 				childAvatarPort,
 				characterAvatarCatalog,
-				Clock.systemUTC());
+				Clock.systemUTC(),
+				childSharePort,
+				authUserAccountPort);
 	}
 
 	/**

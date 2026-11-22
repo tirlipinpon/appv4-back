@@ -26,7 +26,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.NewChildCommand;
+import com.appv4.auth.application.port.in.ReadParentHumeursUseCase.ParentChildHumeur;
+import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.HumeurAnswerPort;
+import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.ChildAvatarPort;
+import com.appv4.auth.application.port.out.ChildSharePort;
+import com.appv4.auth.application.port.out.ChildSharePort.StoredInvitation;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 import com.appv4.auth.application.port.out.ChildLoginPort;
@@ -52,6 +58,7 @@ import com.appv4.auth.application.result.ChildAvatarView;
 class ParentChildrenServiceTest {
 
 	private MemoryChildren children;
+	private AuthUserAccountPort accounts;
 	private List<CatalogSchool> catalog;
 	private ChildAvatarPort avatars;
 	private ManualClock clock;
@@ -78,12 +85,15 @@ class ParentChildrenServiceTest {
 		avatars = mock(ChildAvatarPort.class);
 		when(avatars.findByChildId(anyLong())).thenReturn(Optional.empty());
 		clock = new ManualClock(Instant.parse("2026-03-01T10:00:00Z"));
+		accounts = mock(AuthUserAccountPort.class);
 		service = new ParentChildrenService(
 				children, () -> catalog, encoder, links,
 				new ChildSubjectService(children, links, () -> catalog, questions),
 				avatars,
 				CharacterAvatarCatalog.load(),
-				clock);
+				clock,
+				children,
+				accounts);
 	}
 
 	@Test
@@ -630,6 +640,84 @@ class ParentChildrenServiceTest {
 				.hasMessage(SpaceAccess.DENIED);
 	}
 
+	@Test
+	void anInvitationSharesOneFicheAfterTheNamedEmailAccepts() {
+		ChildCard lea = service.add(1L, "parent", fiche(List.of("espace")));
+		when(accounts.findByEmail("b@exemple.fr")).thenReturn(Optional.empty());
+		when(accounts.findById(2L)).thenReturn(Optional.of(new AuthUserAccount(2L, "b@exemple.fr", "B", true)));
+
+		assertThat(service.invite(1L, "parent", lea.id(), "  B@exemple.fr ").message())
+				.isEqualTo(ParentChildrenService.INVITATION_SENT);
+		assertThat(service.list(2L, "parent").children()).isEmpty();
+		assertThat(service.pendingInvitations(2L, "parent")).extracting(item -> item.firstName()).containsExactly("Léa");
+
+		long invitationId = service.pendingInvitations(2L, "parent").getFirst().id();
+		when(accounts.findById(9L)).thenReturn(Optional.of(new AuthUserAccount(9L, "autre@exemple.fr", "Z", true)));
+		assertThatThrownBy(() -> service.acceptInvitation(9L, "parent", invitationId))
+				.hasMessage(ParentChildrenService.WRONG_ACCOUNT);
+		assertThat(service.list(9L, "parent").children()).isEmpty();
+
+		ChildCard accepted = service.acceptInvitation(2L, "parent", invitationId);
+		assertThat(accepted.id()).isEqualTo(lea.id());
+		assertThat(service.list(1L, "parent").children()).extracting(ChildCard::id).containsExactly(lea.id());
+		assertThat(service.list(2L, "parent").children()).extracting(ChildCard::id).containsExactly(lea.id());
+
+		service.update(2L, "parent", lea.id(), revise(lea, "Léa", "espace", "foot"));
+		assertThat(service.list(1L, "parent").children().getFirst().interests()).containsExactly("espace", "foot");
+
+		assertThatThrownBy(() -> service.hide(2L, "parent", lea.id()))
+				.hasMessage(ParentChildrenService.ONLY_REFERENT);
+		assertThatThrownBy(() -> service.deactivate(2L, "parent", lea.id()))
+				.hasMessage(ParentChildrenService.ONLY_REFERENT);
+		assertThatThrownBy(() -> service.reactivate(2L, "parent", lea.id()))
+				.hasMessage(ParentChildrenService.ONLY_REFERENT);
+		assertThat(service.list(1L, "parent").children()).extracting(ChildCard::id).containsExactly(lea.id());
+
+		when(accounts.findByEmail("c@exemple.fr")).thenReturn(Optional.empty());
+		service.invite(1L, "parent", lea.id(), "c@exemple.fr");
+		assertThatThrownBy(() -> service.invite(1L, "parent", lea.id(), "c@exemple.fr"))
+				.hasMessage(ParentChildrenService.INVITATION_PENDING);
+		when(accounts.findByEmail("b@exemple.fr")).thenReturn(Optional.of(new AuthUserAccount(2L, "b@exemple.fr", "B", true)));
+		assertThatThrownBy(() -> service.invite(1L, "parent", lea.id(), "b@exemple.fr"))
+				.hasMessage(ParentChildrenService.ALREADY_HOLDS);
+
+		service.deactivate(1L, "parent", lea.id());
+		assertThat(service.pendingInvitations(2L, "parent")).isEmpty();
+		when(accounts.findById(3L)).thenReturn(Optional.of(new AuthUserAccount(3L, "c@exemple.fr", "C", true)));
+		assertThat(service.pendingInvitations(3L, "parent")).extracting(item -> item.childId()).containsExactly(lea.id());
+
+		service.hide(1L, "parent", lea.id());
+		assertThat(service.list(1L, "parent").children()).isEmpty();
+		assertThat(service.list(2L, "parent").children()).isEmpty();
+		assertThat(service.pendingInvitations(3L, "parent")).isEmpty();
+	}
+
+	@Test
+	void acceptingOneInvitationLeavesTheOtherAndACopyIsANewFiche() {
+		ChildCard lea = service.add(1L, "parent", fiche(List.of()));
+		when(accounts.findByEmail("b@exemple.fr")).thenReturn(Optional.empty());
+		when(accounts.findByEmail("c@exemple.fr")).thenReturn(Optional.empty());
+		service.invite(1L, "parent", lea.id(), "b@exemple.fr");
+		service.invite(1L, "parent", lea.id(), "c@exemple.fr");
+		when(accounts.findById(2L)).thenReturn(Optional.of(new AuthUserAccount(2L, "b@exemple.fr", "B", true)));
+		when(accounts.findById(3L)).thenReturn(Optional.of(new AuthUserAccount(3L, "c@exemple.fr", "C", true)));
+
+		service.acceptInvitation(2L, "parent", service.pendingInvitations(2L, "parent").getFirst().id());
+
+		assertThat(service.pendingInvitations(3L, "parent")).hasSize(1);
+		ChildCard copy = service.add(2L, "parent",
+				from(lea.id(), "Noa", "Martin", "8", "France", "CE1", "fox", "1357", "1357", "AUCUN"));
+		assertThat(service.list(1L, "parent").children()).extracting(ChildCard::id).containsExactly(lea.id());
+		assertThat(service.list(2L, "parent").children()).extracting(ChildCard::id).containsExactly(lea.id(), copy.id());
+		HumeurAnswerPort answers = mock(HumeurAnswerPort.class);
+		when(answers.latest(anyLong())).thenReturn(Optional.empty());
+		assertThat(new ReadParentHumeursService(children, answers).list(2L, "parent"))
+				.extracting(ParentChildHumeur::id)
+				.contains(lea.id());
+		assertThatThrownBy(() -> service.invite(1L, "teacher", lea.id(), "d@exemple.fr"))
+				.hasMessage(SpaceAccess.DENIED);
+	}
+
 	private static NewChildCommand fiche(List<String> interests) {
 		return new NewChildCommand(
 				"Léa", "Martin", "FILLE", "7", "France", "CE1", null, "fox",
@@ -655,8 +743,11 @@ class ParentChildrenServiceTest {
 				words == null ? null : List.of(words));
 	}
 
-	private static final class MemoryChildren implements ChildPort {
+	private static final class MemoryChildren implements ChildPort, ChildSharePort {
 		private final List<ChildSaved> all = new ArrayList<>();
+		private final List<Share> shares = new ArrayList<>();
+		private final List<StoredInvitation> invitations = new ArrayList<>();
+		private long nextInvitation = 1;
 		private final Map<Long, List<InterestCopy>> interests = new LinkedHashMap<>();
 		private final List<NewChild> inserted = new ArrayList<>();
 		private final List<StoredLink> links = new ArrayList<>();
@@ -692,7 +783,7 @@ class ParentChildrenServiceTest {
 		public java.util.Optional<ChildSaved> findOwned(long parentUserId, long childId) {
 			for (int i = 0; i < all.size(); i++) {
 				ChildSaved current = all.get(i);
-				if (current.id() == childId && current.parentUserId() == parentUserId && !hiddenFlags.get(i)) {
+				if (current.id() == childId && !hiddenFlags.get(i) && visibleTo(parentUserId, current)) {
 					return java.util.Optional.of(shown(i));
 				}
 			}
@@ -703,7 +794,7 @@ class ParentChildrenServiceTest {
 		public java.util.Optional<ChildSaved> update(long parentUserId, long childId, ChildChanges changes) {
 			for (int i = 0; i < all.size(); i++) {
 				ChildSaved current = all.get(i);
-				if (current.id() != childId || current.parentUserId() != parentUserId || hiddenFlags.get(i)) {
+				if (current.id() != childId || hiddenFlags.get(i) || !visibleTo(parentUserId, current)) {
 					continue;
 				}
 				if (changes.pinHash() != null) {
@@ -817,11 +908,108 @@ class ParentChildrenServiceTest {
 		public List<ChildSaved> findByParent(long parentUserId) {
 			List<ChildSaved> found = new ArrayList<>();
 			for (int i = 0; i < all.size(); i++) {
-				if (all.get(i).parentUserId() == parentUserId && !hiddenFlags.get(i)) {
+				if (!hiddenFlags.get(i) && visibleTo(parentUserId, all.get(i))) {
 					found.add(shown(i));
 				}
 			}
 			return found;
+		}
+
+		@Override
+		public java.util.Optional<ChildSaved> findVisible(long childId) {
+			for (int i = 0; i < all.size(); i++) {
+				if (all.get(i).id() == childId && !hiddenFlags.get(i)) {
+					return java.util.Optional.of(shown(i));
+				}
+			}
+			return java.util.Optional.empty();
+		}
+
+		@Override
+		public boolean holds(long userId, long childId) {
+			for (int i = 0; i < all.size(); i++) {
+				if (all.get(i).id() == childId && !hiddenFlags.get(i) && visibleTo(userId, all.get(i))) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		@Override
+		public boolean isReferent(long userId, long childId) {
+			for (int i = 0; i < all.size(); i++) {
+				ChildSaved current = all.get(i);
+				if (current.id() != childId || hiddenFlags.get(i)) {
+					continue;
+				}
+				if (current.parentUserId() == userId) {
+					return true;
+				}
+				for (Share share : shares) {
+					if (share.childId == childId && share.userId == userId && share.referent) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		@Override
+		public boolean pending(long childId, String email) {
+			return invitations.stream().anyMatch(item -> item.childId() == childId && item.email().equals(email));
+		}
+
+		@Override
+		public StoredInvitation invite(long childId, String email) {
+			StoredInvitation invitation = new StoredInvitation(nextInvitation++, childId, email);
+			invitations.add(invitation);
+			return invitation;
+		}
+
+		@Override
+		public List<StoredInvitation> pendingForEmail(String email) {
+			return invitations.stream().filter(item -> item.email().equals(email)).toList();
+		}
+
+		@Override
+		public java.util.Optional<StoredInvitation> findPending(long invitationId) {
+			return invitations.stream().filter(item -> item.id() == invitationId).findFirst();
+		}
+
+		@Override
+		public void accept(long invitationId, long userId) {
+			StoredInvitation invitation = findPending(invitationId).orElseThrow();
+			invitations.remove(invitation);
+			shares.add(new Share(invitation.childId(), userId, false));
+		}
+
+		@Override
+		public void cancelPending(long childId) {
+			invitations.removeIf(item -> item.childId() == childId);
+		}
+
+		private boolean visibleTo(long userId, ChildSaved child) {
+			if (child.parentUserId() == userId) {
+				return true;
+			}
+			for (Share share : shares) {
+				if (share.childId == child.id() && share.userId == userId) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		private static final class Share {
+			private final long childId;
+			private final long userId;
+			private final boolean referent;
+
+			private Share(long childId, long userId, boolean referent) {
+				this.childId = childId;
+				this.userId = userId;
+				this.referent = referent;
+			}
 		}
 
 		private boolean mark(long parentUserId, long childId, Boolean usable, Boolean conceal) {

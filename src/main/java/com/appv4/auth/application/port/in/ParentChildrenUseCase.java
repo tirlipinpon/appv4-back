@@ -31,6 +31,25 @@ public interface ParentChildrenUseCase {
 	ChildPhoto photo(long parentUserId, String activeRole, long childId);
 
 	/**
+	 * Invite un email sur une fiche que ce parent gère.
+	 *
+	 * <p><b>Business :</b> la réponse ne dit pas si le compte existe. Rien n'est partagé avant l'acceptation.
+	 */
+	InvitationReceipt invite(long parentUserId, String activeRole, long childId, String email);
+
+	/** Invitations encore ouvertes pour l'email du compte connecté. */
+	List<PendingInvitation> pendingInvitations(long parentUserId, String activeRole);
+
+	/** Le compte dont l'email est celui de l'invitation reçoit la fiche. */
+	ParentChildrenView.ChildCard acceptInvitation(long parentUserId, String activeRole, long invitationId);
+
+	record InvitationReceipt(String message) {
+	}
+
+	record PendingInvitation(long id, long childId, String firstName, String lastName) {
+	}
+
+	/**
 	 * @param age               texte saisi, parsé ensuite (2 à 18)
 	 * @param schoolId          école de l'annuaire, ou null
 	 * @param pinConfirmation   seconde saisie, comparée puis oubliée

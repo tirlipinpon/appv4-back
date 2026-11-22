@@ -20,6 +20,15 @@ public interface ChildPort {
 	List<ChildSaved> findByParent(long parentUserId);
 
 	/**
+	 * Fiche encore affichée, sans tenir compte de qui la détient.
+	 *
+	 * <p><b>Business :</b> une invitation doit montrer le prénom, même à celui qui ne l'a pas encore.
+	 */
+	default Optional<ChildSaved> findVisible(long childId) {
+		return Optional.empty();
+	}
+
+	/**
 	 * Fiche de ce parent. Vide si l'identifiant est à quelqu'un d'autre.
 	 *
 	 * <p><b>Business :</b> on ne part pas de l'enfant d'un autre parent, et on ne montre pas sa fiche.

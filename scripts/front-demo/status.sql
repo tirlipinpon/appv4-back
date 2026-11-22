@@ -1,4 +1,4 @@
-SELECT version AS flyway_version, '84' AS expected_flyway_version
+SELECT version AS flyway_version, '85' AS expected_flyway_version
 FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1;
 SELECT * FROM dev_front_demo.installation;
 SELECT kind,count(*) AS tracked_roots FROM dev_front_demo.roots GROUP BY kind ORDER BY kind;

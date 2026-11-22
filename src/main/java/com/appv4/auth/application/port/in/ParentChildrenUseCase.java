@@ -58,6 +58,29 @@ public interface ParentChildrenUseCase {
 
 	void cancelShareRequest(long parentUserId, String activeRole, long requestId);
 
+	/**
+	 * Parents déjà en partage sur une fiche gérée par ce parent.
+	 *
+	 * <p><b>Business :</b> le parent référent choisit à qui proposer la fiche. Les autres ne voient pas cette liste.
+	 */
+	List<FicheHolder> holders(long parentUserId, String activeRole, long childId);
+
+	/**
+	 * Propose à un parent déjà sur la fiche d'en devenir le parent référent.
+	 *
+	 * <p><b>Business :</b> un seul transfert en attente par fiche. Le message fait de 1 à 200 caractères.
+	 */
+	void startTransfer(long parentUserId, String activeRole, long childId, long holderUserId, String message);
+
+	/** Transferts encore ouverts pour le parent référent qui les a envoyés, ou pour le parent qu'ils nomment. */
+	List<TransferView> transfers(long parentUserId, String activeRole);
+
+	void acceptTransfer(long parentUserId, String activeRole, long transferId);
+
+	void refuseTransfer(long parentUserId, String activeRole, long transferId);
+
+	void cancelTransfer(long parentUserId, String activeRole, long transferId);
+
 	record InvitationReceipt(String message) {
 	}
 
@@ -65,6 +88,16 @@ public interface ParentChildrenUseCase {
 	}
 
 	record ShareRequestChild(long childId, String firstName, String lastName) {
+	}
+
+	record FicheHolder(long userId, String label) {
+	}
+
+	/**
+	 * @param incoming vrai si ce parent est celui qui peut accepter ou refuser
+	 */
+	record TransferView(
+			long id, long childId, String firstName, String lastName, String message, boolean incoming) {
 	}
 
 	record ShareRequestView(long id, String firstName, String lastName, List<ShareRequestChild> matches) {

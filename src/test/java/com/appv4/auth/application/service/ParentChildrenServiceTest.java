@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.appv4.auth.application.port.in.ParentChildrenUseCase.FicheHolder;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.NewChildCommand;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.ShareRequestChild;
 import com.appv4.auth.application.port.in.ReadParentHumeursUseCase.ParentChildHumeur;
@@ -35,6 +36,7 @@ import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildSharePort;
 import com.appv4.auth.application.port.out.ChildSharePort.StoredDemande;
 import com.appv4.auth.application.port.out.ChildSharePort.StoredInvitation;
+import com.appv4.auth.application.port.out.ChildSharePort.StoredTransfer;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
 import com.appv4.auth.application.port.out.ChildLoginPort;
@@ -769,6 +771,73 @@ class ParentChildrenServiceTest {
 				.hasMessage(ParentChildrenService.ALREADY_YOURS);
 	}
 
+	@Test
+	void acceptingATransferSwapsTheReferentAndKeepsTheCode() {
+		ChildCard lea = service.add(1L, "parent", fiche(List.of()));
+		children.grantShare(lea.id(), 2L);
+		children.grantShare(lea.id(), 3L);
+		when(accounts.findById(2L)).thenReturn(Optional.of(new AuthUserAccount(2L, "b@exemple.fr", "Bea", true)));
+		when(accounts.findById(3L)).thenReturn(Optional.of(new AuthUserAccount(3L, "c@exemple.fr", "", true)));
+
+		assertThatThrownBy(() -> service.holders(2L, "parent", lea.id()))
+				.hasMessage(ParentChildrenService.ONLY_REFERENT);
+		assertThat(service.holders(1L, "parent", lea.id()))
+				.extracting(FicheHolder::label)
+				.containsExactly("Bea", "c@exemple.fr");
+
+		assertThatThrownBy(() -> service.startTransfer(1L, "parent", lea.id(), 2L, "  "))
+				.hasMessage(ParentChildrenService.MESSAGE_REQUIRED);
+		assertThatThrownBy(() -> service.startTransfer(1L, "parent", lea.id(), 2L, "x".repeat(201)))
+				.hasMessage(ParentChildrenService.MESSAGE_TOO_LONG);
+		assertThatThrownBy(() -> service.startTransfer(2L, "parent", lea.id(), 3L, "reprends"))
+				.hasMessage(ParentChildrenService.ONLY_REFERENT);
+
+		service.startTransfer(1L, "parent", lea.id(), 2L, "  Tu la gères ?  ");
+		assertThat(service.list(1L, "parent").children().getFirst().pendingTransferCount()).isEqualTo(1);
+		assertThatThrownBy(() -> service.startTransfer(1L, "parent", lea.id(), 3L, "encore"))
+				.hasMessage(ParentChildrenService.TRANSFER_PENDING);
+		assertThat(service.transfers(3L, "parent")).isEmpty();
+		assertThat(service.transfers(2L, "parent").getFirst().message()).isEqualTo("Tu la gères ?");
+		assertThat(service.transfers(2L, "parent").getFirst().incoming()).isTrue();
+		assertThat(service.transfers(1L, "parent").getFirst().incoming()).isFalse();
+
+		long proposal = service.transfers(2L, "parent").getFirst().id();
+		assertThatThrownBy(() -> service.acceptTransfer(3L, "parent", proposal))
+				.hasMessage(ParentChildrenService.CHILD_UNKNOWN);
+		assertThat(service.list(1L, "parent").children().getFirst().referent()).isTrue();
+
+		service.deactivate(1L, "parent", lea.id());
+		assertThat(service.transfers(2L, "parent")).hasSize(1);
+		service.reactivate(1L, "parent", lea.id());
+
+		service.refuseTransfer(2L, "parent", proposal);
+		assertThat(service.transfers(2L, "parent")).isEmpty();
+		assertThat(service.list(1L, "parent").children().getFirst().referent()).isTrue();
+
+		service.startTransfer(1L, "parent", lea.id(), 2L, "reprends");
+		service.cancelTransfer(1L, "parent", service.transfers(1L, "parent").getFirst().id());
+		assertThat(service.transfers(2L, "parent")).isEmpty();
+
+		service.startTransfer(1L, "parent", lea.id(), 2L, "reprends");
+		String pin = children.pinHash(lea.id());
+		service.acceptTransfer(2L, "parent", service.transfers(2L, "parent").getFirst().id());
+		assertThat(children.pinHash(lea.id())).isEqualTo(pin);
+		assertThat(service.list(2L, "parent").children().getFirst().referent()).isTrue();
+		assertThat(service.list(1L, "parent").children().getFirst().referent()).isFalse();
+		assertThat(service.list(3L, "parent").children().getFirst().referent()).isFalse();
+		assertThat(service.list(1L, "parent").children()).extracting(ChildCard::id).containsExactly(lea.id());
+		assertThat(service.list(3L, "parent").children()).extracting(ChildCard::id).containsExactly(lea.id());
+
+		assertThatThrownBy(() -> service.hide(1L, "parent", lea.id()))
+				.hasMessage(ParentChildrenService.ONLY_REFERENT);
+		service.startTransfer(2L, "parent", lea.id(), 3L, "à toi");
+		service.hide(2L, "parent", lea.id());
+		assertThat(service.list(1L, "parent").children()).isEmpty();
+		assertThat(service.list(2L, "parent").children()).isEmpty();
+		assertThat(service.list(3L, "parent").children()).isEmpty();
+		assertThat(service.transfers(3L, "parent")).isEmpty();
+	}
+
 	private static NewChildCommand fiche(List<String> interests) {
 		return new NewChildCommand(
 				"Léa", "Martin", "FILLE", "7", "France", "CE1", null, "fox",
@@ -799,8 +868,10 @@ class ParentChildrenServiceTest {
 		private final List<Share> shares = new ArrayList<>();
 		private final List<StoredInvitation> invitations = new ArrayList<>();
 		private final List<StoredDemande> demandes = new ArrayList<>();
+		private final List<StoredTransfer> transfers = new ArrayList<>();
 		private long nextInvitation = 1;
 		private long nextDemande = 1;
+		private long nextTransfer = 1;
 		private final Map<Long, List<InterestCopy>> interests = new LinkedHashMap<>();
 		private final List<NewChild> inserted = new ArrayList<>();
 		private final List<StoredLink> links = new ArrayList<>();
@@ -1086,6 +1157,120 @@ class ParentChildrenServiceTest {
 			return count;
 		}
 
+		public String pinHash(long childId) {
+			for (int i = 0; i < all.size(); i++) {
+				if (all.get(i).id() == childId) {
+					return inserted.get(i).pinHash();
+				}
+			}
+			throw new IllegalArgumentException("child");
+		}
+
+		@Override
+		public List<Long> sharedHolderIds(long childId) {
+			long parentId = byId(childId).parentUserId();
+			List<Long> ids = new ArrayList<>();
+			for (Share share : shares) {
+				if (share.childId == childId && share.userId != parentId && !share.referent) {
+					ids.add(share.userId);
+				}
+			}
+			return ids;
+		}
+
+		@Override
+		public boolean sharedHolder(long childId, long userId) {
+			return sharedHolderIds(childId).contains(userId);
+		}
+
+		@Override
+		public java.util.Optional<StoredTransfer> pendingTransfer(long childId) {
+			return transfers.stream()
+					.filter(item -> item.childId() == childId && "pending".equals(item.status()))
+					.findFirst();
+		}
+
+		@Override
+		public StoredTransfer saveTransfer(long childId, long fromUserId, long toUserId, String message) {
+			StoredTransfer transfer = new StoredTransfer(nextTransfer++, childId, fromUserId, toUserId, message, "pending");
+			transfers.add(transfer);
+			return transfer;
+		}
+
+		@Override
+		public java.util.Optional<StoredTransfer> findTransfer(long id) {
+			return transfers.stream().filter(item -> item.id() == id).findFirst();
+		}
+
+		@Override
+		public List<StoredTransfer> transfersFor(long userId) {
+			return transfers.stream()
+					.filter(item -> "pending".equals(item.status())
+							&& (item.fromUserId() == userId || item.toUserId() == userId))
+					.toList();
+		}
+
+		@Override
+		public void markTransfer(long id, String status) {
+			findTransfer(id).ifPresent(current -> {
+				transfers.remove(current);
+				transfers.add(new StoredTransfer(
+						current.id(), current.childId(), current.fromUserId(), current.toUserId(),
+						current.message(), status));
+			});
+		}
+
+		@Override
+		public void cancelTransfers(long childId) {
+			for (StoredTransfer transfer : List.copyOf(transfers)) {
+				if (transfer.childId() == childId && "pending".equals(transfer.status())) {
+					markTransfer(transfer.id(), "cancelled");
+				}
+			}
+		}
+
+		@Override
+		public void becomeReferent(long childId, long newReferentId, long previousReferentId) {
+			for (int i = 0; i < all.size(); i++) {
+				if (all.get(i).id() != childId) {
+					continue;
+				}
+				ChildSaved current = all.get(i);
+				all.set(i, new ChildSaved(
+						current.id(),
+						newReferentId,
+						current.firstName(),
+						current.lastName(),
+						current.sex(),
+						current.age(),
+						current.curriculum(),
+						current.grade(),
+						current.schoolId(),
+						current.avatarCode(),
+						current.hasPhoto(),
+						current.active()));
+				NewChild previous = inserted.get(i);
+				inserted.set(i, new NewChild(
+						newReferentId,
+						previous.firstName(),
+						previous.lastName(),
+						previous.sex(),
+						previous.age(),
+						previous.curriculum(),
+						previous.grade(),
+						previous.schoolId(),
+						previous.avatarCode(),
+						previous.photo(),
+						previous.photoContentType(),
+						previous.pinHash()));
+			}
+			shares.removeIf(share -> share.childId == childId && share.userId == newReferentId);
+			if (previousReferentId != newReferentId && !sharedHolder(childId, previousReferentId)) {
+				shares.add(new Share(childId, previousReferentId, false));
+			}
+		}
+
+		@Override
 		public void cancelDemandes(long referentId, String firstName, String lastName) {
 			for (StoredDemande demande : List.copyOf(demandes)) {
 				if (demande.referentId() == referentId

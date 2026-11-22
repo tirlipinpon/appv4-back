@@ -14,16 +14,19 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase;
+import com.appv4.auth.application.port.in.ParentChildrenUseCase.FicheHolder;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.InvitationReceipt;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.PendingInvitation;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.ShareRequestChild;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase.ShareRequestView;
+import com.appv4.auth.application.port.in.ParentChildrenUseCase.TransferView;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildSharePort;
 import com.appv4.auth.application.port.out.ChildSharePort.StoredDemande;
 import com.appv4.auth.application.port.out.ChildSharePort.StoredInvitation;
+import com.appv4.auth.application.port.out.ChildSharePort.StoredTransfer;
 import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
@@ -76,6 +79,9 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	public static final String ALREADY_HOLDS = "Ce parent a déjà cette fiche.";
 	public static final String WRONG_ACCOUNT = "Cette invitation ne s'adresse pas à ce compte.";
 	public static final String ONLY_REFERENT = "Seul le parent référent peut faire ça.";
+	public static final String MESSAGE_REQUIRED = "Le message est manquant.";
+	public static final String MESSAGE_TOO_LONG = "Le message doit faire au plus 200 caractères.";
+	public static final String TRANSFER_PENDING = "Un transfert est déjà en attente.";
 	public static final String EMAIL_REQUIRED = "L'email est manquant.";
 	public static final String DEMANDE_SENT = "Demande envoyée";
 	public static final String ALREADY_YOURS = "Cette fiche est déjà chez vous.";
@@ -291,6 +297,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
 		}
 		childSharePort.cancelPending(childId);
+		childSharePort.cancelTransfers(childId);
 		if (matching(parentUserId, current.firstName(), current.lastName()).isEmpty()) {
 			childSharePort.cancelDemandes(parentUserId, current.firstName(), current.lastName());
 		}
@@ -448,6 +455,116 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
 		}
 		childSharePort.markDemande(requestId, "cancelled");
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<FicheHolder> holders(long parentUserId, String activeRole, long childId) {
+		requireParent(activeRole);
+		requireReferent(parentUserId, childId);
+		List<FicheHolder> rows = new ArrayList<>();
+		for (long holderId : childSharePort.sharedHolderIds(childId)) {
+			rows.add(new FicheHolder(holderId, holderLabel(holderId)));
+		}
+		return rows;
+	}
+
+	@Override
+	@Transactional
+	public void startTransfer(
+			long parentUserId, String activeRole, long childId, long holderUserId, String message) {
+		requireParent(activeRole);
+		requireReferent(parentUserId, childId);
+		String text = message == null ? "" : message.trim();
+		if (text.isEmpty()) {
+			throw bad(MESSAGE_REQUIRED);
+		}
+		if (text.length() > 200) {
+			throw bad(MESSAGE_TOO_LONG);
+		}
+		if (childSharePort.pendingTransfer(childId).isPresent()) {
+			throw bad(TRANSFER_PENDING);
+		}
+		if (!childSharePort.sharedHolder(childId, holderUserId)) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+		childSharePort.saveTransfer(childId, parentUserId, holderUserId, text);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<TransferView> transfers(long parentUserId, String activeRole) {
+		requireParent(activeRole);
+		List<TransferView> rows = new ArrayList<>();
+		for (StoredTransfer transfer : childSharePort.transfersFor(parentUserId)) {
+			ChildSaved child = childPort.findOwned(parentUserId, transfer.childId()).orElse(null);
+			if (child == null) {
+				continue;
+			}
+			rows.add(new TransferView(
+					transfer.id(),
+					child.id(),
+					child.firstName(),
+					child.lastName(),
+					transfer.message(),
+					transfer.toUserId() == parentUserId));
+		}
+		return rows;
+	}
+
+	@Override
+	@Transactional
+	public void acceptTransfer(long parentUserId, String activeRole, long transferId) {
+		requireParent(activeRole);
+		StoredTransfer transfer = pendingTransfer(transferId);
+		if (transfer.toUserId() != parentUserId) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+		requireHolder(parentUserId, transfer.childId());
+		childSharePort.becomeReferent(transfer.childId(), parentUserId, transfer.fromUserId());
+		childSharePort.markTransfer(transferId, "accepted");
+	}
+
+	@Override
+	@Transactional
+	public void refuseTransfer(long parentUserId, String activeRole, long transferId) {
+		requireParent(activeRole);
+		StoredTransfer transfer = pendingTransfer(transferId);
+		if (transfer.toUserId() != parentUserId) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+		childSharePort.markTransfer(transferId, "refused");
+	}
+
+	@Override
+	@Transactional
+	public void cancelTransfer(long parentUserId, String activeRole, long transferId) {
+		requireParent(activeRole);
+		StoredTransfer transfer = pendingTransfer(transferId);
+		if (transfer.fromUserId() != parentUserId) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+		childSharePort.markTransfer(transferId, "cancelled");
+	}
+
+	private StoredTransfer pendingTransfer(long transferId) {
+		StoredTransfer transfer = childSharePort.findTransfer(transferId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
+		if (!"pending".equals(transfer.status())) {
+			throw new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN);
+		}
+		return transfer;
+	}
+
+	private String holderLabel(long holderId) {
+		AuthUserAccount account = accounts.findById(holderId).orElse(null);
+		if (account == null) {
+			return "";
+		}
+		if (blank(account.displayName())) {
+			return account.email();
+		}
+		return account.displayName().trim();
 	}
 
 	private StoredDemande pendingDemande(long requestId) {
@@ -677,7 +794,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				interests,
 				manages,
 				manages ? childSharePort.pendingCount(child.id()) : 0,
-				manages ? childSharePort.pendingDemandesForChild(viewerId, child.firstName(), child.lastName()) : 0);
+				manages ? childSharePort.pendingDemandesForChild(viewerId, child.firstName(), child.lastName()) : 0,
+				manages && childSharePort.pendingTransfer(child.id()).isPresent() ? 1 : 0);
 	}
 
 	private CharacterFace characterOf(StoredAvatar saved) {

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.ChildSharePort;
+import com.appv4.auth.application.port.out.ChildSharePort.StoredTransfer;
 
 /**
  * Persiste les détenteurs et les invitations d'une fiche (BACK-74).
@@ -24,16 +25,19 @@ public class ChildSharePersistenceAdapter implements ChildSharePort {
 	private final BackChildHolderJpaRepository holders;
 	private final BackChildInvitationJpaRepository invitations;
 	private final BackChildShareRequestJpaRepository demandes;
+	private final BackChildTransferJpaRepository transfers;
 
 	public ChildSharePersistenceAdapter(
 			BackChildJpaRepository children,
 			BackChildHolderJpaRepository holders,
 			BackChildInvitationJpaRepository invitations,
-			BackChildShareRequestJpaRepository demandes) {
+			BackChildShareRequestJpaRepository demandes,
+			BackChildTransferJpaRepository transfers) {
 		this.children = children;
 		this.holders = holders;
 		this.invitations = invitations;
 		this.demandes = demandes;
+		this.transfers = transfers;
 	}
 
 	@Override
@@ -169,6 +173,90 @@ public class ChildSharePersistenceAdapter implements ChildSharePort {
 				row.getReferentUserId(),
 				row.getFirstName(),
 				row.getLastName(),
+				row.getStatus());
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Long> sharedHolderIds(long childId) {
+		long parentId = children.findById(childId).map(BackChildEntity::getParentUserId).orElse(-1L);
+		return holders.findByChildId(childId).stream()
+				.map(BackChildHolderEntity::getUserId)
+				.filter(userId -> userId != parentId)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public boolean sharedHolder(long childId, long userId) {
+		return sharedHolderIds(childId).contains(userId);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<StoredTransfer> pendingTransfer(long childId) {
+		return transfers.findByChildIdAndStatus(childId, BackChildTransferEntity.PENDING).stream()
+				.findFirst()
+				.map(ChildSharePersistenceAdapter::toTransfer);
+	}
+
+	@Override
+	@Transactional
+	public StoredTransfer saveTransfer(long childId, long fromUserId, long toUserId, String message) {
+		BackChildTransferEntity saved = transfers.save(
+				new BackChildTransferEntity(childId, fromUserId, toUserId, message));
+		return toTransfer(saved);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<StoredTransfer> findTransfer(long id) {
+		return transfers.findById(id).map(ChildSharePersistenceAdapter::toTransfer);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<StoredTransfer> transfersFor(long userId) {
+		return transfers.findPendingForUser(userId).stream()
+				.map(ChildSharePersistenceAdapter::toTransfer)
+				.toList();
+	}
+
+	@Override
+	@Transactional
+	public void markTransfer(long id, String status) {
+		transfers.findById(id).ifPresent(row -> row.setStatus(status));
+	}
+
+	@Override
+	@Transactional
+	public void cancelTransfers(long childId) {
+		for (BackChildTransferEntity row : transfers.findByChildIdAndStatus(childId, BackChildTransferEntity.PENDING)) {
+			row.setStatus(BackChildTransferEntity.CANCELLED);
+		}
+	}
+
+	@Override
+	@Transactional
+	public void becomeReferent(long childId, long newReferentId, long previousReferentId) {
+		BackChildEntity child = children.findById(childId).orElseThrow();
+		holders.findByChildIdAndUserId(childId, previousReferentId)
+				.ifPresentOrElse(row -> row.setReferent(false), () -> {
+					if (previousReferentId != newReferentId) {
+						holders.save(new BackChildHolderEntity(childId, previousReferentId, false));
+					}
+				});
+		holders.findByChildIdAndUserId(childId, newReferentId).ifPresent(holders::delete);
+		child.assignParent(newReferentId);
+	}
+
+	private static StoredTransfer toTransfer(BackChildTransferEntity row) {
+		return new StoredTransfer(
+				row.getId(),
+				row.getChildId(),
+				row.getFromUserId(),
+				row.getToUserId(),
+				row.getMessage(),
 				row.getStatus());
 	}
 

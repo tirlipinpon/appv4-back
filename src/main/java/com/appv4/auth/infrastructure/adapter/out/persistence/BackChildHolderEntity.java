@@ -50,6 +50,10 @@ public class BackChildHolderEntity {
 		return referent;
 	}
 
+	public void setReferent(boolean referent) {
+		this.referent = referent;
+	}
+
 	public static final class Key implements java.io.Serializable {
 		private long childId;
 		private long userId;

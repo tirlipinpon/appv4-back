@@ -49,6 +49,10 @@ public class ConnectedAccountController {
 			@AuthenticationPrincipal AuthenticatedUser principal) {
 		AuthenticatedUser user = CurrentAuth.require(principal);
 		ConnectedBanner banner = connectedAccountUseCase.banner(user.userId());
-		return ResponseEntity.ok(new ConnectedAccountResponse(banner.displayName(), banner.avatarCode()));
+		return ResponseEntity.ok(new ConnectedAccountResponse(
+				banner.displayName(),
+				banner.avatarCode(),
+				banner.askRecoveryContact(),
+				banner.recoveryPrompt()));
 	}
 }

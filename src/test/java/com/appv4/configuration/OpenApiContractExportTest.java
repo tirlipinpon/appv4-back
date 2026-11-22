@@ -51,6 +51,8 @@ class OpenApiContractExportTest {
 				.contains("recoverIdentifier")
 				.contains("/api/int/auth/reset-password")
 				.contains("/api/int/auth/me")
+				.contains("/api/int/auth/recovery-prompt")
+				.contains("answerRecoveryPrompt")
 				.contains("/api/int/auth/spaces")
 				.contains("/api/int/auth/spaces/parent")
 				.contains("/api/int/auth/spaces/teacher")

@@ -65,6 +65,13 @@ public class BackUserEntity {
 	@Column(name = "initial_roles_completed", nullable = false)
 	private boolean initialRolesCompleted = false;
 
+	/**
+	 * La sollicitation téléphone / mail de contact a déjà été montrée.
+	 * Rester faux tant que la personne ne l'a ni passée ni enregistrée.
+	 */
+	@Column(name = "recovery_prompt_seen", nullable = false)
+	private boolean recoveryPromptSeen = false;
+
 	/** Dernier espace ouvert : {@code parent}, {@code teacher}, ou null (SCRUM-124). */
 	@Column(name = "last_active_role", length = 32)
 	private String lastActiveRole;
@@ -165,6 +172,14 @@ public class BackUserEntity {
 
 	public void setInitialRolesCompleted(boolean initialRolesCompleted) {
 		this.initialRolesCompleted = initialRolesCompleted;
+	}
+
+	public boolean isRecoveryPromptSeen() {
+		return recoveryPromptSeen;
+	}
+
+	public void setRecoveryPromptSeen(boolean recoveryPromptSeen) {
+		this.recoveryPromptSeen = recoveryPromptSeen;
 	}
 
 	public String getLastActiveRole() {

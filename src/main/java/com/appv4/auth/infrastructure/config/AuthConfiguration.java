@@ -44,6 +44,7 @@ import com.appv4.auth.application.port.in.CompleteRolesUseCase;
 import com.appv4.auth.application.port.in.ConnectedAccountUseCase;
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
 import com.appv4.auth.application.port.in.RecoverIdentifierUseCase;
+import com.appv4.auth.application.port.in.RecoveryPromptUseCase;
 import com.appv4.auth.application.port.in.AskChildHumeurUseCase;
 import com.appv4.auth.application.port.in.HumeurLibraryUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
@@ -75,6 +76,7 @@ import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.RecoveryAccountPort;
+import com.appv4.auth.application.port.out.RecoveryPromptPort;
 import com.appv4.auth.application.port.out.ChildDailyMissionPort;
 import com.appv4.auth.application.port.out.ChildSubjectBoardPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
@@ -106,6 +108,7 @@ import com.appv4.auth.application.service.CompleteRolesService;
 import com.appv4.auth.application.service.ConnectedAccountService;
 import com.appv4.auth.application.service.ForgotPasswordService;
 import com.appv4.auth.application.service.RecoverIdentifierService;
+import com.appv4.auth.application.service.RecoveryPromptService;
 import com.appv4.auth.application.service.IssueJwtService;
 import com.appv4.auth.application.service.LoginWithAppleService;
 import com.appv4.auth.application.service.ResumeAppleOAuthCallbackService;
@@ -712,9 +715,23 @@ public class AuthConfiguration {
 	 * Nom du compte connecté, lu par l'en-tête parent ou professeur.
 	 * Même nom quand la personne change d'espace : c'est le compte, pas le rôle.
 	 */
+	/**
+	 * Sollicitation du téléphone et du mail de contact.
+	 *
+	 * <p><b>Business :</b> une seule fois, si l'une des deux infos manque.
+	 * <p><b>Technique :</b> marque sur le compte. La fiche ne la pose pas.
+	 * <p><b>Métier / flow :</b> bean du port in lu par /auth/me et écrit par /auth/recovery-prompt.
+	 */
 	@Bean
-	ConnectedAccountUseCase connectedAccountUseCase(AuthUserAccountPort authUserAccountPort) {
-		return new ConnectedAccountService(authUserAccountPort);
+	RecoveryPromptUseCase recoveryPromptUseCase(RecoveryPromptPort recoveryPromptPort) {
+		return new RecoveryPromptService(recoveryPromptPort);
+	}
+
+	@Bean
+	ConnectedAccountUseCase connectedAccountUseCase(
+			AuthUserAccountPort authUserAccountPort,
+			RecoveryPromptUseCase recoveryPromptUseCase) {
+		return new ConnectedAccountService(authUserAccountPort, recoveryPromptUseCase);
 	}
 
 	@Bean

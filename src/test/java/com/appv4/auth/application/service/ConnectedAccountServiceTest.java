@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.in.RecoveryPromptUseCase;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 
@@ -20,7 +21,7 @@ class ConnectedAccountServiceTest {
 	void returnsTheNameOfTheConnectedAccount() {
 		AuthUserAccountPort accounts = mock(AuthUserAccountPort.class);
 		when(accounts.findById(4L)).thenReturn(Optional.of(new AuthUserAccount(4L, "anne@example.com", "Anne", true)));
-		ConnectedAccountService service = new ConnectedAccountService(accounts);
+		ConnectedAccountService service = new ConnectedAccountService(accounts, mock(RecoveryPromptUseCase.class));
 
 		assertThat(service.displayName(4L)).isEqualTo("Anne");
 	}
@@ -29,7 +30,7 @@ class ConnectedAccountServiceTest {
 	void missingAccountIsNotFound() {
 		AuthUserAccountPort accounts = mock(AuthUserAccountPort.class);
 		when(accounts.findById(4L)).thenReturn(Optional.empty());
-		ConnectedAccountService service = new ConnectedAccountService(accounts);
+		ConnectedAccountService service = new ConnectedAccountService(accounts, mock(RecoveryPromptUseCase.class));
 
 		assertThatThrownBy(() -> service.displayName(4L))
 				.isInstanceOf(AuthDomainException.class)

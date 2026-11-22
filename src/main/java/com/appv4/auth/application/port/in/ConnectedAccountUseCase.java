@@ -23,6 +23,14 @@ public interface ConnectedAccountUseCase {
 	/**
 	 * @param avatarCode code du catalogue, ou null
 	 */
-	record ConnectedBanner(String displayName, String avatarCode) {
+	/**
+	 * @param askRecoveryContact vrai s'il faut encore poser la question
+	 * @param recoveryPrompt     phrase à montrer, absente sinon
+	 */
+	record ConnectedBanner(
+			String displayName,
+			String avatarCode,
+			boolean askRecoveryContact,
+			String recoveryPrompt) {
 	}
 }

@@ -3,6 +3,7 @@ package com.appv4.auth.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -455,6 +456,47 @@ class ChildBadgesTest {
 
 		assertThat(badges.badges("lea").badges().get(4).level()).isZero();
 		assertThat(badges.badges("lea").badges().get(6).level()).isZero();
+	}
+
+	@Test
+	void collectionReadsOneHistoryForBothLevelAndCurrentStreak() {
+		Instant afterMidnightInParis = Instant.parse("2026-11-20T23:15:00Z");
+		for (int i = 10_000; i > 0; i--) {
+			history.add(new AttemptTrace(1L, afterMidnightInParis.minusSeconds(i), null, false, null));
+		}
+		history.add(new AttemptTrace(1L, afterMidnightInParis, QuestionMark.BLACK, false, false));
+		history.add(new AttemptTrace(1L, afterMidnightInParis.plusSeconds(1), QuestionMark.YELLOW, true, true));
+		history.add(new AttemptTrace(2L, afterMidnightInParis.plusSeconds(2), QuestionMark.YELLOW, true, true));
+		history.add(new AttemptTrace(3L, afterMidnightInParis.plusSeconds(3), QuestionMark.YELLOW, true, true));
+		history.add(new AttemptTrace(3L, afterMidnightInParis.plusSeconds(4), QuestionMark.YELLOW, false, false));
+
+		ChildBadgesView view = badges.badges("lea");
+
+		Badge streak = view.badges().get(4);
+		assertThat(streak.level()).isEqualTo(1);
+		assertThat(streak.retainedValue()).isEqualTo(3);
+		assertThat(streak.progressValue()).isZero();
+		assertThat(streak.unlockedOn()).isEqualTo(TODAY);
+		Badge recovery = view.badges().get(3);
+		assertThat(recovery.retainedValue()).isEqualTo(1);
+		assertThat(recovery.unlockedOn()).isEqualTo(TODAY);
+		verify(attempts).traces(7L);
+	}
+
+	@Test
+	void recordingACompletedMissionDoesNotReloadTheHistoryJustReadForTheAttempt() {
+		badges.beforeAttempt(7L);
+		history.add(trace(1L, 21, QuestionMark.YELLOW, true, true));
+		badges.afterAttempt(7L, 4L, 1L, QuestionMark.NONE, QuestionMark.YELLOW);
+		missionPort.missions.add(doneMission(TODAY));
+
+		badges.noteMission(7L);
+
+		verify(attempts).traces(7L);
+		missionPort.missions.clear();
+		Badge missionBadge = badges.badges("lea").badges().get(8);
+		assertThat(missionBadge.level()).isEqualTo(1);
+		assertThat(missionBadge.unlockedOn()).isEqualTo(TODAY);
 	}
 
 	@Test

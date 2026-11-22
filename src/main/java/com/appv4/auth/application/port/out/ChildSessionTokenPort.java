@@ -1,5 +1,6 @@
 package com.appv4.auth.application.port.out;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import com.appv4.auth.application.result.JwtTokenResult;
@@ -18,6 +19,14 @@ public interface ChildSessionTokenPort {
 	JwtTokenResult issue(long childId, String firstName);
 
 	Optional<ChildSession> read(String rawToken);
+
+	/**
+	 * Instant de cette connexion, lu dans le jeton.
+	 * Vide si le jeton ne le porte pas : le délai seul décide alors.
+	 */
+	default Optional<Instant> issuedAt(String rawToken) {
+		return Optional.empty();
+	}
 
 	/** Identité lue dans un jeton enfant encore signé et non expiré. */
 	record ChildSession(long childId) {

@@ -19,8 +19,9 @@ public interface AskChildHumeurUseCase {
 	StoredAnswer answer(String rawToken, Long choiceId, Boolean closed);
 
 	/**
+	 * @param message phrase à montrer, absente quand on ne demande pas
 	 * @param choices vide quand {@code ask} est faux
 	 */
-	record Prompt(boolean ask, List<HumeurChoice> choices) {
+	record Prompt(boolean ask, String message, List<HumeurChoice> choices) {
 	}
 }

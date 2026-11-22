@@ -56,26 +56,41 @@ public class JjwtChildSessionAdapter implements ChildSessionTokenPort {
 	}
 
 	@Override
+	public Optional<Instant> issuedAt(String rawToken) {
+		return claims(rawToken).map(payload -> payload.getIssuedAt().toInstant());
+	}
+
+	@Override
 	public Optional<ChildSession> read(String rawToken) {
+		return claims(rawToken).map(payload -> {
+			String subject = payload.getSubject();
+			long childId = Long.parseLong(subject.substring(SUBJECT_PREFIX.length()));
+			return new ChildSession(childId);
+		});
+	}
+
+	private Optional<Claims> claims(String rawToken) {
 		if (rawToken == null || rawToken.isBlank()) {
 			return Optional.empty();
 		}
 		try {
-			Claims claims = Jwts.parser()
+			Claims payload = Jwts.parser()
 					.verifyWith(secretKey)
 					.requireIssuer(properties.getIssuer())
 					.build()
 					.parseSignedClaims(rawToken)
 					.getPayload();
-			if (!KIND.equals(claims.get("kind", String.class))) {
+			if (!KIND.equals(payload.get("kind", String.class))) {
 				return Optional.empty();
 			}
-			String subject = claims.getSubject();
+			String subject = payload.getSubject();
 			if (subject == null || !subject.startsWith(SUBJECT_PREFIX)) {
 				return Optional.empty();
 			}
-			long childId = Long.parseLong(subject.substring(SUBJECT_PREFIX.length()));
-			return Optional.of(new ChildSession(childId));
+			if (payload.getIssuedAt() == null) {
+				return Optional.empty();
+			}
+			return Optional.of(payload);
 		} catch (JwtException | IllegalArgumentException ex) {
 			return Optional.empty();
 		}

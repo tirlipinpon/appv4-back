@@ -34,6 +34,7 @@ public class AskChildHumeurService implements AskChildHumeurUseCase {
 	static final String INVALID_SESSION_MESSAGE = LoginChildService.INVALID_SESSION_MESSAGE;
 	static final String NOT_A_CHOICE = "Ce choix n'est plus proposé.";
 	static final String ONE_SHAPE = "Un envoi est un choix ou une fermeture.";
+	static final String MESSAGE = "Comment tu te sens ?";
 
 	private static final Duration WEEK = Duration.ofHours(7 * 24);
 	private static final Duration SOON = Duration.ofHours(24);
@@ -69,10 +70,10 @@ public class AskChildHumeurService implements AskChildHumeurUseCase {
 	public Prompt ask(String rawToken) {
 		long childId = requireActiveChild(rawToken);
 		List<HumeurChoice> library = choices.list();
-		if (library.isEmpty() || !due(childId, clock.instant())) {
-			return new Prompt(false, List.of());
+		if (library.isEmpty() || !due(childId, rawToken, clock.instant())) {
+			return new Prompt(false, null, List.of());
 		}
-		return new Prompt(true, library);
+		return new Prompt(true, MESSAGE, library);
 	}
 
 	@Override
@@ -92,9 +93,13 @@ public class AskChildHumeurService implements AskChildHumeurUseCase {
 		return answers.insert(childId, choice.id(), choice.icon(), choice.word(), false, clock.instant());
 	}
 
-	private boolean due(long childId, Instant now) {
+	private boolean due(long childId, String rawToken, Instant now) {
 		Optional<StoredAnswer> latest = answers.latest(childId);
 		if (latest.isEmpty()) {
+			return true;
+		}
+		Optional<Instant> connectedAt = connectedAt(rawToken);
+		if (connectedAt.isPresent() && latest.get().answeredAt().isBefore(connectedAt.get())) {
 			return true;
 		}
 		Duration wait = switch (trend(childId, now)) {
@@ -148,6 +153,15 @@ public class AskChildHumeurService implements AskChildHumeurUseCase {
 
 	private static long points(int passed, int total) {
 		return passed * THOUSANDTHS / total;
+	}
+
+	private Optional<Instant> connectedAt(String rawToken) {
+		try {
+			Optional<Instant> issued = sessions.issuedAt(rawToken);
+			return issued == null ? Optional.empty() : issued;
+		} catch (RuntimeException ex) {
+			return Optional.empty();
+		}
 	}
 
 	private long requireActiveChild(String rawToken) {

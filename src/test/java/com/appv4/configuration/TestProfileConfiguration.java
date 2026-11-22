@@ -30,6 +30,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
+import com.appv4.auth.application.port.out.HumeurChoicePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherSubjectPort;
@@ -91,6 +92,12 @@ public class TestProfileConfiguration {
 	@Bean
 	TeacherModerationPort teacherModerationPort() {
 		return mock(TeacherModerationPort.class);
+	}
+
+	/** Bibliothèque des humeurs (BACK-68). Pas de Postgres dans les tests web. */
+	@Bean
+	HumeurChoicePort humeurChoicePort() {
+		return mock(HumeurChoicePort.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
 	@Bean

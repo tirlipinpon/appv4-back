@@ -2,6 +2,7 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -51,11 +52,39 @@ class AskChildHumeurServiceTest {
 		when(sessions.read("akira")).thenReturn(Optional.of(new ChildSession(7L)));
 		when(sessions.read("nao")).thenReturn(Optional.of(new ChildSession(8L)));
 		when(sessions.read("")).thenReturn(Optional.empty());
+		when(sessions.issuedAt(anyString())).thenReturn(Optional.empty());
 		when(children.findActiveById(7L)).thenReturn(Optional.of(new ChildLoginCandidate(7L, "Akira", "hash")));
 		when(children.findActiveById(8L)).thenReturn(Optional.of(new ChildLoginCandidate(8L, "Nao", "hash")));
 		when(attempts.traces(7L)).thenAnswer(invocation -> List.copyOf(traces));
 		when(attempts.traces(8L)).thenReturn(List.of());
 		humeur = new AskChildHumeurService(sessions, children, attempts, choices, answers, clock);
+	}
+
+	@Test
+	void uneConnexionMontreLeMessageMemeSiLeDelaiNestPasFini() {
+		choices.insert(null, "calme");
+		when(sessions.issuedAt("akira")).thenReturn(Optional.of(NOW));
+		clock.plus(Duration.ofHours(-2));
+		humeur.answer("akira", choices.list().get(0).id(), null);
+		clock.plus(Duration.ofHours(2));
+		presqueBaisseAt(NOW);
+
+		Prompt prompt = humeur.ask("akira");
+
+		assertThat(prompt.ask()).isTrue();
+		assertThat(prompt.message()).isEqualTo("Comment tu te sens ?");
+		assertThat(prompt.choices()).extracting(HumeurChoice::word).containsExactly("calme");
+	}
+
+	@Test
+	void apresLaReponseDeCetteConnexionLeDelaiReprend() {
+		choices.insert(null, "calme");
+		when(sessions.issuedAt("akira")).thenReturn(Optional.of(NOW.minus(Duration.ofMinutes(5))));
+		humeur.answer("akira", choices.list().get(0).id(), null);
+		presqueBaisseAt(NOW.plus(Duration.ofMinutes(1)));
+		clock.plus(Duration.ofMinutes(1));
+
+		assertThat(humeur.ask("akira").ask()).isFalse();
 	}
 
 	@Test

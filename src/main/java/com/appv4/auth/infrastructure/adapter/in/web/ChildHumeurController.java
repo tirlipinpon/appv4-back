@@ -53,7 +53,7 @@ public class ChildHumeurController {
 		List<ChildHumeurChoiceItem> choices = prompt.choices().stream()
 				.map(ChildHumeurController::toItem)
 				.toList();
-		return ResponseEntity.ok(new ChildHumeurPromptResponse(prompt.ask(), choices));
+		return ResponseEntity.ok(new ChildHumeurPromptResponse(prompt.ask(), prompt.message(), choices));
 	}
 
 	@PostMapping
@@ -94,7 +94,8 @@ public class ChildHumeurController {
 	public record ChildHumeurChoiceItem(long id, String icon, String word) {
 	}
 
+	@JsonInclude(JsonInclude.Include.NON_NULL)
 	@Schema(name = "ChildHumeurPromptResponse")
-	public record ChildHumeurPromptResponse(boolean ask, List<ChildHumeurChoiceItem> choices) {
+	public record ChildHumeurPromptResponse(boolean ask, String message, List<ChildHumeurChoiceItem> choices) {
 	}
 }

@@ -3,6 +3,8 @@ package com.appv4.auth.infrastructure.adapter.out.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -31,18 +33,25 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.appv4.auth.application.service.UpdateChildProgressAfterAttemptService;
 import com.appv4.auth.application.service.ChildBadgeProgress;
 import com.appv4.auth.application.service.ChildDailyMissionService;
+import com.appv4.auth.application.service.ChildLessonMembership;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
+import com.appv4.auth.application.service.ReadChildSubjectBoardService;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.Simon;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.Submission;
+import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase.Text;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort.ChildSession;
+import com.appv4.auth.application.port.out.ChildSubjectBoardPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.QuestionSummary;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGamification;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimon;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimonElement;
@@ -120,7 +129,12 @@ class ChildProgressConcurrencyIT {
 			JdbcClient client = JdbcClient.create(jdbc);
 			var challenges = new ChildSimonChallengeAdapter(client);
 			var attemptPort = new ChildQuestionAttemptPersistenceAdapter(attempts, answers, client);
-			var game = game(fixture, challenges, attemptPort);
+			var question = new StoredQuestion(fixture.question(), fixture.subject(), "simon", "",
+					new StoredSimon("nombres", List.of(
+							new StoredSimonElement(1L, "1", null),
+							new StoredSimonElement(2L, "2", null),
+							new StoredSimonElement(3L, "3", null))));
+			var game = play(fixture, challenges, attemptPort, question, 1, mock(ChildBadgeProgress.class)).game();
 			List<Integer> firstSequence = List.of(0, 1, 2);
 			var firstId = challenges.issue(fixture.child(), fixture.question(), firstSequence, false);
 			var secondId = challenges.issue(fixture.child(), fixture.question(), List.of(2, 1, 0), false);
@@ -153,8 +167,47 @@ class ChildProgressConcurrencyIT {
 		}
 	}
 
-	private ChildQuestionPlayService game(Fixture fixture, ChildSimonChallengeAdapter challenges,
-			ChildQuestionAttemptPersistenceAdapter attemptPort) {
+	@Test
+	void submit_finishesLessonOnce_whenTwoDistinctPagesAreAcceptedAfterFailure() {
+		long user = user();
+		try {
+			Fixture fixture = seed(user, "texte");
+			JdbcClient client = JdbcClient.create(jdbc);
+			var attemptPort = new ChildQuestionAttemptPersistenceAdapter(attempts, answers, client);
+			var badges = mock(ChildBadgeProgress.class);
+			var question = new StoredQuestion(fixture.question(), fixture.subject(), "texte", "Capitale de la France",
+					new StoredFreeText("Paris"));
+			Play play = play(fixture, new ChildSimonChallengeAdapter(client), attemptPort, question, 2, badges);
+
+			UUID failedPage = UUID.randomUUID();
+			send(play.game(), fixture, text(failedPage, "Lyon"));
+			send(play.game(), fixture, text(failedPage, "Lyon"));
+			UUID acceptedPage = UUID.randomUUID();
+			assertThat(send(play.game(), fixture, text(acceptedPage, "Paris")).passed()).isTrue();
+			ChildAttemptResultView replay = send(play.game(), fixture, text(acceptedPage, "Paris"));
+			assertThat(replay.passed()).isTrue();
+			assertThat(replay.lessonFinishedLabel()).isNull();
+			assertThat(play.board().board("fixture", fixture.subject()).lesson().remainingCount()).isEqualTo(1);
+			verify(badges, never()).noteLessonEmptied(fixture.child());
+
+			Submission acceptedOnAnotherPage = text(UUID.randomUUID(), "Paris");
+			ChildAttemptResultView verdict = send(play.game(), fixture, acceptedOnAnotherPage);
+			assertThat(verdict.lessonFinishedLabel()).isEqualTo("Leçon finie.");
+			assertThat(play.board().board("fixture", fixture.subject()).lesson().remainingCount()).isZero();
+			assertThat(send(play.game(), fixture, acceptedOnAnotherPage)).isEqualTo(verdict);
+			verify(badges).noteLessonEmptied(fixture.child());
+		} finally {
+			jdbc.update("delete from back_users where id = ?", user);
+		}
+	}
+
+	private static Submission text(UUID page, String answer) {
+		return new Submission("texte", new Text(answer), UUID.randomUUID(), null, page);
+	}
+
+	private Play play(Fixture fixture, ChildSimonChallengeAdapter challenges,
+			ChildQuestionAttemptPersistenceAdapter attemptPort, StoredQuestion question, int maxAttempts,
+			ChildBadgeProgress badges) {
 		var child = mock(ChildLoginPort.class);
 		when(child.findActiveById(fixture.child()))
 				.thenReturn(Optional.of(new ChildLoginCandidate(fixture.child(), "Test", "hash")));
@@ -165,15 +218,20 @@ class ChildProgressConcurrencyIT {
 		when(subjects.visibleByIds(List.of(fixture.subject())))
 				.thenReturn(List.of(new CatalogSubject(fixture.subject(), "Test", "Test", 1L, "CE1", "math")));
 		var questions = mock(TeacherQuestionPort.class);
-		when(questions.findInSubject(fixture.subject(), fixture.question()))
-				.thenReturn(Optional.of(new StoredQuestion(fixture.question(), fixture.subject(), "simon", "",
-						new StoredSimon("nombres", List.of(
-								new StoredSimonElement(1L, "1", null),
-								new StoredSimonElement(2L, "2", null),
-								new StoredSimonElement(3L, "3", null))))));
+		when(questions.findInSubject(fixture.subject(), fixture.question())).thenReturn(Optional.of(question));
+		when(questions.findSummariesBySubject(fixture.subject(), 0L, 100))
+				.thenReturn(List.of(new QuestionSummary(question.id(), question.formCode(), question.prompt())));
+		when(questions.gamificationOf(fixture.question()))
+				.thenReturn(new StoredGamification(maxAttempts, "facile", false, false, List.of()));
 		var progress = new UpdateChildProgressAfterAttemptService(adapter, Clock.systemUTC());
-		return new ChildQuestionPlayService(child, session, subjects, questions, attemptPort, challenges,
-				progress, mock(ChildDailyMissionService.class), mock(ChildBadgeProgress.class));
+		var lesson = new ChildLessonMembership(questions, attemptPort);
+		return new Play(
+				new ChildQuestionPlayService(child, session, subjects, questions, attemptPort, challenges,
+						progress, mock(ChildDailyMissionService.class), badges, lesson),
+				new ReadChildSubjectBoardService(child, session, subjects, mock(ChildSubjectBoardPort.class), lesson));
+	}
+
+	private record Play(ChildQuestionPlayService game, ReadChildSubjectBoardService board) {
 	}
 
 	private ChildAttemptResultView send(ChildQuestionPlayService game, Fixture fixture, Submission submission) {

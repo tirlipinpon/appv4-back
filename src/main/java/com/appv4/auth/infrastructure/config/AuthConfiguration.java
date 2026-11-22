@@ -117,6 +117,7 @@ import com.appv4.auth.application.service.TeacherProfileService;
 import com.appv4.auth.application.service.TeacherStudentsService;
 import com.appv4.auth.application.service.TeacherQuestionService;
 import com.appv4.auth.application.service.ChildDailyMissionService;
+import com.appv4.auth.application.service.ChildLessonMembership;
 import com.appv4.auth.application.service.ReadChildSubjectBoardService;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
 import com.appv4.auth.application.service.ReadChildFeaturedQuestionsService;
@@ -507,6 +508,12 @@ public class AuthConfiguration {
 				childLoginPort, childSessionTokenPort, childProgressPort, clock);
 	}
 
+	@Bean
+	ChildLessonMembership childLessonMembership(
+			TeacherQuestionPort teacherQuestionPort, ChildQuestionAttemptPort childQuestionAttemptPort) {
+		return new ChildLessonMembership(teacherQuestionPort, childQuestionAttemptPort);
+	}
+
 	/**
 	 * Board matière enfant (BACK-33).
 	 */
@@ -516,11 +523,10 @@ public class AuthConfiguration {
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildSubjectPort childSubjectPort,
 			ChildSubjectBoardPort childSubjectBoardPort,
-			TeacherQuestionPort teacherQuestionPort,
-			ChildQuestionAttemptPort childQuestionAttemptPort) {
+			ChildLessonMembership childLessonMembership) {
 		return new ReadChildSubjectBoardService(
 				childLoginPort, childSessionTokenPort, childSubjectPort, childSubjectBoardPort,
-				teacherQuestionPort, childQuestionAttemptPort);
+				childLessonMembership);
 	}
 
 	/**
@@ -565,7 +571,8 @@ public class AuthConfiguration {
 			ChildSimonChallengePort childSimonChallengePort,
 			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService,
 			ChildDailyMissionService childDailyMissionService,
-			ChildBadgeProgress childBadgeProgress) {
+			ChildBadgeProgress childBadgeProgress,
+			ChildLessonMembership childLessonMembership) {
 		return new ChildQuestionPlayService(
 				childLoginPort,
 				childSessionTokenPort,
@@ -575,7 +582,8 @@ public class AuthConfiguration {
 				childSimonChallengePort,
 				updateChildProgressAfterAttemptService,
 				childDailyMissionService,
-				childBadgeProgress);
+				childBadgeProgress,
+				childLessonMembership);
 	}
 
 	/**

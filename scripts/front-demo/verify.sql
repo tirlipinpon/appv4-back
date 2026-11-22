@@ -85,5 +85,11 @@ DO $$ BEGIN
   JOIN dev_front_demo.roots r ON r.kind='subject' AND r.id=q.subject_id
   WHERE q.form_code <> 'simon' OR cardinality(c.sequence) NOT BETWEEN 3 AND 8
  ) THEN RAISE EXCEPTION 'Invalid Simon challenge on a demo question'; END IF;
+ IF EXISTS (
+  SELECT 1 FROM back_child_attempts a
+  JOIN dev_front_demo.roots r ON r.kind='subject' AND r.id=a.subject_id
+  WHERE a.lesson_finished
+  GROUP BY a.child_id,a.play_id HAVING count(*)>1
+ ) THEN RAISE EXCEPTION 'Multiple lesson finishes on the same page'; END IF;
 END $$;
 SELECT 'Demo integrity OK' AS result;

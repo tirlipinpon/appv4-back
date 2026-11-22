@@ -12,7 +12,6 @@ import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.NewAttempt;
-import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageAttempt;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredAttempt;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
@@ -21,7 +20,6 @@ import com.appv4.auth.application.port.out.ChildSimonChallengePort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.QuestionMark;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
-import com.appv4.auth.application.port.out.TeacherQuestionPort.QuestionSummary;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.result.ChildAttemptResultView;
 import com.appv4.auth.application.result.ChildLetterLocksView;
@@ -60,6 +58,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 	private final UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService;
 	private final ChildDailyMissionService childDailyMissionService;
 	private final ChildBadgeProgress childBadgeProgress;
+	private final ChildLessonMembership childLessonMembership;
 
 	public ChildQuestionPlayService(
 			ChildLoginPort childLoginPort, ChildSessionTokenPort childSessionTokenPort, ChildSubjectPort childSubjectPort,
@@ -67,7 +66,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			ChildSimonChallengePort childSimonChallengePort,
 			UpdateChildProgressAfterAttemptService updateChildProgressAfterAttemptService,
 			ChildDailyMissionService childDailyMissionService,
-			ChildBadgeProgress childBadgeProgress) {
+			ChildBadgeProgress childBadgeProgress,
+			ChildLessonMembership childLessonMembership) {
 		this.childLoginPort = childLoginPort;
 		this.childSessionTokenPort = childSessionTokenPort;
 		this.childSubjectPort = childSubjectPort;
@@ -77,6 +77,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		this.updateChildProgressAfterAttemptService = updateChildProgressAfterAttemptService;
 		this.childDailyMissionService = childDailyMissionService;
 		this.childBadgeProgress = childBadgeProgress;
+		this.childLessonMembership = childLessonMembership;
 	}
 
 	@Override
@@ -106,8 +107,8 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 	@Transactional
 	public ChildAttemptResultView submit(String rawToken, long subjectId, long questionId, Submission submission) {
 		long childId = requireLinkedChild(rawToken, subjectId);
-		Optional<StoredAttempt> previous = submission.submissionId() == null ? Optional.empty()
-				: childQuestionAttemptPort.lockAndFind(childId, submission.submissionId());
+		Optional<StoredAttempt> previous = submission.playId() == null && submission.submissionId() == null
+				? Optional.empty() : childQuestionAttemptPort.lockAndFind(childId, submission.submissionId());
 		if (previous.isPresent()) {
 			StoredAttempt stored = previous.get();
 			if (stored.questionId() != questionId || stored.subjectId() != subjectId) {
@@ -142,14 +143,16 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 				&& childDailyMissionService.subjectTaskHasRoom(childId, subjectId);
 		boolean pay = grade.passed() && (!alreadyYellow || missionPaysYellow);
 		int points = pay ? scale.points().get(seat.rank() - 1) : 0;
-		int lessonBefore = lessonRemaining(childId, subjectId);
+		boolean lessonFinished = grade.passed()
+				&& childLessonMembership.finishesOnAcceptance(childId, subjectId, questionId, submission.playId());
 		childBadgeProgress.beforeAttempt(childId);
 		if (mark != QuestionMark.NONE && (yellowCount != before.yellowCount() || mark != before.code())) {
 			childQuestionAttemptPort.saveMark(childId, questionId, mark, yellowCount);
 		}
 		StoredAttempt saved = childQuestionAttemptPort.insert(new NewAttempt(
 				childId, subjectId, questionId, question.formCode(), grade.scorePercent(), grade.passed(), grade.answers(),
-				submission.submissionId(), seat.rank(), seat.attemptsRemaining(), points, mark, yellowCount, pay));
+				submission.submissionId(), submission.playId(), seat.rank(), seat.attemptsRemaining(),
+				points, mark, yellowCount, pay, lessonFinished));
 		childBadgeProgress.afterAttempt(childId, subjectId, questionId, before.code(), mark);
 		if (pay) {
 			updateChildProgressAfterAttemptService.apply(childId, saved.scorePercent());
@@ -158,14 +161,10 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 			childDailyMissionService.recordUsefulAttempt(childId, subjectId, saved.scorePercent(), saved.passed());
 		}
 		childBadgeProgress.noteMission(childId);
-		String lessonFinishedLabel = ChildLessonMembership.finishedLabel(
-				lessonBefore, lessonRemaining(childId, subjectId));
-		if (lessonFinishedLabel != null) {
+		if (lessonFinished) {
 			childBadgeProgress.noteLessonEmptied(childId);
 		}
-		return new ChildAttemptResultView(
-				saved.id(), grade.scorePercent(), grade.passed(), seat.rank(), seat.attemptsRemaining(), points,
-				seat.attemptsRemaining() > 0, mark, yellowCount, lessonFinishedLabel);
+		return result(saved);
 	}
 
 	@Override
@@ -216,29 +215,6 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 						stored.gamificationDisabled(), stored.customPoints());
 	}
 
-	private int lessonRemaining(long childId, long subjectId) {
-		List<QuestionSummary> questions = summaries(subjectId);
-		List<PageAttempt> pages = childQuestionAttemptPort.pageAttempts(childId, subjectId);
-		return ChildLessonMembership.of(questions, childQuestionAttemptPort.marksFor(
-				childId, questions.stream().map(QuestionSummary::id).toList()), pages).remainingCount();
-	}
-
-	private List<QuestionSummary> summaries(long subjectId) {
-		List<QuestionSummary> all = new java.util.ArrayList<>();
-		long afterId = 0;
-		while (true) {
-			List<QuestionSummary> page = teacherQuestionPort.findSummariesBySubject(subjectId, afterId, 100);
-			if (page == null || page.isEmpty()) {
-				return all;
-			}
-			all.addAll(page);
-			afterId = page.get(page.size() - 1).id();
-			if (page.size() < 100) {
-				return all;
-			}
-		}
-	}
-
 	private PageClaim seat(
 			long childId, long subjectId, long questionId, Submission submission, QuestionGamification.Resolved scale) {
 		return childQuestionAttemptPort
@@ -258,7 +234,7 @@ public class ChildQuestionPlayService implements ChildQuestionPlayUseCase {
 		int yellowCount = attempt.yellowCount() == null ? 0 : attempt.yellowCount();
 		return new ChildAttemptResultView(
 				attempt.id(), attempt.scorePercent(), attempt.passed(), rank, remaining, points, remaining > 0,
-				mark, yellowCount, null);
+				mark, yellowCount, attempt.lessonFinished() ? ChildLessonMembership.FINISHED_LABEL : null);
 	}
 
 	private StoredQuestion requireQuestion(long subjectId, long questionId) {

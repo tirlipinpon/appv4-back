@@ -18,7 +18,10 @@ public interface ChildQuestionAttemptPort {
 
 	StoredAttempt insert(NewAttempt attempt);
 
-	/** Sérialise les soumissions rejouables de cet enfant jusqu'à la fin de la transaction. */
+	/**
+	 * Sérialise les essais de l'enfant jusqu'à la fin de la transaction.
+	 * Sans identifiant de soumission, seul le verrou est pris.
+	 */
 	Optional<StoredAttempt> lockAndFind(long childId, UUID submissionId);
 
 	/**
@@ -113,11 +116,9 @@ public interface ChildQuestionAttemptPort {
 	}
 
 	record PageAttempt(
-			long id,
 			long questionId,
-			Instant createdAt,
+			UUID playId,
 			boolean passed,
-			Integer attemptRank,
 			Integer attemptsRemaining) {
 	}
 
@@ -160,12 +161,14 @@ public interface ChildQuestionAttemptPort {
 			boolean passed,
 			List<AnswerLine> answers,
 			UUID submissionId,
+			UUID playId,
 			Integer attemptRank,
 			Integer attemptsRemaining,
 			Integer pointsAwarded,
 			QuestionMark markCode,
 			Integer yellowCount,
-			Boolean pay) {
+			Boolean pay,
+			boolean lessonFinished) {
 		public NewAttempt {
 			answers = answers == null ? List.of() : List.copyOf(answers);
 		}
@@ -184,10 +187,11 @@ public interface ChildQuestionAttemptPort {
 			Integer pointsAwarded,
 			QuestionMark markCode,
 			Integer yellowCount,
-			Boolean pay) {
+			Boolean pay,
+			boolean lessonFinished) {
 		public StoredAttempt(
 				long id, long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed) {
-			this(id, childId, subjectId, questionId, formCode, scorePercent, passed, null, null, null, null, null, null);
+			this(id, childId, subjectId, questionId, formCode, scorePercent, passed, null, null, null, null, null, null, false);
 		}
 	}
 }

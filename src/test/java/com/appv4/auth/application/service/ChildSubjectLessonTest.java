@@ -10,7 +10,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -67,7 +66,7 @@ class ChildSubjectLessonTest {
 		when(attempts.pageAttempts(7L, 4L)).thenReturn(List.of());
 		when(attempts.marksFor(eq(7L), org.mockito.ArgumentMatchers.any())).thenReturn(java.util.Map.of());
 		service = new ReadChildSubjectBoardService(
-				children, session, subjects, board, questions, attempts);
+				children, session, subjects, board, new ChildLessonMembership(questions, attempts));
 	}
 
 	@Test
@@ -85,7 +84,7 @@ class ChildSubjectLessonTest {
 	@Test
 	void unePageEncoreOuverteLaisseLaQuestion() {
 		when(attempts.pageAttempts(7L, 4L)).thenReturn(List.of(
-				attempt(1L, 11L, "2026-01-01T10:00:00Z", false, 1, 1)));
+				legacyAttempt(false, 1)));
 
 		assertThat(ids()).containsExactly(11L, 12L);
 	}
@@ -93,7 +92,7 @@ class ChildSubjectLessonTest {
 	@Test
 	void unePageRateeJusquAuBoutLaisseLaQuestionAvecSonEtoileNoire() {
 		when(attempts.pageAttempts(7L, 4L)).thenReturn(List.of(
-				attempt(1L, 11L, "2026-01-01T10:00:00Z", false, 1, 0)));
+				legacyAttempt(false, 0)));
 		when(attempts.marksFor(eq(7L), org.mockito.ArgumentMatchers.any()))
 				.thenReturn(Map.of(11L, new StoredMark(QuestionMark.BLACK, 0)));
 
@@ -107,8 +106,8 @@ class ChildSubjectLessonTest {
 	@Test
 	void unePageAccepteeAuDeuxiemeEssaiSortUneQuestionJamaisRatee() {
 		when(attempts.pageAttempts(7L, 4L)).thenReturn(List.of(
-				attempt(1L, 11L, "2026-01-01T10:00:00Z", false, 1, 1),
-				attempt(2L, 11L, "2026-01-01T10:01:00Z", true, 2, 0)));
+				legacyAttempt(false, 1),
+				legacyAttempt(true, 0)));
 
 		assertThat(ids()).containsExactly(12L);
 	}
@@ -116,8 +115,8 @@ class ChildSubjectLessonTest {
 	@Test
 	void uneSeulePageAccepteeApresUnRateLaLaisse() {
 		when(attempts.pageAttempts(7L, 4L)).thenReturn(List.of(
-				attempt(1L, 11L, "2026-01-01T10:00:00Z", false, 1, 0),
-				attempt(2L, 11L, "2026-01-02T10:00:00Z", true, 1, 0)));
+				legacyAttempt(false, 0),
+				legacyAttempt(true, 0)));
 
 		assertThat(ids()).containsExactly(11L, 12L);
 	}
@@ -125,10 +124,10 @@ class ChildSubjectLessonTest {
 	@Test
 	void deuxPagesAccepteesApresUnRateLaSortentMemeAvecUnePageOuverteEntreElles() {
 		when(attempts.pageAttempts(7L, 4L)).thenReturn(List.of(
-				attempt(1L, 11L, "2026-01-01T10:00:00Z", false, 1, 0),
-				attempt(2L, 11L, "2026-01-02T10:00:00Z", true, 1, 0),
-				attempt(3L, 11L, "2026-01-03T10:00:00Z", false, 1, 2),
-				attempt(4L, 11L, "2026-01-04T10:00:00Z", true, 1, 0)));
+				legacyAttempt(false, 0),
+				legacyAttempt(true, 0),
+				legacyAttempt(false, 2),
+				legacyAttempt(true, 0)));
 
 		assertThat(ids()).containsExactly(12L);
 	}
@@ -136,8 +135,8 @@ class ChildSubjectLessonTest {
 	@Test
 	void uneNouvellePageRateeRemetLaQuestionEtGardeLEtoileJaune() {
 		when(attempts.pageAttempts(7L, 4L)).thenReturn(List.of(
-				attempt(1L, 11L, "2026-01-01T10:00:00Z", true, 1, 2),
-				attempt(2L, 11L, "2026-01-02T10:00:00Z", false, 1, 0)));
+				legacyAttempt(true, 2),
+				legacyAttempt(false, 0)));
 		when(attempts.marksFor(eq(7L), org.mockito.ArgumentMatchers.any()))
 				.thenReturn(Map.of(11L, new StoredMark(QuestionMark.YELLOW, 3)));
 
@@ -181,19 +180,7 @@ class ChildSubjectLessonTest {
 		return service.board("lea", 4L).lesson().questions().stream().map(Question::questionId).toList();
 	}
 
-	@Test
-	void uneLeconQuiPasseDeUneQuestionAZeroDitLeconFinie() {
-		assertThat(ChildLessonMembership.finishedLabel(1, 0)).isEqualTo("Leçon finie.");
-		assertThat(ChildLessonMembership.finishedLabel(2, 1)).isNull();
-		assertThat(ChildLessonMembership.finishedLabel(0, 0)).isNull();
-	}
-
-	static PageAttempt attempt(
-			long id, long questionId, String at, boolean passed, Integer rank, Integer remaining) {
-		return new PageAttempt(id, questionId, Instant.parse(at), passed, rank, remaining);
-	}
-
-	static ChildLessonView lessonOf(ChildSubjectBoardView view) {
-		return view.lesson();
+	private static PageAttempt legacyAttempt(boolean passed, int remaining) {
+		return new PageAttempt(11L, null, passed, remaining);
 	}
 }

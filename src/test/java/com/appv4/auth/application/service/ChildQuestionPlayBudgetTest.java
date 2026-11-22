@@ -73,7 +73,7 @@ class ChildQuestionPlayBudgetTest {
 				new StoredQuestion(19L, 4L, "texte", "Capitale de la France", new StoredFreeText("Paris"))));
 		game = new ChildQuestionPlayService(
 				child, session, subjects, questions, attempts, mock(ChildSimonChallengePort.class),
-				progress, mission, mock(ChildBadgeProgress.class));
+				progress, mission, mock(ChildBadgeProgress.class), new ChildLessonMembership(questions, attempts));
 	}
 
 	@Test
@@ -148,7 +148,7 @@ class ChildQuestionPlayBudgetTest {
 				child, session, subjects, questions, missions, Clock.systemUTC());
 		ChildQuestionPlayService played = new ChildQuestionPlayService(
 				child, session, subjects, questions, attempts, mock(ChildSimonChallengePort.class),
-				progress, realMission, mock(ChildBadgeProgress.class));
+				progress, realMission, mock(ChildBadgeProgress.class), new ChildLessonMembership(questions, attempts));
 
 		ChildAttemptResultView result = played.submit("lea", 4L, 19L, answer("Paris", UUID.randomUUID()));
 
@@ -438,7 +438,8 @@ class ChildQuestionPlayBudgetTest {
 			StoredAttempt stored = new StoredAttempt(
 					sequence, attempt.childId(), attempt.subjectId(), attempt.questionId(), attempt.formCode(),
 					attempt.scorePercent(), attempt.passed(), attempt.attemptRank(), attempt.attemptsRemaining(),
-					attempt.pointsAwarded(), attempt.markCode(), attempt.yellowCount(), attempt.pay());
+					attempt.pointsAwarded(), attempt.markCode(), attempt.yellowCount(),
+					attempt.pay(), attempt.lessonFinished());
 			saved.add(stored);
 			if (attempt.submissionId() != null) {
 				bySubmission.put(attempt.submissionId(), stored);
@@ -448,7 +449,7 @@ class ChildQuestionPlayBudgetTest {
 
 		@Override
 		public Optional<StoredAttempt> lockAndFind(long childId, UUID submissionId) {
-			return Optional.ofNullable(bySubmission.get(submissionId));
+			return submissionId == null ? Optional.empty() : Optional.ofNullable(bySubmission.get(submissionId));
 		}
 
 		@Override

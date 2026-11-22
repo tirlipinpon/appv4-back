@@ -648,6 +648,8 @@ class ParentChildrenServiceTest {
 
 		assertThat(service.invite(1L, "parent", lea.id(), "  B@exemple.fr ").message())
 				.isEqualTo(ParentChildrenService.INVITATION_SENT);
+		assertThat(service.list(1L, "parent").children().getFirst().referent()).isTrue();
+		assertThat(service.list(1L, "parent").children().getFirst().pendingInvitationCount()).isEqualTo(1);
 		assertThat(service.list(2L, "parent").children()).isEmpty();
 		assertThat(service.pendingInvitations(2L, "parent")).extracting(item -> item.firstName()).containsExactly("Léa");
 
@@ -661,6 +663,8 @@ class ParentChildrenServiceTest {
 		assertThat(accepted.id()).isEqualTo(lea.id());
 		assertThat(service.list(1L, "parent").children()).extracting(ChildCard::id).containsExactly(lea.id());
 		assertThat(service.list(2L, "parent").children()).extracting(ChildCard::id).containsExactly(lea.id());
+		assertThat(service.list(2L, "parent").children().getFirst().referent()).isFalse();
+		assertThat(service.list(2L, "parent").children().getFirst().pendingInvitationCount()).isZero();
 
 		service.update(2L, "parent", lea.id(), revise(lea, "Léa", "espace", "foot"));
 		assertThat(service.list(1L, "parent").children().getFirst().interests()).containsExactly("espace", "foot");
@@ -984,6 +988,16 @@ class ParentChildrenServiceTest {
 		}
 
 		@Override
+		public int pendingCount(long childId) {
+			int count = 0;
+			for (StoredInvitation invitation : invitations) {
+				if (invitation.childId() == childId) {
+					count++;
+				}
+			}
+			return count;
+		}
+
 		public void cancelPending(long childId) {
 			invitations.removeIf(item -> item.childId() == childId);
 		}

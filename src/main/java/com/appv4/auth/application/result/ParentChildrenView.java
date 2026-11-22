@@ -46,7 +46,9 @@ public record ParentChildrenView(
 			int extraSubjectCount,
 			List<KinshipMark> links,
 			CharacterFace character,
-			List<String> interests) {
+			List<String> interests,
+			boolean referent,
+			int pendingInvitationCount) {
 
 		public ChildCard {
 			linkPhrases = linkPhrases == null ? List.of() : List.copyOf(linkPhrases);

@@ -182,7 +182,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				countsFor(parentUserId, saved),
 				attached.marks(),
 				childAvatarPort.findByChildId(saved.id()).orElse(null),
-				ChildInterestList.spellings(interests));
+				ChildInterestList.spellings(interests),
+				parentUserId);
 	}
 
 	/**
@@ -250,7 +251,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				countsFor(parentUserId, saved),
 				attached.marks(),
 				childAvatarPort.findByChildId(saved.id()).orElse(null),
-				ChildInterestList.spellings(interests));
+				ChildInterestList.spellings(interests),
+				parentUserId);
 	}
 
 	@Override
@@ -343,7 +345,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				countsFor(parentUserId, saved),
 				attached.marks(),
 				childAvatarPort.findByChildId(saved.id()).orElse(null),
-				ChildInterestList.spellings(childPort.findInterests(saved.id())));
+				ChildInterestList.spellings(childPort.findInterests(saved.id())),
+				parentUserId);
 	}
 
 	@Override
@@ -441,7 +444,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 			int[] pair = counts.getOrDefault(child.id(), new int[] {0, 0});
 			cards.add(card(
 					child, schools, links.phrases(), pair, links.marks(), avatars.get(child.id()),
-					ChildInterestList.spellings(childPort.findInterests(child.id()))));
+					ChildInterestList.spellings(childPort.findInterests(child.id())),
+					parentUserId));
 		}
 		List<SchoolChoice> choices = new ArrayList<>();
 		for (CatalogSchool school : schools.values()) {
@@ -513,8 +517,10 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 			int[] subjectCounts,
 			List<KinshipMark> links,
 			StoredAvatar avatar,
-			List<String> interests) {
+			List<String> interests,
+			long viewerId) {
 		CatalogSchool school = child.schoolId() == null ? null : schools.get(child.schoolId());
+		boolean manages = referent(viewerId, child.id());
 		return new ChildCard(
 				child.id(),
 				child.firstName(),
@@ -534,7 +540,9 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				subjectCounts[1],
 				links,
 				characterOf(avatar),
-				interests);
+				interests,
+				manages,
+				manages ? childSharePort.pendingCount(child.id()) : 0);
 	}
 
 	private CharacterFace characterOf(StoredAvatar saved) {

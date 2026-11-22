@@ -99,6 +99,12 @@ public class ChildSharePersistenceAdapter implements ChildSharePort {
 
 	@Override
 	@Transactional
+	public int pendingCount(long childId) {
+		return invitations.findByChildIdAndStatus(childId, BackChildInvitationEntity.PENDING).size();
+	}
+
+	@Override
+	@Transactional
 	public void cancelPending(long childId) {
 		for (BackChildInvitationEntity invitation : invitations.findByChildIdAndStatus(
 				childId, BackChildInvitationEntity.PENDING)) {

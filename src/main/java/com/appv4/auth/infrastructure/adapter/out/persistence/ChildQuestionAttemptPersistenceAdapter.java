@@ -186,8 +186,7 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 
 	@Override
 	public List<AttemptTrace> traces(long childId) {
-		List<AttemptTrace> found = new java.util.ArrayList<>();
-		jdbc.sql("""
+		return jdbc.sql("""
 				select question_id, created_at, mark_code, passed, pay
 				from back_child_attempts
 				where child_id = :childId
@@ -196,16 +195,14 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				.param("childId", childId)
 				.query((rs, row) -> {
 					String mark = rs.getString("mark_code");
-					found.add(new AttemptTrace(
+					return new AttemptTrace(
 							rs.getLong("question_id"),
 							rs.getTimestamp("created_at").toInstant(),
 							mark == null ? null : QuestionMark.fromWire(mark),
 							rs.getBoolean("passed"),
-							(Boolean) rs.getObject("pay")));
-					return null;
+							(Boolean) rs.getObject("pay"));
 				})
 				.list();
-		return found;
 	}
 
 	@Override

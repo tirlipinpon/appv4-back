@@ -112,8 +112,8 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 	public ChildBadgesView badges(String rawToken) {
 		long childId = requireActiveChild(rawToken);
 		initialize(childId);
-		refreshActivity(childId);
-		return view(childId, today());
+		int streakNow = refreshActivity(childId);
+		return view(childId, today(), streakNow);
 	}
 
 	@Override
@@ -150,12 +150,13 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 	public void noteMission(long childId) {
 		initialize(childId);
 		LocalDate today = today();
-		missions.findByChildAndDate(childId, today).ifPresent(mission -> {
-			if (complete(mission)) {
-				missions.rememberFinishedDay(childId, today);
-			}
-		});
-		refreshActivity(childId);
+		// afterAttempt a déjà mis à jour l'activité. Seule la mission du jour a pu changer depuis.
+		missions.findByChildAndDate(childId, today)
+				.filter(ReadChildBadgesService::complete)
+				.ifPresent(mission -> {
+					missions.rememberFinishedDay(childId, today);
+					refreshMissionCounter(childId);
+				});
 	}
 
 	private void initialize(long childId) {
@@ -189,10 +190,9 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 		badges.save(childId, new StoredBadge(code, Math.max(level, oldLevel), retained, date, keptSubject, gainedAt));
 	}
 
-	private ChildBadgesView view(long childId, LocalDate today) {
+	private ChildBadgesView view(long childId, LocalDate today, int streakNow) {
 		Map<String, StoredBadge> stored = load(childId);
 		int sum = yellowSum(childId);
-		int streakNow = currentStreak(childId);
 		List<Badge> cards = new ArrayList<>();
 		List<TodayGain> todayGains = new ArrayList<>();
 		for (Kind kind : CATALOG) {
@@ -239,31 +239,25 @@ public class ReadChildBadgesService implements ReadChildBadgesUseCase, ChildBadg
 		return new Badge(kind.code(), kind.name(), level, retained, next, date, progress);
 	}
 
-	private int currentStreak(long childId) {
-		List<AttemptTrace> traces = attempts.traces(childId);
-		if (traces == null) {
-			return 0;
-		}
-		return answerRun(traces).current();
-	}
-
-	private void refreshActivity(long childId) {
+	private int refreshActivity(long childId) {
 		List<AttemptTrace> traces = attempts.traces(childId);
 		if (traces == null) {
 			traces = List.of();
 		}
 		rememberCompleteMissions(childId);
-		List<LocalDate> finished = missions.finishedDays(childId);
-		if (finished == null) {
-			finished = List.of();
-		}
 		saveCounter(childId, RATTRAPAGE, rattrapage(traces), 1);
 		saveCounter(childId, JOURS_JOUES, countedDays(allDays(traces), 3), 3);
 		saveCounter(childId, JOURS_AFFILEE, payStreak(traces), 2);
 		AnswerRun answers = answerRun(traces);
 		saveCounter(childId, AFFILEE, new Outcome(answers.best(), answers.crossed()), 3);
 		saveCounter(childId, JOUR, bestDay(traces), 3);
-		saveCounter(childId, MISSIONS, countedDays(finished, 1), 1);
+		refreshMissionCounter(childId);
+		return answers.current();
+	}
+
+	private void refreshMissionCounter(long childId) {
+		List<LocalDate> finished = missions.finishedDays(childId);
+		saveCounter(childId, MISSIONS, countedDays(finished == null ? List.of() : finished, 1), 1);
 	}
 
 	private void rememberCompleteMissions(long childId) {

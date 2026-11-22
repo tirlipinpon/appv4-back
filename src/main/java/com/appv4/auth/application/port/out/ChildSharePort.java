@@ -35,6 +35,8 @@ public interface ChildSharePort {
 
 	void cancelPending(long childId);
 
+	int pendingCount(long childId);
+
 	/**
 	 * @param email déjà coupé et en minuscules
 	 */

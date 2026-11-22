@@ -292,7 +292,9 @@ public class ParentChildrenController {
 				card.extraSubjectCount(),
 				links,
 				toCharacter(card.character()),
-				card.interests());
+				card.interests(),
+				card.referent(),
+				card.pendingInvitationCount());
 	}
 
 	@Schema(name = "ParentChildrenResponse")
@@ -334,7 +336,11 @@ public class ParentChildrenController {
 			@Schema(description = "Personnage choisi par l'enfant. Lorelei s'il n'a encore rien enregistré.")
 			ParentChildCharacter character,
 			@Schema(description = "Centres d'intérêt, dans l'ordre renvoyé par l'API.")
-			List<String> interests) {
+			List<String> interests,
+			@Schema(description = "Vrai si ce parent gère la fiche.")
+			boolean referent,
+			@Schema(description = "Invitations encore en attente. Zéro si ce parent ne gère pas la fiche.")
+			int pendingInvitationCount) {
 	}
 
 	@Schema(name = "ParentChildCharacter")

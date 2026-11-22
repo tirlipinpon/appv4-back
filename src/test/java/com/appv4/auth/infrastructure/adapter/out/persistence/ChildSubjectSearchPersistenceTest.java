@@ -95,4 +95,32 @@ class ChildSubjectSearchPersistenceTest {
 		assertThat(adapter.searchOffers(child, "class", 1, "CE1", 1, "CE1", 0, 41))
 				.extracting(item -> item.id()).containsExactly(classExcluded).doesNotContain(classDefault);
 	}
+
+	@Test
+	void aHolderSeesTheSubjectsAlreadyOnTheFiche() {
+		long owner = jdbc.queryForObject(
+				"insert into back_users (email, display_name) values (?, 'Owner') returning id",
+				Long.class, UUID.randomUUID() + "@example.test");
+		long holder = jdbc.queryForObject(
+				"insert into back_users (email, display_name) values (?, 'Holder') returning id",
+				Long.class, UUID.randomUUID() + "@example.test");
+		long child = jdbc.queryForObject("""
+				insert into back_children (parent_user_id, first_name, last_name, age, curriculum,
+				grade_label, avatar_code, pin_hash)
+				values (?, 'Akira', 'S', 8, 'FRANCE', 'CE1', 'fox', 'hash') returning id
+				""", Long.class, owner);
+		long subject = jdbc.queryForObject("""
+				insert into back_teacher_subjects (user_id, school_id, grade_label, name, name_key)
+				values (?, 1, 'CE2', 'Shared course', ?) returning id
+				""", Long.class, owner, UUID.randomUUID() + "shared");
+		jdbc.update("insert into back_child_subject_links (child_id, subject_id, excluded) values (?, ?, false)",
+				child, subject);
+		jdbc.update("insert into back_child_holders (child_id, user_id, referent) values (?, ?, false)",
+				child, holder);
+		entityManager.flush();
+		entityManager.clear();
+
+		assertThat(adapter.visibleLinksForParent(holder)).extracting(link -> link.childId()).contains(child);
+		assertThat(adapter.visibleLinksForParent(owner)).extracting(link -> link.childId()).contains(child);
+	}
 }

@@ -43,6 +43,7 @@ import com.appv4.auth.application.port.in.BuildGoogleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.CompleteRolesUseCase;
 import com.appv4.auth.application.port.in.ConnectedAccountUseCase;
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
+import com.appv4.auth.application.port.in.RecoverIdentifierUseCase;
 import com.appv4.auth.application.port.in.AskChildHumeurUseCase;
 import com.appv4.auth.application.port.in.HumeurLibraryUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
@@ -73,6 +74,7 @@ import com.appv4.auth.application.port.in.TeacherSubjectUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AppleOAuthClient;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
+import com.appv4.auth.application.port.out.RecoveryAccountPort;
 import com.appv4.auth.application.port.out.ChildDailyMissionPort;
 import com.appv4.auth.application.port.out.ChildSubjectBoardPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
@@ -103,6 +105,7 @@ import com.appv4.auth.application.service.BuildGoogleAuthorizeUrlService;
 import com.appv4.auth.application.service.CompleteRolesService;
 import com.appv4.auth.application.service.ConnectedAccountService;
 import com.appv4.auth.application.service.ForgotPasswordService;
+import com.appv4.auth.application.service.RecoverIdentifierService;
 import com.appv4.auth.application.service.IssueJwtService;
 import com.appv4.auth.application.service.LoginWithAppleService;
 import com.appv4.auth.application.service.ResumeAppleOAuthCallbackService;
@@ -939,6 +942,18 @@ public class AuthConfiguration {
 	/**
 	 * Forgot-password (SCRUM-108) — jeton hashé + lien (log local).
 	 */
+	/**
+	 * Récupération de l'identifiant.
+	 *
+	 * <p><b>Business :</b> un seul compte dans la bande montre le masque de l'email de connexion.
+	 * <p><b>Technique :</b> lecture des comptes, aucune écriture.
+	 * <p><b>Métier / flow :</b> bean du port in {@code POST /api/int/auth/recover-identifier}.
+	 */
+	@Bean
+	RecoverIdentifierUseCase recoverIdentifierUseCase(RecoveryAccountPort recoveryAccountPort) {
+		return new RecoverIdentifierService(recoveryAccountPort);
+	}
+
 	@Bean
 	ForgotPasswordUseCase forgotPasswordUseCase(
 			AuthUserAccountPort authUserAccountPort,
@@ -1024,6 +1039,7 @@ public class AuthConfiguration {
 						.requestMatchers("/api/int/auth/signup").permitAll()
 						.requestMatchers("/api/int/auth/login").permitAll()
 						.requestMatchers("/api/int/auth/forgot-password").permitAll()
+						.requestMatchers("/api/int/auth/recover-identifier").permitAll()
 						.requestMatchers("/api/int/auth/reset-password").permitAll()
 						.requestMatchers("/api/int/**").authenticated()
 						.anyRequest().denyAll();

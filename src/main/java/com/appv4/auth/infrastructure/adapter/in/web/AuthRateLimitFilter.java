@@ -6,6 +6,7 @@ import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.appv4.auth.application.service.RecoverIdentifierService;
 import com.appv4.auth.infrastructure.config.AuthRateLimitProperties;
 
 import jakarta.servlet.FilterChain;
@@ -28,6 +29,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
 			"/api/int/auth/login",
 			"/api/int/auth/signup",
 			"/api/int/auth/forgot-password",
+			"/api/int/auth/recover-identifier",
 			"/api/int/auth/reset-password",
 			"/api/int/auth/oauth/google",
 			"/api/int/auth/oauth/facebook",
@@ -63,6 +65,14 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
 			FilterChain filterChain) throws ServletException, IOException {
 		String key = clientKey(request) + "|" + normalizedPath(request);
 		if (!limiter.tryAcquire(key, System.currentTimeMillis())) {
+			if (normalizedPath(request).equals("/api/int/auth/recover-identifier")) {
+				response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+				response.setContentType("application/json");
+				response.setCharacterEncoding("UTF-8");
+				response.getWriter().write(
+						"{\"message\":\"" + RecoverIdentifierService.WAIT + "\"}");
+				return;
+			}
 			response.sendError(
 					HttpStatus.TOO_MANY_REQUESTS.value(),
 					HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase());

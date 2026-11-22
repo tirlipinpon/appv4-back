@@ -38,10 +38,12 @@ public final class ChildInterestList {
 	/**
 	 * Accepte la liste, ou refuse sans produire de copies.
 	 *
-	 * <p><b>Business :</b> une liste vide efface. Une liste absente ne change rien,
-	 * parce que l'appelant n'écrit qu'après un succès. Réécrire la même forme garde le moment.
-	 * <p><b>Technique :</b> {@code raw} null est l'absence. Les mots nouveaux d'un même appel
+	 * <p><b>Business :</b> une liste vide efface. Une liste absente est refusée.
+	 * Réécrire la même forme garde le moment et prend la nouvelle orthographe.
+	 * <p><b>Technique :</b> {@code raw} null lève l'absence. Les mots nouveaux d'un même appel
 	 * reçoivent {@code now}.
+	 * <p><b>Métier / flow :</b> avant l'écriture de la fiche. Si cette méthode refuse,
+	 * l'appelant n'écrit ni la fiche ni les copies.
 	 */
 	public static List<InterestCopy> resolve(List<String> raw, List<InterestCopy> previous, Instant now) {
 		if (raw == null) {
@@ -82,7 +84,13 @@ public final class ChildInterestList {
 		return List.copyOf(next);
 	}
 
-	/** Orthographes triées par la forme comparée, caractère par caractère. */
+	/**
+	 * Orthographes à montrer sur la fiche.
+	 *
+	 * <p><b>Business :</b> le parent revoit ses mots, du premier au dernier selon la forme comparée.
+	 * <p><b>Technique :</b> le tri suit les caractères de la forme, pas l'ordre d'envoi.
+	 * <p><b>Métier / flow :</b> réponse de l'ajout, de la correction et de la lecture.
+	 */
 	public static List<String> spellings(List<InterestCopy> copies) {
 		List<InterestCopy> ordered = new ArrayList<>(copies);
 		ordered.sort((left, right) -> compareForms(form(left.text()), form(right.text())));
@@ -106,8 +114,9 @@ public final class ChildInterestList {
 		if (word == null) {
 			return "";
 		}
-		String trimmed = word.replaceAll("^[\\t\\n\\r\\f ]+|[\\t\\n\\r\\f ]+$", "");
-		return trimmed.replaceAll("[\\t\\n\\r\\f ]+", " ");
+		String gap = "[\\t\\n\\r\\u2028\\u2029 ]";
+		String trimmed = word.replaceAll("^" + gap + "+|" + gap + "+$", "");
+		return trimmed.replaceAll(gap + "+", " ");
 	}
 
 	private static boolean allowed(String text) {

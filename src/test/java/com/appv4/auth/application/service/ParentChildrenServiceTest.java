@@ -506,6 +506,8 @@ class ParentChildrenServiceTest {
 		ChildCard broken = service.update(1L, "parent", card.id(), revise(card, "Léa", "star\nwars"));
 		assertThat(children.copies(card.id())).extracting(InterestCopy::text).containsExactly("star wars");
 		assertThat(broken.interests()).containsExactly("star wars");
+		ChildCard separated = service.update(1L, "parent", card.id(), revise(card, "Léa", "star\u2028wars"));
+		assertThat(separated.interests()).containsExactly("star wars");
 	}
 
 	@Test
@@ -526,6 +528,8 @@ class ParentChildrenServiceTest {
 		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "go\uD83D\uDE00")))
 				.hasMessage(ChildInterestList.CHARSET);
 		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "tiret\u2014long")))
+				.hasMessage(ChildInterestList.CHARSET);
+		assertThatThrownBy(() -> service.update(1L, "parent", card.id(), revise(card, "Léa", "go\fto")))
 				.hasMessage(ChildInterestList.CHARSET);
 		assertThatThrownBy(() -> service.add(1L, "parent", fiche(null)))
 				.hasMessage(ChildInterestList.MISSING);

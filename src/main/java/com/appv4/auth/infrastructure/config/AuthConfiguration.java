@@ -876,7 +876,11 @@ public class AuthConfiguration {
 	}
 
 	/**
-	 * Enfants du parent (SCRUM-156) — fiche, classe, école facultative, PIN hashé.
+	 * Fiches des enfants d'un parent.
+	 *
+	 * <p><b>Business :</b> le parent ajoute, corrige et relit ses enfants, avec leurs centres d'intérêt.
+	 * <p><b>Technique :</b> le moment d'une copie nouvelle est l'horloge UTC.
+	 * <p><b>Métier / flow :</b> bean du port in {@code /api/int/parent/children}.
 	 */
 	@Bean
 	ParentChildrenUseCase parentChildrenUseCase(

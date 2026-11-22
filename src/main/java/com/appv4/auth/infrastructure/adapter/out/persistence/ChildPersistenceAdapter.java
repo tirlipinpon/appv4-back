@@ -19,7 +19,7 @@ import com.appv4.auth.application.service.ParentChildrenService;
  * Persiste les enfants du parent (SCRUM-156).
  *
  * <p><b>Business :</b> la fiche est liée au parent connecté. Le PIN reste hashé.
- * <p><b>Technique :</b> {@code back_children}. Absent du profil {@code test}.
+ * <p><b>Technique :</b> {@code back_children} et {@code back_child_interests}. Absent du profil {@code test}.
  * <p><b>Métier / flow :</b> adapter out du port {@link ChildPort}.
  */
 @Component
@@ -213,6 +213,13 @@ public class ChildPersistenceAdapter implements ChildPort {
 				.toList();
 	}
 
+	/**
+	 * Remplace les copies de cet enfant.
+	 *
+	 * <p><b>Business :</b> la liste acceptée devient la liste entière. Une liste vide efface.
+	 * <p><b>Technique :</b> supprime les lignes, vide le contexte, puis réécrit le texte et le moment.
+	 * <p><b>Métier / flow :</b> après un ajout ou une correction de fiche déjà acceptés.
+	 */
 	@Override
 	@Transactional
 	public void replaceInterests(long childId, List<InterestCopy> copies) {

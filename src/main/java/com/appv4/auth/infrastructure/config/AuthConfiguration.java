@@ -50,6 +50,7 @@ import com.appv4.auth.application.port.in.ResumeAppleOAuthCallbackUseCase;
 import com.appv4.auth.application.port.in.LoginChildUseCase;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.in.ReadChildFeaturedQuestionsUseCase;
+import com.appv4.auth.application.port.in.ReadParentHumeursUseCase;
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
 import com.appv4.auth.application.port.in.ReadChildProfileUseCase;
 import com.appv4.auth.application.port.in.ReadChildProgressUseCase;
@@ -116,6 +117,7 @@ import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
 import com.appv4.auth.application.service.AskChildHumeurService;
+import com.appv4.auth.application.service.ReadParentHumeursService;
 import com.appv4.auth.application.service.HumeurLibraryService;
 import com.appv4.auth.application.service.TeacherModerationService;
 import com.appv4.auth.application.service.ParentProfileService;
@@ -676,6 +678,15 @@ public class AuthConfiguration {
 			HumeurAnswerPort humeurAnswerPort,
 			java.time.Clock clock) {
 		return new AskChildHumeurService(sessions, children, attempts, humeurChoicePort, humeurAnswerPort, clock);
+	}
+
+	/**
+	 * Lecture parent des humeurs (BACK-71).
+	 * Les libellés de date et d'heure sont calculés ici, en heure de Bruxelles.
+	 */
+	@Bean
+	ReadParentHumeursUseCase readParentHumeursUseCase(ChildPort childPort, HumeurAnswerPort humeurAnswerPort) {
+		return new ReadParentHumeursService(childPort, humeurAnswerPort);
 	}
 
 	@Bean

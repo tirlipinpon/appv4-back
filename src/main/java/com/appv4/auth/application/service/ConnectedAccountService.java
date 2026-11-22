@@ -6,6 +6,8 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ConnectedAccountUseCase;
 import com.appv4.auth.application.port.in.ConnectedAccountUseCase.ConnectedBanner;
+import com.appv4.auth.application.port.in.RecoveryPromptUseCase;
+import com.appv4.auth.application.port.in.RecoveryPromptUseCase.RecoveryPrompt;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 
@@ -22,9 +24,13 @@ public class ConnectedAccountService implements ConnectedAccountUseCase {
 	public static final String ACCOUNT_MISSING = "Compte introuvable.";
 
 	private final AuthUserAccountPort authUserAccountPort;
+	private final RecoveryPromptUseCase recoveryPromptUseCase;
 
-	public ConnectedAccountService(AuthUserAccountPort authUserAccountPort) {
+	public ConnectedAccountService(
+			AuthUserAccountPort authUserAccountPort,
+			RecoveryPromptUseCase recoveryPromptUseCase) {
 		this.authUserAccountPort = authUserAccountPort;
+		this.recoveryPromptUseCase = recoveryPromptUseCase;
 	}
 
 	@Override
@@ -38,7 +44,8 @@ public class ConnectedAccountService implements ConnectedAccountUseCase {
 	public ConnectedBanner banner(long userId) {
 		String name = account(userId).displayName();
 		String avatar = authUserAccountPort.findAvatarCode(userId).orElse(null);
-		return new ConnectedBanner(name, avatar);
+		RecoveryPrompt prompt = recoveryPromptUseCase.read(userId);
+		return new ConnectedBanner(name, avatar, prompt.ask(), prompt.recoveryPrompt());
 	}
 
 	private AuthUserAccount account(long userId) {

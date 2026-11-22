@@ -21,6 +21,8 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.RecoveryAccountPort;
+import com.appv4.auth.application.port.out.RecoveryPromptPort;
+import com.appv4.auth.application.port.out.RecoveryPromptPort.RecoveryPromptState;
 import com.appv4.auth.application.port.out.ChildDailyMissionPort;
 import com.appv4.auth.application.port.out.ChildAvatarPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
@@ -59,6 +61,14 @@ public class TestProfileConfiguration {
 	@Bean
 	PlatformTransactionManager transactionManager() {
 		return new NoDatabaseTransactionManager();
+	}
+
+	@Bean
+	RecoveryPromptPort recoveryPromptPort() {
+		RecoveryPromptPort port = mock(RecoveryPromptPort.class, withSettings().strictness(Strictness.LENIENT));
+		when(port.find(anyLong())).thenReturn(Optional.of(
+				new RecoveryPromptState("Anne", "0470000000", "anne@example.com", false)));
+		return port;
 	}
 
 	@Bean

@@ -42,6 +42,7 @@ import com.appv4.auth.application.port.in.BuildGoogleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.CompleteRolesUseCase;
 import com.appv4.auth.application.port.in.ConnectedAccountUseCase;
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
+import com.appv4.auth.application.port.in.HumeurLibraryUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
 import com.appv4.auth.application.port.in.ResumeAppleOAuthCallbackUseCase;
@@ -79,6 +80,7 @@ import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
+import com.appv4.auth.application.port.out.HumeurChoicePort;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
@@ -111,6 +113,7 @@ import com.appv4.auth.application.service.ParentChildrenService;
 import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
+import com.appv4.auth.application.service.HumeurLibraryService;
 import com.appv4.auth.application.service.TeacherModerationService;
 import com.appv4.auth.application.service.ParentProfileService;
 import com.appv4.auth.application.service.TeacherProfileService;
@@ -646,6 +649,15 @@ public class AuthConfiguration {
 			return new LoggingTeacherApprovedMailAdapter();
 		}
 		return new NoOpTeacherApprovedMailAdapter();
+	}
+
+	/**
+	 * Bibliothèque des humeurs (BACK-68).
+	 * Le rôle admin est relu en base. Le front n'invente pas de choix.
+	 */
+	@Bean
+	HumeurLibraryUseCase humeurLibraryUseCase(ActiveRolePort activeRolePort, HumeurChoicePort humeurChoicePort) {
+		return new HumeurLibraryService(activeRolePort, humeurChoicePort);
 	}
 
 	@Bean

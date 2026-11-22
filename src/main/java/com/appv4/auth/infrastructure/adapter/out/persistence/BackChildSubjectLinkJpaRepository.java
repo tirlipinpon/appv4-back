@@ -23,7 +23,11 @@ public interface BackChildSubjectLinkJpaRepository extends JpaRepository<BackChi
 			select link from BackChildSubjectLinkEntity link
 			where link.childId in (
 				select child.id from BackChildEntity child
-				where child.parentUserId = :parentUserId and child.hidden = false)
+				where child.hidden = false and (
+					child.parentUserId = :parentUserId
+					or exists (
+						select holder.childId from BackChildHolderEntity holder
+						where holder.childId = child.id and holder.userId = :parentUserId)))
 			""")
 	List<BackChildSubjectLinkEntity> findForParent(@Param("parentUserId") long parentUserId);
 
@@ -45,10 +49,14 @@ public interface BackChildSubjectLinkJpaRepository extends JpaRepository<BackChi
 			 and s.grade_label = c.grade_label
 			 and s.hidden = false
 			 and s.active = true
-			where c.parent_user_id = :parentUserId
-			  and c.hidden = false
+			where c.hidden = false
 			  and c.school_id is not null
 			  and btrim(c.grade_label) <> ''
+			  and (
+			    c.parent_user_id = :parentUserId
+			    or exists (
+			      select 1 from back_child_holders holder
+			      where holder.child_id = c.id and holder.user_id = :parentUserId))
 			on conflict (child_id, subject_id) do nothing
 			""", nativeQuery = true)
 	int insertDefaultsForParent(@Param("parentUserId") long parentUserId);

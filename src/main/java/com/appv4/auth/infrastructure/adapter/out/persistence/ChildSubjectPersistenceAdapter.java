@@ -169,7 +169,9 @@ public class ChildSubjectPersistenceAdapter implements ChildSubjectPort {
 		if (children == null || children.isEmpty()) {
 			return;
 		}
-		links.insertDefaultsForParent(children.get(0).parentUserId());
+		for (ChildSaved child : children) {
+			links.insertDefaultsForChild(child.id());
+		}
 	}
 
 	/**

@@ -49,17 +49,19 @@ class SuggestChildInterestsServiceTest {
 	}
 
 	@Test
-	void oneFamilyDoesNotSuggestAndInactiveCopiesDoNotCount() {
-		copies.add(shown(1, 10, "dinosaures", "2026-01-01T00:00:00Z"));
+	void oneCopyIsEnoughAndInactiveCopiesDoNotCount() {
+		copies.add(shown(1, 10, "drone", "2026-01-01T00:00:00Z"));
+		assertThat(service.suggest("parent", "dro")).containsExactly("drone");
+
 		copies.add(shown(2, 10, "dinosaures", "2026-01-02T00:00:00Z"));
-		assertThat(service.suggest("parent", "dino")).isEmpty();
+		assertThat(service.suggest("parent", "dino")).containsExactly("dinosaures");
 
 		copies.add(shown(3, 20, "oeuf", "2026-02-01T00:00:00Z"));
 		copies.add(new SuggestableInterest(4, 30, "œuf", Instant.parse("2026-01-01T00:00:00Z"), false, false));
-		assertThat(service.suggest("parent", "oeu")).isEmpty();
+		assertThat(service.suggest("parent", "oeu")).containsExactly("oeuf");
 		copies.remove(copies.size() - 1);
 		copies.add(new SuggestableInterest(5, 30, "œuf", Instant.parse("2026-01-01T00:00:00Z"), true, true));
-		assertThat(service.suggest("parent", "oeu")).isEmpty();
+		assertThat(service.suggest("parent", "oeu")).containsExactly("oeuf");
 
 		copies.add(shown(6, 30, "œuf", "2026-01-01T00:00:00Z"));
 		assertThat(service.suggest("parent", "oeu")).containsExactly("œuf");

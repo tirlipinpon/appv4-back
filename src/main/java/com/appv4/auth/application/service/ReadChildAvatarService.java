@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -172,6 +173,13 @@ public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChild
 			requested = requested.stream().filter(pin -> knownPin(style, pin)).toList();
 		}
 		List<StoredPin> next = requested == null ? keepPins(childId, style) : checkPins(style, xp, age, requested);
+		if (requested != null && previous != null && (styleChanges || !Objects.equals(chosen, previous.presetId()))) {
+			// Le brouillon ne renvoie que les zones ouvertes. Un changement de style ou de preset
+			// garde les variantes compatibles déjà enregistrées dont la zone est désormais fermée.
+			keepPins(childId, style).stream()
+					.filter(pin -> xp < AvatarScale.seuil(pin.zoneCode(), age))
+					.forEach(next::add);
+		}
 		childAvatarPort.save(childId, style.code(), chosen, next);
 		return avatar(rawToken);
 	}

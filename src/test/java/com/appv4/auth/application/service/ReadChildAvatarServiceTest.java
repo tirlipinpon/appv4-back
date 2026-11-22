@@ -226,6 +226,25 @@ class ReadChildAvatarServiceTest {
 	}
 
 	@Test
+	void paletteAndNewOpenVariantKeepAnExistingVariant_whenItsZoneBecameClosed() {
+		activeChild(7L);
+		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.of(progress(7L, 30)));
+		ChildAvatarView avatar = service.avatar("token");
+		String eyes = zone(avatar, "eyes").variants().getFirst().code();
+		String mouth = zone(avatar, "mouth").variants().getFirst().code();
+		service.saveStyle("token", "lorelei", "bare", List.of(new StoredPin("eyes", eyes)));
+
+		when(childLoginPort.findActiveProfileById(7L))
+				.thenReturn(Optional.of(new ChildProfile(7L, "akira", null, true, 7)));
+		ChildAvatarView saved = service.saveStyle("token", "lorelei", "sepia", List.of(new StoredPin("mouth", mouth)));
+
+		assertThat(saved.presetId()).isEqualTo("sepia");
+		assertThat(zone(saved, "mouth").selectedCode()).isEqualTo(mouth);
+		assertThat(zone(saved, "eyes").open()).isFalse();
+		assertThat(zone(saved, "eyes").selectedCode()).isEqualTo(eyes);
+	}
+
+	@Test
 	void changingStyleDropsVariantsThatDoNotExistThere() {
 		activeChild(7L);
 		when(childProgressPort.findByChildId(7L)).thenReturn(Optional.of(progress(7L, 30)));

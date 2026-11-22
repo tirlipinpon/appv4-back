@@ -32,6 +32,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.QuestionMark;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.QuestionSummary;
+import com.appv4.auth.application.service.question.QuestionFormRegistry;
 import com.appv4.auth.application.result.ChildLessonView;
 import com.appv4.auth.application.result.ChildLessonView.Question;
 import com.appv4.auth.application.result.ChildSubjectBoardView;
@@ -44,6 +45,7 @@ class ChildSubjectLessonTest {
 	private final ChildSubjectBoardPort board = mock(ChildSubjectBoardPort.class);
 	private final TeacherQuestionPort questions = mock(TeacherQuestionPort.class);
 	private final ChildQuestionAttemptPort attempts = mock(ChildQuestionAttemptPort.class);
+	private final QuestionFormRegistry forms = mock(QuestionFormRegistry.class);
 	private ReadChildSubjectBoardService service;
 
 	@BeforeEach
@@ -65,8 +67,9 @@ class ChildSubjectLessonTest {
 		when(questions.findSummariesBySubject(eq(4L), eq(12L), anyInt())).thenReturn(List.of());
 		when(attempts.pageAttempts(7L, 4L)).thenReturn(List.of());
 		when(attempts.marksFor(eq(7L), org.mockito.ArgumentMatchers.any())).thenReturn(java.util.Map.of());
+		when(forms.labelOf("qcm")).thenReturn("Choix multiples");
 		service = new ReadChildSubjectBoardService(
-				children, session, subjects, board, new ChildLessonMembership(questions, attempts));
+				children, session, subjects, board, new ChildLessonMembership(questions, attempts, forms));
 	}
 
 	@Test
@@ -75,10 +78,14 @@ class ChildSubjectLessonTest {
 
 		assertThat(view.lesson().remainingCount()).isEqualTo(2);
 		assertThat(view.lesson().questions())
-				.extracting(Question::questionId, Question::prompt, Question::mark, Question::yellowCount)
+				.extracting(
+						Question::questionId, Question::formCode, Question::prompt, Question::formLabel,
+						Question::iconCode, Question::color, Question::mark, Question::yellowCount)
 				.containsExactly(
-						tuple(11L, "Combien font 2 + 2 ?", QuestionMark.NONE, 0),
-						tuple(12L, "Combien font 3 + 1 ?", QuestionMark.NONE, 0));
+						tuple(11L, "qcm", "Combien font 2 + 2 ?", "Choix multiples", "checklist", "#4c6fff",
+								QuestionMark.NONE, 0),
+						tuple(12L, "qcm", "Combien font 3 + 1 ?", "Choix multiples", "checklist", "#4c6fff",
+								QuestionMark.NONE, 0));
 	}
 
 	@Test

@@ -16,6 +16,9 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.QuestionSummary;
 import com.appv4.auth.application.result.ChildLessonView;
 import com.appv4.auth.application.result.ChildLessonView.Question;
+import com.appv4.auth.application.service.question.QuestionFormLooks;
+import com.appv4.auth.application.service.question.QuestionFormLooks.Look;
+import com.appv4.auth.application.service.question.QuestionFormRegistry;
 import com.appv4.auth.application.service.question.play.PlayableQuestionForm;
 
 /**
@@ -26,6 +29,7 @@ import com.appv4.auth.application.service.question.play.PlayableQuestionForm;
  * <p><b>Technique :</b> seul le premier verdict qui clôt une page compte. Les essais historiques
  * sans identifiant de page gardent la lecture précédente de leurs verdicts.
  * <p><b>Métier / flow :</b> tableau de la matière et verdict de l'essai qui vide la leçon.
+ * Chaque question emporte la même identité de forme que la liste de la matière.
  */
 public final class ChildLessonMembership {
 
@@ -33,10 +37,13 @@ public final class ChildLessonMembership {
 	private static final int QUESTION_PAGE = 100;
 	private final TeacherQuestionPort questions;
 	private final ChildQuestionAttemptPort attempts;
+	private final QuestionFormRegistry forms;
 
-	public ChildLessonMembership(TeacherQuestionPort questions, ChildQuestionAttemptPort attempts) {
+	public ChildLessonMembership(
+			TeacherQuestionPort questions, ChildQuestionAttemptPort attempts, QuestionFormRegistry forms) {
 		this.questions = questions;
 		this.attempts = attempts;
+		this.forms = forms;
 	}
 
 	public ChildLessonView view(long childId, long subjectId) {
@@ -90,10 +97,15 @@ public final class ChildLessonMembership {
 		return played == null ? Map.of() : played.stream().collect(Collectors.groupingBy(PageAttempt::questionId));
 	}
 
-	private static Question toQuestion(QuestionSummary question, StoredMark mark) {
+	private Question toQuestion(QuestionSummary question, StoredMark mark) {
+		Look look = QuestionFormLooks.of(question.formCode());
 		return new Question(
 				question.id(),
+				question.formCode(),
 				question.prompt() == null ? "" : question.prompt(),
+				forms.labelOf(question.formCode()),
+				look == null ? null : look.iconCode(),
+				look == null ? null : look.color(),
 				mark == null || mark.code() == null ? QuestionMark.NONE : mark.code(),
 				mark == null ? 0 : mark.yellowCount());
 	}

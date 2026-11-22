@@ -29,6 +29,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
 import com.appv4.auth.application.port.out.ChildSubjectPort.StoredLink;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
 import com.appv4.auth.application.result.ChildSubjectBoardView;
+import com.appv4.auth.application.service.question.QuestionFormRegistry;
 
 class ReadChildSubjectBoardServiceTest {
 
@@ -46,7 +47,8 @@ class ReadChildSubjectBoardServiceTest {
 		when(childLoginPort.findActiveById(7L)).thenReturn(Optional.of(new ChildLoginCandidate(7L, "Léa", "x")));
 		service = new ReadChildSubjectBoardService(
 				childLoginPort, childSessionTokenPort, childSubjectPort, boardPort,
-				new ChildLessonMembership(teacherQuestionPort, childQuestionAttemptPort));
+				new ChildLessonMembership(
+						teacherQuestionPort, childQuestionAttemptPort, Mockito.mock(QuestionFormRegistry.class)));
 	}
 
 	@Test

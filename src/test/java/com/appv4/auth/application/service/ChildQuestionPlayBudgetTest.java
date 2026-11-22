@@ -46,6 +46,7 @@ import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredFreeText;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredGamification;
 import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
 import com.appv4.auth.application.result.ChildAttemptResultView;
+import com.appv4.auth.application.service.question.QuestionFormRegistry;
 import com.appv4.auth.application.service.question.play.PlayableQuestionForm;
 
 /**
@@ -73,7 +74,8 @@ class ChildQuestionPlayBudgetTest {
 				new StoredQuestion(19L, 4L, "texte", "Capitale de la France", new StoredFreeText("Paris"))));
 		game = new ChildQuestionPlayService(
 				child, session, subjects, questions, attempts, mock(ChildSimonChallengePort.class),
-				progress, mission, mock(ChildBadgeProgress.class), new ChildLessonMembership(questions, attempts));
+				progress, mission, mock(ChildBadgeProgress.class),
+				new ChildLessonMembership(questions, attempts, mock(QuestionFormRegistry.class)));
 	}
 
 	@Test
@@ -148,7 +150,8 @@ class ChildQuestionPlayBudgetTest {
 				child, session, subjects, questions, missions, Clock.systemUTC());
 		ChildQuestionPlayService played = new ChildQuestionPlayService(
 				child, session, subjects, questions, attempts, mock(ChildSimonChallengePort.class),
-				progress, realMission, mock(ChildBadgeProgress.class), new ChildLessonMembership(questions, attempts));
+				progress, realMission, mock(ChildBadgeProgress.class),
+				new ChildLessonMembership(questions, attempts, mock(QuestionFormRegistry.class)));
 
 		ChildAttemptResultView result = played.submit("lea", 4L, 19L, answer("Paris", UUID.randomUUID()));
 

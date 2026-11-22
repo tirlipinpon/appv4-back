@@ -96,6 +96,7 @@ class OpenApiContractExportTest {
 		JsonNode contract = new ObjectMapper().readTree(body);
 		assertClosedMark(contract, "ChildAttemptResultResponse");
 		assertClosedMark(contract, "ChildLearningQuestionItem");
+		assertClosedMark(contract, "ChildSubjectLessonQuestion");
 		for (JsonNode variant : contract.at("/components/schemas/SubmitChildAttemptRequest/oneOf")) {
 			String ref = variant.path("$ref").asText();
 			String schemaName = ref.substring(ref.lastIndexOf('/') + 1);

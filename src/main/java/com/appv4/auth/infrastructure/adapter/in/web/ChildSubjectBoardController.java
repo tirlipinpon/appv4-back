@@ -125,14 +125,27 @@ public class ChildSubjectBoardController {
 	@Schema(name = "ChildSubjectLessonQuestion")
 	public record ChildSubjectLessonQuestion(
 			long questionId,
+			String formCode,
 			String prompt,
+			@Schema(description = "Libellé de la forme, celui du catalogue professeur.")
+			String formLabel,
+			@Schema(description = "Code du dessin de la forme. Null si la forme n'a pas d'identité.", nullable = true)
+			String iconCode,
+			@Schema(description = "Couleur #rrggbb de la forme. Null si pas d'identité.", nullable = true)
+			String color,
+			@Schema(description = "Étoile de l'enfant sur cette question : none, black ou yellow.")
 			QuestionMark mark,
+			@Schema(description = "Nombre d'étoiles jaunes. Zéro s'il n'y en a pas.")
 			int yellowCount) {
 
 		static ChildSubjectLessonQuestion from(ChildLessonView.Question question) {
 			return new ChildSubjectLessonQuestion(
 					question.questionId(),
+					question.formCode(),
 					question.prompt(),
+					question.formLabel(),
+					question.iconCode(),
+					question.color(),
 					question.mark(),
 					question.yellowCount());
 		}

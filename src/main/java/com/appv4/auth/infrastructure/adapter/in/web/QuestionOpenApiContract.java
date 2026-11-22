@@ -46,6 +46,7 @@ public class QuestionOpenApiContract implements OpenApiCustomizer {
 		require(schemas, "PlaySimonElement", "label");
 		require(schemas, "ChildLearningQuestionsResponse", "subjectId", "subjectName", "questions");
 		require(schemas, "ChildLearningQuestionItem", "questionId", FORM, "prompt", "formLabel", "mark", "yellowCount");
+		require(schemas, "ChildSubjectLessonQuestion", "questionId", FORM, "prompt", "formLabel", "mark", "yellowCount");
 		require(schemas, "ChildAttemptResultResponse", "attemptId", "scorePercent", "passed",
 				"attemptRank", "attemptsRemaining", "pointsAwarded", "replayAvailable", "mark", "yellowCount");
 		closedMark(schemas);
@@ -171,7 +172,8 @@ public class QuestionOpenApiContract implements OpenApiCustomizer {
 
 	private static void closedMark(Map<String, Schema> schemas) {
 		List<String> values = List.of("none", "black", "yellow");
-		for (String name : List.of("ChildAttemptResultResponse", "ChildLearningQuestionItem")) {
+		for (String name : List.of(
+				"ChildAttemptResultResponse", "ChildLearningQuestionItem", "ChildSubjectLessonQuestion")) {
 			Schema<?> model = schemas.get(name);
 			if (model == null || model.getProperties() == null) {
 				continue;

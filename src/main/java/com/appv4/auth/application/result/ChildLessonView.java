@@ -22,6 +22,19 @@ public record ChildLessonView(int remainingCount, List<Question> questions) {
 		return new ChildLessonView(copy.size(), copy);
 	}
 
-	public record Question(long questionId, String prompt, QuestionMark mark, int yellowCount) {
+	/**
+	 * @param formLabel libellé de la forme, celui du catalogue
+	 * @param iconCode  dessin de la forme, ou null
+	 * @param color     teinte #rrggbb de la forme, ou null
+	 */
+	public record Question(
+			long questionId,
+			String formCode,
+			String prompt,
+			String formLabel,
+			String iconCode,
+			String color,
+			QuestionMark mark,
+			int yellowCount) {
 	}
 }

@@ -528,8 +528,10 @@ public class AuthConfiguration {
 
 	@Bean
 	ChildLessonMembership childLessonMembership(
-			TeacherQuestionPort teacherQuestionPort, ChildQuestionAttemptPort childQuestionAttemptPort) {
-		return new ChildLessonMembership(teacherQuestionPort, childQuestionAttemptPort);
+			TeacherQuestionPort teacherQuestionPort,
+			ChildQuestionAttemptPort childQuestionAttemptPort,
+			QuestionFormRegistry questionFormRegistry) {
+		return new ChildLessonMembership(teacherQuestionPort, childQuestionAttemptPort, questionFormRegistry);
 	}
 
 	/**

@@ -34,6 +34,7 @@ import com.appv4.auth.application.service.UpdateChildProgressAfterAttemptService
 import com.appv4.auth.application.service.ChildBadgeProgress;
 import com.appv4.auth.application.service.ChildDailyMissionService;
 import com.appv4.auth.application.service.ChildLessonMembership;
+import com.appv4.auth.application.service.question.QuestionFormRegistry;
 import com.appv4.auth.application.service.ChildQuestionPlayService;
 import com.appv4.auth.application.service.ReadChildSubjectBoardService;
 import com.appv4.auth.application.exception.AuthDomainException;
@@ -224,7 +225,7 @@ class ChildProgressConcurrencyIT {
 		when(questions.gamificationOf(fixture.question()))
 				.thenReturn(new StoredGamification(maxAttempts, "facile", false, false, List.of()));
 		var progress = new UpdateChildProgressAfterAttemptService(adapter, Clock.systemUTC());
-		var lesson = new ChildLessonMembership(questions, attemptPort);
+		var lesson = new ChildLessonMembership(questions, attemptPort, mock(QuestionFormRegistry.class));
 		return new Play(
 				new ChildQuestionPlayService(child, session, subjects, questions, attemptPort, challenges,
 						progress, mock(ChildDailyMissionService.class), badges, lesson),

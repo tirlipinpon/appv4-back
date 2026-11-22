@@ -42,6 +42,7 @@ import com.appv4.auth.application.port.in.BuildGoogleAuthorizeUrlUseCase;
 import com.appv4.auth.application.port.in.CompleteRolesUseCase;
 import com.appv4.auth.application.port.in.ConnectedAccountUseCase;
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
+import com.appv4.auth.application.port.in.AskChildHumeurUseCase;
 import com.appv4.auth.application.port.in.HumeurLibraryUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
 import com.appv4.auth.application.port.in.LoginWithAppleUseCase;
@@ -80,6 +81,7 @@ import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
+import com.appv4.auth.application.port.out.HumeurAnswerPort;
 import com.appv4.auth.application.port.out.HumeurChoicePort;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
@@ -113,6 +115,7 @@ import com.appv4.auth.application.service.ParentChildrenService;
 import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
+import com.appv4.auth.application.service.AskChildHumeurService;
 import com.appv4.auth.application.service.HumeurLibraryService;
 import com.appv4.auth.application.service.TeacherModerationService;
 import com.appv4.auth.application.service.ParentProfileService;
@@ -658,6 +661,21 @@ public class AuthConfiguration {
 	@Bean
 	HumeurLibraryUseCase humeurLibraryUseCase(ActiveRolePort activeRolePort, HumeurChoicePort humeurChoicePort) {
 		return new HumeurLibraryService(activeRolePort, humeurChoicePort);
+	}
+
+	/**
+	 * Demande d'humeur (BACK-69).
+	 * La tendance se lit sur les essais déjà enregistrés. L'horloge est celle du bean.
+	 */
+	@Bean
+	AskChildHumeurUseCase askChildHumeurUseCase(
+			com.appv4.auth.application.port.out.ChildSessionTokenPort sessions,
+			com.appv4.auth.application.port.out.ChildLoginPort children,
+			com.appv4.auth.application.port.out.ChildQuestionAttemptPort attempts,
+			HumeurChoicePort humeurChoicePort,
+			HumeurAnswerPort humeurAnswerPort,
+			java.time.Clock clock) {
+		return new AskChildHumeurService(sessions, children, attempts, humeurChoicePort, humeurAnswerPort, clock);
 	}
 
 	@Bean

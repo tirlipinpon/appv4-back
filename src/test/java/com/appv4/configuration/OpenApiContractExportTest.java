@@ -77,6 +77,8 @@ class OpenApiContractExportTest {
 				.contains("/api/ext/subjects/{subjectId}/questions/{questionId}")
 				.contains("/api/ext/subjects/{subjectId}/questions/{questionId}/attempts")
 				.contains("/api/ext/progress")
+				.contains("/api/ext/humeur")
+				.contains("askChildHumeur")
 				.contains("/api/ext/avatar")
 				.contains("readChildAvatar")
 				.contains("saveChildAvatarStyle")

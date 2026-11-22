@@ -52,6 +52,9 @@ public class BackChildAttemptEntity {
 	@Column(name = "submission_id")
 	private UUID submissionId;
 
+	@Column(name = "play_id", nullable = true)
+	private UUID playId;
+
 	@Column(name = "attempt_rank", nullable = true)
 	private Integer attemptRank;
 
@@ -71,26 +74,16 @@ public class BackChildAttemptEntity {
 	@Column(name = "pay")
 	private Boolean pay;
 
+	@Column(name = "lesson_finished", nullable = false)
+	private boolean lessonFinished;
+
 	protected BackChildAttemptEntity() {
 	}
 
 	public BackChildAttemptEntity(
 			long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed,
-			UUID submissionId) {
-		this(childId, subjectId, questionId, formCode, scorePercent, passed, submissionId, null, null, null);
-	}
-
-	public BackChildAttemptEntity(
-			long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed,
-			UUID submissionId, Integer attemptRank, Integer attemptsRemaining, Integer pointsAwarded) {
-		this(childId, subjectId, questionId, formCode, scorePercent, passed, submissionId,
-				attemptRank, attemptsRemaining, pointsAwarded, null, null, null);
-	}
-
-	public BackChildAttemptEntity(
-			long childId, long subjectId, long questionId, String formCode, int scorePercent, boolean passed,
-			UUID submissionId, Integer attemptRank, Integer attemptsRemaining, Integer pointsAwarded,
-			String markCode, Integer yellowCount, Boolean pay) {
+			UUID submissionId, UUID playId, Integer attemptRank, Integer attemptsRemaining, Integer pointsAwarded,
+			String markCode, Integer yellowCount, Boolean pay, boolean lessonFinished) {
 		this.childId = childId;
 		this.subjectId = subjectId;
 		this.questionId = questionId;
@@ -98,16 +91,22 @@ public class BackChildAttemptEntity {
 		this.scorePercent = (short) scorePercent;
 		this.passed = passed;
 		this.submissionId = submissionId;
+		this.playId = playId;
 		this.attemptRank = attemptRank;
 		this.attemptsRemaining = attemptsRemaining;
 		this.pointsAwarded = pointsAwarded;
 		this.markCode = markCode;
 		this.yellowCount = yellowCount;
 		this.pay = pay;
+		this.lessonFinished = lessonFinished;
 	}
 
 	public Boolean getPay() {
 		return pay;
+	}
+
+	public boolean isLessonFinished() {
+		return lessonFinished;
 	}
 
 	public Long getId() {

@@ -690,7 +690,8 @@ class ChildQuestionPlayControllerTest {
 		when(childQuestionAttemptPort.claim(page, 7L, 4L, 19L, 2))
 				.thenReturn(Optional.of(new com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim(2, 0)));
 		when(childQuestionAttemptPort.insert(any(NewAttempt.class)))
-				.thenReturn(new StoredAttempt(51L, 7L, 4L, 19L, "texte", 100, true));
+				.thenReturn(new StoredAttempt(51L, 7L, 4L, 19L, "texte", 100, true,
+						2, 0, 10, null, 0, true, false));
 
 		mockMvc.perform(post("/api/ext/subjects/4/questions/19/attempts")
 						.header("Authorization", "Bearer " + token)

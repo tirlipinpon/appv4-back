@@ -47,6 +47,9 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 	public Optional<StoredAttempt> lockAndFind(long childId, UUID submissionId) {
 		jdbc.sql("select id from back_children where id = :child for no key update")
 				.param("child", childId).query(Long.class).optional();
+		if (submissionId == null) {
+			return Optional.empty();
+		}
 		return attempts.findByChildIdAndSubmissionId(childId, submissionId).map(ChildQuestionAttemptPersistenceAdapter::stored);
 	}
 
@@ -165,27 +168,20 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 
 	@Override
 	public List<PageAttempt> pageAttempts(long childId, long subjectId) {
-		List<PageAttempt> found = new java.util.ArrayList<>();
-		jdbc.sql("""
-				select id, question_id, created_at, passed, attempt_rank, attempts_remaining
+		return jdbc.sql("""
+				select question_id, play_id, passed, attempts_remaining
 				from back_child_attempts
 				where child_id = :childId and subject_id = :subjectId
 				order by created_at, id
 				""")
 				.param("childId", childId)
 				.param("subjectId", subjectId)
-				.query((rs, row) -> {
-					found.add(new PageAttempt(
-							rs.getLong("id"),
-							rs.getLong("question_id"),
-							rs.getTimestamp("created_at").toInstant(),
-							rs.getBoolean("passed"),
-							(Integer) rs.getObject("attempt_rank"),
-							(Integer) rs.getObject("attempts_remaining")));
-					return null;
-				})
+				.query((rs, row) -> new PageAttempt(
+						rs.getLong("question_id"),
+						rs.getObject("play_id", UUID.class),
+						rs.getBoolean("passed"),
+						(Integer) rs.getObject("attempts_remaining")))
 				.list();
-		return found;
 	}
 
 	@Override
@@ -239,12 +235,14 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				attempt.scorePercent(),
 				attempt.passed(),
 				attempt.submissionId(),
+				attempt.playId(),
 				attempt.attemptRank(),
 				attempt.attemptsRemaining(),
 				attempt.pointsAwarded(),
 				attempt.markCode() == null ? null : attempt.markCode().wire(),
 				attempt.yellowCount(),
-				attempt.pay()));
+				attempt.pay(),
+				attempt.lessonFinished()));
 		long attemptId = saved.getId();
 		for (AnswerLine line : attempt.answers()) {
 			answers.save(new BackChildAttemptAnswerEntity(
@@ -276,6 +274,7 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				saved.getPointsAwarded(),
 				saved.getMarkCode() == null ? null : QuestionMark.fromWire(saved.getMarkCode()),
 				saved.getYellowCount(),
-				saved.getPay());
+				saved.getPay(),
+				saved.isLessonFinished());
 	}
 }

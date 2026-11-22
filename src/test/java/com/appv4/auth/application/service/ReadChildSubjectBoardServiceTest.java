@@ -46,7 +46,7 @@ class ReadChildSubjectBoardServiceTest {
 		when(childLoginPort.findActiveById(7L)).thenReturn(Optional.of(new ChildLoginCandidate(7L, "Léa", "x")));
 		service = new ReadChildSubjectBoardService(
 				childLoginPort, childSessionTokenPort, childSubjectPort, boardPort,
-				teacherQuestionPort, childQuestionAttemptPort);
+				new ChildLessonMembership(teacherQuestionPort, childQuestionAttemptPort));
 	}
 
 	@Test

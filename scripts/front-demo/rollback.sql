@@ -58,11 +58,16 @@ DO $$ BEGIN
  OR EXISTS(SELECT 1 FROM back_subject_board b
    WHERE (b.subject_id IN (SELECT id FROM demo_subjects)) = false)
  OR EXISTS(SELECT 1 FROM back_subject_topics t
-   WHERE (t.subject_id IN (SELECT id FROM demo_subjects)) = false) THEN
+   WHERE (t.subject_id IN (SELECT id FROM demo_subjects)) = false)
+ OR EXISTS(SELECT 1 FROM back_child_interests interest
+   JOIN back_children child ON child.id = interest.child_id
+   WHERE (child.id IN (SELECT id FROM demo_children))
+     <> (child.parent_user_id IN (SELECT id FROM demo_users))) THEN
    RAISE EXCEPTION 'Real/demo cross-links detected. Unlink them in the app before rollback; nothing deleted.';
  END IF;
 END $$;
 DELETE FROM back_teacher_subjects WHERE id IN (SELECT id FROM demo_subjects);
+DELETE FROM back_child_interests WHERE child_id IN (SELECT id FROM demo_children);
 DELETE FROM back_children WHERE id IN (SELECT id FROM demo_children);
 DELETE FROM back_users WHERE id IN (SELECT id FROM demo_users);
 DELETE FROM back_schools WHERE id IN (SELECT id FROM demo_schools);

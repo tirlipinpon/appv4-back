@@ -19,6 +19,7 @@ import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
 import com.appv4.auth.application.port.out.ChildPort.ChildPhoto;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
+import com.appv4.auth.application.port.out.ChildPort.InterestCopy;
 import com.appv4.auth.application.port.out.ChildPort.NewChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
@@ -307,6 +308,16 @@ class ChildSubjectServiceTest {
 
 		@Override
 		public Optional<ChildPhoto> findPhoto(long parentUserId, long childId) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public List<InterestCopy> findInterests(long childId) {
+			return List.of();
+		}
+
+		@Override
+		public void replaceInterests(long childId, List<InterestCopy> copies) {
 			throw new UnsupportedOperationException();
 		}
 	}

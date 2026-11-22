@@ -1,5 +1,6 @@
 package com.appv4.auth.application.service;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -20,6 +21,7 @@ import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
 import com.appv4.auth.application.port.out.ChildPort.ChildPhoto;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
+import com.appv4.auth.application.port.out.ChildPort.InterestCopy;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CountedLink;
 import com.appv4.auth.application.port.out.ChildPort.NewChild;
@@ -80,6 +82,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	private final ChildSubjectService childSubjectService;
 	private final ChildAvatarPort childAvatarPort;
 	private final CharacterAvatarCatalog avatarCatalog;
+	private final Clock clock;
 
 	public ParentChildrenService(
 			ChildPort childPort,
@@ -88,7 +91,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 			ChildSubjectPort childSubjectPort,
 			ChildSubjectService childSubjectService,
 			ChildAvatarPort childAvatarPort,
-			CharacterAvatarCatalog avatarCatalog) {
+			CharacterAvatarCatalog avatarCatalog,
+			Clock clock) {
 		this.childPort = childPort;
 		this.schoolCatalogPort = schoolCatalogPort;
 		this.passwordEncoder = passwordEncoder;
@@ -96,6 +100,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		this.childSubjectService = childSubjectService;
 		this.childAvatarPort = childAvatarPort;
 		this.avatarCatalog = avatarCatalog;
+		this.clock = clock;
 	}
 
 	/**
@@ -126,11 +131,12 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		requireParent(activeRole);
 		NewChildCommand body = command == null
 				? new NewChildCommand(
-						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: command;
 		ChildSaved source = sourceOf(parentUserId, body.fromChildId());
 		Prepared prepared = prepare(body);
 		String relation = relationOf(body.link(), source != null);
+		List<InterestCopy> interests = ChildInterestList.resolve(body.interests(), List.of(), clock.instant());
 		String pinHash = passwordEncoder.encode(prepared.pin());
 		ChildSaved saved = childPort.insert(new NewChild(
 				parentUserId,
@@ -148,6 +154,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		if (relation != null && source != null) {
 			childPort.insertLink(parentUserId, saved.id(), source.id(), relation);
 		}
+		childPort.replaceInterests(saved.id(), interests);
 		childSubjectService.ensureDefaults(parentUserId);
 		Attached attached = attachedFor(parentUserId, saved.id());
 		return card(
@@ -156,7 +163,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				attached.phrases(),
 				countsFor(parentUserId, saved),
 				attached.marks(),
-				childAvatarPort.findByChildId(saved.id()).orElse(null));
+				childAvatarPort.findByChildId(saved.id()).orElse(null),
+				ChildInterestList.spellings(interests));
 	}
 
 	/**
@@ -177,8 +185,10 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
 		NewChildCommand body = command == null
 				? new NewChildCommand(
-						null, null, null, null, null, null, null, null, null, null, null, null, null, null)
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)
 				: command;
+		List<InterestCopy> interests = ChildInterestList.resolve(
+				body.interests(), childPort.findInterests(childId), clock.instant());
 		String firstName = requiredName(body.firstName(), FIRST_NAME_REQUIRED);
 		String lastName = requiredName(body.lastName(), LAST_NAME_REQUIRED);
 		String sex = requireSex(body.sex());
@@ -208,6 +218,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				image.photo(),
 				image.contentType(),
 				pinHash)).orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
+		childPort.replaceInterests(saved.id(), interests);
 		if (otherId != null && linkEdit.remove()) {
 			childPort.deleteLink(parentUserId, saved.id(), otherId);
 		} else if (otherId != null && linkEdit.relation() != null) {
@@ -221,7 +232,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				attached.phrases(),
 				countsFor(parentUserId, saved),
 				attached.marks(),
-				childAvatarPort.findByChildId(saved.id()).orElse(null));
+				childAvatarPort.findByChildId(saved.id()).orElse(null),
+				ChildInterestList.spellings(interests));
 	}
 
 	@Override
@@ -344,7 +356,9 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		for (ChildSaved child : family) {
 			Attached links = attached.getOrDefault(child.id(), Attached.NONE);
 			int[] pair = counts.getOrDefault(child.id(), new int[] {0, 0});
-			cards.add(card(child, schools, links.phrases(), pair, links.marks(), avatars.get(child.id())));
+			cards.add(card(
+					child, schools, links.phrases(), pair, links.marks(), avatars.get(child.id()),
+					ChildInterestList.spellings(childPort.findInterests(child.id()))));
 		}
 		List<SchoolChoice> choices = new ArrayList<>();
 		for (CatalogSchool school : schools.values()) {
@@ -415,7 +429,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 			List<String> linkPhrases,
 			int[] subjectCounts,
 			List<KinshipMark> links,
-			StoredAvatar avatar) {
+			StoredAvatar avatar,
+			List<String> interests) {
 		CatalogSchool school = child.schoolId() == null ? null : schools.get(child.schoolId());
 		return new ChildCard(
 				child.id(),
@@ -435,7 +450,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				subjectCounts[0],
 				subjectCounts[1],
 				links,
-				characterOf(avatar));
+				characterOf(avatar),
+				interests);
 	}
 
 	private CharacterFace characterOf(StoredAvatar saved) {

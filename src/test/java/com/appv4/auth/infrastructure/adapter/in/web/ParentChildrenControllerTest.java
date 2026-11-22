@@ -75,7 +75,7 @@ class ParentChildrenControllerTest {
 
 		String body = "{\"firstName\":\"Léa\",\"lastName\":\"Martin\",\"sex\":\"FILLE\",\"age\":\"7\","
 				+ "\"country\":\"France\",\"grade\":\"CE1\",\"avatarCode\":\"fox\","
-				+ "\"pin\":\"4821\",\"pinConfirmation\":\"4821\"}";
+				+ "\"pin\":\"4821\",\"pinConfirmation\":\"4821\",\"interests\":[]}";
 		mockMvc.perform(post("/api/int/parent/children")
 						.header(HttpHeaders.AUTHORIZATION, bearer("parent"))
 						.contentType(MediaType.APPLICATION_JSON)
@@ -93,7 +93,7 @@ class ParentChildrenControllerTest {
 	void mismatchedPinDoesNotCreateAChild() throws Exception {
 		String body = "{\"firstName\":\"Léa\",\"lastName\":\"Martin\",\"sex\":\"FILLE\",\"age\":\"7\","
 				+ "\"country\":\"France\",\"grade\":\"CE1\",\"avatarCode\":\"fox\","
-				+ "\"pin\":\"4821\",\"pinConfirmation\":\"4822\"}";
+				+ "\"pin\":\"4821\",\"pinConfirmation\":\"4822\",\"interests\":[]}";
 		mockMvc.perform(post("/api/int/parent/children")
 						.header(HttpHeaders.AUTHORIZATION, bearer("parent"))
 						.contentType(MediaType.APPLICATION_JSON)
@@ -125,7 +125,7 @@ class ParentChildrenControllerTest {
 
 		String body = "{\"firstName\":\"Noah\",\"lastName\":\"Martin\",\"sex\":\"GARCON\",\"age\":\"8\","
 				+ "\"country\":\"France\",\"grade\":\"CM1\",\"avatarCode\":\"fox\","
-				+ "\"pin\":\"1357\",\"pinConfirmation\":\"1357\",\"fromChildId\":3,\"link\":\"FRERE\"}";
+				+ "\"pin\":\"1357\",\"pinConfirmation\":\"1357\",\"fromChildId\":3,\"link\":\"FRERE\",\"interests\":[]}";
 		mockMvc.perform(post("/api/int/parent/children")
 						.header(HttpHeaders.AUTHORIZATION, bearer("parent"))
 						.contentType(MediaType.APPLICATION_JSON)
@@ -159,7 +159,7 @@ class ParentChildrenControllerTest {
 
 		String none = "{\"firstName\":\"Tom\",\"lastName\":\"Martin\",\"sex\":\"GARCON\",\"age\":\"7\","
 				+ "\"country\":\"France\",\"grade\":\"CE1\",\"avatarCode\":\"fox\","
-				+ "\"pin\":\"2468\",\"pinConfirmation\":\"2468\",\"fromChildId\":3,\"link\":\"AUCUN\"}";
+				+ "\"pin\":\"2468\",\"pinConfirmation\":\"2468\",\"fromChildId\":3,\"link\":\"AUCUN\",\"interests\":[]}";
 		mockMvc.perform(post("/api/int/parent/children")
 						.header(HttpHeaders.AUTHORIZATION, bearer("parent"))
 						.contentType(MediaType.APPLICATION_JSON)
@@ -171,7 +171,7 @@ class ParentChildrenControllerTest {
 
 		String foreign = "{\"firstName\":\"Nina\",\"lastName\":\"Martin\",\"age\":\"7\","
 				+ "\"country\":\"France\",\"grade\":\"CE1\",\"avatarCode\":\"fox\","
-				+ "\"pin\":\"8642\",\"pinConfirmation\":\"8642\",\"fromChildId\":99,\"link\":\"SOEUR\"}";
+				+ "\"pin\":\"8642\",\"pinConfirmation\":\"8642\",\"fromChildId\":99,\"link\":\"SOEUR\",\"interests\":[]}";
 		mockMvc.perform(post("/api/int/parent/children")
 						.header(HttpHeaders.AUTHORIZATION, bearer("parent"))
 						.contentType(MediaType.APPLICATION_JSON)

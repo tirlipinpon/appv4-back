@@ -14,6 +14,7 @@ import com.appv4.auth.application.service.question.ReponseLibreQuestionForm;
 import com.appv4.auth.application.service.question.SimonQuestionForm;
 import com.appv4.auth.application.service.question.TexteQuestionForm;
 import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
+import java.time.Clock;
 import java.util.List;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -893,7 +894,8 @@ public class AuthConfiguration {
 				childSubjectPort,
 				childSubjectService,
 				childAvatarPort,
-				characterAvatarCatalog);
+				characterAvatarCatalog,
+				Clock.systemUTC());
 	}
 
 	/**

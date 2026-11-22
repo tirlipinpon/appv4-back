@@ -1,5 +1,7 @@
 package com.appv4.auth.application.port.in;
 
+import java.util.List;
+
 import com.appv4.auth.application.result.ParentChildrenView;
 import com.appv4.auth.application.port.out.ChildPort.ChildPhoto;
 
@@ -34,6 +36,7 @@ public interface ParentChildrenUseCase {
 	 * @param pinConfirmation   seconde saisie, comparée puis oubliée
 	 * @param fromChildId       enfant de départ, ou null pour un formulaire vide
 	 * @param link              code fermé, ou {@code AUCUN} pour ne pas enregistrer de lien
+	 * @param interests         centres d'intérêt. null : liste absente. vide : effacer
 	 */
 	record NewChildCommand(
 			String firstName,
@@ -49,6 +52,7 @@ public interface ParentChildrenUseCase {
 			String pin,
 			String pinConfirmation,
 			Long fromChildId,
-			String link) {
+			String link,
+			List<String> interests) {
 	}
 }

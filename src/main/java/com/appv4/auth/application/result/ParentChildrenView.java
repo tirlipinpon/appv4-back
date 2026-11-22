@@ -45,11 +45,13 @@ public record ParentChildrenView(
 			int schoolSubjectCount,
 			int extraSubjectCount,
 			List<KinshipMark> links,
-			CharacterFace character) {
+			CharacterFace character,
+			List<String> interests) {
 
 		public ChildCard {
 			linkPhrases = linkPhrases == null ? List.of() : List.copyOf(linkPhrases);
 			links = links == null ? List.of() : List.copyOf(links);
+			interests = interests == null ? List.of() : List.copyOf(interests);
 		}
 	}
 

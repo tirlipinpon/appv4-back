@@ -12,6 +12,7 @@ import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
 import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
+import com.appv4.auth.application.port.out.ChildPort.InterestCopy;
 import com.appv4.auth.application.service.ParentChildrenService;
 
 /**
@@ -27,12 +28,15 @@ public class ChildPersistenceAdapter implements ChildPort {
 
 	private final BackChildJpaRepository childRepository;
 	private final BackChildLinkJpaRepository linkRepository;
+	private final BackChildInterestJpaRepository interestRepository;
 
 	public ChildPersistenceAdapter(
 			BackChildJpaRepository childRepository,
-			BackChildLinkJpaRepository linkRepository) {
+			BackChildLinkJpaRepository linkRepository,
+			BackChildInterestJpaRepository interestRepository) {
 		this.childRepository = childRepository;
 		this.linkRepository = linkRepository;
+		this.interestRepository = interestRepository;
 	}
 
 	@Override
@@ -199,6 +203,24 @@ public class ChildPersistenceAdapter implements ChildPort {
 		return childRepository.findByIdAndParentUserIdAndHiddenFalse(childId, parentUserId)
 				.filter(child -> child.getPhoto() != null)
 				.map(child -> new ChildPhoto(child.getPhoto(), child.getPhotoContentType()));
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<InterestCopy> findInterests(long childId) {
+		return interestRepository.findByChildId(childId).stream()
+				.map(row -> new InterestCopy(row.getLabel(), row.getWrittenAt()))
+				.toList();
+	}
+
+	@Override
+	@Transactional
+	public void replaceInterests(long childId, List<InterestCopy> copies) {
+		interestRepository.deleteByChildId(childId);
+		interestRepository.flush();
+		for (InterestCopy copy : copies) {
+			interestRepository.save(new BackChildInterestEntity(childId, copy.text(), copy.writtenAt()));
+		}
 	}
 
 	private static ChildSaved toSaved(BackChildEntity child) {

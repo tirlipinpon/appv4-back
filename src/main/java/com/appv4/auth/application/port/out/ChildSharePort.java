@@ -54,6 +54,32 @@ public interface ChildSharePort {
 	void cancelDemandes(long referentId, String firstName, String lastName);
 
 	/**
+	 * @return les parents en partage, pas le parent référent
+	 */
+	List<Long> sharedHolderIds(long childId);
+
+	boolean sharedHolder(long childId, long userId);
+
+	Optional<StoredTransfer> pendingTransfer(long childId);
+
+	StoredTransfer saveTransfer(long childId, long fromUserId, long toUserId, String message);
+
+	Optional<StoredTransfer> findTransfer(long id);
+
+	/** Transferts encore ouverts dont ce parent est l'auteur ou le destinataire. */
+	List<StoredTransfer> transfersFor(long userId);
+
+	void markTransfer(long id, String status);
+
+	void cancelTransfers(long childId);
+
+	/**
+	 * Le parent choisi gère la fiche. L'ancien parent référent la garde en partage.
+	 * Le code de l'enfant ne change pas.
+	 */
+	void becomeReferent(long childId, long newReferentId, long previousReferentId);
+
+	/**
 	 * @param email déjà coupé et en minuscules
 	 */
 	record StoredInvitation(long id, long childId, String email) {
@@ -64,5 +90,12 @@ public interface ChildSharePort {
 	 * @param lastName nom saisi, déjà coupé
 	 */
 	record StoredDemande(long id, long senderId, long referentId, String firstName, String lastName, String status) {
+	}
+
+	/**
+	 * @param message déjà coupé, de 1 à 200 caractères
+	 */
+	record StoredTransfer(
+			long id, long childId, long fromUserId, long toUserId, String message, String status) {
 	}
 }

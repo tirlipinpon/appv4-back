@@ -260,6 +260,80 @@ public class ParentChildrenController {
 		return ResponseEntity.noContent().build();
 	}
 
+	@GetMapping("/{id}/holders")
+	@Operation(operationId = "listChildHolders", summary = "Lire les parents déjà en partage")
+	public ResponseEntity<List<FicheHolderResponse>> holders(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		List<FicheHolderResponse> body = parentChildrenUseCase.holders(user.userId(), user.activeRole(), id)
+				.stream()
+				.map(holder -> new FicheHolderResponse(holder.userId(), holder.label()))
+				.toList();
+		return ResponseEntity.ok(body);
+	}
+
+	@PostMapping("/{id}/transferts")
+	@Operation(operationId = "startChildTransfer", summary = "Proposer à un parent déjà sur la fiche d'en devenir le référent")
+	public ResponseEntity<Void> startTransfer(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id,
+			@RequestBody StartTransferBody request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		StartTransferBody body = request == null ? new StartTransferBody(0, null) : request;
+		parentChildrenUseCase.startTransfer(
+				user.userId(), user.activeRole(), id, body.holderUserId(), body.message());
+		return ResponseEntity.noContent().build();
+	}
+
+	@GetMapping("/transferts")
+	@Operation(operationId = "listChildTransfers", summary = "Lire les transferts qui concernent ce parent")
+	public ResponseEntity<List<TransferResponse>> transfers(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		List<TransferResponse> body = parentChildrenUseCase.transfers(user.userId(), user.activeRole())
+				.stream()
+				.map(item -> new TransferResponse(
+						item.id(),
+						item.childId(),
+						item.firstName(),
+						item.lastName(),
+						item.message(),
+						item.incoming()))
+				.toList();
+		return ResponseEntity.ok(body);
+	}
+
+	@PostMapping("/transferts/{transferId}/accept")
+	@Operation(operationId = "acceptChildTransfer", summary = "Accepter de devenir le parent référent")
+	public ResponseEntity<Void> acceptTransfer(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long transferId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.acceptTransfer(user.userId(), user.activeRole(), transferId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/transferts/{transferId}/refuse")
+	@Operation(operationId = "refuseChildTransfer", summary = "Refuser un transfert")
+	public ResponseEntity<Void> refuseTransfer(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long transferId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.refuseTransfer(user.userId(), user.activeRole(), transferId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@DeleteMapping("/transferts/{transferId}")
+	@Operation(operationId = "cancelChildTransfer", summary = "Annuler un transfert encore en attente")
+	public ResponseEntity<Void> cancelTransfer(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long transferId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.cancelTransfer(user.userId(), user.activeRole(), transferId);
+		return ResponseEntity.noContent().build();
+	}
+
 	@PostMapping("/{id}/invitations")
 	@Operation(operationId = "inviteParentOnChild", summary = "Inviter un email sur la fiche")
 	@ApiResponse(responseCode = "200", description = "Invitation envoyée, sans dire si le compte existe")
@@ -359,7 +433,8 @@ public class ParentChildrenController {
 				card.interests(),
 				card.referent(),
 				card.pendingInvitationCount(),
-				card.pendingDemandeCount());
+				card.pendingDemandeCount(),
+				card.pendingTransferCount());
 	}
 
 	@Schema(name = "ParentChildrenResponse")
@@ -407,7 +482,9 @@ public class ParentChildrenController {
 			@Schema(description = "Invitations encore en attente. Zéro si ce parent ne gère pas la fiche.")
 			int pendingInvitationCount,
 			@Schema(description = "Demandes de partage encore en attente pour ce nom. Zéro si ce parent ne gère pas la fiche.")
-			int pendingDemandeCount) {
+			int pendingDemandeCount,
+			@Schema(description = "Un transfert en attente vaut 1. Zéro si ce parent ne gère pas la fiche.")
+			int pendingTransferCount) {
 	}
 
 	@Schema(name = "ParentChildCharacter")
@@ -443,6 +520,25 @@ public class ParentChildrenController {
 	@Schema(name = "ShareRequestResponse")
 	public record ShareRequestResponse(
 			long id, String firstName, String lastName, List<ShareRequestChildResponse> matches) {
+	}
+
+	@Schema(name = "FicheHolderResponse")
+	public record FicheHolderResponse(long userId, String label) {
+	}
+
+	@Schema(name = "StartTransferBody")
+	public record StartTransferBody(long holderUserId, String message) {
+	}
+
+	@Schema(name = "TransferResponse")
+	public record TransferResponse(
+			long id,
+			long childId,
+			String firstName,
+			String lastName,
+			String message,
+			@Schema(description = "Vrai si ce parent peut accepter ou refuser.")
+			boolean incoming) {
 	}
 
 	@Schema(name = "AcceptShareRequestBody")

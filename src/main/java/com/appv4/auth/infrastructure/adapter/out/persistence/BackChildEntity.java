@@ -188,6 +188,17 @@ public class BackChildEntity {
 	}
 
 	/**
+	 * Le parent qui gère la fiche change.
+	 *
+	 * <p><b>Business :</b> après un transfert accepté, ce parent est le parent référent.
+	 * <p><b>Technique :</b> {@code parent_user_id} seulement. Le hash du code n'est pas touché.
+	 * <p><b>Métier / flow :</b> l'ancien parent reste détenteur, dans une autre ligne.
+	 */
+	public void assignParent(long parentUserId) {
+		this.parentUserId = parentUserId;
+	}
+
+	/**
 	 * Remplace les champs modifiables. Un hash null garde le PIN. Sans nouvelle image, photo et avatar restent.
 	 */
 	public void applyChanges(

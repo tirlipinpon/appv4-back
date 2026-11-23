@@ -20,6 +20,17 @@ public interface TeacherStudentsUseCase {
 	 */
 	StudentPhoto photo(long userId, String activeRole, long childId);
 
+	/**
+	 * Vérifie que cet élève est déjà dans une classe cochée sur le profil.
+	 *
+	 * <p><b>Business :</b> le professeur ne lit un élève que s'il est dans ses classes.
+	 * La phrase de refus est celle de la liste et de la photo.
+	 * <p><b>Technique :</b> même école, même norme, même année. Un rôle parent ou enfant
+	 * est refusé comme les autres routes professeur.
+	 * <p><b>Métier / flow :</b> contrôle avant une lecture d'élève, dont les séjours.
+	 */
+	void requireInClass(long userId, String activeRole, long childId);
+
 	record StudentPhoto(byte[] bytes, String contentType) {
 	}
 }

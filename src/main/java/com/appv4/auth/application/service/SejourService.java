@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.SejourUseCase;
+import com.appv4.auth.application.port.in.TeacherStudentsUseCase;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
@@ -35,7 +36,8 @@ import com.appv4.auth.application.port.out.SejourQuestionPort.QuestionCaption;
 
 /**
  * Compte le séjour à partir des signaux, ferme l'app enfant pendant la Nuit,
- * et demande si l'enfant est encore là (BACK-38, question BACK-79, Nuit BACK-80, popup BACK-81).
+ * et demande si l'enfant est encore là
+ * (BACK-38, question BACK-79, Nuit BACK-80, popup BACK-81, professeur BACK-82).
  *
  * <p><b>Business :</b> seul le temps confirmé par un signal compte, jamais après 22 h.
  * De 22 h à 6 h l'enfant n'entre plus. À vingt minutes sans geste, la lecture envoie
@@ -44,7 +46,8 @@ import com.appv4.auth.application.port.out.SejourQuestionPort.QuestionCaption;
  * la progression. La tranche ouverte s'arrête au plus tôt entre le dernier geste plus
  * deux minutes et 22 h.
  * <p><b>Métier / flow :</b> port in Séjour. Les routes enfant appellent ici et reçoivent
- * la phrase. La lecture parent reste ouverte pendant la Nuit.
+ * la phrase. La lecture parent et la lecture professeur restent ouvertes pendant la Nuit.
+ * Les deux lisent la même liste, après leur propre contrôle d'accès.
  */
 public class SejourService implements SejourUseCase {
 
@@ -90,6 +93,7 @@ public class SejourService implements SejourUseCase {
 	private final ChildPort children;
 	private final SejourPort sejours;
 	private final SejourQuestionPort questions;
+	private final TeacherStudentsUseCase students;
 	private final Clock clock;
 
 	public SejourService(
@@ -111,11 +115,26 @@ public class SejourService implements SejourUseCase {
 			SejourPort sejours,
 			Clock clock,
 			SejourQuestionPort questions) {
+		this(sessions, logins, children, sejours, clock, questions, null);
+	}
+
+	/**
+	 * @param students contrôle de classe déjà utilisé pour les élèves du professeur
+	 */
+	public SejourService(
+			ChildSessionTokenPort sessions,
+			ChildLoginPort logins,
+			ChildPort children,
+			SejourPort sejours,
+			Clock clock,
+			SejourQuestionPort questions,
+			TeacherStudentsUseCase students) {
 		this.sessions = sessions;
 		this.logins = logins;
 		this.children = children;
 		this.sejours = sejours;
 		this.questions = questions;
+		this.students = students;
 		this.clock = clock;
 	}
 
@@ -183,6 +202,18 @@ public class SejourService implements SejourUseCase {
 		}
 		children.findOwned(parentUserId, childId)
 				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, ParentChildrenService.CHILD_UNKNOWN));
+		return confirmed(childId);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<ParentSejour> readTeacher(long teacherUserId, String activeRole, long childId) {
+		students.requireInClass(teacherUserId, activeRole, childId);
+		return confirmed(childId);
+	}
+
+	/** Séjours confirmés, du plus récent au plus ancien. Le parent et le professeur lisent ici. */
+	private List<ParentSejour> confirmed(long childId) {
 		List<StoredSejour> stored = new ArrayList<>(sejours.list(childId));
 		stored.sort(Comparator.comparing(StoredSejour::startedAt).reversed()
 				.thenComparing(StoredSejour::id, Comparator.reverseOrder()));

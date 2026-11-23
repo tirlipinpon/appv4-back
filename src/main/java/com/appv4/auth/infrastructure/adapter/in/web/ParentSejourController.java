@@ -64,7 +64,7 @@ public class ParentSejourController {
 		return ResponseEntity.ok(new ParentSejourListResponse(sejours));
 	}
 
-	private static ParentSejourItem toItem(ParentSejour sejour) {
+	static ParentSejourItem toItem(ParentSejour sejour) {
 		List<ParentSejourLineItem> lines = sejour.lines().stream()
 				.map(ParentSejourController::toLine)
 				.toList();

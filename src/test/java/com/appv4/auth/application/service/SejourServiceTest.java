@@ -12,6 +12,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +32,13 @@ import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort.ChildSession;
+import com.appv4.auth.application.port.out.EnrolledChildPort;
+import com.appv4.auth.application.port.out.EnrolledChildPort.EnrolledChild;
+import com.appv4.auth.application.port.out.EnrolledChildPort.EnrolledPhoto;
 import com.appv4.auth.application.port.out.SejourPort;
+import com.appv4.auth.application.port.out.TeacherProfilePort;
+import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherAccount;
+import com.appv4.auth.application.port.out.TeacherProfilePort.TeacherSchoolLink;
 import com.appv4.auth.application.port.out.SejourPort.OpenSlice;
 import com.appv4.auth.application.port.out.SejourPort.StoredInterval;
 import com.appv4.auth.application.port.out.SejourPort.StoredSejour;
@@ -462,6 +469,62 @@ class SejourServiceTest {
 	}
 
 	@Test
+	void unProfesseurDeLaClasseLitLeMemeDetailQueLeParent() {
+		MemoryQuestions questions = new MemoryQuestions();
+		questions.keep(42L, "Combien font 2 + 2 ?", "Maths");
+		questions.keep(43L, "Quelle est la capitale ?", "Histoire");
+		SejourService jeu = new SejourService(
+				sessions, logins, children, store, clock, questions, classesDeAkira());
+
+		clock.at(AT_16);
+		jeu.signal("akira", "screen", "tablette", "accueil");
+		jeu.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		jeu.signal("akira", "presence", "tablette", null);
+		jeu.signal("akira", "question", "tablette", null, 42L);
+		jeu.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(60));
+		jeu.signal("akira", "presence", "tablette", null);
+		jeu.signal("akira", "question", "tablette", null, 43L);
+		jeu.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(90));
+		jeu.signal("akira", "presence", "tablette", null);
+
+		clock.at(paris(2026, 11, 22, 23, 0));
+		List<ParentSejour> parent = jeu.readParent(1L, "parent", 7L);
+		List<ParentSejour> teacher = jeu.readTeacher(4L, "teacher", 7L);
+
+		assertThat(teacher).usingRecursiveComparison().isEqualTo(parent);
+		ParentSejour row = seul(teacher);
+		assertThat(row.dateLabel()).isEqualTo("22 novembre 2026");
+		assertThat(row.timeLabel()).isEqualTo("16:00");
+		assertThat(row.durationLabel()).isEqualTo("1 min 30");
+		assertThat(row.lines()).extracting(Line::label, Line::subjectName, Line::durationLabel)
+				.containsExactly(
+						tuple("Accueil", null, "30 s"),
+						tuple("Combien font 2 + 2 ?", "Maths", "30 s"),
+						tuple("Quelle est la capitale ?", "Histoire", "30 s"));
+		assertThat(jeu.readTeacher(5L, "teacher", 7L))
+				.usingRecursiveComparison()
+				.isEqualTo(teacher);
+		assertThatThrownBy(() -> jeu.readTeacher(9L, "teacher", 7L))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherStudentsService.NOT_IN_CLASS)
+				.extracting(error -> ((AuthDomainException) error).getErrorCode())
+				.isEqualTo(AuthErrorCode.NOT_FOUND);
+		assertThatThrownBy(() -> jeu.readTeacher(4L, "parent", 7L))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(SpaceAccess.DENIED)
+				.extracting(error -> ((AuthDomainException) error).getErrorCode())
+				.isEqualTo(AuthErrorCode.FORBIDDEN);
+		assertThatThrownBy(() -> jeu.readTeacher(4L, "child", 7L))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(SpaceAccess.DENIED)
+				.extracting(error -> ((AuthDomainException) error).getErrorCode())
+				.isEqualTo(AuthErrorCode.FORBIDDEN);
+	}
+
+	@Test
 	void unEnfantDesactiveResteLisible() {
 		when(children.findOwned(1L, 7L)).thenReturn(Optional.of(child(7L, 1L, false)));
 		clock.at(AT_16);
@@ -851,6 +914,20 @@ class SejourServiceTest {
 		return rows.get(0);
 	}
 
+	private static TeacherStudentsService classesDeAkira() {
+		ClassProfiles profiles = new ClassProfiles();
+		profiles.account(4L);
+		profiles.account(5L);
+		profiles.account(9L);
+		profiles.school(4L, new TeacherSchoolLink(1L, SchoolCurricula.FRANCE, List.of("CE1")));
+		profiles.school(5L, new TeacherSchoolLink(1L, SchoolCurricula.FRANCE, List.of("CE1")));
+		profiles.school(9L, new TeacherSchoolLink(1L, SchoolCurricula.FRANCE, List.of("CE2")));
+		ClassRoster roster = new ClassRoster();
+		roster.add(new EnrolledChild(
+				7L, "Akira", "Iris", 8, SchoolCurricula.FRANCE, "CE1", 1L, "cat", false, true));
+		return new TeacherStudentsService(roster, profiles, () -> List.of());
+	}
+
 	private static ChildSaved child(long id, long parentUserId, boolean active) {
 		return new ChildSaved(id, parentUserId, "Akira", "Iris", "F", 8, "FR", "CE1", null, "cat", false, active);
 	}
@@ -879,6 +956,69 @@ class SejourServiceTest {
 		@Override
 		public Instant instant() {
 			return instant;
+		}
+	}
+
+	private static final class ClassProfiles implements TeacherProfilePort {
+
+		private final Map<Long, TeacherAccount> accounts = new HashMap<>();
+		private final Map<Long, List<TeacherSchoolLink>> schools = new HashMap<>();
+
+		private void account(long userId) {
+			accounts.put(userId, new TeacherAccount("prof@example.com", "Martin"));
+		}
+
+		private void school(long userId, TeacherSchoolLink link) {
+			schools.put(userId, List.of(link));
+		}
+
+		@Override
+		public Optional<TeacherAccount> findAccount(long userId) {
+			return Optional.ofNullable(accounts.get(userId));
+		}
+
+		@Override
+		public void updateDisplayName(long userId, String displayName) {
+			throw new AssertionError("le nom du professeur ne change pas");
+		}
+
+		@Override
+		public List<TeacherSchoolLink> findSchools(long userId) {
+			return schools.getOrDefault(userId, List.of());
+		}
+
+		@Override
+		public void replaceSchools(long userId, List<TeacherSchoolLink> next) {
+			throw new AssertionError("le profil ne change pas depuis cette lecture");
+		}
+
+		@Override
+		public List<Long> findUserIdsWithClass(long schoolId, String grade) {
+			throw new AssertionError("pas de transfert ici");
+		}
+	}
+
+	private static final class ClassRoster implements EnrolledChildPort {
+
+		private final List<EnrolledChild> children = new ArrayList<>();
+
+		private void add(EnrolledChild child) {
+			children.add(child);
+		}
+
+		@Override
+		public List<EnrolledChild> findActiveInSchools(Collection<Long> schoolIds) {
+			return List.copyOf(children);
+		}
+
+		@Override
+		public Optional<EnrolledChild> findActive(long childId) {
+			return children.stream().filter(child -> child.id() == childId).findFirst();
+		}
+
+		@Override
+		public Optional<EnrolledPhoto> findPhoto(long childId) {
+			return Optional.empty();
 		}
 	}
 

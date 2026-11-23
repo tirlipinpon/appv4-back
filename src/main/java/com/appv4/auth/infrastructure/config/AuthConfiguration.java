@@ -720,7 +720,8 @@ public class AuthConfiguration {
 	 * Une question jouée compte sur cette question.
 	 * <p><b>Technique :</b> l'horloge du bean fixe l'instant. Le port garde les intervalles.
 	 * Un autre port lit l'énoncé et le nom de matière.
-	 * <p><b>Métier / flow :</b> routes enfant et parent → ce cas d'usage.
+	 * <p><b>Métier / flow :</b> routes enfant, parent et professeur → ce cas d'usage.
+	 * Le professeur passe par le contrôle de classe déjà utilisé pour ses élèves.
 	 */
 	@Bean
 	SejourUseCase sejourUseCase(
@@ -729,8 +730,10 @@ public class AuthConfiguration {
 			ChildPort childPort,
 			SejourPort sejourPort,
 			SejourQuestionPort questions,
-			java.time.Clock clock) {
-		return new SejourService(sessions, logins, childPort, sejourPort, clock, questions);
+			java.time.Clock clock,
+			TeacherStudentsUseCase teacherStudentsUseCase) {
+		return new SejourService(
+				sessions, logins, childPort, sejourPort, clock, questions, teacherStudentsUseCase);
 	}
 
 	@Bean

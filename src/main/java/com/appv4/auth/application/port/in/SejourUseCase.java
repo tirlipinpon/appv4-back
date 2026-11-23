@@ -3,8 +3,8 @@ package com.appv4.auth.application.port.in;
 import java.util.List;
 
 /**
- * Séjour de l'enfant : signaux, lecture enfant, lecture parent
- * (BACK-38, question BACK-79, Nuit BACK-80, popup BACK-81).
+ * Séjour de l'enfant : signaux, lecture enfant, lecture parent, lecture professeur
+ * (BACK-38, question BACK-79, Nuit BACK-80, popup BACK-81, professeur BACK-82).
  *
  * <p><b>Business :</b> l'enfant envoie des signaux. Le jeu compte sur la question,
  * avec l'énoncé et la matière copiés. Le parent lit le temps confirmé, déjà libellé.
@@ -13,7 +13,8 @@ import java.util.List;
  * L'écran n'ajoute pas de secondes.
  * <p><b>Technique :</b> un seul cas d'usage. L'horloge est celle du bean, en Europe/Paris.
  * <p><b>Métier / flow :</b> {@code POST /api/ext/sejour/signals}, {@code GET /api/ext/sejour},
- * les autres routes {@code /api/ext/**}, et {@code GET /api/int/parent/children/{childId}/sejours}.
+ * les autres routes {@code /api/ext/**}, {@code GET /api/int/parent/children/{childId}/sejours}
+ * et {@code GET /api/int/teacher/students/{childId}/sejours}.
  */
 public interface SejourUseCase {
 
@@ -57,6 +58,19 @@ public interface SejourUseCase {
 	ChildSejour readChild(String rawToken, String deviceId);
 
 	List<ParentSejour> readParent(long parentUserId, String activeRole, long childId);
+
+	/**
+	 * Même détail que {@link #readParent}, une fois la classe contrôlée.
+	 *
+	 * <p><b>Business :</b> chaque professeur de la classe voit les mêmes séjours,
+	 * Accueil compris, et les autres matières. Un élève hors classe est refusé
+	 * avec la phrase déjà connue. Le parent continue de lire à toute heure.
+	 * <p><b>Technique :</b> pas de second calcul. L'école et l'année sont celles
+	 * du profil professeur, déjà vérifiées pour la liste des élèves.
+	 * <p><b>Métier / flow :</b> {@code GET /api/int/teacher/students/{childId}/sejours},
+	 * après {@link TeacherStudentsUseCase#requireInClass}.
+	 */
+	List<ParentSejour> readTeacher(long teacherUserId, String activeRole, long childId);
 
 	/**
 	 * Ce que cet appareil doit afficher maintenant.

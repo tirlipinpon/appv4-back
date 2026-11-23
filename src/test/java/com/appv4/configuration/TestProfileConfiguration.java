@@ -37,6 +37,7 @@ import com.appv4.auth.application.port.out.ChildSharePort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
 import com.appv4.auth.application.port.out.HumeurAnswerPort;
 import com.appv4.auth.application.port.out.SejourPort;
+import com.appv4.auth.application.port.out.SejourQuestionPort;
 import com.appv4.auth.application.port.out.HumeurChoicePort;
 import com.appv4.auth.application.port.out.TeacherProfilePort;
 import com.appv4.auth.application.port.out.TeacherQuestionPort;
@@ -132,6 +133,12 @@ public class TestProfileConfiguration {
 	@Bean
 	SejourPort sejourPort() {
 		return mock(SejourPort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	/** Énoncé et matière d'une question (BACK-79). Pas de Postgres dans les tests web. */
+	@Bean
+	SejourQuestionPort sejourQuestionPort() {
+		return mock(SejourQuestionPort.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
 	@Bean

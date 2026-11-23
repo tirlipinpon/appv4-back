@@ -11,7 +11,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +34,8 @@ import com.appv4.auth.application.port.out.SejourPort;
 import com.appv4.auth.application.port.out.SejourPort.OpenSlice;
 import com.appv4.auth.application.port.out.SejourPort.StoredInterval;
 import com.appv4.auth.application.port.out.SejourPort.StoredSejour;
+import com.appv4.auth.application.port.out.SejourQuestionPort;
+import com.appv4.auth.application.port.out.SejourQuestionPort.QuestionCaption;
 
 class SejourServiceTest {
 
@@ -226,6 +230,149 @@ class SejourServiceTest {
 	}
 
 	@Test
+	void trenteSecondesSurUneQuestionMontrentLEnonceEtLaMatiere() {
+		MemoryQuestions questions = new MemoryQuestions();
+		questions.keep(42L, "Combien font 2 + 2 ?", "Maths");
+		SejourService jeu = new SejourService(sessions, logins, children, store, clock, questions);
+
+		clock.at(AT_16);
+		jeu.signal("akira", "question", "tablette", null, 42L);
+		jeu.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		jeu.signal("akira", "presence", "tablette", null);
+
+		ParentSejour row = seul(jeu.readParent(1L, "parent", 7L));
+		assertThat(row.durationLabel()).isEqualTo("30 s");
+		assertThat(row.lines()).extracting(Line::label, Line::subjectName, Line::durationLabel)
+				.containsExactly(tuple("Combien font 2 + 2 ?", "Maths", "30 s"));
+	}
+
+	@Test
+	void quatreMinutesPuisSixSurLaMemeQuestionFontDixMinutes() {
+		MemoryQuestions questions = new MemoryQuestions();
+		questions.keep(42L, "Combien font 2 + 2 ?", "Maths");
+		SejourService jeu = new SejourService(sessions, logins, children, store, clock, questions);
+
+		clock.at(AT_16);
+		jeu.signal("akira", "question", "tablette", null, 42L);
+		jeu.signal("akira", "gesture", "tablette", null);
+		confirmerJusqua(jeu, AT_16.plusSeconds(240));
+		clock.at(AT_16.plusSeconds(240));
+		jeu.signal("akira", "gesture", "tablette", null);
+		jeu.signal("akira", "screen", "tablette", "accueil");
+		clock.at(AT_16.plusSeconds(250));
+		jeu.signal("akira", "question", "tablette", null, 42L);
+		jeu.signal("akira", "gesture", "tablette", null);
+		confirmerJusqua(jeu, AT_16.plusSeconds(610));
+
+		ParentSejour row = seul(jeu.readParent(1L, "parent", 7L));
+		assertThat(row.lines()).extracting(Line::label, Line::subjectName, Line::durationLabel)
+				.containsExactly(
+						tuple("Combien font 2 + 2 ?", "Maths", "10 min"),
+						tuple("Accueil", null, "10 s"));
+		assertThat(row.durationLabel()).isEqualTo("10 min 10");
+	}
+
+	@Test
+	void lEnonceCopieResteApresRenommageEtSuppression() {
+		MemoryQuestions questions = new MemoryQuestions();
+		questions.keep(42L, "Combien font 2 + 2 ?", "Maths");
+		SejourService jeu = new SejourService(sessions, logins, children, store, clock, questions);
+
+		clock.at(AT_16);
+		jeu.signal("akira", "question", "tablette", null, 42L);
+		jeu.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		jeu.signal("akira", "presence", "tablette", null);
+
+		questions.keep(42L, "Combien font 9 + 9 ?", "Calcul");
+		clock.at(AT_16.plusSeconds(60));
+		jeu.signal("akira", "presence", "tablette", null);
+
+		assertThat(seul(jeu.readParent(1L, "parent", 7L)).lines())
+				.extracting(Line::label, Line::subjectName, Line::durationLabel)
+				.containsExactly(tuple("Combien font 2 + 2 ?", "Maths", "1 min"));
+
+		questions.forget(42L);
+		assertThat(seul(jeu.readParent(1L, "parent", 7L)).lines())
+				.extracting(Line::label, Line::subjectName, Line::durationLabel)
+				.containsExactly(tuple("Combien font 2 + 2 ?", "Maths", "1 min"));
+	}
+
+	@Test
+	void lOrdreResteCeluiDeLaPremiereVisite() {
+		MemoryQuestions questions = new MemoryQuestions();
+		questions.keep(42L, "Combien font 2 + 2 ?", "Maths");
+		SejourService jeu = new SejourService(sessions, logins, children, store, clock, questions);
+
+		clock.at(AT_16);
+		jeu.signal("akira", "screen", "tablette", "accueil");
+		jeu.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(20));
+		jeu.signal("akira", "question", "tablette", null, 42L);
+		clock.at(AT_16.plusSeconds(40));
+		jeu.signal("akira", "screen", "tablette", "accueil");
+		clock.at(AT_16.plusSeconds(60));
+		jeu.signal("akira", "presence", "tablette", null);
+
+		assertThat(seul(jeu.readParent(1L, "parent", 7L)).lines())
+				.extracting(Line::label, Line::subjectName, Line::durationLabel)
+				.containsExactly(
+						tuple("Accueil", null, "40 s"),
+						tuple("Combien font 2 + 2 ?", "Maths", "20 s"));
+	}
+
+	@Test
+	void unPassageQuestionSousUneSecondeNAjoutePasDeLigne() {
+		MemoryQuestions questions = new MemoryQuestions();
+		questions.keep(42L, "Combien font 2 + 2 ?", "Maths");
+		SejourService jeu = new SejourService(sessions, logins, children, store, clock, questions);
+
+		clock.at(AT_16);
+		jeu.signal("akira", "screen", "tablette", "accueil");
+		jeu.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		jeu.signal("akira", "question", "tablette", null, 42L);
+		clock.at(AT_16.plusMillis(30_400));
+		jeu.signal("akira", "leave", "tablette", null);
+
+		ParentSejour row = seul(jeu.readParent(1L, "parent", 7L));
+		assertThat(row.lines()).extracting(Line::label, Line::subjectName, Line::durationLabel)
+				.containsExactly(tuple("Accueil", null, "30 s"));
+		assertThat(row.durationLabel()).isEqualTo("30 s");
+	}
+
+	@Test
+	void leBoardEtLaListeQuestionsRestentUneLigne() {
+		MemoryQuestions questions = new MemoryQuestions();
+		questions.keep(7L, "Combien font 2 + 2 ?", "Maths");
+		questions.keep(8L, "Le chat boit", "Français");
+		SejourService jeu = new SejourService(sessions, logins, children, store, clock, questions);
+
+		clock.at(AT_16);
+		jeu.signal("akira", "screen", "tablette", "board");
+		jeu.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(15));
+		jeu.signal("akira", "question", "tablette", null, 7L);
+		clock.at(AT_16.plusSeconds(30));
+		jeu.signal("akira", "screen", "tablette", "board");
+		clock.at(AT_16.plusSeconds(45));
+		jeu.signal("akira", "question", "tablette", null, 8L);
+		clock.at(AT_16.plusSeconds(60));
+		jeu.signal("akira", "screen", "tablette", "questions");
+		clock.at(AT_16.plusSeconds(75));
+		jeu.signal("akira", "presence", "tablette", null);
+
+		assertThat(seul(jeu.readParent(1L, "parent", 7L)).lines())
+				.extracting(Line::label, Line::subjectName, Line::durationLabel)
+				.containsExactly(
+						tuple("Board", null, "30 s"),
+						tuple("Combien font 2 + 2 ?", "Maths", "15 s"),
+						tuple("Le chat boit", "Français", "15 s"),
+						tuple("Questions", null, "15 s"));
+	}
+
+	@Test
 	void unSignalQuestionEstRefuseEtNEcritRien() {
 		clock.at(AT_16);
 		sejour.signal("akira", "screen", "tablette", "accueil");
@@ -417,6 +564,21 @@ class SejourServiceTest {
 				.containsExactly(tuple("Board", "10 s"));
 	}
 
+	/** Présences toutes les deux minutes, avec un geste pour que la lecture continue. */
+	private void confirmerJusqua(SejourService jeu, Instant target) {
+		while (clock.instant().isBefore(target)) {
+			Instant step = clock.instant().plus(java.time.Duration.ofMinutes(2));
+			if (step.isAfter(target)) {
+				step = target;
+			}
+			clock.at(step);
+			jeu.signal("akira", "presence", "tablette", null);
+			if (clock.instant().isBefore(target)) {
+				jeu.signal("akira", "gesture", "tablette", null);
+			}
+		}
+	}
+
 	private static ParentSejour seul(List<ParentSejour> rows) {
 		assertThat(rows).hasSize(1);
 		return rows.get(0);
@@ -453,6 +615,24 @@ class SejourServiceTest {
 		}
 	}
 
+	/** Énoncé et matière tels qu'ils sont maintenant. */
+	private static final class MemoryQuestions implements SejourQuestionPort {
+		private final Map<Long, QuestionCaption> rows = new HashMap<>();
+
+		private void keep(long questionId, String prompt, String subjectName) {
+			rows.put(questionId, new QuestionCaption(prompt, subjectName));
+		}
+
+		private void forget(long questionId) {
+			rows.remove(questionId);
+		}
+
+		@Override
+		public Optional<QuestionCaption> find(long questionId) {
+			return Optional.ofNullable(rows.get(questionId));
+		}
+	}
+
 	private static final class MemorySejours implements SejourPort {
 		private final List<Row> rows = new ArrayList<>();
 		private long nextId = 1L;
@@ -471,6 +651,9 @@ class SejourServiceTest {
 			row.open = true;
 			row.deviceId = deviceId;
 			row.screen = screen;
+			row.questionId = null;
+			row.prompt = null;
+			row.subjectName = null;
 			row.sliceStartedAt = startedAt;
 			row.lastConfirmedAt = startedAt;
 			row.lastGestureAt = null;
@@ -483,14 +666,25 @@ class SejourServiceTest {
 			Row row = byId(slice.id());
 			row.deviceId = slice.deviceId();
 			row.screen = slice.screen();
+			row.questionId = slice.questionId();
+			row.prompt = slice.prompt();
+			row.subjectName = slice.subjectName();
 			row.sliceStartedAt = slice.sliceStartedAt();
 			row.lastConfirmedAt = slice.lastConfirmedAt();
 			row.lastGestureAt = slice.lastGestureAt();
 		}
 
 		@Override
-		public void appendInterval(long sejourId, String screen, Instant startedAt, Instant endedAt) {
-			byId(sejourId).intervals.add(new StoredInterval(screen, startedAt, endedAt));
+		public void appendInterval(
+				long sejourId,
+				String screen,
+				Long questionId,
+				String prompt,
+				String subjectName,
+				Instant startedAt,
+				Instant endedAt) {
+			byId(sejourId).intervals.add(
+					new StoredInterval(screen, questionId, prompt, subjectName, startedAt, endedAt));
 		}
 
 		@Override
@@ -500,6 +694,9 @@ class SejourServiceTest {
 			row.closedAt = closedAt;
 			row.deviceId = null;
 			row.screen = null;
+			row.questionId = null;
+			row.prompt = null;
+			row.subjectName = null;
 			row.sliceStartedAt = null;
 			row.lastConfirmedAt = null;
 			row.lastGestureAt = null;
@@ -522,6 +719,9 @@ class SejourServiceTest {
 			private boolean open;
 			private String deviceId;
 			private String screen;
+			private Long questionId;
+			private String prompt;
+			private String subjectName;
 			private Instant sliceStartedAt;
 			private Instant lastConfirmedAt;
 			private Instant lastGestureAt;
@@ -529,7 +729,8 @@ class SejourServiceTest {
 
 			private OpenSlice toOpen() {
 				return new OpenSlice(
-						id, childId, startedAt, deviceId, screen, sliceStartedAt, lastConfirmedAt, lastGestureAt);
+						id, childId, startedAt, deviceId, screen, questionId, prompt, subjectName,
+						sliceStartedAt, lastConfirmedAt, lastGestureAt);
 			}
 
 			private StoredSejour toStored() {
@@ -540,6 +741,9 @@ class SejourServiceTest {
 						open,
 						deviceId,
 						screen,
+						questionId,
+						prompt,
+						subjectName,
 						sliceStartedAt,
 						lastConfirmedAt,
 						lastGestureAt,

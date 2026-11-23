@@ -37,8 +37,8 @@ public class SejourPersistenceAdapter implements SejourPort {
 	@Override
 	public Optional<OpenSlice> findOpen(long childId) {
 		return jdbc.sql("""
-				select id, child_id, started_at, holding_device_id, slice_screen,
-				       slice_started_at, last_confirmed_at, last_gesture_at
+				select id, child_id, started_at, holding_device_id, slice_screen, slice_question_id,
+				       slice_prompt, slice_subject_name, slice_started_at, last_confirmed_at, last_gesture_at
 				from back_sejours
 				where child_id = :childId and closed_at is null
 				""")
@@ -49,6 +49,9 @@ public class SejourPersistenceAdapter implements SejourPort {
 						rs.getTimestamp("started_at").toInstant(),
 						rs.getString("holding_device_id"),
 						rs.getString("slice_screen"),
+						rs.getObject("slice_question_id", Long.class),
+						rs.getString("slice_prompt"),
+						rs.getString("slice_subject_name"),
 						rs.getTimestamp("slice_started_at").toInstant(),
 						rs.getTimestamp("last_confirmed_at").toInstant(),
 						instant(rs.getTimestamp("last_gesture_at"))))
@@ -70,7 +73,8 @@ public class SejourPersistenceAdapter implements SejourPort {
 				.param("screen", screen)
 				.query(Long.class)
 				.single();
-		return new OpenSlice(id, childId, startedAt, deviceId, screen, startedAt, startedAt, null);
+		return new OpenSlice(
+				id, childId, startedAt, deviceId, screen, null, null, null, startedAt, startedAt, null);
 	}
 
 	@Override
@@ -79,6 +83,9 @@ public class SejourPersistenceAdapter implements SejourPort {
 				update back_sejours
 				set holding_device_id = :deviceId,
 				    slice_screen = :screen,
+				    slice_question_id = :questionId,
+				    slice_prompt = :prompt,
+				    slice_subject_name = :subjectName,
 				    slice_started_at = :sliceStartedAt,
 				    last_confirmed_at = :lastConfirmedAt,
 				    last_gesture_at = :lastGestureAt
@@ -86,6 +93,9 @@ public class SejourPersistenceAdapter implements SejourPort {
 				""")
 				.param("deviceId", slice.deviceId())
 				.param("screen", slice.screen())
+				.param("questionId", slice.questionId(), Types.BIGINT)
+				.param("prompt", slice.prompt())
+				.param("subjectName", slice.subjectName())
 				.param("sliceStartedAt", Timestamp.from(slice.sliceStartedAt()))
 				.param("lastConfirmedAt", Timestamp.from(slice.lastConfirmedAt()))
 				.param("lastGestureAt", timestamp(slice.lastGestureAt()), Types.TIMESTAMP_WITH_TIMEZONE)
@@ -94,13 +104,25 @@ public class SejourPersistenceAdapter implements SejourPort {
 	}
 
 	@Override
-	public void appendInterval(long sejourId, String screen, Instant startedAt, Instant endedAt) {
+	public void appendInterval(
+			long sejourId,
+			String screen,
+			Long questionId,
+			String prompt,
+			String subjectName,
+			Instant startedAt,
+			Instant endedAt) {
 		jdbc.sql("""
-				insert into back_sejour_intervals (sejour_id, screen, started_at, ended_at)
-				values (:sejourId, :screen, :startedAt, :endedAt)
+				insert into back_sejour_intervals (
+				    sejour_id, screen, question_id, prompt, subject_name, started_at, ended_at)
+				values (
+				    :sejourId, :screen, :questionId, :prompt, :subjectName, :startedAt, :endedAt)
 				""")
 				.param("sejourId", sejourId)
 				.param("screen", screen)
+				.param("questionId", questionId, Types.BIGINT)
+				.param("prompt", prompt)
+				.param("subjectName", subjectName)
 				.param("startedAt", Timestamp.from(startedAt))
 				.param("endedAt", Timestamp.from(endedAt))
 				.update();
@@ -113,6 +135,9 @@ public class SejourPersistenceAdapter implements SejourPort {
 				set closed_at = :closedAt,
 				    holding_device_id = null,
 				    slice_screen = null,
+				    slice_question_id = null,
+				    slice_prompt = null,
+				    slice_subject_name = null,
 				    slice_started_at = null,
 				    last_confirmed_at = null,
 				    last_gesture_at = null
@@ -127,6 +152,7 @@ public class SejourPersistenceAdapter implements SejourPort {
 	public List<StoredSejour> list(long childId) {
 		List<SejourRow> rows = jdbc.sql("""
 				select id, child_id, started_at, closed_at, holding_device_id, slice_screen,
+				       slice_question_id, slice_prompt, slice_subject_name,
 				       slice_started_at, last_confirmed_at, last_gesture_at
 				from back_sejours
 				where child_id = :childId
@@ -140,6 +166,9 @@ public class SejourPersistenceAdapter implements SejourPort {
 						rs.getTimestamp("closed_at") == null,
 						rs.getString("holding_device_id"),
 						rs.getString("slice_screen"),
+						rs.getObject("slice_question_id", Long.class),
+						rs.getString("slice_prompt"),
+						rs.getString("slice_subject_name"),
 						instant(rs.getTimestamp("slice_started_at")),
 						instant(rs.getTimestamp("last_confirmed_at")),
 						instant(rs.getTimestamp("last_gesture_at"))))
@@ -152,7 +181,7 @@ public class SejourPersistenceAdapter implements SejourPort {
 			intervals.put(row.id(), new ArrayList<>());
 		}
 		List<IntervalRow> found = jdbc.sql("""
-				select sejour_id, screen, started_at, ended_at
+				select sejour_id, screen, question_id, prompt, subject_name, started_at, ended_at
 				from back_sejour_intervals
 				where sejour_id in (:ids)
 				order by started_at, id
@@ -161,12 +190,20 @@ public class SejourPersistenceAdapter implements SejourPort {
 				.query((rs, row) -> new IntervalRow(
 						rs.getLong("sejour_id"),
 						rs.getString("screen"),
+						rs.getObject("question_id", Long.class),
+						rs.getString("prompt"),
+						rs.getString("subject_name"),
 						rs.getTimestamp("started_at").toInstant(),
 						rs.getTimestamp("ended_at").toInstant()))
 				.list();
 		for (IntervalRow interval : found) {
-			intervals.get(interval.sejourId()).add(
-					new StoredInterval(interval.screen(), interval.startedAt(), interval.endedAt()));
+			intervals.get(interval.sejourId()).add(new StoredInterval(
+					interval.screen(),
+					interval.questionId(),
+					interval.prompt(),
+					interval.subjectName(),
+					interval.startedAt(),
+					interval.endedAt()));
 		}
 		List<StoredSejour> stored = new ArrayList<>();
 		for (SejourRow row : rows) {
@@ -177,6 +214,9 @@ public class SejourPersistenceAdapter implements SejourPort {
 					row.open(),
 					row.deviceId(),
 					row.screen(),
+					row.questionId(),
+					row.prompt(),
+					row.subjectName(),
 					row.sliceStartedAt(),
 					row.lastConfirmedAt(),
 					row.lastGestureAt(),
@@ -193,7 +233,14 @@ public class SejourPersistenceAdapter implements SejourPort {
 		return value == null ? null : value.toInstant();
 	}
 
-	private record IntervalRow(long sejourId, String screen, Instant startedAt, Instant endedAt) {
+	private record IntervalRow(
+			long sejourId,
+			String screen,
+			Long questionId,
+			String prompt,
+			String subjectName,
+			Instant startedAt,
+			Instant endedAt) {
 	}
 
 	private record SejourRow(
@@ -203,6 +250,9 @@ public class SejourPersistenceAdapter implements SejourPort {
 			boolean open,
 			String deviceId,
 			String screen,
+			Long questionId,
+			String prompt,
+			String subjectName,
 			Instant sliceStartedAt,
 			Instant lastConfirmedAt,
 			Instant lastGestureAt) {

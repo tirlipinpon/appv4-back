@@ -23,10 +23,11 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Lecture parent des séjours d'un enfant (BACK-38).
+ * Lecture parent des séjours d'un enfant (BACK-38, question BACK-79).
  *
  * <p><b>Business :</b> la page Temps lit cette route. Les dates et les durées
- * sont déjà libellées. Un enfant hors Mes enfants est introuvable.
+ * sont déjà libellées. Une question montre l'énoncé et la matière copiés.
+ * Un enfant hors Mes enfants est introuvable.
  * <p><b>Technique :</b> {@code GET /api/int/parent/children/{childId}/sejours}.
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link SejourUseCase}.
  */
@@ -71,11 +72,15 @@ public class ParentSejourController {
 	}
 
 	private static ParentSejourLineItem toLine(Line line) {
-		return new ParentSejourLineItem(line.label(), line.durationLabel());
+		return new ParentSejourLineItem(line.label(), line.subjectName(), line.durationLabel());
 	}
 
+	/**
+	 * @param label libellé d'écran, ou énoncé copié pour une question
+	 * @param subjectName nom de matière copié, absent pour un écran
+	 */
 	@Schema(name = "ParentSejourLineItem")
-	public record ParentSejourLineItem(String label, String durationLabel) {
+	public record ParentSejourLineItem(String label, String subjectName, String durationLabel) {
 	}
 
 	@Schema(name = "ParentSejourItem")

@@ -11,6 +11,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,12 +26,15 @@ import com.appv4.auth.application.port.out.SejourPort;
 import com.appv4.auth.application.port.out.SejourPort.OpenSlice;
 import com.appv4.auth.application.port.out.SejourPort.StoredInterval;
 import com.appv4.auth.application.port.out.SejourPort.StoredSejour;
+import com.appv4.auth.application.port.out.SejourQuestionPort;
+import com.appv4.auth.application.port.out.SejourQuestionPort.QuestionCaption;
 
 /**
- * Compte le séjour à partir des signaux (BACK-38).
+ * Compte le séjour à partir des signaux (BACK-38, question BACK-79).
  *
  * <p><b>Business :</b> seul le temps confirmé par un signal compte. Une lecture
- * plus tard ne rajoute pas les secondes sans nouveau signal.
+ * plus tard ne rajoute pas les secondes sans nouveau signal. Le jeu compte sur
+ * la question, pas comme un écran de plus.
  * <p><b>Technique :</b> l'horloge injectée fixe l'instant du signal. La tranche
  * ouverte va de son début au dernier signal confirmé.
  * <p><b>Métier / flow :</b> port in Séjour. Les routes enfant et parent appellent ici.
@@ -58,6 +63,7 @@ public class SejourService implements SejourUseCase {
 	private final ChildLoginPort logins;
 	private final ChildPort children;
 	private final SejourPort sejours;
+	private final SejourQuestionPort questions;
 	private final Clock clock;
 
 	public SejourService(
@@ -66,19 +72,40 @@ public class SejourService implements SejourUseCase {
 			ChildPort children,
 			SejourPort sejours,
 			Clock clock) {
+		this(sessions, logins, children, sejours, clock, ignored -> Optional.empty());
+	}
+
+	/**
+	 * @param questions énoncé et matière actuels, pour une ligne de question
+	 */
+	public SejourService(
+			ChildSessionTokenPort sessions,
+			ChildLoginPort logins,
+			ChildPort children,
+			SejourPort sejours,
+			Clock clock,
+			SejourQuestionPort questions) {
 		this.sessions = sessions;
 		this.logins = logins;
 		this.children = children;
 		this.sejours = sejours;
+		this.questions = questions;
 		this.clock = clock;
 	}
 
 	@Override
 	@Transactional
-	public void signal(String rawToken, String kind, String deviceId, String screen) {
+	public void signal(String rawToken, String kind, String deviceId, String screen, Long questionId) {
 		long childId = requireChild(rawToken);
 		if (deviceId == null || deviceId.isBlank()) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, DEVICE_REQUIRED);
+		}
+		if ("question".equals(kind)) {
+			if (questionId == null) {
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, SIGNAL_REFUSED);
+			}
+			openQuestion(childId, deviceId, questionId);
+			return;
 		}
 		if (!"screen".equals(kind) && !"gesture".equals(kind) && !"presence".equals(kind) && !"leave".equals(kind)) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, SIGNAL_REFUSED);
@@ -142,9 +169,9 @@ public class SejourService implements SejourUseCase {
 			return;
 		}
 		if (holds(open, deviceId)) {
-			if (open.screen() == null) {
+			if (open.screen() == null && open.questionId() == null) {
 				Instant confirmed = confirmedUntil(open, now);
-				sejours.saveOpen(slice(open, deviceId, code, open.sliceStartedAt(), confirmed, open.lastGestureAt()));
+				save(slice(open, deviceId, code, null, open.sliceStartedAt(), confirmed, open.lastGestureAt()));
 				return;
 			}
 			if (code.equals(open.screen())) {
@@ -152,11 +179,38 @@ public class SejourService implements SejourUseCase {
 			}
 			Instant confirmed = confirmedUntil(open, now);
 			remember(open, confirmed);
-			sejours.saveOpen(slice(open, deviceId, code, now, now, open.lastGestureAt()));
+			save(slice(open, deviceId, code, null, now, now, open.lastGestureAt()));
 			return;
 		}
 		freeze(open);
-		sejours.saveOpen(slice(open, deviceId, code, now, now, open.lastGestureAt()));
+		save(slice(open, deviceId, code, null, now, now, open.lastGestureAt()));
+	}
+
+	private void openQuestion(long childId, String deviceId, long questionId) {
+		OpenSlice open = sejours.findOpen(childId).orElse(null);
+		Instant now = clock.instant();
+		if (open == null) {
+			OpenSlice created = sejours.open(childId, now, deviceId, null);
+			save(slice(created, deviceId, null, questionId, now, now, null));
+			return;
+		}
+		if (holds(open, deviceId)) {
+			if (open.screen() == null && open.questionId() == null) {
+				Instant confirmed = confirmedUntil(open, now);
+				save(slice(
+						open, deviceId, null, questionId, open.sliceStartedAt(), confirmed, open.lastGestureAt()));
+				return;
+			}
+			if (Objects.equals(open.questionId(), questionId)) {
+				return;
+			}
+			Instant confirmed = confirmedUntil(open, now);
+			remember(open, confirmed);
+			save(slice(open, deviceId, null, questionId, now, now, open.lastGestureAt()));
+			return;
+		}
+		freeze(open);
+		save(slice(open, deviceId, null, questionId, now, now, open.lastGestureAt()));
 	}
 
 	private void markGesture(long childId, String deviceId) {
@@ -164,20 +218,20 @@ public class SejourService implements SejourUseCase {
 		Instant now = clock.instant();
 		if (open == null) {
 			OpenSlice created = sejours.open(childId, now, deviceId, null);
-			sejours.saveOpen(copy(created, now, now));
+			save(copy(created, now, now));
 			return;
 		}
 		if (!holds(open, deviceId)) {
 			freeze(open);
-			sejours.saveOpen(slice(open, deviceId, open.screen(), now, now, now));
+			save(slice(open, deviceId, open.screen(), open.questionId(), now, now, now));
 			return;
 		}
 		if (open.lastGestureAt() != null && now.isAfter(open.lastGestureAt().plus(LECTURE))) {
 			remember(open, confirmedUntil(open, now));
-			sejours.saveOpen(slice(open, deviceId, open.screen(), now, now, now));
+			save(slice(open, deviceId, open.screen(), open.questionId(), now, now, now));
 			return;
 		}
-		sejours.saveOpen(copy(open, confirmedUntil(open, now), now));
+		save(copy(open, confirmedUntil(open, now), now));
 	}
 
 	private void leave(long childId, String deviceId) {
@@ -199,7 +253,7 @@ public class SejourService implements SejourUseCase {
 		if (!confirmed.isAfter(open.lastConfirmedAt())) {
 			return;
 		}
-		sejours.saveOpen(copy(open, confirmed, open.lastGestureAt()));
+		save(copy(open, confirmed, open.lastGestureAt()));
 	}
 
 	/** Dernier instant confirmable : pas après le dernier geste plus deux minutes. */
@@ -218,15 +272,10 @@ public class SejourService implements SejourUseCase {
 	}
 
 	private ParentSejour toParent(StoredSejour stored) {
-		Map<String, Long> millis = new LinkedHashMap<>();
+		Map<String, Visit> visits = new LinkedHashMap<>();
 		for (StoredInterval interval : stored.intervals()) {
-			if (interval.screen() == null) {
-				continue;
-			}
 			long span = Duration.between(interval.startedAt(), interval.endedAt()).toMillis();
-			if (span > 0) {
-				millis.merge(interval.screen(), span, Long::sum);
-			}
+			addVisit(visits, interval.screen(), interval.questionId(), interval.prompt(), interval.subjectName(), span);
 		}
 		if (stored.open() && stored.sliceStartedAt() != null && stored.lastConfirmedAt() != null) {
 			Instant end = stored.lastConfirmedAt();
@@ -236,26 +285,52 @@ public class SejourService implements SejourUseCase {
 					end = cap;
 				}
 			}
-			if (stored.screen() != null && end.isAfter(stored.sliceStartedAt())) {
+			if (end.isAfter(stored.sliceStartedAt())) {
 				long span = Duration.between(stored.sliceStartedAt(), end).toMillis();
-				millis.merge(stored.screen(), span, Long::sum);
+				addVisit(visits, stored.screen(), stored.questionId(), stored.prompt(), stored.subjectName(), span);
 			}
 		}
 		List<Line> lines = new ArrayList<>();
 		long total = 0;
-		for (Map.Entry<String, Long> entry : millis.entrySet()) {
-			long seconds = entry.getValue() / 1000L;
+		for (Visit visit : visits.values()) {
+			long seconds = visit.millis / 1000L;
 			if (seconds < 1) {
 				continue;
 			}
 			total += seconds;
-			lines.add(new Line(LABELS.get(entry.getKey()), durationLabel(seconds)));
+			lines.add(lineOf(visit, seconds));
 		}
 		if (total < 1) {
 			return null;
 		}
 		var when = stored.startedAt().atZone(PARIS);
 		return new ParentSejour(DATE.format(when), TIME.format(when), durationLabel(total), List.copyOf(lines));
+	}
+
+	private Line lineOf(Visit visit, long seconds) {
+		if (visit.questionId == null) {
+			return new Line(LABELS.get(visit.screen), null, durationLabel(seconds));
+		}
+		return new Line(visit.prompt, visit.subjectName, durationLabel(seconds));
+	}
+
+	private static void addVisit(
+			Map<String, Visit> visits,
+			String screen,
+			Long questionId,
+			String prompt,
+			String subjectName,
+			long span) {
+		if (span <= 0 || (screen == null && questionId == null)) {
+			return;
+		}
+		String key = questionId != null ? "q" + questionId : "s" + screen;
+		Visit visit = visits.computeIfAbsent(key, ignored -> new Visit(screen, questionId));
+		visit.millis += span;
+		if (visit.prompt == null && prompt != null) {
+			visit.prompt = prompt;
+			visit.subjectName = subjectName;
+		}
 	}
 
 	private static String durationLabel(long seconds) {
@@ -281,10 +356,68 @@ public class SejourService implements SejourUseCase {
 		remember(open, open.lastConfirmedAt());
 	}
 
-	private void remember(OpenSlice open, Instant end) {
-		if (open.screen() != null && end.isAfter(open.sliceStartedAt())) {
-			sejours.appendInterval(open.id(), open.screen(), open.sliceStartedAt(), end);
+	private void save(OpenSlice open) {
+		sejours.saveOpen(snap(open, open.lastConfirmedAt()));
+	}
+
+	/**
+	 * Recopie l'énoncé et la matière la première fois que la question atteint une seconde.
+	 * Une copie déjà gardée ne se relit pas.
+	 */
+	private OpenSlice snap(OpenSlice open, Instant end) {
+		if (open.questionId() == null || open.prompt() != null) {
+			return open;
 		}
+		String prompt = null;
+		String subjectName = null;
+		long millis = 0;
+		for (StoredSejour stored : sejours.list(open.childId())) {
+			if (stored.id() != open.id()) {
+				continue;
+			}
+			for (StoredInterval interval : stored.intervals()) {
+				if (!open.questionId().equals(interval.questionId())) {
+					continue;
+				}
+				millis += Duration.between(interval.startedAt(), interval.endedAt()).toMillis();
+				if (prompt == null && interval.prompt() != null) {
+					prompt = interval.prompt();
+					subjectName = interval.subjectName();
+				}
+			}
+		}
+		if (end.isAfter(open.sliceStartedAt())) {
+			millis += Duration.between(open.sliceStartedAt(), end).toMillis();
+		}
+		if (prompt != null) {
+			return withCaption(open, prompt, subjectName);
+		}
+		if (millis < 1000) {
+			return open;
+		}
+		QuestionCaption caption = questions.find(open.questionId()).orElse(null);
+		if (caption == null) {
+			return open;
+		}
+		return withCaption(open, caption.prompt(), caption.subjectName());
+	}
+
+	private void remember(OpenSlice open, Instant end) {
+		OpenSlice snapped = snap(open, end);
+		if (!end.isAfter(open.sliceStartedAt())) {
+			return;
+		}
+		if (snapped.screen() == null && snapped.questionId() == null) {
+			return;
+		}
+		sejours.appendInterval(
+				snapped.id(),
+				snapped.screen(),
+				snapped.questionId(),
+				snapped.prompt(),
+				snapped.subjectName(),
+				snapped.sliceStartedAt(),
+				end);
 	}
 
 	private static boolean holds(OpenSlice open, String deviceId) {
@@ -295,30 +428,63 @@ public class SejourService implements SejourUseCase {
 			OpenSlice open,
 			String deviceId,
 			String screen,
+			Long questionId,
 			Instant sliceStartedAt,
 			Instant lastConfirmedAt,
 			Instant lastGestureAt) {
+		boolean sameQuestion = Objects.equals(questionId, open.questionId());
 		return new OpenSlice(
 				open.id(),
 				open.childId(),
 				open.startedAt(),
 				deviceId,
 				screen,
+				questionId,
+				sameQuestion ? open.prompt() : null,
+				sameQuestion ? open.subjectName() : null,
 				sliceStartedAt,
 				lastConfirmedAt,
 				lastGestureAt);
 	}
 
-	private static OpenSlice copy(OpenSlice open, Instant lastConfirmedAt, Instant lastGestureAt) {
+	private static OpenSlice withCaption(OpenSlice open, String prompt, String subjectName) {
 		return new OpenSlice(
 				open.id(),
 				open.childId(),
 				open.startedAt(),
 				open.deviceId(),
 				open.screen(),
+				open.questionId(),
+				prompt,
+				subjectName,
+				open.sliceStartedAt(),
+				open.lastConfirmedAt(),
+				open.lastGestureAt());
+	}
+
+	private static OpenSlice copy(OpenSlice open, Instant lastConfirmedAt, Instant lastGestureAt) {
+		return slice(
+				open,
+				open.deviceId(),
+				open.screen(),
+				open.questionId(),
 				open.sliceStartedAt(),
 				lastConfirmedAt,
 				lastGestureAt);
+	}
+
+	/** Un écran ou une question, dans l'ordre de la première visite. */
+	private static final class Visit {
+		private final String screen;
+		private final Long questionId;
+		private String prompt;
+		private String subjectName;
+		private long millis;
+
+		private Visit(String screen, Long questionId) {
+			this.screen = screen;
+			this.questionId = questionId;
+		}
 	}
 
 	private long requireChild(String rawToken) {

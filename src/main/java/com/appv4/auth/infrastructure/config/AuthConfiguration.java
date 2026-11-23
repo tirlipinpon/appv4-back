@@ -96,6 +96,7 @@ import com.appv4.auth.application.port.out.PasswordResetMailPort;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
 import com.appv4.auth.application.port.out.SejourPort;
+import com.appv4.auth.application.port.out.SejourQuestionPort;
 import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
@@ -708,7 +709,9 @@ public class AuthConfiguration {
 	 * Séjour de l'enfant (BACK-38).
 	 *
 	 * <p><b>Business :</b> les signaux confirment le temps. Le parent lit les libellés.
+	 * Une question jouée compte sur cette question.
 	 * <p><b>Technique :</b> l'horloge du bean fixe l'instant. Le port garde les intervalles.
+	 * Un autre port lit l'énoncé et le nom de matière.
 	 * <p><b>Métier / flow :</b> routes enfant et parent → ce cas d'usage.
 	 */
 	@Bean
@@ -717,8 +720,9 @@ public class AuthConfiguration {
 			com.appv4.auth.application.port.out.ChildLoginPort logins,
 			ChildPort childPort,
 			SejourPort sejourPort,
+			SejourQuestionPort questions,
 			java.time.Clock clock) {
-		return new SejourService(sessions, logins, childPort, sejourPort, clock);
+		return new SejourService(sessions, logins, childPort, sejourPort, clock, questions);
 	}
 
 	@Bean

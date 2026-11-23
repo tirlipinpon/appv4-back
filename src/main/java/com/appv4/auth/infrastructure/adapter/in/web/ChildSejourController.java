@@ -20,10 +20,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Signaux et lecture du séjour pour l'enfant (BACK-38).
+ * Signaux et lecture du séjour pour l'enfant (BACK-38, question BACK-79).
  *
- * <p><b>Business :</b> l'app envoie un signal. Elle lit ensuite si cet appareil
- * tient encore le séjour. Elle ne compte pas les secondes.
+ * <p><b>Business :</b> l'app envoie un signal. Un jeu porte l'identifiant de la
+ * question. Elle lit ensuite si cet appareil tient encore le séjour. Elle ne compte pas.
  * <p><b>Technique :</b> {@code POST /api/ext/sejour/signals} et {@code GET /api/ext/sejour}
  * avec Bearer enfant. L'appareil est un identifiant opaque.
  * <p><b>Métier / flow :</b> adapter in → {@link SejourUseCase}.
@@ -53,7 +53,8 @@ public class ChildSejourController {
 	public ResponseEntity<Void> signal(
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
 			@RequestBody ChildSejourSignalRequest request) {
-		sejourUseCase.signal(bearer(authorization), request.kind(), request.deviceId(), request.screen());
+		sejourUseCase.signal(
+				bearer(authorization), request.kind(), request.deviceId(), request.screen(), request.questionId());
 		return ResponseEntity.noContent().build();
 	}
 
@@ -82,8 +83,11 @@ public class ChildSejourController {
 		return authorization.substring(7).trim();
 	}
 
+	/**
+	 * @param questionId question jouée, exigée quand {@code kind} vaut {@code question}
+	 */
 	@Schema(name = "ChildSejourSignalRequest")
-	public record ChildSejourSignalRequest(String kind, String deviceId, String screen) {
+	public record ChildSejourSignalRequest(String kind, String deviceId, String screen, Long questionId) {
 	}
 
 	@Schema(name = "ChildSejourResponse")

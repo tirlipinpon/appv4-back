@@ -1,5 +1,6 @@
 package com.appv4.auth.application.service;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -22,11 +23,14 @@ import com.appv4.auth.application.result.JwtTokenResult;
  *
  * <p><b>Business :</b> l'enfant entre dans son app. Prénom inconnu, code faux,
  * fiche arrêtée, ou deux fiches avec le même prénom et le même code : le même refus.
+ * Pendant la Nuit, l'entrée et la relecture de session sont fermées : pas de jeton, pas de séjour.
  * On n'ouvre pas l'admin.
  * <p><b>Technique :</b> {@code matches} est toujours appelé, y compris sur un hash factice
  * quand aucune fiche ne correspond, pour ne pas rendre l'absence plus rapide.
  * La limite HTTP sur {@code POST /api/ext/auth/login} freine les essais des 10 000 codes.
- * <p><b>Métier / flow :</b> port in → port out fiches actives → port out jeton enfant.
+ * L'horloge injectée est lue dans le fuseau de la progression.
+ * <p><b>Métier / flow :</b> port in → si la Nuit, la phrase du séjour, sans jeton ;
+ * sinon port out fiches actives → port out jeton enfant.
  */
 public class LoginChildService implements LoginChildUseCase {
 
@@ -38,14 +42,17 @@ public class LoginChildService implements LoginChildUseCase {
 	private final ChildLoginPort childLoginPort;
 	private final PasswordEncoder passwordEncoder;
 	private final ChildSessionTokenPort childSessionTokenPort;
+	private final Clock clock;
 
 	public LoginChildService(
 			ChildLoginPort childLoginPort,
 			PasswordEncoder passwordEncoder,
-			ChildSessionTokenPort childSessionTokenPort) {
+			ChildSessionTokenPort childSessionTokenPort,
+			Clock clock) {
 		this.childLoginPort = childLoginPort;
 		this.passwordEncoder = passwordEncoder;
 		this.childSessionTokenPort = childSessionTokenPort;
+		this.clock = clock;
 	}
 
 	@Override
@@ -75,6 +82,9 @@ public class LoginChildService implements LoginChildUseCase {
 		}
 
 		ChildLoginCandidate child = matches.get(0);
+		if (SejourService.isNuit(clock.instant())) {
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, SejourService.NUIT_MESSAGE);
+		}
 		JwtTokenResult token = childSessionTokenPort.issue(child.id(), child.firstName());
 		return new ChildLoginResult(token.token(), token.expiresAtEpochSeconds(), child.firstName());
 	}
@@ -82,6 +92,9 @@ public class LoginChildService implements LoginChildUseCase {
 	@Override
 	@Transactional(readOnly = true)
 	public ChildSessionView session(String rawToken) {
+		if (SejourService.isNuit(clock.instant())) {
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, SejourService.NUIT_MESSAGE);
+		}
 		long childId = childSessionTokenPort.read(rawToken)
 				.orElseThrow(this::invalidSession)
 				.childId();

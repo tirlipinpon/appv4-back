@@ -66,12 +66,7 @@ public class TeacherStudentsService implements TeacherStudentsUseCase {
 	@Override
 	@Transactional(readOnly = true)
 	public StudentPhoto photo(long userId, String activeRole, long childId) {
-		requireTeacher(activeRole);
-		requireAccount(userId);
-		EnrolledChild child = enrolledChildPort.findActive(childId).orElse(null);
-		if (!inClass(userId, child)) {
-			throw missing(NOT_IN_CLASS);
-		}
+		requireInClass(userId, activeRole, childId);
 		EnrolledPhoto photo = enrolledChildPort.findPhoto(childId).orElse(null);
 		if (photo == null || photo.bytes() == null) {
 			throw missing(NO_PHOTO);
@@ -108,6 +103,17 @@ public class TeacherStudentsService implements TeacherStudentsUseCase {
 					groups));
 		}
 		return new TeacherStudentsView(NO_CLASS, List.copyOf(schools));
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public void requireInClass(long userId, String activeRole, long childId) {
+		requireTeacher(activeRole);
+		requireAccount(userId);
+		EnrolledChild child = enrolledChildPort.findActive(childId).orElse(null);
+		if (!inClass(userId, child)) {
+			throw missing(NOT_IN_CLASS);
+		}
 	}
 
 	private boolean inClass(long userId, EnrolledChild child) {

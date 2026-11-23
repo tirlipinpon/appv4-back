@@ -54,6 +54,7 @@ import com.appv4.auth.application.port.in.LoginChildUseCase;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.in.ReadChildFeaturedQuestionsUseCase;
 import com.appv4.auth.application.port.in.ReadParentHumeursUseCase;
+import com.appv4.auth.application.port.in.SejourUseCase;
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
 import com.appv4.auth.application.port.in.ReadChildProfileUseCase;
 import com.appv4.auth.application.port.in.ReadChildProgressUseCase;
@@ -94,6 +95,8 @@ import com.appv4.auth.application.port.out.HumeurChoicePort;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
+import com.appv4.auth.application.port.out.SejourPort;
+import com.appv4.auth.application.port.out.SejourQuestionPort;
 import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
@@ -128,6 +131,7 @@ import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
 import com.appv4.auth.application.service.AskChildHumeurService;
 import com.appv4.auth.application.service.ReadParentHumeursService;
+import com.appv4.auth.application.service.SejourService;
 import com.appv4.auth.application.service.HumeurLibraryService;
 import com.appv4.auth.application.service.TeacherModerationService;
 import com.appv4.auth.application.service.ParentProfileService;
@@ -396,8 +400,9 @@ public class AuthConfiguration {
 	LoginChildUseCase loginChildUseCase(
 			ChildLoginPort childLoginPort,
 			PasswordEncoder passwordEncoder,
-			ChildSessionTokenPort childSessionTokenPort) {
-		return new LoginChildService(childLoginPort, passwordEncoder, childSessionTokenPort);
+			ChildSessionTokenPort childSessionTokenPort,
+			java.time.Clock clock) {
+		return new LoginChildService(childLoginPort, passwordEncoder, childSessionTokenPort, clock);
 	}
 
 	/**
@@ -442,10 +447,17 @@ public class AuthConfiguration {
 	}
 
 	/**
-	 * Horloge système (tests peuvent la remplacer). Progression utilise Europe/Paris.
+	 * Horloge système. La progression et la Nuit la lisent en Europe/Paris.
+	 * Le profil test est fixé à 16 h le jour courant, pour qu'une suite lancée
+	 * la nuit puisse encore entrer dans l'app enfant.
 	 */
 	@Bean
-	java.time.Clock clock() {
+	java.time.Clock clock(org.springframework.core.env.Environment environment) {
+		if (environment.matchesProfiles("test")) {
+			java.time.ZoneId paris = com.appv4.auth.application.service.ReadChildProgressService.PROGRESS_ZONE;
+			java.time.LocalDate today = java.time.LocalDate.now(paris);
+			return java.time.Clock.fixed(today.atTime(16, 0).atZone(paris).toInstant(), paris);
+		}
 		return java.time.Clock.systemUTC();
 	}
 
@@ -699,6 +711,29 @@ public class AuthConfiguration {
 	@Bean
 	ReadParentHumeursUseCase readParentHumeursUseCase(ChildPort childPort, HumeurAnswerPort humeurAnswerPort) {
 		return new ReadParentHumeursService(childPort, humeurAnswerPort);
+	}
+
+	/**
+	 * Séjour de l'enfant (BACK-38).
+	 *
+	 * <p><b>Business :</b> les signaux confirment le temps. Le parent lit les libellés.
+	 * Une question jouée compte sur cette question.
+	 * <p><b>Technique :</b> l'horloge du bean fixe l'instant. Le port garde les intervalles.
+	 * Un autre port lit l'énoncé et le nom de matière.
+	 * <p><b>Métier / flow :</b> routes enfant, parent et professeur → ce cas d'usage.
+	 * Le professeur passe par le contrôle de classe déjà utilisé pour ses élèves.
+	 */
+	@Bean
+	SejourUseCase sejourUseCase(
+			com.appv4.auth.application.port.out.ChildSessionTokenPort sessions,
+			com.appv4.auth.application.port.out.ChildLoginPort logins,
+			ChildPort childPort,
+			SejourPort sejourPort,
+			SejourQuestionPort questions,
+			java.time.Clock clock,
+			TeacherStudentsUseCase teacherStudentsUseCase) {
+		return new SejourService(
+				sessions, logins, childPort, sejourPort, clock, questions, teacherStudentsUseCase);
 	}
 
 	@Bean

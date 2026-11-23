@@ -1,0 +1,550 @@
+package com.appv4.auth.application.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.in.SejourUseCase.ChildSejour;
+import com.appv4.auth.application.port.in.SejourUseCase.Line;
+import com.appv4.auth.application.port.in.SejourUseCase.ParentSejour;
+import com.appv4.auth.application.port.out.ChildLoginPort;
+import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
+import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
+import com.appv4.auth.application.port.out.ChildSessionTokenPort;
+import com.appv4.auth.application.port.out.ChildSessionTokenPort.ChildSession;
+import com.appv4.auth.application.port.out.SejourPort;
+import com.appv4.auth.application.port.out.SejourPort.OpenSlice;
+import com.appv4.auth.application.port.out.SejourPort.StoredInterval;
+import com.appv4.auth.application.port.out.SejourPort.StoredSejour;
+
+class SejourServiceTest {
+
+	/** 16:00 à Paris, le 22 novembre 2026. */
+	private static final Instant AT_16 = Instant.parse("2026-11-22T15:00:00Z");
+
+	private final ChildSessionTokenPort sessions = mock(ChildSessionTokenPort.class);
+	private final ChildLoginPort logins = mock(ChildLoginPort.class);
+	private final ChildPort children = mock(ChildPort.class);
+	private final MemorySejours store = new MemorySejours();
+	private final MoveableClock clock = new MoveableClock(AT_16);
+	private SejourService sejour;
+
+	@BeforeEach
+	void akira() {
+		when(sessions.read("akira")).thenReturn(Optional.of(new ChildSession(7L)));
+		when(logins.findActiveById(7L)).thenReturn(Optional.of(new ChildLoginCandidate(7L, "Akira", "hash")));
+		when(children.findOwned(1L, 7L)).thenReturn(Optional.of(child(7L, 1L, true)));
+		sejour = new SejourService(sessions, logins, children, store, clock);
+	}
+
+	@Test
+	void lePremierGesteOuvreLeSejour() {
+		clock.at(AT_16);
+		sejour.signal("akira", "gesture", "tablette", null);
+
+		assertThat(sejour.readChild("akira", "tablette").holds()).isTrue();
+		assertThat(sejour.readParent(1L, "parent", 7L)).isEmpty();
+
+		clock.at(AT_16.plusSeconds(30));
+		sejour.signal("akira", "screen", "tablette", "accueil");
+
+		ParentSejour row = seul(sejour.readParent(1L, "parent", 7L));
+		assertThat(row.durationLabel()).isEqualTo("30 s");
+		assertThat(row.lines()).extracting(Line::label).containsExactly("Accueil");
+	}
+
+	@Test
+	void unePresenceConfirmeTrenteSecondesEtLaLectureUlterieureResteLa() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		ParentSejour row = seul(sejour.readParent(1L, "parent", 7L));
+
+		assertThat(row.durationLabel()).isEqualTo("30 s");
+		assertThat(row.dateLabel()).isEqualTo("22 novembre 2026");
+		assertThat(row.timeLabel()).isEqualTo("16:00");
+		assertThat(row.lines()).extracting(Line::label, Line::durationLabel).containsExactly(tuple("Accueil", "30 s"));
+
+		clock.at(AT_16.plusSeconds(40));
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("30 s");
+	}
+
+	@Test
+	void unDepartADixSecondesConfirmeDixSecondesSansDelaiEnsuite() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(10));
+		sejour.signal("akira", "leave", "tablette", null);
+
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("10 s");
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).lines())
+				.extracting(Line::label, Line::durationLabel)
+				.containsExactly(tuple("Accueil", "10 s"));
+
+		clock.at(AT_16.plusSeconds(30));
+		sejour.signal("akira", "presence", "tablette", null);
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("10 s");
+	}
+
+	@Test
+	void lesPresencesJusquaDeuxMinutesConfirmentPuisCelleDApresNAjouteRien() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		sejour.signal("akira", "presence", "tablette", null);
+		clock.at(AT_16.plusSeconds(60));
+		sejour.signal("akira", "presence", "tablette", null);
+		clock.at(AT_16.plusSeconds(90));
+		sejour.signal("akira", "presence", "tablette", null);
+		clock.at(AT_16.plusSeconds(120));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("2 min");
+
+		clock.at(AT_16.plusSeconds(150));
+		sejour.signal("akira", "presence", "tablette", null);
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("2 min");
+	}
+
+	@Test
+	void leDernierAppareilTientLeSejourEtLAncienGardeSonDernierSignal() {
+		clock.at(AT_16.plusSeconds(180));
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(300));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("2 min");
+		assertThat(sejour.readChild("akira", "tablette").holds()).isTrue();
+
+		clock.at(AT_16.plusSeconds(600));
+		sejour.signal("akira", "screen", "pc", "matieres");
+
+		List<ParentSejour> afterPc = sejour.readParent(1L, "parent", 7L);
+		assertThat(afterPc).hasSize(1);
+		assertThat(afterPc.get(0).durationLabel()).isEqualTo("2 min");
+		assertThat(afterPc.get(0).lines()).extracting(Line::label).containsExactly("Accueil");
+
+		clock.at(AT_16.plusSeconds(660));
+		sejour.signal("akira", "presence", "tablette", null);
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("2 min");
+		assertThat(sejour.readChild("akira", "tablette").holds()).isFalse();
+		assertThat(sejour.readChild("akira", "pc").holds()).isTrue();
+
+		clock.at(AT_16.plusSeconds(690));
+		sejour.signal("akira", "presence", "pc", null);
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("2 min");
+
+		clock.at(AT_16.plusSeconds(720));
+		sejour.signal("akira", "gesture", "tablette", null);
+		ChildSejour tablet = sejour.readChild("akira", "tablette");
+		assertThat(tablet.holds()).isTrue();
+		assertThat(sejour.readChild("akira", "pc").holds()).isFalse();
+		assertThat(sejour.readParent(1L, "parent", 7L)).hasSize(1);
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("2 min");
+	}
+
+	@Test
+	void deuxPassagesSurAccueilFontUneSeuleLigne() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(20));
+		sejour.signal("akira", "screen", "tablette", "matieres");
+		clock.at(AT_16.plusSeconds(40));
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		clock.at(AT_16.plusSeconds(60));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		ParentSejour row = seul(sejour.readParent(1L, "parent", 7L));
+
+		assertThat(row.lines()).extracting(Line::label, Line::durationLabel)
+				.containsExactly(tuple("Accueil", "40 s"), tuple("Matières", "20 s"));
+		assertThat(row.durationLabel()).isEqualTo("1 min");
+	}
+
+	@Test
+	void unPassageSousUneSecondeEstAbsent() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusMillis(400));
+		sejour.signal("akira", "leave", "tablette", null);
+
+		assertThat(sejour.readParent(1L, "parent", 7L)).isEmpty();
+	}
+
+	@Test
+	void uneLigneSousUneSecondeResteHorsDuTotal() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		sejour.signal("akira", "screen", "tablette", "board");
+		clock.at(AT_16.plusMillis(30_400));
+		sejour.signal("akira", "leave", "tablette", null);
+
+		ParentSejour row = seul(sejour.readParent(1L, "parent", 7L));
+		assertThat(row.lines()).extracting(Line::label, Line::durationLabel).containsExactly(tuple("Accueil", "30 s"));
+		assertThat(row.durationLabel()).isEqualTo("30 s");
+	}
+
+	@Test
+	void unGesteApresDeuxMinutesNeComptePasLeTrou() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(120));
+		sejour.signal("akira", "presence", "tablette", null);
+		clock.at(AT_16.plusSeconds(180));
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(210));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("2 min 30");
+	}
+
+	@Test
+	void unSignalQuestionEstRefuseEtNEcritRien() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		assertThatThrownBy(() -> sejour.signal("akira", "question", "tablette", null))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.BAD_REQUEST);
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("30 s");
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).lines()).hasSize(1);
+	}
+
+	@Test
+	void unSignalSansAppareilEstRefuseEtNEcritRien() {
+		assertThatThrownBy(() -> sejour.signal("akira", "screen", " ", "accueil"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(SejourService.DEVICE_REQUIRED);
+		assertThatThrownBy(() -> sejour.signal("akira", "gesture", null, null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(SejourService.DEVICE_REQUIRED);
+		assertThat(sejour.readParent(1L, "parent", 7L)).isEmpty();
+		assertThat(sejour.readChild("akira", "tablette").holds()).isFalse();
+		assertThatThrownBy(() -> sejour.readChild("akira", " "))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(SejourService.DEVICE_REQUIRED);
+	}
+
+	@Test
+	void unEcranInconnuEstRefuseEtNEcritRien() {
+		assertThatThrownBy(() -> sejour.signal("akira", "screen", "tablette", "salon"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(SejourService.SCREEN_UNKNOWN);
+		assertThat(sejour.readParent(1L, "parent", 7L)).isEmpty();
+	}
+
+	@Test
+	void unJetonAbsentOuAdulteEstRefuseEtNEcritRien() {
+		when(sessions.read("")).thenReturn(Optional.empty());
+		when(sessions.read("adulte")).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> sejour.signal("", "screen", "tablette", "accueil"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(LoginChildService.INVALID_SESSION_MESSAGE);
+		assertThatThrownBy(() -> sejour.signal("adulte", "gesture", "tablette", null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(LoginChildService.INVALID_SESSION_MESSAGE);
+		assertThat(sejour.readParent(1L, "parent", 7L)).isEmpty();
+	}
+
+	@Test
+	void unMauvaisRoleEstRefuseCommeLesAutresRoutesParent() {
+		assertThatThrownBy(() -> sejour.readParent(1L, "teacher", 7L))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.FORBIDDEN);
+		assertThatThrownBy(() -> sejour.readParent(1L, "child", 7L))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.FORBIDDEN);
+	}
+
+	@Test
+	void unEnfantInconnuRepondIntrouvable() {
+		when(children.findOwned(9L, 7L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> sejour.readParent(9L, "parent", 7L))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(ParentChildrenService.CHILD_UNKNOWN);
+	}
+
+	@Test
+	void deuxParentsQuiVoientLEnfantLisentLaMemeListe() {
+		when(children.findOwned(2L, 7L)).thenReturn(Optional.of(child(7L, 2L, true)));
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		assertThat(sejour.readParent(2L, "parent", 7L))
+				.usingRecursiveComparison()
+				.isEqualTo(sejour.readParent(1L, "parent", 7L));
+	}
+
+	@Test
+	void unEnfantDesactiveResteLisible() {
+		when(children.findOwned(1L, 7L)).thenReturn(Optional.of(child(7L, 1L, false)));
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("30 s");
+	}
+
+	@Test
+	void lesSejoursLesPlusRecentsArriventEnPremier() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		sejour.signal("akira", "presence", "tablette", null);
+		sejour.signal("akira", "leave", "tablette", null);
+
+		clock.at(AT_16.plusSeconds(3600));
+		sejour.signal("akira", "screen", "tablette", "profil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(3640));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		List<ParentSejour> rows = sejour.readParent(1L, "parent", 7L);
+		assertThat(rows).extracting(ParentSejour::timeLabel, ParentSejour::durationLabel)
+				.containsExactly(tuple("17:00", "40 s"), tuple("16:00", "30 s"));
+		assertThat(rows).extracting(ParentSejour::dateLabel).containsExactly("22 novembre 2026", "22 novembre 2026");
+	}
+
+	@Test
+	void chaqueEcranASonLibelleDansLOrdreDeLaPremiereVisite() {
+		String[] codes = {"accueil", "matieres", "board", "questions", "recompenses", "classement", "profil"};
+		String[] labels = {"Accueil", "Matières", "Board", "Questions", "Récompenses", "Classement", "Profil"};
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", codes[0]);
+		sejour.signal("akira", "gesture", "tablette", null);
+		for (int i = 1; i < codes.length; i++) {
+			clock.at(AT_16.plusSeconds(i * 2L));
+			sejour.signal("akira", "screen", "tablette", codes[i]);
+		}
+		clock.at(AT_16.plusSeconds(codes.length * 2L));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).lines())
+				.extracting(Line::label, Line::durationLabel)
+				.containsExactly(
+						tuple(labels[0], "2 s"),
+						tuple(labels[1], "2 s"),
+						tuple(labels[2], "2 s"),
+						tuple(labels[3], "2 s"),
+						tuple(labels[4], "2 s"),
+						tuple(labels[5], "2 s"),
+						tuple(labels[6], "2 s"));
+	}
+
+	@Test
+	void quaranteSecondesEtNeufDixiemesSeLisentQuaranteS() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusMillis(40_900));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("40 s");
+	}
+
+	@Test
+	void quatreVingtDixSecondesSeLisentUneMinuteTrente() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(90));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("1 min 30");
+	}
+
+	@Test
+	void unAutreEnfantNeRecoitPasCeSejour() {
+		when(sessions.read("nao")).thenReturn(Optional.of(new ChildSession(8L)));
+		when(logins.findActiveById(8L)).thenReturn(Optional.of(new ChildLoginCandidate(8L, "Nao", "hash")));
+		when(children.findOwned(1L, 8L)).thenReturn(Optional.of(child(8L, 1L, true)));
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30));
+		sejour.signal("akira", "presence", "tablette", null);
+		sejour.signal("nao", "screen", "tablette", "board");
+		sejour.signal("nao", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(40));
+		sejour.signal("nao", "presence", "tablette", null);
+
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).lines())
+				.extracting(Line::label, Line::durationLabel)
+				.containsExactly(tuple("Accueil", "30 s"));
+		assertThat(seul(sejour.readParent(1L, "parent", 8L)).lines())
+				.extracting(Line::label, Line::durationLabel)
+				.containsExactly(tuple("Board", "10 s"));
+	}
+
+	private static ParentSejour seul(List<ParentSejour> rows) {
+		assertThat(rows).hasSize(1);
+		return rows.get(0);
+	}
+
+	private static ChildSaved child(long id, long parentUserId, boolean active) {
+		return new ChildSaved(id, parentUserId, "Akira", "Iris", "F", 8, "FR", "CE1", null, "cat", false, active);
+	}
+
+	private static final class MoveableClock extends Clock {
+		private Instant instant;
+
+		private MoveableClock(Instant instant) {
+			this.instant = instant;
+		}
+
+		private void at(Instant instant) {
+			this.instant = instant;
+		}
+
+		@Override
+		public ZoneId getZone() {
+			return ZoneOffset.UTC;
+		}
+
+		@Override
+		public Clock withZone(ZoneId zone) {
+			return this;
+		}
+
+		@Override
+		public Instant instant() {
+			return instant;
+		}
+	}
+
+	private static final class MemorySejours implements SejourPort {
+		private final List<Row> rows = new ArrayList<>();
+		private long nextId = 1L;
+
+		@Override
+		public Optional<OpenSlice> findOpen(long childId) {
+			return rows.stream().filter(row -> row.childId == childId && row.open).map(Row::toOpen).findFirst();
+		}
+
+		@Override
+		public OpenSlice open(long childId, Instant startedAt, String deviceId, String screen) {
+			Row row = new Row();
+			row.id = nextId++;
+			row.childId = childId;
+			row.startedAt = startedAt;
+			row.open = true;
+			row.deviceId = deviceId;
+			row.screen = screen;
+			row.sliceStartedAt = startedAt;
+			row.lastConfirmedAt = startedAt;
+			row.lastGestureAt = null;
+			rows.add(row);
+			return row.toOpen();
+		}
+
+		@Override
+		public void saveOpen(OpenSlice slice) {
+			Row row = byId(slice.id());
+			row.deviceId = slice.deviceId();
+			row.screen = slice.screen();
+			row.sliceStartedAt = slice.sliceStartedAt();
+			row.lastConfirmedAt = slice.lastConfirmedAt();
+			row.lastGestureAt = slice.lastGestureAt();
+		}
+
+		@Override
+		public void appendInterval(long sejourId, String screen, Instant startedAt, Instant endedAt) {
+			byId(sejourId).intervals.add(new StoredInterval(screen, startedAt, endedAt));
+		}
+
+		@Override
+		public void close(long sejourId, Instant closedAt) {
+			Row row = byId(sejourId);
+			row.open = false;
+			row.closedAt = closedAt;
+			row.deviceId = null;
+			row.screen = null;
+			row.sliceStartedAt = null;
+			row.lastConfirmedAt = null;
+			row.lastGestureAt = null;
+		}
+
+		@Override
+		public List<StoredSejour> list(long childId) {
+			return rows.stream().filter(row -> row.childId == childId).map(Row::toStored).toList();
+		}
+
+		private Row byId(long id) {
+			return rows.stream().filter(row -> row.id == id).findFirst().orElseThrow();
+		}
+
+		private static final class Row {
+			private long id;
+			private long childId;
+			private Instant startedAt;
+			private Instant closedAt;
+			private boolean open;
+			private String deviceId;
+			private String screen;
+			private Instant sliceStartedAt;
+			private Instant lastConfirmedAt;
+			private Instant lastGestureAt;
+			private final List<StoredInterval> intervals = new ArrayList<>();
+
+			private OpenSlice toOpen() {
+				return new OpenSlice(
+						id, childId, startedAt, deviceId, screen, sliceStartedAt, lastConfirmedAt, lastGestureAt);
+			}
+
+			private StoredSejour toStored() {
+				return new StoredSejour(
+						id,
+						childId,
+						startedAt,
+						open,
+						deviceId,
+						screen,
+						sliceStartedAt,
+						lastConfirmedAt,
+						lastGestureAt,
+						List.copyOf(intervals));
+			}
+		}
+	}
+}

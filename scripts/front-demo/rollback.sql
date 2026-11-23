@@ -89,6 +89,9 @@ DELETE FROM back_child_share_requests
     OR referent_user_id IN (SELECT id FROM demo_users);
 DELETE FROM back_child_invitations WHERE child_id IN (SELECT id FROM demo_children);
 DELETE FROM back_child_holders WHERE child_id IN (SELECT id FROM demo_children);
+DELETE FROM back_sejour_intervals
+ WHERE sejour_id IN (SELECT id FROM back_sejours WHERE child_id IN (SELECT id FROM demo_children));
+DELETE FROM back_sejours WHERE child_id IN (SELECT id FROM demo_children);
 DELETE FROM back_children WHERE id IN (SELECT id FROM demo_children);
 DELETE FROM back_users WHERE id IN (SELECT id FROM demo_users);
 DELETE FROM back_schools WHERE id IN (SELECT id FROM demo_schools);

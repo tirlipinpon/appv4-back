@@ -54,6 +54,7 @@ import com.appv4.auth.application.port.in.LoginChildUseCase;
 import com.appv4.auth.application.port.in.ChildQuestionPlayUseCase;
 import com.appv4.auth.application.port.in.ReadChildFeaturedQuestionsUseCase;
 import com.appv4.auth.application.port.in.ReadParentHumeursUseCase;
+import com.appv4.auth.application.port.in.SejourUseCase;
 import com.appv4.auth.application.port.in.ReadChildLearningSubjectsUseCase;
 import com.appv4.auth.application.port.in.ReadChildProfileUseCase;
 import com.appv4.auth.application.port.in.ReadChildProgressUseCase;
@@ -94,6 +95,7 @@ import com.appv4.auth.application.port.out.HumeurChoicePort;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
 import com.appv4.auth.application.port.out.PasswordResetTokenPort;
 import com.appv4.auth.application.port.out.SchoolCatalogPort;
+import com.appv4.auth.application.port.out.SejourPort;
 import com.appv4.auth.application.port.out.SignupRolePort;
 import com.appv4.auth.application.port.out.TeacherApprovedMailPort;
 import com.appv4.auth.application.port.out.TeacherModerationPort;
@@ -128,6 +130,7 @@ import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
 import com.appv4.auth.application.service.AskChildHumeurService;
 import com.appv4.auth.application.service.ReadParentHumeursService;
+import com.appv4.auth.application.service.SejourService;
 import com.appv4.auth.application.service.HumeurLibraryService;
 import com.appv4.auth.application.service.TeacherModerationService;
 import com.appv4.auth.application.service.ParentProfileService;
@@ -699,6 +702,23 @@ public class AuthConfiguration {
 	@Bean
 	ReadParentHumeursUseCase readParentHumeursUseCase(ChildPort childPort, HumeurAnswerPort humeurAnswerPort) {
 		return new ReadParentHumeursService(childPort, humeurAnswerPort);
+	}
+
+	/**
+	 * Séjour de l'enfant (BACK-38).
+	 *
+	 * <p><b>Business :</b> les signaux confirment le temps. Le parent lit les libellés.
+	 * <p><b>Technique :</b> l'horloge du bean fixe l'instant. Le port garde les intervalles.
+	 * <p><b>Métier / flow :</b> routes enfant et parent → ce cas d'usage.
+	 */
+	@Bean
+	SejourUseCase sejourUseCase(
+			com.appv4.auth.application.port.out.ChildSessionTokenPort sessions,
+			com.appv4.auth.application.port.out.ChildLoginPort logins,
+			ChildPort childPort,
+			SejourPort sejourPort,
+			java.time.Clock clock) {
+		return new SejourService(sessions, logins, childPort, sejourPort, clock);
 	}
 
 	@Bean

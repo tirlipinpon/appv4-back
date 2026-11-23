@@ -3,7 +3,10 @@ package com.appv4.auth.application.service;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -30,14 +33,16 @@ import com.appv4.auth.application.port.out.SejourQuestionPort;
 import com.appv4.auth.application.port.out.SejourQuestionPort.QuestionCaption;
 
 /**
- * Compte le séjour à partir des signaux (BACK-38, question BACK-79).
+ * Compte le séjour à partir des signaux, et ferme l'app enfant pendant la Nuit
+ * (BACK-38, question BACK-79, Nuit BACK-80).
  *
- * <p><b>Business :</b> seul le temps confirmé par un signal compte. Une lecture
- * plus tard ne rajoute pas les secondes sans nouveau signal. Le jeu compte sur
- * la question, pas comme un écran de plus.
- * <p><b>Technique :</b> l'horloge injectée fixe l'instant du signal. La tranche
- * ouverte va de son début au dernier signal confirmé.
- * <p><b>Métier / flow :</b> port in Séjour. Les routes enfant et parent appellent ici.
+ * <p><b>Business :</b> seul le temps confirmé par un signal compte, jamais après 22 h.
+ * De 22 h à 6 h l'enfant n'entre plus. La phrase de la Nuit est celle-ci, une seule fois.
+ * <p><b>Technique :</b> l'horloge injectée est lue en Europe/Paris, le même fuseau que
+ * la progression. La tranche ouverte s'arrête au plus tôt entre le dernier geste plus
+ * deux minutes et 22 h.
+ * <p><b>Métier / flow :</b> port in Séjour. Les routes enfant appellent ici et reçoivent
+ * la phrase. La lecture parent reste ouverte pendant la Nuit.
  */
 public class SejourService implements SejourUseCase {
 
@@ -45,6 +50,11 @@ public class SejourService implements SejourUseCase {
 	static final String SIGNAL_REFUSED = "Ce signal est refusé.";
 	static final String DEVICE_REQUIRED = "Il manque l'appareil.";
 
+	/** Phrase unique renvoyée par l'API pendant la Nuit. */
+	public static final String NUIT_MESSAGE = "L'app est fermée jusqu'à 6 h.";
+
+	private static final LocalTime NUIT_START = LocalTime.of(22, 0);
+	private static final LocalTime NUIT_END = LocalTime.of(6, 0);
 	private static final Duration LECTURE = Duration.ofMinutes(2);
 
 	private static final ZoneId PARIS = ReadChildProgressService.PROGRESS_ZONE;
@@ -94,8 +104,9 @@ public class SejourService implements SejourUseCase {
 	}
 
 	@Override
-	@Transactional
+	@Transactional(noRollbackFor = AuthDomainException.class)
 	public void signal(String rawToken, String kind, String deviceId, String screen, Long questionId) {
+		refuseDuringNuit(rawToken);
 		long childId = requireChild(rawToken);
 		if (deviceId == null || deviceId.isBlank()) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, DEVICE_REQUIRED);
@@ -128,8 +139,9 @@ public class SejourService implements SejourUseCase {
 	}
 
 	@Override
-	@Transactional(readOnly = true)
+	@Transactional(noRollbackFor = AuthDomainException.class)
 	public ChildSejour readChild(String rawToken, String deviceId) {
+		refuseDuringNuit(rawToken);
 		long childId = requireChild(rawToken);
 		if (deviceId == null || deviceId.isBlank()) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, DEVICE_REQUIRED);
@@ -254,6 +266,55 @@ public class SejourService implements SejourUseCase {
 			return;
 		}
 		save(copy(open, confirmed, open.lastGestureAt()));
+	}
+
+	/**
+	 * Pendant la Nuit, le séjour ouvert se ferme à 22 h et la route enfant refuse.
+	 * La fermeture est conservée même si l'appel se termine par le refus.
+	 * La lecture parent ne passe pas ici.
+	 */
+	@Override
+	@Transactional(noRollbackFor = AuthDomainException.class)
+	public void refuseDuringNuit(String rawToken) {
+		Instant now = clock.instant();
+		if (!isNuit(now)) {
+			return;
+		}
+		endOpenSejour(rawToken, nuitCut(now));
+		throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, NUIT_MESSAGE);
+	}
+
+	/** Confirme le délai de lecture au plus jusqu'à 22 h, puis ferme. Sans geste, rien de plus. */
+	private void endOpenSejour(String rawToken, Instant cut) {
+		long childId;
+		try {
+			childId = requireChild(rawToken);
+		} catch (AuthDomainException ex) {
+			return;
+		}
+		OpenSlice open = sejours.findOpen(childId).orElse(null);
+		if (open == null) {
+			return;
+		}
+		Instant end = open.lastGestureAt() == null ? open.lastConfirmedAt() : confirmedUntil(open, cut);
+		remember(open, end);
+		sejours.close(open.id(), cut);
+	}
+
+	/** 22 h inclus, 6 h exclus, sur l'horloge de la progression. */
+	static boolean isNuit(Instant instant) {
+		LocalTime time = instant.atZone(PARIS).toLocalTime();
+		return !time.isBefore(NUIT_START) || time.isBefore(NUIT_END);
+	}
+
+	/** Le 22 h qui a ouvert la Nuit en cours. */
+	private static Instant nuitCut(Instant instant) {
+		ZonedDateTime paris = instant.atZone(PARIS);
+		LocalDate day = paris.toLocalDate();
+		if (paris.toLocalTime().isBefore(NUIT_END)) {
+			day = day.minusDays(1);
+		}
+		return day.atTime(NUIT_START).atZone(PARIS).toInstant();
 	}
 
 	/** Dernier instant confirmable : pas après le dernier geste plus deux minutes. */

@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -562,6 +563,123 @@ class SejourServiceTest {
 		assertThat(seul(sejour.readParent(1L, "parent", 8L)).lines())
 				.extracting(Line::label, Line::durationLabel)
 				.containsExactly(tuple("Board", "10 s"));
+	}
+
+	@Test
+	void unSejourOuvertA21h59SeFermeA22hEtLAppelSuivantRefuse() {
+		clock.at(paris(2026, 11, 22, 21, 59));
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+
+		clock.at(paris(2026, 11, 22, 22, 1));
+		assertThatThrownBy(() -> sejour.signal("akira", "presence", "tablette", null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("L'app est fermée jusqu'à 6 h.");
+
+		clock.at(paris(2026, 11, 22, 23, 0));
+		ParentSejour row = seul(sejour.readParent(1L, "parent", 7L));
+		assertThat(row.dateLabel()).isEqualTo("22 novembre 2026");
+		assertThat(row.timeLabel()).isEqualTo("21:59");
+		assertThat(row.durationLabel()).isEqualTo("1 min");
+		assertThat(row.lines()).extracting(Line::label, Line::durationLabel)
+				.containsExactly(tuple("Accueil", "1 min"));
+	}
+
+	@Test
+	void laLectureEnfantA22hRefuseAvecLaPhraseDeLaNuit() {
+		clock.at(paris(2026, 11, 22, 21, 59));
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+
+		clock.at(paris(2026, 11, 22, 22, 0));
+		assertThatThrownBy(() -> sejour.readChild("akira", "tablette"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("L'app est fermée jusqu'à 6 h.");
+
+		ParentSejour row = seul(sejour.readParent(1L, "parent", 7L));
+		assertThat(row.timeLabel()).isEqualTo("21:59");
+		assertThat(row.durationLabel()).isEqualTo("1 min");
+	}
+
+	@Test
+	void unAppelA5h59FermeA22hSansCompterLaNuit() {
+		clock.at(paris(2026, 11, 22, 21, 59));
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+
+		clock.at(paris(2026, 11, 23, 5, 59));
+		assertThatThrownBy(() -> sejour.signal("akira", "presence", "tablette", null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("L'app est fermée jusqu'à 6 h.");
+		assertThatThrownBy(() -> sejour.signal("akira", "gesture", "tablette", null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("L'app est fermée jusqu'à 6 h.");
+
+		ParentSejour row = seul(sejour.readParent(1L, "parent", 7L));
+		assertThat(row.dateLabel()).isEqualTo("22 novembre 2026");
+		assertThat(row.timeLabel()).isEqualTo("21:59");
+		assertThat(row.durationLabel()).isEqualTo("1 min");
+	}
+
+	@Test
+	void laNuitNeProlongePasUnEcranSansGeste() {
+		clock.at(paris(2026, 11, 22, 21, 50));
+		sejour.signal("akira", "screen", "tablette", "accueil");
+
+		clock.at(paris(2026, 11, 22, 22, 1));
+		assertThatThrownBy(() -> sejour.signal("akira", "presence", "tablette", null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("L'app est fermée jusqu'à 6 h.");
+
+		assertThat(sejour.readParent(1L, "parent", 7L)).isEmpty();
+	}
+
+	@Test
+	void unSignalA22h00NOuvrePasDeSejour() {
+		clock.at(paris(2026, 11, 22, 22, 0));
+
+		assertThatThrownBy(() -> sejour.signal("akira", "gesture", "tablette", null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("L'app est fermée jusqu'à 6 h.");
+		assertThat(sejour.readParent(1L, "parent", 7L)).isEmpty();
+	}
+
+	@Test
+	void unSignalA6hOuvreANouveau() {
+		clock.at(paris(2026, 11, 22, 21, 59));
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(paris(2026, 11, 22, 22, 0));
+		assertThatThrownBy(() -> sejour.readChild("akira", "tablette"))
+				.hasMessage("L'app est fermée jusqu'à 6 h.");
+
+		clock.at(paris(2026, 11, 23, 6, 0));
+		sejour.signal("akira", "screen", "tablette", "accueil");
+
+		assertThat(sejour.readChild("akira", "tablette").holds()).isTrue();
+	}
+
+	@Test
+	void unIntervalleStockeQuiTraverseMinuitResteUnSeulSejour() {
+		Instant start = paris(2026, 11, 22, 23, 50);
+		Instant end = paris(2026, 11, 23, 0, 10);
+		OpenSlice opened = store.open(7L, start, "tablette", "accueil");
+		store.appendInterval(opened.id(), "accueil", null, null, null, start, end);
+		store.close(opened.id(), end);
+
+		clock.at(paris(2026, 11, 23, 16, 0));
+		ParentSejour row = seul(sejour.readParent(1L, "parent", 7L));
+
+		assertThat(row.dateLabel()).isEqualTo("22 novembre 2026");
+		assertThat(row.timeLabel()).isEqualTo("23:50");
+		assertThat(row.durationLabel()).isEqualTo("20 min");
+		assertThat(row.lines()).extracting(Line::label, Line::durationLabel)
+				.containsExactly(tuple("Accueil", "20 min"));
+	}
+
+	private static Instant paris(int year, int month, int day, int hour, int minute) {
+		return ZonedDateTime.of(year, month, day, hour, minute, 0, 0, ReadChildProgressService.PROGRESS_ZONE)
+				.toInstant();
 	}
 
 	/** Présences toutes les deux minutes, avec un geste pour que la lecture continue. */

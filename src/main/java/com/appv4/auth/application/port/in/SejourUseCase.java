@@ -7,12 +7,20 @@ import java.util.List;
  *
  * <p><b>Business :</b> l'enfant envoie des signaux. Le jeu compte sur la question,
  * avec l'énoncé et la matière copiés. Le parent lit le temps confirmé, déjà libellé.
- * L'écran n'ajoute pas de secondes.
- * <p><b>Technique :</b> un seul cas d'usage. L'horloge est celle du bean.
+ * De 22 h à 6 h, la route enfant est refusée avec une seule phrase. L'écran n'ajoute pas de secondes.
+ * <p><b>Technique :</b> un seul cas d'usage. L'horloge est celle du bean, en Europe/Paris.
  * <p><b>Métier / flow :</b> {@code POST /api/ext/sejour/signals}, {@code GET /api/ext/sejour},
- * {@code GET /api/int/parent/children/{childId}/sejours}.
+ * les autres routes {@code /api/ext/**}, et {@code GET /api/int/parent/children/{childId}/sejours}.
  */
 public interface SejourUseCase {
+
+	/**
+	 * Ferme le séjour ouvert à 22 h, puis refuse, quand l'horloge est dans la Nuit.
+	 * Hors Nuit, ne fait rien.
+	 *
+	 * @param rawToken jeton enfant, vide si l'appel n'en a pas
+	 */
+	void refuseDuringNuit(String rawToken);
 
 	/**
 	 * @param questionId identifiant de la question jouée, seulement pour un signal question

@@ -400,8 +400,9 @@ public class AuthConfiguration {
 	LoginChildUseCase loginChildUseCase(
 			ChildLoginPort childLoginPort,
 			PasswordEncoder passwordEncoder,
-			ChildSessionTokenPort childSessionTokenPort) {
-		return new LoginChildService(childLoginPort, passwordEncoder, childSessionTokenPort);
+			ChildSessionTokenPort childSessionTokenPort,
+			java.time.Clock clock) {
+		return new LoginChildService(childLoginPort, passwordEncoder, childSessionTokenPort, clock);
 	}
 
 	/**
@@ -446,10 +447,17 @@ public class AuthConfiguration {
 	}
 
 	/**
-	 * Horloge système (tests peuvent la remplacer). Progression utilise Europe/Paris.
+	 * Horloge système. La progression et la Nuit la lisent en Europe/Paris.
+	 * Le profil test est fixé à 16 h le jour courant, pour qu'une suite lancée
+	 * la nuit puisse encore entrer dans l'app enfant.
 	 */
 	@Bean
-	java.time.Clock clock() {
+	java.time.Clock clock(org.springframework.core.env.Environment environment) {
+		if (environment.matchesProfiles("test")) {
+			java.time.ZoneId paris = com.appv4.auth.application.service.ReadChildProgressService.PROGRESS_ZONE;
+			java.time.LocalDate today = java.time.LocalDate.now(paris);
+			return java.time.Clock.fixed(today.atTime(16, 0).atZone(paris).toInstant(), paris);
+		}
 		return java.time.Clock.systemUTC();
 	}
 

@@ -1,0 +1,221 @@
+package com.appv4.auth.application.service;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.transaction.annotation.Transactional;
+
+import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.in.ReadChildAvatarUseCase;
+import com.appv4.auth.application.port.in.SaveChildAvatarStyleUseCase;
+import com.appv4.auth.application.port.out.ChildAvatarPort;
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredAvatar;
+import com.appv4.auth.application.port.out.ChildAvatarPort.StoredPin;
+import com.appv4.auth.application.port.out.ChildLoginPort;
+import com.appv4.auth.application.port.out.ChildLoginPort.ChildProfile;
+import com.appv4.auth.application.port.out.ChildProgressPort;
+import com.appv4.auth.application.port.out.ChildSessionTokenPort;
+import com.appv4.auth.application.result.ChildAvatarView;
+import com.appv4.auth.application.result.ChildAvatarView.PresetCard;
+import com.appv4.auth.application.result.ChildAvatarView.StyleCard;
+import com.appv4.auth.application.result.ChildAvatarView.StylePreset;
+import com.appv4.auth.application.result.ChildAvatarView.VariantCard;
+import com.appv4.auth.application.result.ChildAvatarView.ZoneCard;
+import com.appv4.auth.application.service.CharacterAvatarCatalog.Preset;
+import com.appv4.auth.application.service.CharacterAvatarCatalog.ResolvedAvatar;
+import com.appv4.auth.application.service.CharacterAvatarCatalog.Style;
+import com.appv4.auth.application.service.CharacterAvatarCatalog.Zone;
+
+/**
+ * Lecture du personnage (BACK-48).
+ *
+ * <p><b>Business :</b> sans choix enregistré, l'enfant voit Lorelei et le prix de chaque zone.
+ * <p><b>Technique :</b> jeton enfant, XP déjà stocké, catalogue Characters 10.6.
+ * <p><b>Métier / flow :</b> Profil → ce service → pas d'écriture, pas de second XP.
+ */
+public class ReadChildAvatarService implements ReadChildAvatarUseCase, SaveChildAvatarStyleUseCase {
+
+	public static final String INVALID_SESSION_MESSAGE = LoginChildService.INVALID_SESSION_MESSAGE;
+
+	public static final String UNKNOWN_STYLE = "Style inconnu.";
+
+	public static final String UNKNOWN_PRESET = "Palette inconnue pour ce style.";
+
+	public static final String UNKNOWN_VARIANT = "Variante inconnue.";
+
+	public static final String ZONE_CLOSED = "Cette zone n'est pas encore ouverte.";
+
+	public static final String ZONE_ABSENT = "Cette zone n'existe pas sur ce style.";
+
+	private final ChildLoginPort childLoginPort;
+	private final ChildSessionTokenPort childSessionTokenPort;
+	private final ChildProgressPort childProgressPort;
+	private final ChildAvatarPort childAvatarPort;
+	private final CharacterAvatarCatalog catalog;
+
+	public ReadChildAvatarService(
+			ChildLoginPort childLoginPort,
+			ChildSessionTokenPort childSessionTokenPort,
+			ChildProgressPort childProgressPort,
+			ChildAvatarPort childAvatarPort,
+			CharacterAvatarCatalog catalog) {
+		this.childLoginPort = childLoginPort;
+		this.childSessionTokenPort = childSessionTokenPort;
+		this.childProgressPort = childProgressPort;
+		this.childAvatarPort = childAvatarPort;
+		this.catalog = catalog;
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public ChildAvatarView avatar(String rawToken) {
+		long childId = requireActiveChild(rawToken);
+		int age = ageOf(childId);
+		int xp = childProgressPort.findByChildId(childId)
+				.map(progress -> progress.xpTotal())
+				.orElse(0);
+		ResolvedAvatar avatar = catalog.resolve(childAvatarPort.findByChildId(childId).orElse(null));
+		Style selected = avatar.style();
+		String presetId = avatar.preset() == null ? null : avatar.preset().id();
+		Map<String, String> pins = avatar.pins().stream()
+				.collect(Collectors.toMap(StoredPin::zoneCode, StoredPin::variantCode, (left, right) -> left));
+		return new ChildAvatarView(
+				Long.toString(childId),
+				selected.code(),
+				selected.name(),
+				presetId,
+				selected.credit(),
+				catalog.styles().stream().map(style -> styleCard(style, xp, age, pins, selected.code())).toList(),
+				selected.presets().stream().map(this::presetCard).toList(),
+				zonesOf(selected, xp, pins, age));
+	}
+
+	private StyleCard styleCard(Style style, int xp, int age, Map<String, String> pins, String selectedCode) {
+		List<String> zoneCodes = style.zones().stream()
+				.map(Zone::code)
+				.sorted(Comparator.comparingInt(AvatarScale::seuil))
+				.toList();
+		List<StylePreset> presets = style.presets().stream()
+				.map(preset -> new StylePreset(preset.id(), preset.name(), preset.options()))
+				.toList();
+		Map<String, String> kept = style.code().equals(selectedCode) ? pins : Map.of();
+		return new StyleCard(
+				style.code(),
+				style.name(),
+				style.credit(),
+				zoneCodes,
+				presets,
+				zonesOf(style, xp, kept, age));
+	}
+
+	private PresetCard presetCard(Preset preset) {
+		return new PresetCard(preset.id(), preset.name(), preset.options());
+	}
+
+	private List<ZoneCard> zonesOf(Style style, int xp, Map<String, String> pins, int age) {
+		List<Zone> ordered = style.zones().stream()
+				.sorted(Comparator.comparingInt(zone -> AvatarScale.seuil(zone.code())))
+				.toList();
+		List<ZoneCard> cards = new ArrayList<>();
+		for (Zone zone : ordered) {
+			int seuil = AvatarScale.seuil(zone.code(), age);
+			boolean open = xp >= seuil;
+			List<VariantCard> variants = new ArrayList<>();
+			for (String code : zone.variants()) {
+				variants.add(new VariantCard(code, code));
+			}
+			if (AvatarScale.removable(zone.code())) {
+				variants.add(new VariantCard("none", "sans"));
+			}
+			cards.add(new ZoneCard(
+					zone.code(),
+					AvatarScale.label(zone.code()),
+					seuil,
+					open ? null : seuil + " XP",
+					open ? null : "encore " + (seuil - xp) + " XP",
+					open,
+					variants,
+					pins.get(zone.code())));
+		}
+		return cards;
+	}
+
+	public ChildAvatarView saveStyle(String rawToken, String styleCode, String presetId) {
+		return saveStyle(rawToken, styleCode, presetId, null);
+	}
+
+	@Override
+	@Transactional
+	public ChildAvatarView saveStyle(String rawToken, String styleCode, String presetId, List<StoredPin> pins) {
+		long childId = requireActiveChild(rawToken);
+		int age = ageOf(childId);
+		int xp = childProgressPort.findByChildId(childId).map(progress -> progress.xpTotal()).orElse(0);
+		Style style = catalog.findStyle(styleCode)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.BAD_REQUEST, UNKNOWN_STYLE));
+		String chosen = presetId == null || presetId.isBlank() ? null : presetId;
+		if (chosen != null && style.findPreset(chosen).isEmpty()) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, UNKNOWN_PRESET);
+		}
+		StoredAvatar previous = childAvatarPort.findByChildId(childId).orElse(null);
+		boolean styleChanges = previous == null || !style.code().equals(previous.styleCode());
+		List<StoredPin> requested = pins;
+		if (requested != null && styleChanges) {
+			requested = style.compatiblePins(requested);
+		}
+		List<StoredPin> compatible = previous == null ? List.of() : style.compatiblePins(previous.pins());
+		List<StoredPin> next = requested == null ? compatible : checkPins(style, xp, age, requested);
+		if (requested != null && previous != null && (styleChanges || !Objects.equals(chosen, previous.presetId()))) {
+			// Le brouillon ne renvoie que les zones ouvertes. Un changement de style ou de preset
+			// garde les variantes compatibles déjà enregistrées dont la zone est désormais fermée.
+			compatible.stream()
+					.filter(pin -> xp < AvatarScale.seuil(pin.zoneCode(), age))
+					.forEach(next::add);
+		}
+		childAvatarPort.save(childId, style.code(), chosen, next);
+		return avatar(rawToken);
+	}
+
+	private int ageOf(long childId) {
+		Optional<ChildProfile> profile = childLoginPort.findActiveProfileById(childId);
+		if (profile == null || profile.isEmpty()) {
+			return AvatarScale.REFERENCE_AGE;
+		}
+		return profile.get().age();
+	}
+
+	private List<StoredPin> checkPins(Style style, int xp, int age, List<StoredPin> pins) {
+		List<StoredPin> next = new ArrayList<>();
+		for (StoredPin pin : pins) {
+			Zone zone = style.findZone(pin.zoneCode())
+					.orElseThrow(() -> new AuthDomainException(AuthErrorCode.BAD_REQUEST, ZONE_ABSENT));
+			if (xp < AvatarScale.seuil(zone.code(), age)) {
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, ZONE_CLOSED);
+			}
+			if (!zone.allows(pin.variantCode())) {
+				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, UNKNOWN_VARIANT);
+			}
+			next.add(pin);
+		}
+		return next;
+	}
+
+	private long requireActiveChild(String rawToken) {
+		long childId = childSessionTokenPort.read(rawToken)
+				.orElseThrow(this::invalidSession)
+				.childId();
+		if (childLoginPort.findActiveById(childId).isEmpty()) {
+			throw invalidSession();
+		}
+		return childId;
+	}
+
+	private AuthDomainException invalidSession() {
+		return new AuthDomainException(AuthErrorCode.UNAUTHORIZED, INVALID_SESSION_MESSAGE);
+	}
+}

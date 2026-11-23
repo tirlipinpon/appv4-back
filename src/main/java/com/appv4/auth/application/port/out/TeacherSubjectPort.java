@@ -1,0 +1,274 @@
+package com.appv4.auth.application.port.out;
+
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Matières visibles par un professeur (SCRUM-161, SCRUM-172).
+ *
+ * <p><b>Business :</b> une matière a un nom, une école et une année. Plusieurs
+ * professeurs peuvent y avoir accès (partage). Déplacer ne laisse qu'un accès.
+ * La désactivation est par accès ; le créateur peut cibler des co-profs.
+ * Ce n'est jamais une copie : même id, mêmes liens enfants, mêmes formes futures.
+ * <p><b>Technique :</b> {@code back_teacher_subjects} + {@code back_teacher_subject_access}.
+ * {@code name_key} est le nom en minuscules. {@code origin_subject_id} reste vide.
+ * <p><b>Métier / flow :</b> port out de {@code /api/int/teacher/subjects}.
+ * Retirer une école du profil ne passe pas par {@link #hide} : l'accès reste,
+ * la page ne montre la matière que si l'année est encore cochée. {@link #hide}
+ * sert au bouton qui retire une matière.
+ */
+public interface TeacherSubjectPort {
+
+	/** Matières encore affichées auxquelles ce professeur a accès. {@code active} = accès du viewer. */
+	List<StoredSubject> findByUser(long userId);
+
+	/** Batch data for listing subjects in the viewer's schools. */
+	List<SubjectListing> findListing(long userId, List<Long> schoolIds, List<String> grades);
+
+	/**
+	 * Toutes les matières encore en base, visibles ou retirées.
+	 *
+	 * <p><b>Business :</b> le professeur peut en ajouter une à son cours
+	 * si elle n'y est plus affichée. La ligne n'a pas été effacée.
+	 * <p><b>Technique :</b> toute {@code back_teacher_subjects}, ordre de création.
+	 * {@code hidden} vrai : retirée de l'écran, ligne conservée.
+	 * <p><b>Métier / flow :</b> alimente {@code addableCourses} de
+	 * {@code GET /api/int/teacher/subjects}.
+	 */
+	List<ReusableSubject> findReusable();
+
+	/**
+	 * @param id     matière en base, pour compter ses questions
+	 * @param hidden vrai si la matière a été retirée de l'écran
+	 */
+	record ReusableSubject(long id, long schoolId, String grade, String name, boolean hidden) {
+	}
+
+	record SubjectListing(StoredSubject subject, boolean followed, List<AccessHolder> others,
+			List<AccessHolder> asked, String ownerName) {
+	}
+
+	StoredSubject insert(long userId, long schoolId, String grade, String name, String nameKey, String iconCode);
+
+	/**
+	 * Matière visible à laquelle ce professeur a encore accès. {@code active} = accès du viewer.
+	 */
+	Optional<StoredSubject> findOwned(long userId, long subjectId);
+
+	/** Matière encore affichée, quel que soit l'accès (détail d'une demande). {@code active} = flag global. */
+	Optional<StoredSubject> findVisible(long subjectId);
+
+	Optional<StoredSubject> rename(long userId, long subjectId, String name, String nameKey);
+
+	/** Met à jour l'icône d'une matière encore visible pour ce professeur propriétaire. */
+	Optional<StoredSubject> updateIcon(long userId, long subjectId, String iconCode);
+
+	/**
+	 * Désactive les accès indiqués (le caller doit en faire partie) et resynchronise
+	 * {@code back_teacher_subjects.active} (vrai s'il reste au moins un accès actif).
+	 *
+	 * @return faux si le caller n'a pas accès ou si la matière est cachée
+	 */
+	boolean deactivateAccesses(long actorUserId, long subjectId, List<Long> userIds);
+
+	/**
+	 * Réactive uniquement l'accès du professeur et resynchronise le flag global.
+	 *
+	 * @return faux si elle n'est pas affichée pour ce professeur
+	 */
+	boolean reactivate(long userId, long subjectId);
+
+	/**
+	 * Retire l'accès de ce professeur. S'il était le dernier, cache la matière.
+	 * La ligne de matière reste en base.
+	 *
+	 * @return faux si ce professeur n'avait pas accès, ou si elle est déjà cachée
+	 */
+	boolean hide(long userId, long subjectId);
+
+	/**
+	 * Matière de cette école et de cette année qui porte ce nom mais n'est plus
+	 * affichée : cachée, ou plus aucun professeur n'y a accès. S'il y en a
+	 * plusieurs, la plus récente.
+	 */
+	Optional<StoredSubject> findRemovedByName(long schoolId, String grade, String nameKey);
+
+	/**
+	 * Matière encore affichée de cette école et de cette année qui porte ce nom.
+	 * Vide si le nom est libre ou si la ligne est cachée.
+	 */
+	Optional<StoredSubject> findVisibleByName(long schoolId, String grade, String nameKey);
+
+	/** Matières encore affichées de cette école et de cette année. */
+	List<StoredSubject> findVisibleInClass(long schoolId, String grade);
+
+	/**
+	 * Réaffiche la matière retirée et donne un accès actif à ce professeur.
+	 * Même id : les liens déjà posés restent.
+	 *
+	 * @return vide si elle est introuvable ou encore affichée pour quelqu'un
+	 */
+	Optional<StoredSubject> restore(long userId, long subjectId);
+
+	/** Identifiants des professeurs qui ont encore un accès (ordre d'insertion). */
+	List<Long> accessUserIds(long subjectId);
+
+	/**
+	 * Autres détenteurs (id + nom affiché), tri français par nom.
+	 */
+	List<AccessHolder> otherAccessHolders(long subjectId, long viewerUserId);
+
+	/**
+	 * Noms affichés des autres professeurs qui ont accès, tri français.
+	 * Liste vide s'il est seul.
+	 */
+	List<String> otherAccessNames(long subjectId, long viewerUserId);
+
+	/**
+	 * Tous les noms affichés des accès, tri français (page parent).
+	 */
+	List<String> allAccessNames(long subjectId);
+
+	/**
+	 * Ajoute un accès sans toucher à {@code user_id} de la matière.
+	 */
+	void addAccess(long subjectId, long userId);
+
+	/**
+	 * Remplace tous les accès par celui du collègue et aligne {@code user_id}.
+	 */
+	void replaceAccessWith(long subjectId, long soleUserId);
+
+	/**
+	 * Change le propriétaire technique sans toucher aux autres accès.
+	 *
+	 * <p><b>Business :</b> après un handover accepté ou un restore par un autre prof.
+	 */
+	void assignOwnership(long subjectId, long newOwnerUserId);
+
+	/**
+	 * Retire tous les accès et cache la matière (plus personne ne la voit).
+	 */
+	void hideCompletely(long subjectId);
+
+	boolean hasAccess(long subjectId, long userId);
+
+	/** Crée une demande pending. */
+	StoredTransferRequest insertTransferRequest(
+			long subjectId, long fromUserId, long toUserId, String mode);
+
+	boolean hasPendingTransfer(long subjectId, long toUserId);
+
+	/** Vrai s'il existe déjà une demande pending de ce professeur vers ce destinataire. */
+	boolean hasPendingTransferBetween(long subjectId, long fromUserId, long toUserId);
+
+	List<StoredTransferRequest> findPendingTransfersTo(long toUserId);
+
+	/**
+	 * Demandes de partage ({@code ask}) encore en attente, envoyées par ce professeur.
+	 *
+	 * <p><b>Business :</b> l'écran ne repropose pas « Demander le partage » et nomme
+	 * les destinataires.
+	 * <p><b>Technique :</b> lignes {@code pending} de mode {@code ask}, de
+	 * {@code fromUserId} vers cette matière, ordre d'insertion.
+	 * <p><b>Métier / flow :</b> lu au moment de {@code GET /api/int/teacher/subjects}.
+	 */
+	List<StoredTransferRequest> findPendingAsksFrom(long subjectId, long fromUserId);
+
+	Optional<StoredTransferRequest> findPendingTransferForTarget(long requestId, long toUserId);
+
+	void markTransferAccepted(long requestId);
+
+	void markTransferRejected(long requestId);
+
+	/** Annule les autres demandes pending de cette matière (après un move accepté). */
+	void cancelPendingTransfers(long subjectId, Long exceptRequestId);
+
+	/**
+	 * Crée une alerte ouverte pour chaque destinataire.
+	 *
+	 * @param deactivatedUserIds créateur + co-profs choisis, dans un ordre stable
+	 */
+	void insertDeactivateNotices(
+			long subjectId, long fromUserId, List<Long> toUserIds, List<Long> deactivatedUserIds);
+
+	/**
+	 * Alerte informative (texte déjà formé) pour un destinataire.
+	 *
+	 * @param kind ex. {@code handover_accepted}, {@code handover_rejected}
+	 */
+	void insertSubjectNotice(
+			long subjectId, long fromUserId, long toUserId, String kind, String message);
+
+	/**
+	 * Destinataires d'un handover déjà refusé pour cette matière et cet émetteur.
+	 */
+	List<Long> rejectedHandoverToUserIds(long subjectId, long fromUserId);
+
+	/**
+	 * Destinataires d'une demande déjà refusée, pour ce mode (move, handover, …).
+	 */
+	List<Long> rejectedTransferToUserIds(long subjectId, long fromUserId, String mode);
+
+	List<StoredDeactivateNotice> findOpenDeactivateNoticesTo(long toUserId);
+
+	/**
+	 * @return faux si la notice n'existe pas, n'est pas pour ce destinataire, ou déjà dismissée
+	 */
+	boolean dismissDeactivateNotice(long noticeId, long toUserId);
+
+	/**
+	 * Vrai si une matière encore affichée de cette école et de cette année a déjà ce nom.
+	 * Le professeur qui l'a créée n'importe pas : la classe n'en a qu'une.
+	 *
+	 * @param exceptId matière en cours de renommage, ignorée ; null à la création
+	 */
+	boolean nameTaken(long schoolId, String grade, String nameKey, Long exceptId);
+
+	/**
+	 * @param grade  année scolaire, le libellé du profil (CE1, 3e primaire)
+	 * @param active pour {@link #findByUser}/{@link #findOwned} : accès du viewer ;
+	 *               pour {@link #findVisible} : flag global matière
+	 */
+	record StoredSubject(
+			long id,
+			long userId,
+			long schoolId,
+			String grade,
+			String name,
+			boolean active,
+			String iconCode) {
+	}
+
+	record AccessHolder(long userId, String displayName) {
+	}
+
+	/**
+	 * Demande de transfert encore ouverte ou déjà tranchée.
+	 *
+	 * @param mode {@code move}, {@code share}, {@code ask} ou {@code handover}
+	 */
+	record StoredTransferRequest(
+			long id,
+			long subjectId,
+			long fromUserId,
+			long toUserId,
+			String mode,
+			String status) {
+	}
+
+	/**
+	 * @param kind               {@code deactivate}, {@code handover_accepted}, …
+	 * @param message            texte prêt ; peut être vide si ancienne ligne deactivate
+	 * @param deactivatedUserIds créateur + co-profs choisis (désactivation) ; vide sinon
+	 */
+	record StoredDeactivateNotice(
+			long id,
+			long subjectId,
+			long fromUserId,
+			long toUserId,
+			String kind,
+			String message,
+			List<Long> deactivatedUserIds) {
+	}
+}

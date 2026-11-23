@@ -1,0 +1,1705 @@
+package com.appv4.auth.application.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.appv4.auth.application.service.question.QuestionFormHandler;
+import com.appv4.auth.application.service.question.QuestionFormLooks;
+import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
+import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.CardInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClassificationInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickImageInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickPointInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickZoneInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ColumnInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapWordInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapsInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.OrderInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinkInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinksInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzleInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzlePieceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.SimonElementInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.SimonInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementsInput;
+import com.appv4.auth.application.port.out.ChildSubjectPort;
+import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
+import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
+import com.appv4.auth.application.port.out.TeacherQuestionPort;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ChoiceDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickImageDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.PairDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.PuzzleDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.SimonDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.SimonElementDraft;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredChoice;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickImage;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredClickZone;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzle;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredPuzzlePiece;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredQuestion;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimon;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.StoredSimonElement;
+import com.appv4.auth.application.port.out.TeacherSubjectPort;
+import com.appv4.auth.application.service.question.QuestionFormRegistry;
+import com.appv4.auth.application.service.question.QcmQuestionForm;
+import com.appv4.auth.application.service.question.MemoryQuestionForm;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.FreeTextInput;
+import com.appv4.auth.application.service.question.CaseVideQuestionForm;
+import com.appv4.auth.application.service.question.ClassificationQuestionForm;
+import com.appv4.auth.application.service.question.ClickImageQuestionForm;
+import com.appv4.auth.application.service.question.PuzzleQuestionForm;
+import com.appv4.auth.application.service.question.ReponseLibreQuestionForm;
+import com.appv4.auth.application.service.question.SimonQuestionForm;
+import com.appv4.auth.application.service.question.TexteQuestionForm;
+import com.appv4.auth.application.service.question.LinkQuestionForm;
+import com.appv4.auth.application.service.question.OrderQuestionForm;
+import com.appv4.auth.application.service.question.TrueFalseQuestionForm;
+import com.appv4.auth.application.port.out.TeacherSubjectPort.StoredSubject;
+import com.appv4.auth.application.result.TeacherSubjectFollowersView;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
+
+@ExtendWith(MockitoExtension.class)
+class TeacherQuestionServiceTest {
+
+	private static final long TEACHER_ID = 9L;
+	private static final long SUBJECT_ID = 4L;
+
+	@Mock
+	private TeacherSubjectPort subjects;
+
+	@Mock
+	private TeacherQuestionPort questions;
+
+	@Mock
+	private ChildSubjectPort children;
+
+	private TeacherQuestionService service;
+
+	@Test
+	void independentFormCarriesItsOwnStructureThroughTheCommonService() {
+		var handler = new QuestionFormHandler() {
+			@Override
+			public FormLine form() {
+				return new FormLine("image_test", "Image test", 8);
+			}
+
+			@Override
+			public Prepared prepare(String prompt, ContentInput input) {
+				return new Prepared(prompt, new ImageDraft(((ImageInput) input).imageId()));
+			}
+		};
+		TeacherQuestionService extensible = new TeacherQuestionService(
+				subjects, questions, children, new QuestionFormRegistry(List.of(handler)));
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(SUBJECT_ID, "image_test", "Localise", new ImageDraft("media-42")))
+				.thenReturn(new StoredQuestion(42L, SUBJECT_ID, "image_test", "Localise", new ImageContent("media-42")));
+
+		QuestionLine line = extensible.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_test", "Localise", new ImageInput("media-42"));
+
+		assertThat(line.content()).isEqualTo(new ImageContent("media-42"));
+		assertThat(line.formLabel()).isEqualTo("Image test");
+		verify(questions).ensureForm(SUBJECT_ID, "image_test", "Image test", 8);
+	}
+
+	private record ImageInput(String imageId) implements ContentInput {
+	}
+
+	private record ImageDraft(String imageId) implements TeacherQuestionPort.DraftContent {
+	}
+
+	private record ImageContent(String imageId) implements TeacherQuestionPort.StoredContent {
+	}
+
+	@BeforeEach
+	void setUp() {
+		service = new TeacherQuestionService(subjects, questions, children, new QuestionFormRegistry(List.of(
+				new QcmQuestionForm(), new MemoryQuestionForm(), new OrderQuestionForm(),
+				new TrueFalseQuestionForm(), new LinkQuestionForm(), new CaseVideQuestionForm(),
+				new ClassificationQuestionForm(),
+				new ClickImageQuestionForm(), new ReponseLibreQuestionForm(),
+				new PuzzleQuestionForm(), new TexteQuestionForm(), new SimonQuestionForm())));
+	}
+
+	@Test
+	void offeredFormsAreMultipleChoiceThenMemoryThenOrderThenTrueFalse() {
+		assertThat(service.listForms(TEACHER_ID, "teacher").forms())
+				.satisfies(forms -> {
+					assertThat(forms).hasSize(12);
+					assertThat(forms.get(0).code()).isEqualTo("qcm");
+					assertThat(forms.get(0).label()).isEqualTo("Choix multiples");
+					assertThat(forms.get(0).sortOrder()).isEqualTo(1);
+					assertThat(forms.get(1).code()).isEqualTo("memory");
+					assertThat(forms.get(1).label()).isEqualTo("Memory");
+					assertThat(forms.get(1).sortOrder()).isEqualTo(2);
+					assertThat(forms.get(2).code()).isEqualTo("order");
+					assertThat(forms.get(2).label()).isEqualTo("Ordre");
+					assertThat(forms.get(2).sortOrder()).isEqualTo(3);
+					assertThat(forms.get(3).code()).isEqualTo("vrai_faux");
+					assertThat(forms.get(3).label()).isEqualTo("Vrai ou faux");
+					assertThat(forms.get(3).sortOrder()).isEqualTo(4);
+					assertThat(forms.get(4).code()).isEqualTo("liens");
+					assertThat(forms.get(4).label()).isEqualTo("Liens");
+					assertThat(forms.get(4).sortOrder()).isEqualTo(5);
+					assertThat(forms.get(5).code()).isEqualTo("case_vide");
+					assertThat(forms.get(5).label()).isEqualTo("Case vide");
+					assertThat(forms.get(5).sortOrder()).isEqualTo(6);
+					assertThat(forms.get(6).code()).isEqualTo("classement");
+					assertThat(forms.get(6).label()).isEqualTo("Classement");
+					assertThat(forms.get(6).sortOrder()).isEqualTo(7);
+					assertThat(forms.get(7).code()).isEqualTo("simon");
+					assertThat(forms.get(7).label()).isEqualTo("Simon");
+					assertThat(forms.get(7).sortOrder()).isEqualTo(7);
+					assertThat(forms.get(8).code()).isEqualTo("image_interactive");
+					assertThat(forms.get(8).label()).isEqualTo("Image à cliquer");
+					assertThat(forms.get(8).sortOrder()).isEqualTo(8);
+					assertThat(forms.get(9).code()).isEqualTo("reponse_libre");
+					assertThat(forms.get(9).label()).isEqualTo("Lettre par lettre");
+					assertThat(forms.get(9).sortOrder()).isEqualTo(9);
+					assertThat(forms.get(10).code()).isEqualTo("puzzle");
+					assertThat(forms.get(10).label()).isEqualTo("Puzzle");
+					assertThat(forms.get(10).sortOrder()).isEqualTo(10);
+					assertThat(forms.get(11).code()).isEqualTo("texte");
+					assertThat(forms.get(11).label()).isEqualTo("Réponse libre");
+					assertThat(forms.get(11).sortOrder()).isEqualTo(11);
+					assertThat(forms.stream().map(FormLine::code).toList())
+							.containsExactlyInAnyOrderElementsOf(QuestionFormLooks.codes());
+					assertThat(forms.stream().map(form -> QuestionFormLooks.of(form.code()).iconCode()).toList())
+							.doesNotHaveDuplicates();
+					assertThat(forms.stream().map(form -> QuestionFormLooks.of(form.code()).color()).toList())
+							.doesNotHaveDuplicates();
+				});
+	}
+
+	@Test
+	void parentCannotListForms() {
+		assertThatThrownBy(() -> service.listForms(TEACHER_ID, "parent"))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.FORBIDDEN);
+	}
+
+	@Test
+	void createKeepsTheSubjectAndDropsABlankChoice() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID))
+				.thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("qcm"), eq("Combien font 2 + 2 ?"), any()))
+				.thenReturn(saved());
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				" qcm ",
+				"  Combien font 2 + 2 ?  ",
+				List.of(
+						new ChoiceInput(" 3 ", false),
+						new ChoiceInput("   ", true),
+						new ChoiceInput("4", true)),
+				List.of(), List.of());
+
+		assertThat(line.prompt()).isEqualTo("Combien font 2 + 2 ?");
+		assertThat(line.formCode()).isEqualTo("qcm");
+		assertThat(line.formLabel()).isEqualTo("Choix multiples");
+		verify(questions).ensureForm(SUBJECT_ID, "qcm", "Choix multiples", 1);
+
+		ArgumentCaptor<TeacherQuestionPort.ChoicesDraft> captor = ArgumentCaptor.forClass(TeacherQuestionPort.ChoicesDraft.class);
+		verify(questions).insert(
+				eq(SUBJECT_ID), eq("qcm"), eq("Combien font 2 + 2 ?"), captor.capture());
+		assertThat(captor.getValue().choices()).containsExactly(
+				new ChoiceDraft("3", false),
+				new ChoiceDraft("4", true));
+	}
+
+	@Test
+	void emptyPromptIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "qcm", "  ",
+				List.of(new ChoiceInput("3", false), new ChoiceInput("4", true)),
+				List.of(), List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PROMPT_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("qcm"), eq("  "), any());
+	}
+
+	@Test
+	void oneChoiceIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "qcm", "Combien font 2 + 2 ?",
+				List.of(new ChoiceInput("4", true), new ChoiceInput(" ", false)),
+				List.of(), List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.CHOICES_REQUIRED);
+	}
+
+	@Test
+	void missingCorrectAnswerIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "qcm", "Combien font 2 + 2 ?",
+				List.of(new ChoiceInput("3", false), new ChoiceInput("4", null)),
+				List.of(), List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.CORRECT_REQUIRED);
+	}
+
+	@Test
+	void unknownFormIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "dessin", "Paires",
+				List.of(new ChoiceInput("2", false), new ChoiceInput("4", true)),
+				List.of(), List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.FORM_UNKNOWN);
+
+		verify(questions, never()).ensureForm(eq(SUBJECT_ID), eq("dessin"), any(), anyInt());
+	}
+
+	@Test
+	void updateRewritesTheStatementAndKeepsTheForm() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
+		when(questions.replace(eq(7L), eq("Combien font 3 + 3 ?"), any()))
+				.thenReturn(new StoredQuestion(
+						7L,
+						SUBJECT_ID,
+						"qcm",
+						"Combien font 3 + 3 ?",
+						List.of(new StoredChoice(3L, "5", false), new StoredChoice(4L, "6", true)),
+						List.of(), List.of()));
+
+		QuestionLine line = service.update(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				7L,
+				"qcm",
+				"  Combien font 3 + 3 ? ",
+				List.of(new ChoiceInput("5", false), new ChoiceInput(" ", false), new ChoiceInput("6", true)),
+				List.of(), List.of());
+
+		assertThat(line.id()).isEqualTo(7L);
+		assertThat(line.prompt()).isEqualTo("Combien font 3 + 3 ?");
+		assertThat(line.formCode()).isEqualTo("qcm");
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("qcm"), eq("Combien font 3 + 3 ?"), any());
+		verify(questions, never()).ensureForm(SUBJECT_ID, "qcm", "Choix multiples", 1);
+	}
+
+	@Test
+	void missingQuestionIsNotFound() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 8L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.update(
+				TEACHER_ID, "teacher", SUBJECT_ID, 8L, "qcm", "Combien font 2 + 2 ?",
+				List.of(new ChoiceInput("3", false), new ChoiceInput("4", true)),
+				List.of(), List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.QUESTION_MISSING);
+
+		verify(questions, never()).replace(eq(8L), eq("Combien font 2 + 2 ?"), any());
+	}
+
+	@Test
+	void changingTheFormOfAnExistingQuestionIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(new StoredQuestion(
+				7L, SUBJECT_ID, "vrai_faux", "C'est vrai ?", List.of(), List.of(), List.of())));
+
+		assertThatThrownBy(() -> service.update(
+				TEACHER_ID, "teacher", SUBJECT_ID, 7L, "qcm", "Combien font 2 + 2 ?",
+				List.of(new ChoiceInput("3", false), new ChoiceInput("4", true)),
+				List.of(), List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.FORM_LOCKED);
+
+		verify(questions, never()).replace(eq(7L), eq("Combien font 2 + 2 ?"), any());
+	}
+
+	@Test
+	void questionPageIsCappedAndReturnsCursor() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		List<StoredQuestion> rows = java.util.stream.LongStream.rangeClosed(1, 101)
+				.mapToObj(id -> new StoredQuestion(id, SUBJECT_ID, "qcm", "Question", List.of(), List.of(), List.of()))
+				.toList();
+		when(questions.findBySubject(SUBJECT_ID, 0, 101)).thenReturn(rows);
+		var page = service.list(TEACHER_ID, "teacher", SUBJECT_ID, 0, 10000);
+		assertThat(page.questions()).hasSize(100);
+		assertThat(page.nextCursor()).isEqualTo(100);
+	}
+
+	@Test
+	void anotherTeacherDoesNotSeeTheQuestion() {
+		when(subjects.findOwned(10L, SUBJECT_ID)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.list(10L, "teacher", SUBJECT_ID, 0, 25))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.NOT_FOUND);
+
+		verify(questions, never()).findBySubject(SUBJECT_ID, 0, 26);
+	}
+
+	@Test
+	void memoryKeepsTwoPairsAndAllowsABlankPrompt() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("memory"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						8L,
+						SUBJECT_ID,
+						"memory",
+						"",
+						List.of(),
+						List.of(
+								new TeacherQuestionPort.StoredPair(1L, "2 + 2", "4"),
+								new TeacherQuestionPort.StoredPair(2L, "3 + 3", "6")),
+						List.of()));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"memory",
+				"   ",
+				List.of(),
+				List.of(
+						new PairInput(" 2 + 2 ", " 4 "),
+						new PairInput("", "9"),
+						new PairInput("3 + 3", "6")),
+				List.of());
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formLabel()).isEqualTo("Memory");
+		assertThat(line.pairs()).extracting(pair -> pair.questionSide() + "/" + pair.answerSide())
+				.containsExactly("2 + 2/4", "3 + 3/6");
+		verify(questions).ensureForm(SUBJECT_ID, "memory", "Memory", 2);
+
+		ArgumentCaptor<TeacherQuestionPort.PairsDraft> captor = ArgumentCaptor.forClass(TeacherQuestionPort.PairsDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("memory"), eq(""), captor.capture());
+		assertThat(captor.getValue().pairs()).containsExactly(
+				new PairDraft("2 + 2", "4"),
+				new PairDraft("3 + 3", "6"));
+	}
+
+	@Test
+	void onePairIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "memory", "",
+				List.of(),
+				List.of(new PairInput("2 + 2", "4"), new PairInput("3 + 3", " ")),
+				List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PAIRS_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("memory"), eq(""), any());
+	}
+
+	@Test
+	void orderKeepsTwoItemsAndAllowsABlankPrompt() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("order"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						9L,
+						SUBJECT_ID,
+						"order",
+						"",
+						List.of(),
+						List.of(),
+						List.of(
+								new TeacherQuestionPort.StoredItem(1L, "Lundi"),
+								new TeacherQuestionPort.StoredItem(2L, "Mardi"))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"order",
+				"   ",
+				List.of(),
+				List.of(),
+				List.of(new ItemInput(" Lundi "), new ItemInput(" "), new ItemInput("Mardi")));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formLabel()).isEqualTo("Ordre");
+		assertThat(line.items()).extracting(item -> item.label()).containsExactly("Lundi", "Mardi");
+		verify(questions).ensureForm(SUBJECT_ID, "order", "Ordre", 3);
+
+		ArgumentCaptor<TeacherQuestionPort.ItemsDraft> captor = ArgumentCaptor.forClass(TeacherQuestionPort.ItemsDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("order"), eq(""), captor.capture());
+		assertThat(captor.getValue().items()).containsExactly(
+				new TeacherQuestionPort.ItemDraft("Lundi"),
+				new TeacherQuestionPort.ItemDraft("Mardi"));
+	}
+
+	@Test
+	void oneItemIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "order", "",
+				List.of(),
+				List.of(),
+				List.of(new ItemInput("Lundi"), new ItemInput(" "))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ITEMS_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("order"), eq(""), any());
+	}
+
+	@Test
+	void orderTimelineRequiresAxisLabelsAndPersistsThem() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("order"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						11L,
+						SUBJECT_ID,
+						"order",
+						"",
+						new TeacherQuestionPort.StoredItems(
+								List.of(
+										new TeacherQuestionPort.StoredItem(
+												1L, "Circulation", "20 minutes"),
+										new TeacherQuestionPort.StoredItem(
+												2L, "Monoxyde", "12 heures")),
+								true)));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"order",
+				"",
+				new OrderInput(
+						true,
+						List.of(
+								new ItemInput(" Circulation ", " 20 minutes "),
+								new ItemInput("Monoxyde", "12 heures"))));
+
+		assertThat(line.timelineEnabled()).isTrue();
+		assertThat(line.items()).extracting(item -> item.axisLabel())
+				.containsExactly("20 minutes", "12 heures");
+
+		ArgumentCaptor<TeacherQuestionPort.ItemsDraft> captor = ArgumentCaptor.forClass(TeacherQuestionPort.ItemsDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("order"), eq(""), captor.capture());
+		assertThat(captor.getValue().timelineEnabled()).isTrue();
+		assertThat(captor.getValue().items()).containsExactly(
+				new TeacherQuestionPort.ItemDraft("Circulation", "20 minutes"),
+				new TeacherQuestionPort.ItemDraft("Monoxyde", "12 heures"));
+	}
+
+	@Test
+	void orderTimelineWithoutAxisLabelIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"order",
+				"",
+				new OrderInput(true, List.of(new ItemInput("A", "ok"), new ItemInput("B", " ")))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.AXIS_LABEL_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("order"), eq(""), any());
+	}
+
+	@Test
+	void trueFalseKeepsTwoPhrasesAndTheirSides() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("vrai_faux"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						10L,
+						SUBJECT_ID,
+						"vrai_faux",
+						"",
+						new TeacherQuestionPort.StoredStatements(List.of(
+								new TeacherQuestionPort.StoredStatement(1L, "2 + 2 = 4", true),
+								new TeacherQuestionPort.StoredStatement(2L, "3 + 3 = 5", false)))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"vrai_faux",
+				"   ",
+				new StatementsInput(List.of(
+						new StatementInput(" 2 + 2 = 4 ", true),
+						new StatementInput(" ", false),
+						new StatementInput("3 + 3 = 5", false))));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formLabel()).isEqualTo("Vrai ou faux");
+		assertThat(line.statements()).extracting(row -> row.label() + ":" + row.truthful())
+				.containsExactly("2 + 2 = 4:true", "3 + 3 = 5:false");
+		verify(questions).ensureForm(SUBJECT_ID, "vrai_faux", "Vrai ou faux", 4);
+
+		ArgumentCaptor<TeacherQuestionPort.StatementsDraft> captor =
+				ArgumentCaptor.forClass(TeacherQuestionPort.StatementsDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("vrai_faux"), eq(""), captor.capture());
+		assertThat(captor.getValue().statements()).containsExactly(
+				new TeacherQuestionPort.StatementDraft("2 + 2 = 4", true),
+				new TeacherQuestionPort.StatementDraft("3 + 3 = 5", false));
+	}
+
+	@Test
+	void onePhraseIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "vrai_faux", "",
+				new StatementsInput(List.of(new StatementInput("2 + 2 = 4", true), new StatementInput(" ", false)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PHRASES_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("vrai_faux"), eq(""), any());
+	}
+
+	@Test
+	void phraseWithoutSideIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "vrai_faux", "",
+				new StatementsInput(List.of(
+						new StatementInput("2 + 2 = 4", true),
+						new StatementInput("3 + 3 = 5", null)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.SIDE_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("vrai_faux"), eq(""), any());
+	}
+
+	@Test
+	void linksKeepTwoCouplesAndAllowABlankPrompt() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("liens"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						11L,
+						SUBJECT_ID,
+						"liens",
+						"",
+						new TeacherQuestionPort.StoredLinks(List.of(
+								new TeacherQuestionPort.StoredLink(1L, "Pomme", "Fruit"),
+								new TeacherQuestionPort.StoredLink(2L, "Chien", "Animal")))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"liens",
+				"   ",
+				new LinksInput(List.of(
+						new LinkInput(" Pomme ", " Fruit "),
+						new LinkInput(" ", " "),
+						new LinkInput("Chien", "Animal"))));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formLabel()).isEqualTo("Liens");
+		assertThat(line.links()).extracting(row -> row.leftLabel() + "/" + row.rightLabel())
+				.containsExactly("Pomme/Fruit", "Chien/Animal");
+		verify(questions).ensureForm(SUBJECT_ID, "liens", "Liens", 5);
+
+		ArgumentCaptor<TeacherQuestionPort.LinksDraft> captor =
+				ArgumentCaptor.forClass(TeacherQuestionPort.LinksDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("liens"), eq(""), captor.capture());
+		assertThat(captor.getValue().links()).containsExactly(
+				new TeacherQuestionPort.LinkDraft("Pomme", "Fruit"),
+				new TeacherQuestionPort.LinkDraft("Chien", "Animal"));
+	}
+
+	@Test
+	void oneLinkIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "liens", "",
+				new LinksInput(List.of(new LinkInput("Pomme", "Fruit"), new LinkInput(" ", " ")))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.LINKS_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("liens"), eq(""), any());
+	}
+
+	@Test
+	void wordWithoutAnswerIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "liens", "",
+				new LinksInput(List.of(
+						new LinkInput("Pomme", "Fruit"),
+						new LinkInput("Voiture", " ")))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.LINK_INCOMPLETE);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("liens"), eq(""), any());
+	}
+
+	@Test
+	void classificationKeepsColumnsCardsAndAllowsBlankPrompt() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("classement"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						21L,
+						SUBJECT_ID,
+						"classement",
+						"",
+						new TeacherQuestionPort.StoredClassification(
+								List.of(
+										new TeacherQuestionPort.StoredColumn(1L, "Finançable"),
+										new TeacherQuestionPort.StoredColumn(2L, "Hors aide")),
+								List.of(
+										new TeacherQuestionPort.StoredCard(10L, "Logiciel", 1L),
+										new TeacherQuestionPort.StoredCard(11L, "Voiture", 2L)))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"classement",
+				"   ",
+				new ClassificationInput(
+						List.of(new ColumnInput(" Finançable "), new ColumnInput("Hors aide")),
+						List.of(
+								new CardInput(" Logiciel ", 0),
+								new CardInput("Voiture", 1))));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formLabel()).isEqualTo("Classement");
+		assertThat(line.columns()).extracting(row -> row.label()).containsExactly("Finançable", "Hors aide");
+		assertThat(line.cards()).extracting(row -> row.label() + "/" + row.correctColumnId())
+				.containsExactly("Logiciel/1", "Voiture/2");
+		verify(questions).ensureForm(SUBJECT_ID, "classement", "Classement", 7);
+
+		ArgumentCaptor<TeacherQuestionPort.ClassificationDraft> captor =
+				ArgumentCaptor.forClass(TeacherQuestionPort.ClassificationDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("classement"), eq(""), captor.capture());
+		assertThat(captor.getValue().columns()).containsExactly(
+				new TeacherQuestionPort.ColumnDraft("Finançable"),
+				new TeacherQuestionPort.ColumnDraft("Hors aide"));
+		assertThat(captor.getValue().cards()).containsExactly(
+				new TeacherQuestionPort.CardDraft("Logiciel", 0),
+				new TeacherQuestionPort.CardDraft("Voiture", 1));
+	}
+
+	@Test
+	void classificationEmptyColumnIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"classement",
+				"",
+				new ClassificationInput(
+						List.of(
+								new ColumnInput("A"),
+								new ColumnInput("B"),
+								new ColumnInput("C")),
+						List.of(new CardInput("1", 0), new CardInput("2", 1)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.COLUMN_EMPTY);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("classement"), eq(""), any());
+	}
+
+	@Test
+	void gapsKeepTheSentenceTheAnswerAndDropABlankDecoy() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("case_vide"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						12L,
+						SUBJECT_ID,
+						"case_vide",
+						"",
+						new TeacherQuestionPort.StoredGaps(
+								"Le chat mange une ___ dans le jardin.",
+								List.of(new TeacherQuestionPort.StoredGapWord(1L, "pomme")),
+								List.of(new TeacherQuestionPort.StoredGapWord(2L, "voiture")))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"case_vide",
+				"   ",
+				new GapsInput(
+						" Le chat mange une ___ dans le jardin. ",
+						List.of(new GapWordInput(" pomme ")),
+						List.of(new GapWordInput(" "), new GapWordInput("voiture"))));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formLabel()).isEqualTo("Case vide");
+		assertThat(line.sentence()).isEqualTo("Le chat mange une ___ dans le jardin.");
+		assertThat(line.answers()).extracting(row -> row.label()).containsExactly("pomme");
+		assertThat(line.decoys()).extracting(row -> row.label()).containsExactly("voiture");
+		verify(questions).ensureForm(SUBJECT_ID, "case_vide", "Case vide", 6);
+
+		ArgumentCaptor<TeacherQuestionPort.GapsDraft> captor =
+				ArgumentCaptor.forClass(TeacherQuestionPort.GapsDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("case_vide"), eq(""), captor.capture());
+		assertThat(captor.getValue().sentence()).isEqualTo("Le chat mange une ___ dans le jardin.");
+		assertThat(captor.getValue().answers()).containsExactly(new TeacherQuestionPort.GapWordDraft("pomme"));
+		assertThat(captor.getValue().decoys()).containsExactly(new TeacherQuestionPort.GapWordDraft("voiture"));
+	}
+
+	@Test
+	void phraseWithoutHoleIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "case_vide", "",
+				new GapsInput("Le chat mange une pomme.", List.of(new GapWordInput("pomme")), List.of())))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.GAP_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("case_vide"), eq(""), any());
+	}
+
+	@Test
+	void holeWithoutWordIsRefused() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "case_vide", "",
+				new GapsInput(
+						"Le chat mange une ___ dans le jardin.",
+						List.of(new GapWordInput(" ")),
+						List.of(new GapWordInput("voiture")))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.GAP_WORD_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("case_vide"), eq(""), any());
+	}
+
+	@Test
+	void cloneCopiesSeveralQuestionsOntoAnotherSubjectAndKeepsTheOriginals() {
+		long targetId = 8L;
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(subjects.findOwned(TEACHER_ID, targetId)).thenReturn(Optional.of(
+				new StoredSubject(targetId, TEACHER_ID, 1L, "CE2", "Histoire", true, null)));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
+		when(questions.findInSubject(SUBJECT_ID, 12L)).thenReturn(Optional.of(gapsQuestion()));
+		when(questions.insert(eq(targetId), eq("qcm"), eq("Combien font 2 + 2 ?"), any()))
+				.thenReturn(new StoredQuestion(
+						20L, targetId, "qcm", "Combien font 2 + 2 ?",
+						List.of(new StoredChoice(3L, "3", false), new StoredChoice(4L, "4", true)),
+						List.of(), List.of()));
+		when(questions.insert(eq(targetId), eq("case_vide"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						21L, targetId, "case_vide", "",
+						new TeacherQuestionPort.StoredGaps(
+								"Le chat ___",
+								List.of(new TeacherQuestionPort.StoredGapWord(5L, "mange")),
+								List.of(new TeacherQuestionPort.StoredGapWord(6L, "dort")))));
+
+		TeacherSubjectQuestionsView view = service.cloneQuestions(
+				TEACHER_ID, "teacher", SUBJECT_ID, targetId, List.of(7L, 12L, 7L));
+
+		assertThat(view.questions()).extracting(QuestionLine::id).containsExactly(20L, 21L);
+		assertThat(view.questions().get(1).sentence()).isEqualTo("Le chat ___");
+		verify(questions).ensureForm(targetId, "qcm", "Choix multiples", 1);
+		verify(questions).ensureForm(targetId, "case_vide", "Case vide", 6);
+		verify(questions, never()).replace(anyLong(), any(), any());
+
+		ArgumentCaptor<TeacherQuestionPort.ChoicesDraft> choices =
+				ArgumentCaptor.forClass(TeacherQuestionPort.ChoicesDraft.class);
+		verify(questions).insert(eq(targetId), eq("qcm"), eq("Combien font 2 + 2 ?"), choices.capture());
+		assertThat(choices.getValue().choices()).containsExactly(
+				new ChoiceDraft("3", false),
+				new ChoiceDraft("4", true));
+
+		ArgumentCaptor<TeacherQuestionPort.GapsDraft> gaps =
+				ArgumentCaptor.forClass(TeacherQuestionPort.GapsDraft.class);
+		verify(questions).insert(eq(targetId), eq("case_vide"), eq(""), gaps.capture());
+		assertThat(gaps.getValue().sentence()).isEqualTo("Le chat ___");
+		assertThat(gaps.getValue().answers()).containsExactly(new TeacherQuestionPort.GapWordDraft("mange"));
+		assertThat(gaps.getValue().decoys()).containsExactly(new TeacherQuestionPort.GapWordDraft("dort"));
+	}
+
+	@Test
+	void cloneOntoTheSameSubjectStillInsertsANewQuestion() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
+		when(questions.insert(eq(SUBJECT_ID), eq("qcm"), eq("Combien font 2 + 2 ?"), any()))
+				.thenReturn(new StoredQuestion(
+						20L, SUBJECT_ID, "qcm", "Combien font 2 + 2 ?",
+						List.of(new StoredChoice(3L, "3", false), new StoredChoice(4L, "4", true)),
+						List.of(), List.of()));
+
+		TeacherSubjectQuestionsView view = service.cloneQuestions(
+				TEACHER_ID, "teacher", SUBJECT_ID, SUBJECT_ID, List.of(7L));
+
+		assertThat(view.questions()).extracting(QuestionLine::id).containsExactly(20L);
+		verify(questions).insert(eq(SUBJECT_ID), eq("qcm"), eq("Combien font 2 + 2 ?"), any());
+	}
+
+	@Test
+	void cloneRefusesAnEmptySelectionBeforeTouchingTheSubjects() {
+		assertThatThrownBy(() -> service.cloneQuestions(TEACHER_ID, "teacher", SUBJECT_ID, 8L, List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.CLONE_REQUIRED);
+
+		verify(subjects, never()).findOwned(TEACHER_ID, SUBJECT_ID);
+		verify(questions, never()).insert(anyLong(), any(), any(), any());
+	}
+
+	@Test
+	void cloneRefusesAMissingTarget() {
+		assertThatThrownBy(() -> service.cloneQuestions(TEACHER_ID, "teacher", SUBJECT_ID, 0L, List.of(7L)))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.CLONE_TARGET);
+	}
+
+	@Test
+	void cloneRefusesAQuestionThatIsNotOnTheSourceSubject() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(subjects.findOwned(TEACHER_ID, 8L)).thenReturn(Optional.of(
+				new StoredSubject(8L, TEACHER_ID, 1L, "CE2", "Histoire", true, null)));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
+		when(questions.findInSubject(SUBJECT_ID, 99L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.cloneQuestions(
+				TEACHER_ID, "teacher", SUBJECT_ID, 8L, List.of(7L, 99L)))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.NOT_FOUND);
+
+		verify(questions, never()).insert(anyLong(), any(), any(), any());
+	}
+
+	@Test
+	void cloneRefusesASubjectTheTeacherDoesNotHave() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(subjects.findOwned(TEACHER_ID, 8L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.cloneQuestions(
+				TEACHER_ID, "teacher", SUBJECT_ID, 8L, List.of(7L)))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherSubjectService.SUBJECT_MISSING);
+
+		verify(questions, never()).findInSubject(SUBJECT_ID, 7L);
+	}
+
+	@Test
+	void parentCannotCloneQuestions() {
+		assertThatThrownBy(() -> service.cloneQuestions(TEACHER_ID, "parent", SUBJECT_ID, 8L, List.of(7L)))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.FORBIDDEN);
+
+		verify(questions, never()).insert(anyLong(), any(), any(), any());
+	}
+
+	@Test
+	void followersListsClassmatesUnlessTheParentRemovedTheCourseAndKeepsAddedChildren() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(children.activeInClass(1L, "CE1")).thenReturn(List.of(
+				new FollowingChild(3L, "Léa", "Martin"),
+				new FollowingChild(5L, "Tom", "Bernard")));
+		when(children.linksOfSubject(SUBJECT_ID)).thenReturn(List.of(
+				new SubjectChildLink(new FollowingChild(5L, "Tom", "Bernard"), true),
+				new SubjectChildLink(new FollowingChild(8L, "Nina", "Bernard"), false)));
+
+		TeacherSubjectFollowersView view = service.followers(TEACHER_ID, "teacher", SUBJECT_ID);
+
+		assertThat(view.childCount()).isEqualTo(2);
+		assertThat(view.names()).containsExactly("Léa Martin", "Nina Bernard");
+		assertThat(view.warning()).isEqualTo("2 enfants suivent ce cours.");
+	}
+
+	@Test
+	void followersWarnsWhenNobodyFollowsTheCourse() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		TeacherSubjectFollowersView view = service.followers(TEACHER_ID, "teacher", SUBJECT_ID);
+
+		assertThat(view.childCount()).isZero();
+		assertThat(view.names()).isEmpty();
+		assertThat(view.warning()).isEqualTo(TeacherQuestionService.followersWarning(0));
+	}
+
+	@Test
+	void parentCannotSeeWhoFollowsTheCourse() {
+		assertThatThrownBy(() -> service.followers(TEACHER_ID, "parent", SUBJECT_ID))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.FORBIDDEN);
+
+		verify(children, never()).activeInClass(anyLong(), any());
+	}
+
+	@Test
+	void deleteRemovesEachChosenQuestionOnce() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
+		when(questions.findInSubject(SUBJECT_ID, 8L)).thenReturn(Optional.of(saved()));
+
+		List<Long> asked = new ArrayList<>();
+		asked.add(7L);
+		asked.add(7L);
+		asked.add(null);
+		asked.add(8L);
+
+		assertThat(service.deleteQuestions(TEACHER_ID, "teacher", SUBJECT_ID, asked))
+				.containsExactly(7L, 8L);
+
+		verify(questions).delete(7L);
+		verify(questions).delete(8L);
+		verify(questions, times(2)).delete(anyLong());
+	}
+
+	@Test
+	void deleteRefusesWhenOneQuestionIsMissingAndRemovesNothing() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 7L)).thenReturn(Optional.of(saved()));
+		when(questions.findInSubject(SUBJECT_ID, 99L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.deleteQuestions(TEACHER_ID, "teacher", SUBJECT_ID, List.of(7L, 99L)))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.QUESTION_MISSING);
+
+		verify(questions, never()).delete(anyLong());
+	}
+
+	@Test
+	void deleteRefusesAnEmptyChoice() {
+		assertThatThrownBy(() -> service.deleteQuestions(TEACHER_ID, "teacher", SUBJECT_ID, List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.DELETE_REQUIRED);
+
+		verify(questions, never()).delete(anyLong());
+	}
+
+	@Test
+	void freeTextKeepsThePromptAndTheExpectedAnswer() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("texte"), eq("Capitale de la France"), any()))
+				.thenReturn(new StoredQuestion(
+						13L,
+						SUBJECT_ID,
+						"texte",
+						"Capitale de la France",
+						new TeacherQuestionPort.StoredFreeText("Paris")));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"texte",
+				"  Capitale de la France  ",
+				new FreeTextInput("  Paris  "));
+
+		assertThat(line.prompt()).isEqualTo("Capitale de la France");
+		assertThat(line.formCode()).isEqualTo("texte");
+		assertThat(line.formLabel()).isEqualTo("Réponse libre");
+		assertThat(line.expectedAnswer()).isEqualTo("Paris");
+		verify(questions).ensureForm(SUBJECT_ID, "texte", "Réponse libre", 11);
+
+		ArgumentCaptor<TeacherQuestionPort.FreeTextDraft> captor =
+				ArgumentCaptor.forClass(TeacherQuestionPort.FreeTextDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("texte"), eq("Capitale de la France"), captor.capture());
+		assertThat(captor.getValue().expectedAnswer()).isEqualTo("Paris");
+	}
+
+	@Test
+	void freeTextRefusesAnEmptyAnswer() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "texte", "Capitale de la France",
+				new FreeTextInput("  ")))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ANSWER_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("texte"), any(), any());
+	}
+
+	@Test
+	void freeTextRefusesAnEmptyPrompt() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "texte", "  ",
+				new FreeTextInput("Paris")))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PROMPT_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("texte"), any(), any());
+	}
+
+	@Test
+	void freeTextUpdateReplacesTheAnswerAndKeepsTheForm() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 13L)).thenReturn(Optional.of(new StoredQuestion(
+				13L, SUBJECT_ID, "texte", "Capitale de la France",
+				new TeacherQuestionPort.StoredFreeText("Paris"))));
+		when(questions.replace(eq(13L), eq("Capitale de l'Italie"), any()))
+				.thenReturn(new StoredQuestion(
+						13L, SUBJECT_ID, "texte", "Capitale de l'Italie",
+						new TeacherQuestionPort.StoredFreeText("Rome")));
+
+		QuestionLine line = service.update(
+				TEACHER_ID, "teacher", SUBJECT_ID, 13L, "texte",
+				"Capitale de l'Italie", new FreeTextInput("Rome"));
+
+		assertThat(line.formCode()).isEqualTo("texte");
+		assertThat(line.expectedAnswer()).isEqualTo("Rome");
+		verify(questions).replace(eq(13L), eq("Capitale de l'Italie"), any());
+	}
+
+	@Test
+	void freeTextCannotChangeForm() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 13L)).thenReturn(Optional.of(new StoredQuestion(
+				13L, SUBJECT_ID, "texte", "Capitale de la France",
+				new TeacherQuestionPort.StoredFreeText("Paris"))));
+
+		assertThatThrownBy(() -> service.update(
+				TEACHER_ID, "teacher", SUBJECT_ID, 13L, "qcm",
+				"Capitale de la France",
+				List.of(new ChoiceInput("Paris", true), new ChoiceInput("Lyon", false)),
+				List.of(), List.of()))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.FORM_LOCKED);
+
+		verify(questions, never()).replace(anyLong(), any(), any());
+	}
+
+	@Test
+	void letterByLetterKeepsThePromptAndTheExpectedWord() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("reponse_libre"), eq("Capitale de la France"), any()))
+				.thenReturn(new StoredQuestion(
+						15L,
+						SUBJECT_ID,
+						"reponse_libre",
+						"Capitale de la France",
+						new TeacherQuestionPort.StoredFreeText("Paris")));
+
+		QuestionLine line = service.create(
+				TEACHER_ID,
+				"teacher",
+				SUBJECT_ID,
+				"reponse_libre",
+				"  Capitale de la France  ",
+				new FreeTextInput("  Paris  "));
+
+		assertThat(line.prompt()).isEqualTo("Capitale de la France");
+		assertThat(line.formCode()).isEqualTo("reponse_libre");
+		assertThat(line.formLabel()).isEqualTo("Lettre par lettre");
+		assertThat(line.expectedAnswer()).isEqualTo("Paris");
+		verify(questions).ensureForm(SUBJECT_ID, "reponse_libre", "Lettre par lettre", 9);
+	}
+
+	@Test
+	void letterByLetterRefusesAnEmptyAnswer() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "reponse_libre", "Capitale de la France",
+				new FreeTextInput("  ")))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ANSWER_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("reponse_libre"), any(), any());
+	}
+
+	@Test
+	void letterByLetterRefusesAnEmptyPrompt() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "reponse_libre", "  ",
+				new FreeTextInput("Paris")))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PROMPT_REQUIRED);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("reponse_libre"), any(), any());
+	}
+
+	@Test
+	void letterAttemptAcceptsTheSameWordAndRefusesAnAccent() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 15L)).thenReturn(Optional.of(new StoredQuestion(
+				15L, SUBJECT_ID, "reponse_libre", "Capitale de la France",
+				new TeacherQuestionPort.StoredFreeText("Paris"))));
+
+		assertThat(service.tryLetterAnswer(TEACHER_ID, "teacher", SUBJECT_ID, 15L, "PARIS").accepted()).isTrue();
+		assertThat(service.tryLetterAnswer(TEACHER_ID, "teacher", SUBJECT_ID, 15L, "PARIS").message())
+				.isEqualTo(TeacherQuestionService.LETTER_ACCEPTED);
+		assertThat(service.tryLetterAnswer(TEACHER_ID, "teacher", SUBJECT_ID, 15L, "Parïs").accepted()).isFalse();
+		assertThat(service.tryLetterAnswer(TEACHER_ID, "teacher", SUBJECT_ID, 15L, "Parix").message())
+				.isEqualTo(TeacherQuestionService.LETTER_REFUSED);
+	}
+
+	@Test
+	void letterAttemptRefusesAnotherForm() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 15L)).thenReturn(Optional.of(new StoredQuestion(
+				15L, SUBJECT_ID, "texte", "Capitale de la France",
+				new TeacherQuestionPort.StoredFreeText("Paris"))));
+
+		assertThatThrownBy(() -> service.tryLetterAnswer(TEACHER_ID, "teacher", SUBJECT_ID, 15L, "Paris"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.LETTER_FORM);
+	}
+
+	@Test
+	void clickImageKeepsTheWebpTheZonesAndTheRule() {
+		byte[] webp = tinyWebp();
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("image_interactive"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						14L,
+						SUBJECT_ID,
+						"image_interactive",
+						"",
+						new StoredClickImage(webp, true, List.of(new StoredClickZone(
+								1L,
+								"le soleil",
+								true,
+								"polygon",
+								List.of(
+										new ClickPoint(0.1, 0.2),
+										new ClickPoint(0.3, 0.2),
+										new ClickPoint(0.2, 0.4)),
+								1)))));
+
+		QuestionLine line = service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "  ",
+				new ClickImageInput(Base64.getEncoder().encodeToString(webp), true, List.of(
+						new ClickZoneInput(" le soleil ", true, "polygon", List.of(
+								new ClickPointInput(0.1, 0.2),
+								new ClickPointInput(0.3, 0.2),
+								new ClickPointInput(0.2, 0.4)), 1),
+						new ClickZoneInput("le nuage", false, "rect", List.of(
+								new ClickPointInput(0.6, 0.7),
+								new ClickPointInput(0.5, 0.55)), null))));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formCode()).isEqualTo("image_interactive");
+		assertThat(line.formLabel()).isEqualTo("Image à cliquer");
+		assertThat(line.requireAllCorrect()).isTrue();
+		assertThat(line.imageWebp()).containsExactly(webp);
+		assertThat(line.zones()).hasSize(1);
+		assertThat(line.zones().get(0).label()).isEqualTo("le soleil");
+		assertThat(line.zones().get(0).correct()).isTrue();
+		assertThat(line.zones().get(0).clickOrder()).isEqualTo(1);
+
+		ArgumentCaptor<ClickImageDraft> captor = ArgumentCaptor.forClass(ClickImageDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("image_interactive"), eq(""), captor.capture());
+		assertThat(captor.getValue().imageWebp()).containsExactly(webp);
+		assertThat(captor.getValue().requireAllCorrect()).isTrue();
+		assertThat(captor.getValue().zones()).hasSize(2);
+		assertThat(captor.getValue().zones().get(0).label()).isEqualTo("le soleil");
+		assertThat(captor.getValue().zones().get(0).clickOrder()).isEqualTo(1);
+		assertThat(captor.getValue().zones().get(1).shape()).isEqualTo("rect");
+		assertThat(captor.getValue().zones().get(1).correct()).isFalse();
+		assertThat(captor.getValue().zones().get(1).clickOrder()).isNull();
+		assertThat(captor.getValue().zones().get(1).points().get(0).x()).isEqualTo(0.5);
+		assertThat(captor.getValue().zones().get(1).points().get(0).y()).isEqualTo(0.55);
+		verify(questions).ensureForm(SUBJECT_ID, "image_interactive", "Image à cliquer", 8);
+	}
+
+	@Test
+	void clickImageRefusesAnIncompleteDrawing() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		byte[] webp = tinyWebp();
+		String encoded = Base64.getEncoder().encodeToString(webp);
+		ClickZoneInput sun = new ClickZoneInput("le soleil", true, "polygon", List.of(
+				new ClickPointInput(0.1, 0.2), new ClickPointInput(0.3, 0.2), new ClickPointInput(0.2, 0.4)), 1);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput("  ", true, List.of(sun))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.IMAGE_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of())))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONES_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, null, List.of(sun))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_RULE_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("  ", true, "polygon", sun.points(), 1)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_NAME_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", null, "polygon", sun.points(), 1)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_SIDE_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", true, "polygon", List.of(
+								new ClickPointInput(1.2, 0.2),
+								new ClickPointInput(0.3, 0.2),
+								new ClickPointInput(0.2, 0.4)), 1)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_POINTS);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(Base64.getEncoder().encodeToString(new byte[] {
+						(byte) 0x89, 'P', 'N', 'G', 0, 0, 0, 0, 0, 0, 0, 0
+				}), true, List.of(sun))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.IMAGE_NOT_WEBP);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("image_interactive"), any(), any());
+	}
+
+	@Test
+	void clickImageRefusesABrokenClickOrder() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		String encoded = Base64.getEncoder().encodeToString(tinyWebp());
+		List<ClickPointInput> sunPoints = List.of(
+				new ClickPointInput(0.1, 0.2), new ClickPointInput(0.3, 0.2), new ClickPointInput(0.2, 0.4));
+		List<ClickPointInput> cloudPoints = List.of(
+				new ClickPointInput(0.5, 0.5), new ClickPointInput(0.8, 0.8));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", true, "polygon", sunPoints, null)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_CLICK_ORDER);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", false, "polygon", sunPoints, 1)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_CLICK_ORDER);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", true, "polygon", sunPoints, 1),
+						new ClickZoneInput("la lune", true, "rect", cloudPoints, 1)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_CLICK_ORDER);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "image_interactive", "",
+				new ClickImageInput(encoded, true, List.of(
+						new ClickZoneInput("le soleil", true, "polygon", sunPoints, 1),
+						new ClickZoneInput("la lune", true, "rect", cloudPoints, 3)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.ZONE_CLICK_ORDER);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("image_interactive"), any(), any());
+	}
+
+	@Test
+	void puzzleKeepsTheWebpAndThePiecesWithoutACorrectSide() {
+		byte[] webp = tinyWebp();
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("puzzle"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						15L,
+						SUBJECT_ID,
+						"puzzle",
+						"",
+						new StoredPuzzle(webp, "fond", webp, 0.12, List.of(
+								new StoredPuzzlePiece(
+										1L,
+										"le ciel",
+										"rect",
+										List.of(new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5)),
+										0.3,
+										0.05,
+										0.4),
+								new StoredPuzzlePiece(
+										2L,
+										"le sol",
+										"rect",
+										List.of(new ClickPoint(0.0, 0.5), new ClickPoint(1.0, 1.0)),
+										0.2,
+										0.6,
+										null)))));
+
+		String encoded = Base64.getEncoder().encodeToString(webp);
+		QuestionLine line = service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "  ",
+				new PuzzleInput(encoded, "fond", encoded, 0.12, List.of(
+						new PuzzlePieceInput(
+								" le ciel ",
+								"rect",
+								List.of(new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5)),
+								0.3,
+								0.05,
+								0.4),
+						new PuzzlePieceInput(
+								"le sol",
+								"ellipse",
+								List.of(new ClickPointInput(0.5, 0.75), new ClickPointInput(0.7, 0.9)),
+								0.2,
+								0.6,
+								null))));
+
+		assertThat(line.prompt()).isEmpty();
+		assertThat(line.formCode()).isEqualTo("puzzle");
+		assertThat(line.formLabel()).isEqualTo("Puzzle");
+		assertThat(line.requireAllCorrect()).isNull();
+		assertThat(line.zones()).isEmpty();
+		assertThat(line.imageWebp()).containsExactly(webp);
+		assertThat(line.boardMode()).isEqualTo("fond");
+		assertThat(line.boardImageWebp()).containsExactly(webp);
+		assertThat(line.pieces()).hasSize(2);
+		assertThat(line.pieces().get(0).label()).isEqualTo("le ciel");
+		assertThat(line.pieces().get(0).slotX()).isEqualTo(0.3);
+		assertThat(line.pieces().get(0).slotWidth()).isEqualTo(0.4);
+		assertThat(line.pieces().get(1).slotWidth()).isNull();
+		assertThat(line.snapDistance()).isEqualTo(0.12);
+
+		ArgumentCaptor<PuzzleDraft> captor = ArgumentCaptor.forClass(PuzzleDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("puzzle"), eq(""), captor.capture());
+		assertThat(captor.getValue().imageWebp()).containsExactly(webp);
+		assertThat(captor.getValue().boardMode()).isEqualTo("fond");
+		assertThat(captor.getValue().boardImageWebp()).containsExactly(webp);
+		assertThat(captor.getValue().pieces()).hasSize(2);
+		assertThat(captor.getValue().pieces().get(0).label()).isEqualTo("le ciel");
+		assertThat(captor.getValue().pieces().get(0).slotX()).isEqualTo(0.3);
+		assertThat(captor.getValue().pieces().get(0).slotY()).isEqualTo(0.05);
+		assertThat(captor.getValue().pieces().get(0).slotWidth()).isEqualTo(0.4);
+		assertThat(captor.getValue().pieces().get(1).shape()).isEqualTo("ellipse");
+		assertThat(captor.getValue().pieces().get(1).slotWidth()).isNull();
+		assertThat(captor.getValue().snapDistance()).isEqualTo(0.12);
+		verify(questions).ensureForm(SUBJECT_ID, "puzzle", "Puzzle", 10);
+	}
+
+	@Test
+	void puzzleRefusesOnePieceOrAMissingName() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		byte[] webp = tinyWebp();
+		String encoded = Base64.getEncoder().encodeToString(webp);
+		PuzzlePieceInput sky = new PuzzlePieceInput("le ciel", "rect", List.of(
+				new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5)), null, null, null);
+		PuzzlePieceInput ground = new PuzzlePieceInput("le sol", "rect", List.of(
+				new ClickPointInput(0.0, 0.5), new ClickPointInput(1.0, 1.0)), null, null, null);
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput("  ", "fond", encoded, null, List.of(sky, ground))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.IMAGE_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, "fond", "  ", null, List.of(sky, ground))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.BOARD_IMAGE_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, "nope", null, null, List.of(sky, ground))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.BOARD_MODE_INVALID);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, "trous", null, null, List.of(sky))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PIECES_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(
+						encoded,
+						"blanc",
+						null,
+						null,
+						List.of(
+								new PuzzlePieceInput("le ciel", "rect", sky.points(), 0.1, 0.1, null),
+								new PuzzlePieceInput("  ", "rect", ground.points(), 0.2, 0.6, null)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PIECE_NAME_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, "blanc", null, null, List.of(sky, ground))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PIECE_SLOT_REQUIRED);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, "fond", encoded, null, List.of(sky, ground))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PIECE_SLOT_REQUIRED_FOND);
+
+		for (double width : new double[] {0.01, 1.5, Double.NaN}) {
+			List<PuzzlePieceInput> sized = List.of(
+					new PuzzlePieceInput("le ciel", "rect", sky.points(), 0.1, 0.1, width),
+					new PuzzlePieceInput("le sol", "rect", ground.points(), 0.2, 0.6, null));
+			assertThatThrownBy(() -> service.create(
+					TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+					new PuzzleInput(encoded, "fond", encoded, null, sized)))
+					.isInstanceOf(AuthDomainException.class)
+					.hasMessage(TeacherQuestionService.PIECE_SLOT_WIDTH_RANGE);
+		}
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(
+						encoded,
+						"trous",
+						null,
+						null,
+						List.of(sky, new PuzzlePieceInput("le sol", "star", ground.points(), null, null, null)))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.PIECE_SHAPE);
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, "trous", null, 0.5, List.of(sky, ground))))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.SNAP_RANGE);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("puzzle"), any(), any());
+	}
+
+	@Test
+	void puzzleBlancKeepsTeacherDefinedSlots() {
+		byte[] webp = tinyWebp();
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("puzzle"), eq(""), any()))
+				.thenReturn(new StoredQuestion(
+						16L,
+						SUBJECT_ID,
+						"puzzle",
+						"",
+						new StoredPuzzle(webp, "blanc", null, 0.08, List.of(
+								new StoredPuzzlePiece(
+										1L,
+										"le ciel",
+										"rect",
+										List.of(new ClickPoint(0.0, 0.0), new ClickPoint(1.0, 0.5)),
+										0.1,
+										0.2,
+										null),
+								new StoredPuzzlePiece(
+										2L,
+										"le sol",
+										"rect",
+										List.of(new ClickPoint(0.0, 0.5), new ClickPoint(1.0, 1.0)),
+										0.15,
+										0.55,
+										null)))));
+
+		String encoded = Base64.getEncoder().encodeToString(webp);
+		QuestionLine line = service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "puzzle", "",
+				new PuzzleInput(encoded, "blanc", null, null, List.of(
+						new PuzzlePieceInput(
+								"le ciel",
+								"rect",
+								List.of(new ClickPointInput(0.0, 0.0), new ClickPointInput(1.0, 0.5)),
+								0.1,
+								0.2,
+								0.5),
+						new PuzzlePieceInput(
+								"le sol",
+								"rect",
+								List.of(new ClickPointInput(0.0, 0.5), new ClickPointInput(1.0, 1.0)),
+								0.15,
+								0.55,
+								null))));
+
+		assertThat(line.boardMode()).isEqualTo("blanc");
+		assertThat(line.pieces().get(0).slotX()).isEqualTo(0.1);
+		assertThat(line.pieces().get(0).slotY()).isEqualTo(0.2);
+
+		ArgumentCaptor<PuzzleDraft> captor = ArgumentCaptor.forClass(PuzzleDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("puzzle"), eq(""), captor.capture());
+		assertThat(captor.getValue().boardMode()).isEqualTo("blanc");
+		assertThat(captor.getValue().pieces().get(0).slotX()).isEqualTo(0.1);
+		assertThat(captor.getValue().pieces().get(1).slotY()).isEqualTo(0.55);
+		// Cadre blanc : même ratio que la découpe, une taille envoyée est ignorée.
+		assertThat(captor.getValue().pieces().get(0).slotWidth()).isNull();
+	}
+
+	@Test
+	void simonKeepsTheTypeTheElementsAndTheSequence() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.insert(eq(SUBJECT_ID), eq("simon"), eq(""), any())).thenReturn(simonQuestion(17L));
+
+		QuestionLine line = service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "simon", "  ",
+				new SimonInput(null, List.of(
+						new SimonElementInput(null, " #FF0000 "),
+						new SimonElementInput(null, "#0000ff"),
+						new SimonElementInput(null, "#00FF00")),
+						List.of()));
+
+		assertThat(line.formLabel()).isEqualTo("Simon");
+		assertThat(line.elementType()).isEqualTo("couleurs");
+		assertThat(line.elements()).extracting(row -> row.label() + ":" + row.color())
+				.containsExactly("rouge:#ff0000", "bleu:#0000ff", "vert:#00ff00");
+		assertThat(line.sequence()).isEmpty();
+		verify(questions).ensureForm(SUBJECT_ID, "simon", "Simon", 7);
+
+		ArgumentCaptor<SimonDraft> captor = ArgumentCaptor.forClass(SimonDraft.class);
+		verify(questions).insert(eq(SUBJECT_ID), eq("simon"), eq(""), captor.capture());
+		assertThat(captor.getValue()).isEqualTo(new SimonDraft("libre", List.of(
+				new SimonElementDraft(null, "#ff0000"),
+				new SimonElementDraft(null, "#0000ff"),
+				new SimonElementDraft(null, "#00ff00"))));
+	}
+
+	@Test
+	void simonRefusesTextAndColorOnTheSameElement() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+
+		assertThatThrownBy(() -> service.create(
+				TEACHER_ID, "teacher", SUBJECT_ID, "simon", "",
+				new SimonInput(null, List.of(
+						new SimonElementInput("rouge", "#ff0000"),
+						new SimonElementInput("chat", null)),
+						List.of())))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(TeacherQuestionService.SIMON_FACE);
+
+		verify(questions, never()).insert(eq(SUBJECT_ID), eq("simon"), any(), any());
+	}
+
+	@Test
+	void simonUpdateReplacesTheContentAndKeepsTheForm() {
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(questions.findInSubject(SUBJECT_ID, 17L)).thenReturn(Optional.of(simonQuestion(17L)));
+		when(questions.replace(eq(17L), eq(""), any())).thenReturn(simonQuestion(17L));
+
+		service.update(
+				TEACHER_ID, "teacher", SUBJECT_ID, 17L, "simon", "",
+				new SimonInput("lettres", List.of(
+						new SimonElementInput("A", null),
+						new SimonElementInput("B", null)),
+						List.of(1, 0, 1)));
+
+		ArgumentCaptor<SimonDraft> captor = ArgumentCaptor.forClass(SimonDraft.class);
+		verify(questions).replace(eq(17L), eq(""), captor.capture());
+		assertThat(captor.getValue()).isEqualTo(new SimonDraft("libre", List.of(
+				new SimonElementDraft("A", null),
+				new SimonElementDraft("B", null))));
+		verify(questions, never()).ensureForm(eq(SUBJECT_ID), eq("simon"), any(), anyInt());
+	}
+
+	@Test
+	void cloneCopiesASimonWithItsElementsAndSequence() {
+		long targetId = 8L;
+		when(subjects.findOwned(TEACHER_ID, SUBJECT_ID)).thenReturn(Optional.of(owned()));
+		when(subjects.findOwned(TEACHER_ID, targetId)).thenReturn(Optional.of(
+				new StoredSubject(targetId, TEACHER_ID, 1L, "CE2", "Histoire", true, null)));
+		when(questions.findInSubject(SUBJECT_ID, 17L)).thenReturn(Optional.of(simonQuestion(17L)));
+		when(questions.insert(eq(targetId), eq("simon"), eq(""), any())).thenReturn(simonQuestion(30L));
+
+		TeacherSubjectQuestionsView view = service.cloneQuestions(
+				TEACHER_ID, "teacher", SUBJECT_ID, targetId, List.of(17L));
+
+		assertThat(view.questions()).extracting(QuestionLine::id).containsExactly(30L);
+		verify(questions).ensureForm(targetId, "simon", "Simon", 7);
+		ArgumentCaptor<SimonDraft> captor = ArgumentCaptor.forClass(SimonDraft.class);
+		verify(questions).insert(eq(targetId), eq("simon"), eq(""), captor.capture());
+		assertThat(captor.getValue()).isEqualTo(simonDraft());
+	}
+
+	/** Rouge, bleu, vert ; suite rouge, bleu, vert, rouge. */
+	private static SimonDraft simonDraft() {
+		return new SimonDraft("couleurs", List.of(
+				new SimonElementDraft("rouge", "#ff0000"),
+				new SimonElementDraft("bleu", "#0000ff"),
+				new SimonElementDraft("vert", "#00ff00")));
+	}
+
+	private static StoredQuestion simonQuestion(long id) {
+		return new StoredQuestion(id, SUBJECT_ID, "simon", "", new StoredSimon("couleurs", List.of(
+				new StoredSimonElement(1L, "rouge", "#ff0000"),
+				new StoredSimonElement(2L, "bleu", "#0000ff"),
+				new StoredSimonElement(3L, "vert", "#00ff00"))));
+	}
+
+	private static byte[] tinyWebp() {
+		return Base64.getDecoder().decode("UklGRiQAAABXRUJQVlA4IBgAAAA=");
+	}
+
+	private static StoredQuestion gapsQuestion() {
+		return new StoredQuestion(
+				12L,
+				SUBJECT_ID,
+				"case_vide",
+				"",
+				new TeacherQuestionPort.StoredGaps(
+						"Le chat ___",
+						List.of(new TeacherQuestionPort.StoredGapWord(1L, "mange")),
+						List.of(new TeacherQuestionPort.StoredGapWord(2L, "dort"))));
+	}
+
+	private static StoredSubject owned() {
+		return new StoredSubject(SUBJECT_ID, TEACHER_ID, 1L, "CE1", "Mathématiques", true, null);
+	}
+
+	private static StoredQuestion saved() {
+		return new StoredQuestion(
+				7L,
+				SUBJECT_ID,
+				"qcm",
+				"Combien font 2 + 2 ?",
+				List.of(new StoredChoice(1L, "3", false), new StoredChoice(2L, "4", true)),
+				List.of(), List.of());
+	}
+}

@@ -1,0 +1,276 @@
+package com.appv4.auth.infrastructure.adapter.out.persistence;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.out.ChildInterestSuggestionPort;
+import com.appv4.auth.application.port.out.ChildInterestSuggestionPort.SuggestableInterest;
+import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildPort.ChildChanges;
+import com.appv4.auth.application.port.out.ChildPort.ChildLinkView;
+import com.appv4.auth.application.port.out.ChildPort.InterestCopy;
+import com.appv4.auth.application.service.ParentChildrenService;
+
+/**
+ * Persiste les enfants du parent (SCRUM-156).
+ *
+ * <p><b>Business :</b> la fiche est liée au parent connecté. Le PIN reste hashé.
+ * <p><b>Technique :</b> {@code back_children} et {@code back_child_interests}. Absent du profil {@code test}.
+ * <p><b>Métier / flow :</b> adapter out du port {@link ChildPort}.
+ */
+@Component
+@Profile("!test")
+public class ChildPersistenceAdapter implements ChildPort, ChildInterestSuggestionPort {
+
+	private final BackChildJpaRepository childRepository;
+	private final BackChildLinkJpaRepository linkRepository;
+	private final BackChildInterestJpaRepository interestRepository;
+
+	public ChildPersistenceAdapter(
+			BackChildJpaRepository childRepository,
+			BackChildLinkJpaRepository linkRepository,
+			BackChildInterestJpaRepository interestRepository) {
+		this.childRepository = childRepository;
+		this.linkRepository = linkRepository;
+		this.interestRepository = interestRepository;
+	}
+
+	@Override
+	@Transactional
+	public ChildSaved insert(NewChild child) {
+		BackChildEntity saved = childRepository.save(new BackChildEntity(
+				child.parentUserId(),
+				child.firstName(),
+				child.lastName(),
+				child.sex(),
+				child.age(),
+				child.curriculum(),
+				child.grade(),
+				child.schoolId(),
+				child.avatarCode(),
+				child.photo(),
+				child.photoContentType(),
+				child.pinHash()));
+		return toSaved(saved);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<ChildSaved> findByParent(long parentUserId) {
+		return childRepository.findParentSummaries(parentUserId).stream()
+				.map(child -> new ChildSaved(child.getId(), child.getParentUserId(), child.getFirstName(),
+						child.getLastName(), child.getSex(), child.getAge(),
+						child.getCurriculum(), child.getGradeLabel(),
+						child.getSchoolId(), child.getAvatarCode(), child.getHasPhoto(), child.getActive()))
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<ChildSaved> findOwned(long parentUserId, long childId) {
+		return visibleTo(parentUserId, childId).map(ChildPersistenceAdapter::toSaved);
+	}
+
+	@Override
+	@Transactional
+	public Optional<ChildSaved> update(long parentUserId, long childId, ChildChanges changes) {
+		return visibleTo(parentUserId, childId).map(entity -> {
+			entity.applyChanges(
+					changes.firstName(),
+					changes.lastName(),
+					changes.sex(),
+					changes.age(),
+					changes.curriculum(),
+					changes.grade(),
+					changes.schoolId(),
+					changes.replaceImage(),
+					changes.avatarCode(),
+					changes.photo(),
+					changes.photoContentType(),
+					changes.pinHash());
+			return toSaved(entity);
+		});
+	}
+
+	@Override
+	@Transactional
+	public boolean deactivate(long parentUserId, long childId) {
+		return changeListed(parentUserId, childId, BackChildEntity::deactivate);
+	}
+
+	@Override
+	@Transactional
+	public boolean reactivate(long parentUserId, long childId) {
+		return changeListed(parentUserId, childId, BackChildEntity::reactivate);
+	}
+
+	@Override
+	@Transactional
+	public boolean hide(long parentUserId, long childId) {
+		return changeListed(parentUserId, childId, BackChildEntity::hide);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<ChildSaved> findVisible(long childId) {
+		return childRepository.findById(childId)
+				.filter(child -> !child.isHidden())
+				.map(ChildPersistenceAdapter::toSaved);
+	}
+
+	private Optional<BackChildEntity> listed(long parentUserId, long childId) {
+		return childRepository.findByIdAndParentUserIdAndHiddenFalse(childId, parentUserId);
+	}
+
+	private Optional<BackChildEntity> visibleTo(long parentUserId, long childId) {
+		return childRepository.findVisibleTo(childId, parentUserId);
+	}
+
+	private boolean changeListed(long parentUserId, long childId, java.util.function.Consumer<BackChildEntity> change) {
+		Optional<BackChildEntity> owned = listed(parentUserId, childId);
+		if (owned.isEmpty()) {
+			return false;
+		}
+		change.accept(owned.get());
+		return true;
+	}
+
+	/**
+	 * Relie le nouvel enfant à l'enfant de départ, pour le même parent.
+	 *
+	 * <p><b>Business :</b> si l'un des deux n'est pas à ce parent, rien n'est écrit.
+	 * <p><b>Technique :</b> une ligne {@code back_child_links}. Le hash du PIN n'est pas lu.
+	 */
+	@Override
+	@Transactional
+	public void insertLink(long parentUserId, long subjectChildId, long relatedChildId, String relation) {
+		BackChildEntity subject = childRepository.findByIdAndParentUserIdAndHiddenFalse(subjectChildId, parentUserId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, ParentChildrenService.CHILD_UNKNOWN));
+		BackChildEntity related = childRepository.findByIdAndParentUserIdAndHiddenFalse(relatedChildId, parentUserId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, ParentChildrenService.CHILD_UNKNOWN));
+		linkRepository.save(new BackChildLinkEntity(parentUserId, subject, related, relation));
+	}
+
+	/**
+	 * Ajoute le lien à la modification, ou remplace le mot si la paire existe déjà.
+	 *
+	 * <p><b>Business :</b> on ne crée pas un second lien entre les mêmes enfants.
+	 * <p><b>Technique :</b> recherche la paire dans les deux sens, puis met à jour ou insère.
+	 * <p><b>Métier / flow :</b> après {@code PUT /api/int/parent/children/{id}} quand un lien est choisi.
+	 */
+	@Override
+	@Transactional
+	public void saveLink(long parentUserId, long subjectChildId, long relatedChildId, String relation) {
+		Optional<BackChildLinkEntity> existing = linkRepository.findPair(parentUserId, subjectChildId, relatedChildId);
+		if (existing.isPresent()) {
+			existing.get().changeRelation(relation);
+			return;
+		}
+		insertLink(parentUserId, subjectChildId, relatedChildId, relation);
+	}
+
+	/**
+	 * Enlève le lien déjà affiché entre ces deux enfants.
+	 *
+	 * <p><b>Business :</b> les fiches restent. Seule cette parenté disparaît.
+	 * <p><b>Technique :</b> supprime la paire, quel que soit l'enfant créé en second.
+	 * <p><b>Métier / flow :</b> {@code PUT} avec l'autre enfant et le mot Aucun.
+	 */
+	@Override
+	@Transactional
+	public void deleteLink(long parentUserId, long subjectChildId, long relatedChildId) {
+		linkRepository.findPair(parentUserId, subjectChildId, relatedChildId)
+				.ifPresent(linkRepository::delete);
+	}
+
+	/**
+	 * Phrases de fratrie, sans la colonne photo.
+	 *
+	 * <p><b>Business :</b> la liste montre le prénom et le mot du lien. L'image arrive après.
+	 * <p><b>Technique :</b> projection. {@code back_children.photo} n'est pas lue ici.
+	 * <p><b>Métier / flow :</b> {@code GET /api/int/parent/children}, après le rattachement des matières.
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public List<ChildLinkView> findLinks(long parentUserId) {
+		return linkRepository.findFacesByParentUserId(parentUserId).stream()
+				.map(link -> new ChildLinkView(
+						link.getSubjectId(),
+						link.getSubjectFirstName(),
+						link.getSubjectSex(),
+						link.getRelatedId(),
+						link.getRelatedFirstName(),
+						link.getRelatedSex(),
+						link.getRelation()))
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<ChildPhoto> findPhoto(long parentUserId, long childId) {
+		return visibleTo(parentUserId, childId)
+				.filter(child -> child.getPhoto() != null)
+				.map(child -> new ChildPhoto(child.getPhoto(), child.getPhotoContentType()));
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<InterestCopy> findInterests(long childId) {
+		return interestRepository.findByChildId(childId).stream()
+				.map(row -> new InterestCopy(row.getLabel(), row.getWrittenAt()))
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<SuggestableInterest> findAll() {
+		return interestRepository.findWithChild().stream()
+				.map(row -> new SuggestableInterest(
+						row.getId(),
+						row.getParentUserId(),
+						row.getLabel(),
+						row.getWrittenAt(),
+						row.isActive(),
+						row.isHidden()))
+				.toList();
+	}
+
+	/**
+	 * Remplace les copies de cet enfant.
+	 *
+	 * <p><b>Business :</b> la liste acceptée devient la liste entière. Une liste vide efface.
+	 * <p><b>Technique :</b> supprime les lignes, vide le contexte, puis réécrit le texte et le moment.
+	 * <p><b>Métier / flow :</b> après un ajout ou une correction de fiche déjà acceptés.
+	 */
+	@Override
+	@Transactional
+	public void replaceInterests(long childId, List<InterestCopy> copies) {
+		interestRepository.deleteByChildId(childId);
+		interestRepository.flush();
+		for (InterestCopy copy : copies) {
+			interestRepository.save(new BackChildInterestEntity(childId, copy.text(), copy.writtenAt()));
+		}
+	}
+
+	private static ChildSaved toSaved(BackChildEntity child) {
+		return new ChildSaved(
+				child.getId(),
+				child.getParentUserId(),
+				child.getFirstName(),
+				child.getLastName(),
+				child.getSex(),
+				child.getAge(),
+				child.getCurriculum(),
+				child.getGradeLabel(),
+				child.getSchoolId(),
+				child.getAvatarCode(),
+				child.getPhoto() != null,
+				child.isActive());
+	}
+}

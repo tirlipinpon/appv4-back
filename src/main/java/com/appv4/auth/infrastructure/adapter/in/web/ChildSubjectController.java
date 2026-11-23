@@ -1,0 +1,193 @@
+package com.appv4.auth.infrastructure.adapter.in.web;
+
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.appv4.auth.application.port.in.ChildSubjectUseCase;
+import com.appv4.auth.application.service.SubjectIcons;
+import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
+import com.appv4.auth.application.result.ChildSubjectsView;
+import com.appv4.auth.application.result.ChildSubjectsView.SubjectOffer;
+import com.appv4.auth.application.result.ParentSubjectsView;
+import com.appv4.configuration.OpenApiConfiguration;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+/**
+ * Matières des enfants du parent (SCRUM-162).
+ *
+ * <p><b>Business :</b> la page montre chaque élève. Les matières de son école et
+ * de son année sont déjà dans sa liste. Il ajoute les autres, ou en retire.
+ * <p><b>Technique :</b> {@code /api/int/parent/subjects}, JWT, espace parent.
+ * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link ChildSubjectUseCase}.
+ */
+@RestController
+@RequestMapping("/api/int/parent/subjects")
+@Tag(name = "Parent — matières des enfants")
+@SecurityRequirement(name = OpenApiConfiguration.BEARER_JWT)
+public class ChildSubjectController {
+
+	private final ChildSubjectUseCase childSubjectUseCase;
+
+	public ChildSubjectController(ChildSubjectUseCase childSubjectUseCase) {
+		this.childSubjectUseCase = childSubjectUseCase;
+	}
+
+	@GetMapping
+	@Operation(operationId = "listParentSubjects", summary = "Lister les enfants et leurs matières")
+	@ApiResponse(responseCode = "200", description = "Chaque enfant et les matières déjà choisies")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<ParentSubjectsResponse> list(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		return ResponseEntity.ok(toResponse(childSubjectUseCase.loadSummary(user.userId(), user.activeRole())));
+	}
+
+	@PostMapping
+	@Operation(operationId = "addParentChildSubject", summary = "Ajouter une matière à un enfant")
+	@ApiResponse(responseCode = "200", description = "Matière ajoutée")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Matière introuvable, plus visible, ou déjà dans la liste",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Enfant introuvable pour ce parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<ChildSubjectOffer> add(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@RequestBody AddChildSubjectRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		AddChildSubjectRequest body = request == null ? new AddChildSubjectRequest(null, null) : request;
+		return ResponseEntity.ok(offer(childSubjectUseCase.addOne(
+				user.userId(), user.activeRole(), body.childId() == null ? -1L : body.childId(), body.subjectId())));
+	}
+
+	@DeleteMapping("/{childId}/{subjectId}")
+	@Operation(operationId = "removeParentChildSubject", summary = "Retirer une matière de la liste d'un enfant")
+	@ApiResponse(responseCode = "200", description = "Matière retirée de la liste de l'enfant")
+	@ApiResponse(
+			responseCode = "404",
+			description = "Enfant introuvable, ou matière absente de sa liste",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<ChildSubjectOffer> remove(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long childId,
+			@PathVariable long subjectId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		return ResponseEntity.ok(offer(childSubjectUseCase.removeOne(user.userId(), user.activeRole(), childId, subjectId)));
+	}
+
+	@GetMapping("/{childId}/offers")
+	@Operation(operationId = "searchParentChildSubjects", summary = "Search available subjects for a child")
+	public ResponseEntity<ChildSubjectOfferPage> search(
+			@AuthenticationPrincipal AuthenticatedUser principal, @PathVariable long childId,
+			@RequestParam(defaultValue = "") String query, @RequestParam(defaultValue = "0") long schoolId,
+			@RequestParam(defaultValue = "") String grade, @RequestParam(defaultValue = "0") long afterId,
+			@RequestParam(defaultValue = "40") int limit) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		var page = childSubjectUseCase.searchOffers(user.userId(), user.activeRole(), childId,
+				query, schoolId, grade, afterId, limit);
+		return ResponseEntity.ok(new ChildSubjectOfferPage(page.offers().stream().map(ChildSubjectController::offer).toList(),
+				page.nextCursor()));
+	}
+
+	@Schema(name = "ChildSubjectOfferPage")
+	public record ChildSubjectOfferPage(List<ChildSubjectOffer> offers, Long nextCursor) {
+	}
+
+	private static ParentSubjectsResponse toResponse(ParentSubjectsView view) {
+		return new ParentSubjectsResponse(view.children().stream().map(ChildSubjectController::child).toList());
+	}
+
+	private static ChildSubjectsResponse child(ChildSubjectsView view) {
+		return new ChildSubjectsResponse(
+				view.childId(),
+				view.firstName(),
+				view.lastName(),
+				view.sex(),
+				view.age(),
+				view.avatarCode(),
+				view.hasPhoto(),
+				view.schoolId(),
+				view.schoolName(),
+				view.grade(),
+				view.chosen().stream().map(ChildSubjectController::offer).toList(),
+				view.proposed().stream().map(ChildSubjectController::offer).toList());
+	}
+
+	private static ChildSubjectOffer offer(SubjectOffer offer) {
+		return new ChildSubjectOffer(
+				offer.subjectId(),
+				offer.name(),
+				offer.teacherName(),
+				offer.schoolId(),
+				offer.schoolName(),
+				offer.grade(),
+				offer.scolaire(),
+				offer.questionCount(),
+				offer.iconCode(),
+				SubjectIcons.accentOf(offer.iconCode()));
+	}
+
+	@Schema(name = "ParentSubjectsResponse")
+	public record ParentSubjectsResponse(List<ChildSubjectsResponse> children) {
+	}
+
+	@Schema(name = "ChildSubjectsResponse")
+	public record ChildSubjectsResponse(
+			long childId,
+			String firstName,
+			String lastName,
+			@Schema(description = "GARCON, FILLE ou NON_GENRE")
+			String sex,
+			int age,
+			String avatarCode,
+			@Schema(description = "Vrai si une photo est enregistrée. Le fichier se lit à part.")
+			boolean hasPhoto,
+			Long schoolId,
+			String schoolName,
+			String grade,
+			List<ChildSubjectOffer> chosen,
+			List<ChildSubjectOffer> proposed) {
+	}
+
+	@Schema(name = "ChildSubjectOffer")
+	public record ChildSubjectOffer(
+			long subjectId,
+			String name,
+			String teacherName,
+			long schoolId,
+			String schoolName,
+			String grade,
+			boolean scolaire,
+			@Schema(description = "Nombre total de questions enregistrées sur cette matière.")
+			long questionCount,
+			@Schema(description = "Code d'icône de la librairie matières, ou null.")
+			String iconCode,
+			@Schema(description = "Teinte #rrggbb de l'icône, ou null.", nullable = true)
+			String accentColor) {
+	}
+
+	@Schema(name = "AddChildSubjectRequest")
+	public record AddChildSubjectRequest(Long childId, Long subjectId) {
+	}
+}

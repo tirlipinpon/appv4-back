@@ -1,5 +1,7 @@
 # appv4-back
 
+Jeu volumineux pour tester le front : **[installation, comptes et rollback](scripts/front-demo/README.md)**.
+
 Backend de l’application éducative **appv4** :
 **Java 21 + Spring Boot 3.5.x**, architecture **hexagonale** (Ports & Adapters), API REST.
 
@@ -38,17 +40,21 @@ Maven n’a **pas** besoin d’être installé globalement : le wrapper `mvnw` /
 ### Lancer l’API (profil `local`)
 
 1. Postgres Docker doit tourner (`docker compose up -d`)
-2. `.env` aligné (ou valeurs par défaut `appv4` / `appv4`)
-3. Démarrer Spring :
+2. Copier `.env.example` → `.env` et renseigner les secrets (ex. `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`)
+3. Démarrer Spring **depuis la racine `appv4-back`** (le `.env` est chargé automatiquement) :
 
 ```bash
 cd C:\Users\tonys\Desktop\appv4\appv4-back
 .\mvnw.cmd spring-boot:run
 ```
 
+Plus besoin d’exporter manuellement les variables du `.env` en PowerShell : `DotEnvEnvironmentPostProcessor` les injecte au boot. Les variables déjà définies dans l’OS / CI restent prioritaires.
+
 4. Vérifier : [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health) → `{"status":"UP"}`
 
-Config : `application.yml` + `application-local.yml` (datasource JDBC).
+Config : `application.yml` + `application-local.yml` (datasource JDBC) + `.env` local.
+Le profil `local` n'est **pas** le défaut : il faut `SPRING_PROFILES_ACTIVE=local` (posé par le `.env`).
+Sans profil, pas de seed admin ni Swagger UI.
 
 ## PostgreSQL local (MVP)
 
@@ -143,12 +149,10 @@ Détail JDBC + variables `SPRING_DATASOURCE_*` : **[DATABASE.md](./DATABASE.md)*
 - CORS local (profil `local`) : `http://localhost:4200` et `http://localhost:4201`  
   → `appv4.cors.allowed-origins` dans `application-local.yml`
 
-## Smoke hello
+## Verification du backend
 
-Avec Postgres + `.\mvnw.cmd spring-boot:run` :
-
-- [http://localhost:8080/api/ext/hello](http://localhost:8080/api/ext/hello) → `{"text":"hello learning"}`
-- [http://localhost:8080/api/int/hello](http://localhost:8080/api/int/hello) → `{"text":"admin-helloworld"}`
+Avec Postgres et `./mvnw spring-boot:run`, verifier http://localhost:8080/actuator/health.
+Le contrat est disponible sur http://localhost:8080/v3/api-docs et Swagger UI sur le profil local.
 
 ## Tickets liés
 
@@ -159,13 +163,19 @@ Avec Postgres + `.\mvnw.cmd spring-boot:run` :
 | Suite : Postgres / Flyway | SCRUM-36 |
 | Suite : Spring Boot hexa | SCRUM-35 |
 
-## Prochaines étapes
-
-1. Angular `learning` + `admin` consommant `/api/ext/hello` et `/api/int/hello` (SCRUM-34)
-2. Erreurs ProblemDetail + OpenAPI (socle shared)
-
 ## Branches & deploiement
 
 Voir **[BRANCHING.md](./BRANCHING.md)** : `feature/*` → **PR** → `develop` (CI) → **PR** → `release` (CD Azure).  
 Important : le passage `develop` → `release` passe **toujours** par une Pull Request.
 
+
+### Purge des jetons de réinitialisation
+
+Chaque instance exécute à 03:00 UTC une purge de 500 jetons au maximum dont
+l’expiration remonte à plus de 30 jours. Les lots concurrents utilisent des
+verrous PostgreSQL `SKIP LOCKED`. La rétention, la taille du lot (1 à 1000) et
+la fréquence se configurent avec `APPV4_AUTH_PASSWORD_RESET_CLEANUP_RETENTION_DAYS`,
+`APPV4_AUTH_PASSWORD_RESET_CLEANUP_BATCH_SIZE` et `APPV4_AUTH_PASSWORD_RESET_CLEANUP_CRON`.
+La valeur cron `-` désactive la tâche. Les compteurs Micrometer `appv4.password_reset.cleanup.deleted`
+et `appv4.password_reset.cleanup.errors` ainsi que la durée sont exposés aux registres configurés.
+Avant déploiement, vérifier les éventuelles tâches de purge opérées hors de ce dépôt.

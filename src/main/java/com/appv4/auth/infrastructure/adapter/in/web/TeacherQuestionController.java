@@ -1,0 +1,1078 @@
+package com.appv4.auth.infrastructure.adapter.in.web;
+
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase;
+import com.appv4.auth.application.service.question.play.PlayableQuestionForm;
+import com.appv4.auth.application.service.question.play.QuestionPlayEngine;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GamificationInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.CardInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ChoiceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClassificationInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickImageInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickPointInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ClickZoneInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ColumnInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ContentInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.FreeTextInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapWordInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.GapsInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.ItemInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinkInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LinksInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.LegacyInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.OrderInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PairInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzleInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.PuzzlePieceInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.SimonElementInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.SimonInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementInput;
+import com.appv4.auth.application.port.in.TeacherQuestionUseCase.StatementsInput;
+import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
+import com.appv4.auth.application.result.LetterAttemptView;
+import com.appv4.auth.application.result.TeacherSubjectFollowersView;
+import com.appv4.auth.application.result.TeacherQuestionFormsView;
+import com.appv4.auth.application.result.TeacherQuestionFormsView.FormLine;
+import com.appv4.auth.application.service.question.QuestionFormLooks;
+import com.appv4.auth.application.service.question.QuestionGamification;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.CardLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ChoiceLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ColumnLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.GapWordLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ItemLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.LinkLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.PairLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.PieceLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.QuestionLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.SimonElementLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.StatementLine;
+import com.appv4.auth.application.result.TeacherSubjectQuestionsView.ZoneLine;
+import com.appv4.auth.application.port.out.TeacherQuestionPort.ClickPoint;
+import com.appv4.auth.application.service.TeacherQuestionService;
+import com.appv4.configuration.OpenApiConfiguration;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+/**
+ * Questions du professeur connecté (SCRUM-174, SCRUM-175, SCRUM-176, SCRUM-177).
+ *
+ * <p><b>Business :</b> il voit les formes proposables, puis il prépare un énoncé,
+ * des paires, une liste déjà rangée, ou des phrases vraies ou fausses.
+ * Il peut corriger une question déjà là. La forme de cette question ne change pas.
+ * Une autre forme n'est pas acceptée. Il peut aussi copier une ou plusieurs
+ * questions vers une matière à laquelle il a accès. Les originaux restent.
+ * Il peut aussi en supprimer une ou plusieurs. Avant ça, l'écran lui montre
+ * combien d'enfants suivent le cours et la liste de leurs noms.
+ * L'élève ne joue pas les autres formes ici. La réponse libre (SCRUM-198)
+ * ajoute l'énoncé et la réponse attendue. La saisie lettre par lettre
+ * (SCRUM-182) ajoute le mot, puis Valider compare les cases. Le Simon
+ * (ADMIN-25) ajoute le genre des éléments, les éléments et la suite à refaire.
+ * <p><b>Technique :</b> {@code /api/int/teacher/question-forms} et
+ * {@code /api/int/teacher/subjects/{id}/questions}. JWT obligatoire, espace {@code teacher}.
+ * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link TeacherQuestionUseCase}.
+ */
+@RestController
+@RequestMapping("/api/int/teacher")
+@Tag(name = "Professeur — questions")
+@SecurityRequirement(name = OpenApiConfiguration.BEARER_JWT)
+public class TeacherQuestionController {
+
+	private final TeacherQuestionUseCase teacherQuestionUseCase;
+
+	public TeacherQuestionController(TeacherQuestionUseCase teacherQuestionUseCase) {
+		this.teacherQuestionUseCase = teacherQuestionUseCase;
+	}
+
+	@GetMapping("/question-forms")
+	@Operation(operationId = "listTeacherQuestionForms", summary = "Lister les formes de questions proposables")
+	@ApiResponse(responseCode = "200", description = "Formes que le professeur peut préparer maintenant")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherQuestionFormsResponse> listForms(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		return ResponseEntity.ok(forms(teacherQuestionUseCase.listForms(user.userId(), user.activeRole())));
+	}
+
+	@GetMapping("/question-gamification")
+	@Operation(operationId = "getTeacherQuestionGamification", summary = "Lire le barème et le défaut de gamification")
+	@ApiResponse(responseCode = "200", description = "Défaut d'une question neuve et barème des difficultés")
+	public ResponseEntity<TeacherQuestionGamificationCatalog> gamificationCatalog(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		teacherQuestionUseCase.listForms(user.userId(), user.activeRole());
+		QuestionGamification.Resolved defaults = QuestionGamification.defaults();
+		List<TeacherQuestionDifficultyItem> levels = QuestionGamification.scale().stream()
+				.map(level -> new TeacherQuestionDifficultyItem(level.code(), level.label(), level.pointsByAttempt()))
+				.toList();
+		return ResponseEntity.ok(new TeacherQuestionGamificationCatalog(gamificationItem(defaults), levels));
+	}
+
+	@GetMapping("/subjects/{subjectId}/questions")
+	@Operation(operationId = "listTeacherSubjectQuestions", summary = "Lister les questions d'une matière")
+	@ApiResponse(responseCode = "200", description = "Énoncés de cette matière, du plus ancien au plus récent")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectQuestionsResponse> list(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@RequestParam(defaultValue = "0") long afterId,
+			@RequestParam(defaultValue = "25") int limit) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		return ResponseEntity.ok(questions(
+				teacherQuestionUseCase.list(user.userId(), user.activeRole(), subjectId, afterId, limit)));
+	}
+
+	@GetMapping("/subjects/{subjectId}/questions/{questionId}")
+	@Operation(operationId = "getTeacherSubjectQuestion", summary = "Lire une question avec ses images")
+	@ApiResponse(responseCode = "200", description = "Question, octets des images inclus")
+	@ApiResponse(responseCode = "404", description = "Matière ou question absente pour ce professeur")
+	public ResponseEntity<TeacherSubjectQuestionItem> get(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@PathVariable long questionId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		return ResponseEntity.ok(item(
+				teacherQuestionUseCase.get(user.userId(), user.activeRole(), subjectId, questionId), true));
+	}
+
+	@PostMapping("/subjects/{subjectId}/questions")
+	@Operation(operationId = "createTeacherSubjectQuestion", summary = "Ajouter une question à une matière")
+	@ApiResponse(responseCode = "200", description = "Question enregistrée")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Forme inconnue, énoncé invalide, ou contenu insuffisant pour cette forme",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectQuestionItem> create(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@Valid @RequestBody CreateTeacherSubjectQuestionRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		CreateTeacherSubjectQuestionRequest body = request == null
+				? new CreateTeacherSubjectQuestionRequest(
+						null, null, null, null, null, null, null, null, null, null, null, null, null,
+						null, null, null, null, null, null, null, null, null, null, null, null, null)
+				: request;
+		QuestionLine line = teacherQuestionUseCase.create(
+				user.userId(),
+				user.activeRole(),
+				subjectId,
+				body.formCode(),
+				body.prompt(),
+				content(body),
+				gamification(body));
+		return ResponseEntity.ok(item(line, true));
+	}
+
+	@PutMapping("/subjects/{subjectId}/questions/{questionId}")
+	@Operation(operationId = "updateTeacherSubjectQuestion", summary = "Corriger une question déjà enregistrée")
+	@ApiResponse(responseCode = "200", description = "Question corrigée, la forme ne change pas")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Forme inconnue ou différente, énoncé invalide, ou contenu insuffisant pour cette forme",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière ou question absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectQuestionItem> update(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@PathVariable long questionId,
+			@Valid @RequestBody CreateTeacherSubjectQuestionRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		CreateTeacherSubjectQuestionRequest body = request == null
+				? new CreateTeacherSubjectQuestionRequest(
+						null, null, null, null, null, null, null, null, null, null, null, null, null,
+						null, null, null, null, null, null, null, null, null, null, null, null, null)
+				: request;
+		QuestionLine line = teacherQuestionUseCase.update(
+				user.userId(),
+				user.activeRole(),
+				subjectId,
+				questionId,
+				body.formCode(),
+				body.prompt(),
+				content(body),
+				gamification(body));
+		return ResponseEntity.ok(item(line, true));
+	}
+
+	@PostMapping("/subjects/{subjectId}/questions/{questionId}/attempt")
+	@Operation(operationId = "tryTeacherLetterAnswer", summary = "Valider un mot composé lettre par lettre")
+	@ApiResponse(responseCode = "200", description = "Le mot est accepté ou refusé")
+	@ApiResponse(
+			responseCode = "400",
+			description = "La question n'est pas une saisie lettre par lettre",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière ou question absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<LetterAttemptResponse> tryLetter(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@PathVariable long questionId,
+			@RequestBody LetterAttemptRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		LetterAttemptRequest body = request == null ? new LetterAttemptRequest(null) : request;
+		LetterAttemptView view = teacherQuestionUseCase.tryLetterAnswer(
+				user.userId(), user.activeRole(), subjectId, questionId, body.attempt());
+		return ResponseEntity.ok(new LetterAttemptResponse(view.accepted(), view.message()));
+	}
+
+	@PostMapping("/subjects/{subjectId}/questions/clone")
+	@Operation(operationId = "cloneTeacherSubjectQuestions", summary = "Copier des questions vers une matière")
+	@ApiResponse(responseCode = "200", description = "Copies créées, les questions d'origine restent")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Aucune question choisie, ou matière d'arrivée absente de la demande",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière ou question absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectQuestionsResponse> cloneQuestions(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@RequestBody CloneTeacherSubjectQuestionsRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		CloneTeacherSubjectQuestionsRequest body = request == null
+				? new CloneTeacherSubjectQuestionsRequest(null, null)
+				: request;
+		long targetSubjectId = body.targetSubjectId() == null ? 0L : body.targetSubjectId();
+		return ResponseEntity.ok(questions(teacherQuestionUseCase.cloneQuestions(
+				user.userId(),
+				user.activeRole(),
+				subjectId,
+				targetSubjectId,
+				body.questionIds())));
+	}
+
+	@GetMapping("/subjects/{subjectId}/followers")
+	@Operation(operationId = "listTeacherSubjectFollowers", summary = "Voir quels enfants suivent ce cours")
+	@ApiResponse(responseCode = "200", description = "Nombre d'enfants et leurs noms, avant une suppression")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<TeacherSubjectFollowersResponse> followers(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		TeacherSubjectFollowersView view = teacherQuestionUseCase.followers(
+				user.userId(), user.activeRole(), subjectId);
+		return ResponseEntity.ok(new TeacherSubjectFollowersResponse(view.childCount(), view.warning(), view.names()));
+	}
+
+	@PostMapping("/subjects/{subjectId}/questions/delete")
+	@Operation(operationId = "deleteTeacherSubjectQuestions", summary = "Supprimer une ou plusieurs questions")
+	@ApiResponse(responseCode = "200", description = "Questions retirées de la matière")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Aucune question choisie",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Matière ou question absente pour ce professeur",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<DeleteTeacherSubjectQuestionsResponse> deleteQuestions(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long subjectId,
+			@RequestBody DeleteTeacherSubjectQuestionsRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		DeleteTeacherSubjectQuestionsRequest body = request == null
+				? new DeleteTeacherSubjectQuestionsRequest(null)
+				: request;
+		return ResponseEntity.ok(new DeleteTeacherSubjectQuestionsResponse(teacherQuestionUseCase.deleteQuestions(
+				user.userId(),
+				user.activeRole(),
+				subjectId,
+				body.questionIds())));
+	}
+
+	private static ContentInput content(CreateTeacherSubjectQuestionRequest body) {
+		String code = body.formCode() == null ? "" : body.formCode().trim();
+		if (PlayableQuestionForm.codes().contains(code)) {
+			validateTeacherVariant(body, QuestionHttpForm.of(PlayableQuestionForm.require(code)));
+		}
+		if (TeacherQuestionService.TRUE_FALSE.equals(code)) {
+			return new StatementsInput(statementInputs(body.statements()));
+		}
+		if (TeacherQuestionService.LINKS.equals(code)) {
+			return new LinksInput(linkInputs(body.links()));
+		}
+		if (TeacherQuestionService.CLASSIFICATION.equals(code)) {
+			return new ClassificationInput(columnInputs(body.columns()), cardInputs(body.cards()));
+		}
+		if (TeacherQuestionService.CASE_VIDE.equals(code)) {
+			return new GapsInput(body.sentence(), wordInputs(body.answers()), wordInputs(body.decoys()));
+		}
+		if (TeacherQuestionService.TEXTE.equals(code) || TeacherQuestionService.REPONSE_LIBRE.equals(code)) {
+			return new FreeTextInput(body.expectedAnswer());
+		}
+		if (TeacherQuestionService.IMAGE_CLICK.equals(code)) {
+			return new ClickImageInput(
+					body.imageWebp(), body.requireAllCorrect(), body.clicksOrdered(), zoneInputs(body.zones()));
+		}
+		if (TeacherQuestionService.PUZZLE.equals(code)) {
+			return new PuzzleInput(
+					body.imageWebp(),
+					body.boardMode(),
+					body.boardImageWebp(),
+					body.snapDistance(),
+					pieceInputs(body.pieces()));
+		}
+		if (TeacherQuestionService.ORDER.equals(code)) {
+			return new OrderInput(body.timelineEnabled(), itemInputs(body.items()));
+		}
+		if (TeacherQuestionService.SIMON.equals(code)) {
+			return new SimonInput(body.elementType(), simonElementInputs(body.elements()), body.sequence());
+		}
+		return new LegacyInput(inputs(body.choices()), pairInputs(body.pairs()), itemInputs(body.items()));
+	}
+
+	private static void validateTeacherVariant(CreateTeacherSubjectQuestionRequest body, QuestionHttpForm form) {
+		List<ContentField> fields = List.of(
+				new ContentField("choices", body.choices()), new ContentField("pairs", body.pairs()),
+				new ContentField("items", body.items()), new ContentField("statements", body.statements()),
+				new ContentField("links", body.links()), new ContentField("columns", body.columns()),
+				new ContentField("cards", body.cards()), new ContentField("sentence", body.sentence()),
+				new ContentField("answers", body.answers()), new ContentField("decoys", body.decoys()),
+				new ContentField("expectedAnswer", body.expectedAnswer()), new ContentField("imageWebp", body.imageWebp()),
+				new ContentField("boardMode", body.boardMode()), new ContentField("boardImageWebp", body.boardImageWebp()),
+				new ContentField("requireAllCorrect", body.requireAllCorrect()), new ContentField("zones", body.zones()),
+				new ContentField("pieces", body.pieces()), new ContentField("snapDistance", body.snapDistance()),
+				new ContentField("timelineEnabled", body.timelineEnabled()),
+				new ContentField("clicksOrdered", body.clicksOrdered()),
+				new ContentField("elementType", body.elementType()), new ContentField("elements", body.elements()),
+				new ContentField("sequence", body.sequence()));
+		boolean mixed = fields.stream().filter(ContentField::present)
+				.anyMatch(field -> !form.teacherRequired().contains(field.name())
+						&& !form.teacherOptional().contains(field.name()));
+		if (mixed) {
+			throw QuestionPlayEngine.invalidAnswer();
+		}
+	}
+
+	private record ContentField(String name, Object value) {
+		boolean present() {
+			return switch (value) {
+				case null -> false;
+				case List<?> rows -> !rows.isEmpty();
+				case String text -> !text.isBlank();
+				default -> true;
+			};
+		}
+	}
+
+	/**
+	 * Un élément null reste à sa place (le formulaire le refuse) : la suite désigne
+	 * les éléments par leur position, qui ne doit pas glisser.
+	 */
+	private static List<SimonElementInput> simonElementInputs(List<TeacherQuestionSimonElementInput> elements) {
+		if (elements == null) {
+			return List.of();
+		}
+		List<SimonElementInput> inputs = new ArrayList<>();
+		for (TeacherQuestionSimonElementInput element : elements) {
+			inputs.add(element == null
+					? null
+					: new SimonElementInput(element.label(), element.color(), element.imageWebp()));
+		}
+		return inputs;
+	}
+
+	private static List<ChoiceInput> inputs(List<TeacherQuestionChoiceInput> choices) {
+		if (choices == null) {
+			return List.of();
+		}
+		List<ChoiceInput> inputs = new ArrayList<>();
+		for (TeacherQuestionChoiceInput choice : choices) {
+			if (choice == null) {
+				continue;
+			}
+			inputs.add(new ChoiceInput(choice.label(), choice.correct(), choice.imageWebp()));
+		}
+		return inputs;
+	}
+
+	private static List<PairInput> pairInputs(List<TeacherQuestionPairInput> pairs) {
+		if (pairs == null) {
+			return List.of();
+		}
+		List<PairInput> inputs = new ArrayList<>();
+		for (TeacherQuestionPairInput pair : pairs) {
+			if (pair == null) {
+				continue;
+			}
+			inputs.add(new PairInput(
+					pair.questionSide(), pair.answerSide(), pair.questionImageWebp(), pair.answerImageWebp()));
+		}
+		return inputs;
+	}
+
+	private static List<ItemInput> itemInputs(List<TeacherQuestionItemInput> items) {
+		if (items == null) {
+			return List.of();
+		}
+		List<ItemInput> inputs = new ArrayList<>();
+		for (TeacherQuestionItemInput item : items) {
+			if (item == null) {
+				continue;
+			}
+			inputs.add(new ItemInput(item.label(), item.axisLabel(), item.imageWebp()));
+		}
+		return inputs;
+	}
+
+	private static List<StatementInput> statementInputs(List<TeacherQuestionStatementInput> statements) {
+		if (statements == null) {
+			return List.of();
+		}
+		List<StatementInput> inputs = new ArrayList<>();
+		for (TeacherQuestionStatementInput statement : statements) {
+			if (statement == null) {
+				continue;
+			}
+			inputs.add(new StatementInput(statement.label(), statement.truthful(), statement.imageWebp()));
+		}
+		return inputs;
+	}
+
+	private static List<GapWordInput> wordInputs(List<TeacherQuestionGapWordInput> words) {
+		if (words == null) {
+			return List.of();
+		}
+		List<GapWordInput> inputs = new ArrayList<>();
+		for (TeacherQuestionGapWordInput word : words) {
+			if (word == null) {
+				continue;
+			}
+			inputs.add(new GapWordInput(word.label()));
+		}
+		return inputs;
+	}
+
+	private static List<ClickZoneInput> zoneInputs(List<TeacherQuestionZoneInput> zones) {
+		if (zones == null) {
+			return List.of();
+		}
+		List<ClickZoneInput> inputs = new ArrayList<>();
+		for (TeacherQuestionZoneInput zone : zones) {
+			if (zone == null) {
+				continue;
+			}
+			inputs.add(new ClickZoneInput(
+					zone.label(), zone.correct(), zone.shape(), pointInputs(zone.points()), zone.clickOrder()));
+		}
+		return inputs;
+	}
+
+	private static List<PuzzlePieceInput> pieceInputs(List<TeacherQuestionPieceInput> pieces) {
+		if (pieces == null) {
+			return List.of();
+		}
+		List<PuzzlePieceInput> inputs = new ArrayList<>();
+		for (TeacherQuestionPieceInput piece : pieces) {
+			if (piece == null) {
+				continue;
+			}
+			inputs.add(new PuzzlePieceInput(
+					piece.label(),
+					piece.shape(),
+					pointInputs(piece.points()),
+					piece.slotX(),
+					piece.slotY(),
+					piece.slotWidth()));
+		}
+		return inputs;
+	}
+
+	private static List<ClickPointInput> pointInputs(List<TeacherQuestionPointInput> points) {
+		if (points == null) {
+			return List.of();
+		}
+		List<ClickPointInput> inputs = new ArrayList<>();
+		for (TeacherQuestionPointInput point : points) {
+			if (point == null) {
+				continue;
+			}
+			inputs.add(new ClickPointInput(point.x(), point.y()));
+		}
+		return inputs;
+	}
+
+	private static List<LinkInput> linkInputs(List<TeacherQuestionLinkInput> links) {
+		if (links == null) {
+			return List.of();
+		}
+		List<LinkInput> inputs = new ArrayList<>();
+		for (TeacherQuestionLinkInput link : links) {
+			if (link == null) {
+				continue;
+			}
+			inputs.add(new LinkInput(link.leftLabel(), link.rightLabel(), link.leftImageWebp(), link.rightImageWebp()));
+		}
+		return inputs;
+	}
+
+	private static List<ColumnInput> columnInputs(List<TeacherQuestionColumnInput> columns) {
+		if (columns == null) {
+			return List.of();
+		}
+		List<ColumnInput> inputs = new ArrayList<>();
+		for (TeacherQuestionColumnInput column : columns) {
+			if (column == null) {
+				continue;
+			}
+			inputs.add(new ColumnInput(column.label()));
+		}
+		return inputs;
+	}
+
+	private static List<CardInput> cardInputs(List<TeacherQuestionCardInput> cards) {
+		if (cards == null) {
+			return List.of();
+		}
+		List<CardInput> inputs = new ArrayList<>();
+		for (TeacherQuestionCardInput card : cards) {
+			if (card == null) {
+				continue;
+			}
+			inputs.add(new CardInput(card.label(), card.columnIndex(), card.imageWebp()));
+		}
+		return inputs;
+	}
+
+	private static TeacherQuestionFormsResponse forms(TeacherQuestionFormsView view) {
+		List<TeacherQuestionFormItem> items = new ArrayList<>();
+		for (FormLine form : view.forms()) {
+			QuestionFormLooks.Look look = QuestionFormLooks.of(form.code());
+			items.add(new TeacherQuestionFormItem(
+					form.code(),
+					form.label(),
+					form.sortOrder(),
+					look == null ? null : look.iconCode(),
+					look == null ? null : look.color()));
+		}
+		return new TeacherQuestionFormsResponse(items);
+	}
+
+	private static TeacherSubjectQuestionsResponse questions(TeacherSubjectQuestionsView view) {
+		List<TeacherSubjectQuestionItem> items = new ArrayList<>();
+		for (QuestionLine line : view.questions()) {
+			items.add(item(line, false));
+		}
+		return new TeacherSubjectQuestionsResponse(items, view.nextCursor());
+	}
+
+	private static TeacherSubjectQuestionItem item(QuestionLine line, boolean includeBytes) {
+		List<TeacherQuestionChoiceItem> choices = new ArrayList<>();
+		for (ChoiceLine choice : line.choices()) {
+			choices.add(new TeacherQuestionChoiceItem(
+					choice.id(), choice.label(), choice.correct(),
+					bytes(choice.imageWebp(), includeBytes), hasImage(choice.imageWebp())));
+		}
+		List<TeacherQuestionPairItem> pairs = new ArrayList<>();
+		for (PairLine pair : line.pairs()) {
+			pairs.add(new TeacherQuestionPairItem(
+					pair.id(), pair.questionSide(), pair.answerSide(),
+					bytes(pair.questionImageWebp(), includeBytes), hasImage(pair.questionImageWebp()),
+					bytes(pair.answerImageWebp(), includeBytes), hasImage(pair.answerImageWebp())));
+		}
+		List<TeacherQuestionItem> items = new ArrayList<>();
+		for (ItemLine orderItem : line.items()) {
+			items.add(new TeacherQuestionItem(
+					orderItem.id(), orderItem.label(), orderItem.axisLabel(),
+					bytes(orderItem.imageWebp(), includeBytes), hasImage(orderItem.imageWebp())));
+		}
+		List<TeacherQuestionStatementItem> statements = new ArrayList<>();
+		for (StatementLine statement : line.statements()) {
+			statements.add(new TeacherQuestionStatementItem(
+					statement.id(), statement.label(), statement.truthful(),
+					bytes(statement.imageWebp(), includeBytes), hasImage(statement.imageWebp())));
+		}
+		List<TeacherQuestionLinkItem> links = new ArrayList<>();
+		for (LinkLine link : line.links()) {
+			links.add(new TeacherQuestionLinkItem(
+					link.id(), link.leftLabel(), link.rightLabel(),
+					bytes(link.leftImageWebp(), includeBytes), hasImage(link.leftImageWebp()),
+					bytes(link.rightImageWebp(), includeBytes), hasImage(link.rightImageWebp())));
+		}
+		List<TeacherQuestionColumnItem> columns = new ArrayList<>();
+		for (ColumnLine column : line.columns()) {
+			columns.add(new TeacherQuestionColumnItem(column.id(), column.label()));
+		}
+		List<TeacherQuestionCardItem> cards = new ArrayList<>();
+		for (CardLine card : line.cards()) {
+			cards.add(new TeacherQuestionCardItem(
+					card.id(), card.label(), card.correctColumnId(),
+					bytes(card.imageWebp(), includeBytes), hasImage(card.imageWebp())));
+		}
+		List<TeacherQuestionGapWordItem> answers = new ArrayList<>();
+		for (GapWordLine answer : line.answers()) {
+			answers.add(new TeacherQuestionGapWordItem(answer.id(), answer.label()));
+		}
+		List<TeacherQuestionGapWordItem> decoys = new ArrayList<>();
+		for (GapWordLine decoy : line.decoys()) {
+			decoys.add(new TeacherQuestionGapWordItem(decoy.id(), decoy.label()));
+		}
+		List<TeacherQuestionZoneItem> zones = new ArrayList<>();
+		for (ZoneLine zone : line.zones()) {
+			zones.add(new TeacherQuestionZoneItem(
+					zone.id(),
+					zone.label(),
+					zone.correct(),
+					zone.shape(),
+					pointItems(zone.points()),
+					zone.clickOrder()));
+		}
+		List<TeacherQuestionPieceItem> pieces = new ArrayList<>();
+		for (PieceLine piece : line.pieces()) {
+			pieces.add(new TeacherQuestionPieceItem(
+					piece.id(),
+					piece.label(),
+					piece.shape(),
+					pointItems(piece.points()),
+					piece.slotX(),
+					piece.slotY(),
+					piece.slotWidth()));
+		}
+		List<TeacherQuestionSimonElementItem> elements = new ArrayList<>();
+		for (SimonElementLine element : line.elements()) {
+			elements.add(new TeacherQuestionSimonElementItem(
+					element.id(), element.label(), element.color(),
+					bytes(element.imageWebp(), includeBytes), hasImage(element.imageWebp())));
+		}
+		return new TeacherSubjectQuestionItem(
+				line.id(), line.formCode(), line.formLabel(), line.prompt(),
+				choices, pairs, items, statements, links, columns, cards, line.sentence(), answers, decoys,
+				line.expectedAnswer(), bytes(line.imageWebp(), includeBytes), line.boardMode(),
+				bytes(line.boardImageWebp(), includeBytes), line.requireAllCorrect(), zones, pieces, line.snapDistance(),
+				line.timelineEnabled(), line.clicksOrdered(), line.elementType(), elements, line.sequence(),
+				gamificationItem(line.gamification()));
+	}
+
+	private static TeacherQuestionGamificationItem gamificationItem(QuestionGamification.Resolved resolved) {
+		return new TeacherQuestionGamificationItem(
+				resolved.maxAttempts(),
+				resolved.difficulty(),
+				resolved.difficultyLabel(),
+				resolved.customizePoints(),
+				resolved.gamificationDisabled(),
+				resolved.points());
+	}
+
+	private static GamificationInput gamification(CreateTeacherSubjectQuestionRequest body) {
+		TeacherQuestionGamificationInput input = body.gamification();
+		if (input == null) {
+			return null;
+		}
+		return new GamificationInput(
+				input.maxAttempts(),
+				input.difficulty(),
+				input.customizePoints(),
+				input.gamificationDisabled(),
+				input.points());
+	}
+
+	private static List<TeacherQuestionPointItem> pointItems(List<ClickPoint> points) {
+		List<TeacherQuestionPointItem> items = new ArrayList<>();
+		for (ClickPoint point : points) {
+			items.add(new TeacherQuestionPointItem(point.x(), point.y()));
+		}
+		return items;
+	}
+
+	private static String bytes(byte[] value, boolean include) {
+		return include ? base64(value) : "";
+	}
+
+	private static boolean hasImage(byte[] value) {
+		return value != null && value.length > 0;
+	}
+
+	private static String base64(byte[] bytes) {
+		if (bytes == null || bytes.length == 0) {
+			return "";
+		}
+		return Base64.getEncoder().encodeToString(bytes);
+	}
+
+	@Schema(name = "TeacherQuestionFormsResponse")
+	public record TeacherQuestionFormsResponse(List<TeacherQuestionFormItem> forms) {
+	}
+
+	@Schema(name = "TeacherQuestionFormItem")
+	public record TeacherQuestionFormItem(
+			String code,
+			String label,
+			int sortOrder,
+			@Schema(description = "Dessin de la forme. Null sans identité visuelle.", nullable = true)
+			String iconCode,
+			@Schema(description = "Couleur #rrggbb unique de la forme. Null sans identité.", nullable = true)
+			String color) {
+	}
+
+	@Schema(name = "TeacherSubjectQuestionsResponse")
+	public record TeacherSubjectQuestionsResponse(List<TeacherSubjectQuestionItem> questions, Long nextCursor) {
+	}
+
+	@Schema(name = "TeacherSubjectQuestionItem")
+	public record TeacherSubjectQuestionItem(
+			long id,
+			String formCode,
+			String formLabel,
+			String prompt,
+			List<TeacherQuestionChoiceItem> choices,
+			List<TeacherQuestionPairItem> pairs,
+			List<TeacherQuestionItem> items,
+			List<TeacherQuestionStatementItem> statements,
+			List<TeacherQuestionLinkItem> links,
+			List<TeacherQuestionColumnItem> columns,
+			List<TeacherQuestionCardItem> cards,
+			String sentence,
+			List<TeacherQuestionGapWordItem> answers,
+			List<TeacherQuestionGapWordItem> decoys,
+			String expectedAnswer,
+			String imageWebp,
+			String boardMode,
+			String boardImageWebp,
+			Boolean requireAllCorrect,
+			List<TeacherQuestionZoneItem> zones,
+			List<TeacherQuestionPieceItem> pieces,
+			Double snapDistance,
+			Boolean timelineEnabled,
+			Boolean clicksOrdered,
+			@Schema(description = "Simon seulement : couleurs, nombres, lettres ou formes.")
+			String elementType,
+			@Schema(description = "Simon seulement : éléments dans l'ordre saisi. "
+					+ "Leur position (0, 1, 2…) est celle que la suite désigne.")
+			List<TeacherQuestionSimonElementItem> elements,
+			@Schema(description = "Simon seulement : la suite à refaire, "
+					+ "chaque pas étant la position 0-based d'un élément de elements.")
+			List<Integer> sequence,
+			TeacherQuestionGamificationItem gamification) {
+		public TeacherSubjectQuestionItem(
+				long id,
+				String formCode,
+				String formLabel,
+				String prompt,
+				List<TeacherQuestionChoiceItem> choices,
+				List<TeacherQuestionPairItem> pairs,
+				List<TeacherQuestionItem> items,
+				List<TeacherQuestionStatementItem> statements,
+				List<TeacherQuestionLinkItem> links,
+				List<TeacherQuestionColumnItem> columns,
+				List<TeacherQuestionCardItem> cards,
+				String sentence,
+				List<TeacherQuestionGapWordItem> answers,
+				List<TeacherQuestionGapWordItem> decoys,
+				String expectedAnswer,
+				String imageWebp,
+				String boardMode,
+				String boardImageWebp,
+				Boolean requireAllCorrect,
+				List<TeacherQuestionZoneItem> zones,
+				List<TeacherQuestionPieceItem> pieces,
+				Double snapDistance,
+				Boolean timelineEnabled) {
+			this(id, formCode, formLabel, prompt, choices, pairs, items, statements, links, columns, cards, sentence,
+					answers, decoys, expectedAnswer, imageWebp, boardMode, boardImageWebp, requireAllCorrect, zones,
+					pieces, snapDistance, timelineEnabled, null, null, List.of(), List.of(),
+					gamificationItem(QuestionGamification.defaults()));
+		}
+	}
+
+	@Schema(name = "TeacherQuestionGamificationCatalog")
+	public record TeacherQuestionGamificationCatalog(
+			TeacherQuestionGamificationItem defaults,
+			List<TeacherQuestionDifficultyItem> difficulties) {
+	}
+
+	@Schema(name = "TeacherQuestionDifficultyItem")
+	public record TeacherQuestionDifficultyItem(String code, String label, List<Integer> pointsByAttempt) {
+	}
+
+	@Schema(name = "TeacherQuestionGamificationItem")
+	public record TeacherQuestionGamificationItem(
+			int maxAttempts,
+			String difficulty,
+			String difficultyLabel,
+			boolean customizePoints,
+			boolean gamificationDisabled,
+			List<Integer> points) {
+	}
+
+	@Schema(name = "TeacherQuestionChoiceItem")
+	public record TeacherQuestionChoiceItem(
+			long id, String label, boolean correct, String imageWebp, boolean hasImage) {
+	}
+
+	@Schema(name = "TeacherQuestionPairItem")
+	public record TeacherQuestionPairItem(
+			long id, String questionSide, String answerSide,
+			String questionImageWebp, boolean questionHasImage,
+			String answerImageWebp, boolean answerHasImage) {
+	}
+
+	@Schema(name = "TeacherQuestionItem")
+	public record TeacherQuestionItem(long id, String label, String axisLabel, String imageWebp, boolean hasImage) {
+	}
+
+	@Schema(name = "TeacherQuestionStatementItem")
+	public record TeacherQuestionStatementItem(
+			long id, String label, boolean truthful, String imageWebp, boolean hasImage) {
+	}
+
+	@Schema(name = "TeacherQuestionLinkItem")
+	public record TeacherQuestionLinkItem(
+			long id, String leftLabel, String rightLabel,
+			String leftImageWebp, boolean leftHasImage, String rightImageWebp, boolean rightHasImage) {
+	}
+
+	@Schema(name = "TeacherQuestionColumnItem")
+	public record TeacherQuestionColumnItem(long id, String label) {
+	}
+
+	@Schema(name = "TeacherQuestionCardItem")
+	public record TeacherQuestionCardItem(
+			long id, String label, long correctColumnId, String imageWebp, boolean hasImage) {
+	}
+
+	@Schema(name = "TeacherQuestionGapWordItem")
+	public record TeacherQuestionGapWordItem(long id, String label) {
+	}
+
+	@Schema(name = "CloneTeacherSubjectQuestionsRequest")
+	public record CloneTeacherSubjectQuestionsRequest(Long targetSubjectId, List<Long> questionIds) {
+	}
+
+	@Schema(name = "TeacherSubjectFollowersResponse")
+	public record TeacherSubjectFollowersResponse(int childCount, String warning, List<String> names) {
+	}
+
+	@Schema(name = "DeleteTeacherSubjectQuestionsRequest")
+	public record DeleteTeacherSubjectQuestionsRequest(List<Long> questionIds) {
+	}
+
+	@Schema(name = "DeleteTeacherSubjectQuestionsResponse")
+	public record DeleteTeacherSubjectQuestionsResponse(List<Long> deletedIds) {
+	}
+
+	@Schema(name = "LetterAttemptRequest")
+	public record LetterAttemptRequest(String attempt) {
+	}
+
+	@Schema(name = "LetterAttemptResponse")
+	public record LetterAttemptResponse(boolean accepted, String message) {
+	}
+
+	@Schema(name = "CreateTeacherSubjectQuestionRequest")
+	public record CreateTeacherSubjectQuestionRequest(
+			String formCode,
+			String prompt,
+			List<@NotNull @Valid TeacherQuestionChoiceInput> choices,
+			List<@NotNull @Valid TeacherQuestionPairInput> pairs,
+			List<@NotNull @Valid TeacherQuestionItemInput> items,
+			List<@NotNull @Valid TeacherQuestionStatementInput> statements,
+			List<@NotNull @Valid TeacherQuestionLinkInput> links,
+			List<@NotNull @Valid TeacherQuestionColumnInput> columns,
+			List<@NotNull @Valid TeacherQuestionCardInput> cards,
+			String sentence,
+			List<@NotNull @Valid TeacherQuestionGapWordInput> answers,
+			List<@NotNull @Valid TeacherQuestionGapWordInput> decoys,
+			String expectedAnswer,
+			String imageWebp,
+			String boardMode,
+			String boardImageWebp,
+			Boolean requireAllCorrect,
+			List<@NotNull @Valid TeacherQuestionZoneInput> zones,
+			List<@NotNull @Valid TeacherQuestionPieceInput> pieces,
+			Double snapDistance,
+			Boolean timelineEnabled,
+			Boolean clicksOrdered,
+			@Schema(description = "Simon seulement : couleurs, nombres, lettres ou formes.")
+			String elementType,
+			@Schema(description = "Simon seulement : au moins deux éléments du genre choisi, dans l'ordre voulu.")
+			List<@Valid TeacherQuestionSimonElementInput> elements,
+			@Schema(description = "Ancien champ Simon. La suite est désormais tirée à l'ouverture.", deprecated = true)
+			List<Integer> sequence,
+			@Schema(description = "Essais, difficulté et points. Absent : 1 essai, Facile, gamification allumée.")
+			TeacherQuestionGamificationInput gamification) {
+	}
+
+	@Schema(name = "TeacherQuestionGamificationInput")
+	public record TeacherQuestionGamificationInput(
+			Integer maxAttempts,
+			String difficulty,
+			Boolean customizePoints,
+			Boolean gamificationDisabled,
+			List<Integer> points) {
+	}
+
+	@Schema(name = "TeacherQuestionSimonElementInput")
+	public record TeacherQuestionSimonElementInput(
+			@Schema(description = "Texte libre. Absent si l'élément est une image ou une couleur.")
+			String label,
+			@Schema(description = "Code #rrggbb si l'élément est une couleur sans mot.")
+			String color,
+			@Schema(description = "WebP base64 si l'élément est une image.")
+			String imageWebp) {
+	}
+
+	@Schema(name = "TeacherQuestionSimonElementItem")
+	public record TeacherQuestionSimonElementItem(
+			long id,
+			String label,
+			String color,
+			String imageWebp,
+			boolean hasImage) {
+	}
+
+	@Schema(name = "TeacherQuestionColumnInput")
+	public record TeacherQuestionColumnInput(String label) {
+	}
+
+	@Schema(name = "TeacherQuestionCardInput")
+	public record TeacherQuestionCardInput(String label, Integer columnIndex, String imageWebp) {
+	}
+
+	@Schema(name = "TeacherQuestionPieceInput")
+	public record TeacherQuestionPieceInput(
+			String label,
+			String shape,
+			List<TeacherQuestionPointInput> points,
+			Double slotX,
+			Double slotY,
+			@Schema(description = "Fond dédié seulement : largeur de la pièce sur le fond "
+					+ "(0,02 à 1 de la largeur du plateau). Absente : taille de la découpe.")
+			Double slotWidth) {
+	}
+
+	@Schema(name = "TeacherQuestionZoneInput")
+	public record TeacherQuestionZoneInput(
+			String label,
+			Boolean correct,
+			String shape,
+			List<TeacherQuestionPointInput> points,
+			Integer clickOrder) {
+	}
+
+	@Schema(name = "TeacherQuestionPointInput")
+	public record TeacherQuestionPointInput(Double x, Double y) {
+	}
+
+	@Schema(name = "TeacherQuestionZoneItem")
+	public record TeacherQuestionZoneItem(
+			long id,
+			String label,
+			boolean correct,
+			String shape,
+			List<TeacherQuestionPointItem> points,
+			Integer clickOrder) {
+	}
+
+	@Schema(name = "TeacherQuestionPieceItem")
+	public record TeacherQuestionPieceItem(
+			long id,
+			String label,
+			String shape,
+			List<TeacherQuestionPointItem> points,
+			Double slotX,
+			Double slotY,
+			@Schema(description = "Largeur de la pièce sur le fond dédié (0–1 de la largeur du plateau). "
+					+ "Absente : taille de la découpe.")
+			Double slotWidth) {
+	}
+
+	@Schema(name = "TeacherQuestionPointItem")
+	public record TeacherQuestionPointItem(double x, double y) {
+	}
+
+	@Schema(name = "TeacherQuestionChoiceInput")
+	public record TeacherQuestionChoiceInput(String label, Boolean correct, String imageWebp) {
+	}
+
+	@Schema(name = "TeacherQuestionPairInput")
+	public record TeacherQuestionPairInput(
+			String questionSide, String answerSide, String questionImageWebp, String answerImageWebp) {
+	}
+
+	@Schema(name = "TeacherQuestionItemInput")
+	public record TeacherQuestionItemInput(String label, String axisLabel, String imageWebp) {
+	}
+
+	@Schema(name = "TeacherQuestionStatementInput")
+	public record TeacherQuestionStatementInput(String label, @NotNull Boolean truthful, String imageWebp) {
+	}
+
+	@Schema(name = "TeacherQuestionLinkInput")
+	public record TeacherQuestionLinkInput(
+			String leftLabel, String rightLabel, String leftImageWebp, String rightImageWebp) {
+	}
+
+	@Schema(name = "TeacherQuestionGapWordInput")
+	public record TeacherQuestionGapWordInput(String label) {
+	}
+}

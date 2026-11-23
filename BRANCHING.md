@@ -34,12 +34,12 @@ feature/*  --PR(+CI)-->  develop  --PR(+CI)-->  release  --CD-->  Azure
 
 ## Protections GitHub (obligatoires) — déjà activées
 
-Sur **`develop`** et **`release`** (ruleset + branch protection) :
+Sur **`develop`** et **`release`** :
 
-- Merge **uniquement via PR** (pas de push direct)
-- Status check obligatoire : **`lint-test-build`** (Checkstyle + tests + package)
+- **Ruleset** « Gate CI before merge » : status check obligatoire **`lint-test-build`** (une seule fois — ne pas aussi l’exiger dans la branch protection classique, sinon GitHub affiche 2–3 checks « Expected » du même nom)
+- Branch protection classique : PR obligatoire, pas de force-push / suppression (sans re-déclarer le même check)
 - CI rouge ⇒ bouton merge bloqué
-- Pas de force-push / suppression de branche
+
 
 ## CI actuelle (gate avant merge humain)
 
@@ -47,9 +47,7 @@ Workflow : `.github/workflows/ci-develop.yml`
 Triggers : `push` / `pull_request` vers **`develop`**, et `pull_request` vers **`release`** / **`release/**`.
 
 Obligatoire (CI rouge = **pas de merge**) :
-1. **Lint** — Checkstyle (`./mvnw checkstyle:check`)
-2. **Tests** — `./mvnw test`
-3. **Package** — `./mvnw package`
+Le job exécute `./mvnw -B verify` avec son service PostgreSQL éphémère. Maven contrôle le style, exécute les tests Surefire, produit le JAR puis vérifie les tests d’intégration Failsafe. La commande locale équivalente est décrite dans [QUESTION_CONTENT.md](./QUESTION_CONTENT.md#vérification).
 
 > En Java, le « linter » standard côté Maven est **Checkstyle** (style / imports / naming). SpotBugs / PMD existent aussi pour la qualité, hors scope actuel.
 

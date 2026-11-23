@@ -1,0 +1,582 @@
+package com.appv4.auth.infrastructure.adapter.in.web;
+
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.appv4.auth.application.port.in.ParentChildrenUseCase;
+import com.appv4.auth.application.port.in.ParentChildrenUseCase.NewChildCommand;
+import com.appv4.auth.application.port.out.ChildPort.ChildPhoto;
+import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
+import com.appv4.auth.application.result.ParentChildrenView;
+import com.appv4.auth.application.result.ParentChildrenView.ChildCard;
+import com.appv4.configuration.OpenApiConfiguration;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+/**
+ * Enfants du parent connecté (SCRUM-156).
+ *
+ * <p><b>Business :</b> il ajoute un enfant, puis un autre, et les retrouve ici.
+ * Le code PIN n'est pas renvoyé. Un professeur n'ouvre pas cette page.
+ * <p><b>Technique :</b> {@code GET} et {@code POST /api/int/parent/children}, JWT, espace parent.
+ * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link ParentChildrenUseCase}.
+ */
+@RestController
+@RequestMapping("/api/int/parent/children")
+@Tag(name = "Parent — enfants")
+@SecurityRequirement(name = OpenApiConfiguration.BEARER_JWT)
+public class ParentChildrenController {
+
+	private final ParentChildrenUseCase parentChildrenUseCase;
+
+	public ParentChildrenController(ParentChildrenUseCase parentChildrenUseCase) {
+		this.parentChildrenUseCase = parentChildrenUseCase;
+	}
+
+	@GetMapping
+	@Operation(operationId = "listParentChildren", summary = "Lister les enfants du parent connecté")
+	@ApiResponse(responseCode = "200", description = "Fiches du parent et écoles proposables")
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<ParentChildrenResponse> list(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		return ResponseEntity.ok(toResponse(parentChildrenUseCase.list(user.userId(), user.activeRole())));
+	}
+
+	@PostMapping
+	@Operation(operationId = "addParentChild", summary = "Ajouter un enfant au parent connecté")
+	@ApiResponse(responseCode = "200", description = "Fiche créée, sans le PIN")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Champ obligatoire manquant, âge, classe, image, PIN ou lien refusé",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "403",
+			description = "Le jeton n'est pas dans l'espace parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "L'enfant de départ n'appartient pas à ce parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<ParentChildResponse> add(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@RequestBody CreateParentChildRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		CreateParentChildRequest body = request == null
+				? new CreateParentChildRequest(
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)
+				: request;
+		ChildCard card = parentChildrenUseCase.add(
+				user.userId(),
+				user.activeRole(),
+				new NewChildCommand(
+						body.firstName(),
+						body.lastName(),
+						body.sex(),
+						body.age(),
+						body.country(),
+						body.grade(),
+						body.schoolId(),
+						body.avatarCode(),
+						body.photoBase64(),
+						body.photoContentType(),
+						body.pin(),
+						body.pinConfirmation(),
+						body.fromChildId(),
+						body.link(),
+						body.interests()));
+		return ResponseEntity.ok(toChild(card));
+	}
+
+	private static NewChildCommand toCommand(CreateParentChildRequest request) {
+		CreateParentChildRequest body = request == null
+				? new CreateParentChildRequest(
+						null, null, null, null, null, null, null, null, null, null, null, null, null, null, null)
+				: request;
+		return new NewChildCommand(
+				body.firstName(),
+				body.lastName(),
+				body.sex(),
+				body.age(),
+				body.country(),
+				body.grade(),
+				body.schoolId(),
+				body.avatarCode(),
+				body.photoBase64(),
+				body.photoContentType(),
+				body.pin(),
+				body.pinConfirmation(),
+				body.fromChildId(),
+				body.link(),
+				body.interests());
+	}
+
+	@PutMapping("/{id}")
+	@Operation(operationId = "updateParentChild", summary = "Modifier un enfant du parent connecté")
+	@ApiResponse(responseCode = "200", description = "Fiche mise à jour, sans le PIN")
+	@ApiResponse(
+			responseCode = "400",
+			description = "Champ refusé",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	@ApiResponse(
+			responseCode = "404",
+			description = "Enfant introuvable pour ce parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<ParentChildResponse> update(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id,
+			@RequestBody CreateParentChildRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		ChildCard card = parentChildrenUseCase.update(user.userId(), user.activeRole(), id, toCommand(request));
+		return ResponseEntity.ok(toChild(card));
+	}
+
+	@PostMapping("/{id}/deactivate")
+	@Operation(operationId = "deactivateParentChild", summary = "Désactiver un enfant du parent connecté")
+	@ApiResponse(responseCode = "204", description = "Toujours affiché dans la liste, plus proposé ailleurs")
+	@ApiResponse(
+			responseCode = "404",
+			description = "Enfant introuvable pour ce parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> deactivate(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.deactivate(user.userId(), user.activeRole(), id);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{id}/reactivate")
+	@Operation(operationId = "reactivateParentChild", summary = "Réactiver un enfant du parent connecté")
+	@ApiResponse(responseCode = "204", description = "De nouveau proposé dans le reste de l'application")
+	@ApiResponse(
+			responseCode = "404",
+			description = "Enfant introuvable pour ce parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> reactivate(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.reactivate(user.userId(), user.activeRole(), id);
+		return ResponseEntity.noContent().build();
+	}
+
+	@DeleteMapping("/{id}")
+	@Operation(operationId = "deleteParentChild", summary = "Retirer un enfant de l'affichage")
+	@ApiResponse(responseCode = "204", description = "Retiré de l'affichage, fiche conservée en base")
+	@ApiResponse(
+			responseCode = "404",
+			description = "Enfant introuvable pour ce parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<Void> delete(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.hide(user.userId(), user.activeRole(), id);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/demandes")
+	@Operation(operationId = "requestChildShare", summary = "Demander une fiche par email, prénom et nom")
+	@ApiResponse(responseCode = "200", description = "Demande envoyée, sans dire si l'enfant existe")
+	public ResponseEntity<InvitationReceiptResponse> requestShare(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@RequestBody ShareRequestBody request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		ShareRequestBody body = request == null ? new ShareRequestBody(null, null, null) : request;
+		var receipt = parentChildrenUseCase.requestShare(
+				user.userId(), user.activeRole(), body.email(), body.firstName(), body.lastName());
+		return ResponseEntity.ok(new InvitationReceiptResponse(receipt.message()));
+	}
+
+	@GetMapping("/demandes")
+	@Operation(operationId = "listChildShareRequests", summary = "Lire les demandes adressées au parent référent")
+	public ResponseEntity<List<ShareRequestResponse>> shareRequests(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		List<ShareRequestResponse> body = parentChildrenUseCase.shareRequests(user.userId(), user.activeRole())
+				.stream()
+				.map(item -> new ShareRequestResponse(
+						item.id(),
+						item.firstName(),
+						item.lastName(),
+						item.matches().stream()
+								.map(match -> new ShareRequestChildResponse(
+										match.childId(), match.firstName(), match.lastName()))
+								.toList()))
+				.toList();
+		return ResponseEntity.ok(body);
+	}
+
+	@PostMapping("/demandes/{requestId}/accept")
+	@Operation(operationId = "acceptChildShareRequest", summary = "Accepter une demande pour une fiche")
+	public ResponseEntity<Void> acceptShare(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long requestId,
+			@RequestBody AcceptShareRequestBody request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.acceptShareRequest(
+				user.userId(), user.activeRole(), requestId, request == null ? 0 : request.childId());
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/demandes/{requestId}/refuse")
+	@Operation(operationId = "refuseChildShareRequest", summary = "Refuser une demande de partage")
+	public ResponseEntity<Void> refuseShare(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long requestId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.refuseShareRequest(user.userId(), user.activeRole(), requestId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@DeleteMapping("/demandes/{requestId}")
+	@Operation(operationId = "cancelChildShareRequest", summary = "Annuler sa demande de partage")
+	public ResponseEntity<Void> cancelShare(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long requestId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.cancelShareRequest(user.userId(), user.activeRole(), requestId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@GetMapping("/{id}/holders")
+	@Operation(operationId = "listChildHolders", summary = "Lire les parents déjà en partage")
+	public ResponseEntity<List<FicheHolderResponse>> holders(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		List<FicheHolderResponse> body = parentChildrenUseCase.holders(user.userId(), user.activeRole(), id)
+				.stream()
+				.map(holder -> new FicheHolderResponse(holder.userId(), holder.label()))
+				.toList();
+		return ResponseEntity.ok(body);
+	}
+
+	@PostMapping("/{id}/transferts")
+	@Operation(operationId = "startChildTransfer", summary = "Proposer à un parent déjà sur la fiche d'en devenir le référent")
+	public ResponseEntity<Void> startTransfer(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id,
+			@RequestBody StartTransferBody request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		StartTransferBody body = request == null ? new StartTransferBody(0, null) : request;
+		parentChildrenUseCase.startTransfer(
+				user.userId(), user.activeRole(), id, body.holderUserId(), body.message());
+		return ResponseEntity.noContent().build();
+	}
+
+	@GetMapping("/transferts")
+	@Operation(operationId = "listChildTransfers", summary = "Lire les transferts qui concernent ce parent")
+	public ResponseEntity<List<TransferResponse>> transfers(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		List<TransferResponse> body = parentChildrenUseCase.transfers(user.userId(), user.activeRole())
+				.stream()
+				.map(item -> new TransferResponse(
+						item.id(),
+						item.childId(),
+						item.firstName(),
+						item.lastName(),
+						item.message(),
+						item.incoming()))
+				.toList();
+		return ResponseEntity.ok(body);
+	}
+
+	@PostMapping("/transferts/{transferId}/accept")
+	@Operation(operationId = "acceptChildTransfer", summary = "Accepter de devenir le parent référent")
+	public ResponseEntity<Void> acceptTransfer(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long transferId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.acceptTransfer(user.userId(), user.activeRole(), transferId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/transferts/{transferId}/refuse")
+	@Operation(operationId = "refuseChildTransfer", summary = "Refuser un transfert")
+	public ResponseEntity<Void> refuseTransfer(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long transferId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.refuseTransfer(user.userId(), user.activeRole(), transferId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@DeleteMapping("/transferts/{transferId}")
+	@Operation(operationId = "cancelChildTransfer", summary = "Annuler un transfert encore en attente")
+	public ResponseEntity<Void> cancelTransfer(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long transferId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		parentChildrenUseCase.cancelTransfer(user.userId(), user.activeRole(), transferId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{id}/invitations")
+	@Operation(operationId = "inviteParentOnChild", summary = "Inviter un email sur la fiche")
+	@ApiResponse(responseCode = "200", description = "Invitation envoyée, sans dire si le compte existe")
+	public ResponseEntity<InvitationReceiptResponse> invite(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id,
+			@RequestBody InviteParentRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		var receipt = parentChildrenUseCase.invite(
+				user.userId(), user.activeRole(), id, request == null ? null : request.email());
+		return ResponseEntity.ok(new InvitationReceiptResponse(receipt.message()));
+	}
+
+	@GetMapping("/invitations")
+	@Operation(operationId = "listParentChildInvitations", summary = "Lire les invitations adressées au compte")
+	public ResponseEntity<List<PendingInvitationResponse>> invitations(
+			@AuthenticationPrincipal AuthenticatedUser principal) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		List<PendingInvitationResponse> body = parentChildrenUseCase
+				.pendingInvitations(user.userId(), user.activeRole())
+				.stream()
+				.map(item -> new PendingInvitationResponse(item.id(), item.childId(), item.firstName(), item.lastName()))
+				.toList();
+		return ResponseEntity.ok(body);
+	}
+
+	@PostMapping("/invitations/{invitationId}/accept")
+	@Operation(operationId = "acceptParentChildInvitation", summary = "Accepter une invitation et recevoir la fiche")
+	public ResponseEntity<ParentChildResponse> acceptInvitation(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long invitationId) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		return ResponseEntity.ok(toChild(
+				parentChildrenUseCase.acceptInvitation(user.userId(), user.activeRole(), invitationId)));
+	}
+
+	@GetMapping("/{id}/photo")
+	@Operation(operationId = "getParentChildPhoto", summary = "Lire la photo d'un enfant du parent connecté")
+	@ApiResponse(responseCode = "200", description = "Image de l'enfant")
+	@ApiResponse(
+			responseCode = "404",
+			description = "Pas de photo pour cet enfant, ou enfant d'un autre parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<byte[]> photo(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		ChildPhoto photo = parentChildrenUseCase.photo(user.userId(), user.activeRole(), id);
+		return ResponseEntity.ok()
+				.contentType(MediaType.parseMediaType(photo.contentType()))
+				.body(photo.bytes());
+	}
+
+	private static ParentChildrenResponse toResponse(ParentChildrenView view) {
+		List<ParentChildResponse> children = view.children().stream()
+				.map(ParentChildrenController::toChild)
+				.toList();
+		List<ParentSchoolOption> schools = view.schools().stream()
+				.map(school -> new ParentSchoolOption(school.id(), school.name(), school.country(), school.grades()))
+				.toList();
+		List<ParentGradeList> curricula = view.curricula().stream()
+				.map(list -> new ParentGradeList(list.country(), list.grades()))
+				.toList();
+		return new ParentChildrenResponse(children, schools, curricula);
+	}
+
+	private static ParentChildCharacter toCharacter(ParentChildrenView.CharacterFace face) {
+		List<ParentChildCharacterPin> pins = face.pins().stream()
+				.map(pin -> new ParentChildCharacterPin(pin.zoneCode(), pin.variantCode()))
+				.toList();
+		return new ParentChildCharacter(face.styleCode(), face.options(), pins);
+	}
+
+	private static ParentChildResponse toChild(ChildCard card) {
+		List<ParentChildLink> links = card.links().stream()
+				.map(mark -> new ParentChildLink(mark.otherChildId(), mark.label()))
+				.toList();
+		return new ParentChildResponse(
+				card.id(),
+				card.firstName(),
+				card.lastName(),
+				card.sex(),
+				card.age(),
+				card.country(),
+				card.curriculum(),
+				card.grade(),
+				card.schoolId(),
+				card.schoolName(),
+				card.avatarCode(),
+				card.hasPhoto(),
+				card.active(),
+				card.linkPhrases(),
+				card.schoolSubjectCount(),
+				card.extraSubjectCount(),
+				links,
+				toCharacter(card.character()),
+				card.interests(),
+				card.referent(),
+				card.pendingInvitationCount(),
+				card.pendingDemandeCount(),
+				card.pendingTransferCount());
+	}
+
+	@Schema(name = "ParentChildrenResponse")
+	public record ParentChildrenResponse(
+			List<ParentChildResponse> children,
+			List<ParentSchoolOption> schools,
+			List<ParentGradeList> curricula) {
+	}
+
+	@Schema(name = "ParentGradeList")
+	public record ParentGradeList(String country, List<String> grades) {
+	}
+
+	@Schema(name = "ParentChildResponse")
+	public record ParentChildResponse(
+			long id,
+			String firstName,
+			String lastName,
+			@Schema(description = "GARCON, FILLE ou NON_GENRE")
+			String sex,
+			int age,
+			String country,
+			String curriculum,
+			String grade,
+			Long schoolId,
+			String schoolName,
+			String avatarCode,
+			boolean hasPhoto,
+			@Schema(description = "Faux : encore dans la liste, plus proposé dans le reste de l'application")
+			boolean active,
+			@Schema(description = "Phrases de lien, par exemple « Noah est le frère de Léa ». Vide s'il n'y en a pas.")
+			List<String> linkPhrases,
+			@Schema(description = "Matières visibles de la même école et de la même année")
+			int schoolSubjectCount,
+			@Schema(description = "Autres matières visibles, hors de sa classe")
+			int extraSubjectCount,
+			@Schema(description = "L'autre enfant du lien, pour afficher sa photo ou son avatar, et le mot court.")
+			List<ParentChildLink> links,
+			@Schema(description = "Personnage choisi par l'enfant. Lorelei s'il n'a encore rien enregistré.")
+			ParentChildCharacter character,
+			@Schema(description = "Centres d'intérêt, dans l'ordre renvoyé par l'API.")
+			List<String> interests,
+			@Schema(description = "Vrai si ce parent gère la fiche.")
+			boolean referent,
+			@Schema(description = "Invitations encore en attente. Zéro si ce parent ne gère pas la fiche.")
+			int pendingInvitationCount,
+			@Schema(description = "Demandes de partage encore en attente pour ce nom. Zéro si ce parent ne gère pas la fiche.")
+			int pendingDemandeCount,
+			@Schema(description = "Un transfert en attente vaut 1. Zéro si ce parent ne gère pas la fiche.")
+			int pendingTransferCount) {
+	}
+
+	@Schema(name = "ParentChildCharacter")
+	public record ParentChildCharacter(
+			String styleCode,
+			Map<String, Object> options,
+			List<ParentChildCharacterPin> pins) {
+	}
+
+	@Schema(name = "ParentChildCharacterPin")
+	public record ParentChildCharacterPin(String zoneCode, String variantCode) {
+	}
+
+	@Schema(name = "ParentChildLink")
+	public record ParentChildLink(
+			long otherChildId,
+			@Schema(description = "Mot court du lien, par exemple « Frère ».")
+			String label) {
+	}
+
+	@Schema(name = "ParentSchoolOption")
+	public record ParentSchoolOption(long id, String name, String country, List<String> grades) {
+	}
+
+	@Schema(name = "ShareRequestBody")
+	public record ShareRequestBody(String email, String firstName, String lastName) {
+	}
+
+	@Schema(name = "ShareRequestChildResponse")
+	public record ShareRequestChildResponse(long childId, String firstName, String lastName) {
+	}
+
+	@Schema(name = "ShareRequestResponse")
+	public record ShareRequestResponse(
+			long id, String firstName, String lastName, List<ShareRequestChildResponse> matches) {
+	}
+
+	@Schema(name = "FicheHolderResponse")
+	public record FicheHolderResponse(long userId, String label) {
+	}
+
+	@Schema(name = "StartTransferBody")
+	public record StartTransferBody(long holderUserId, String message) {
+	}
+
+	@Schema(name = "TransferResponse")
+	public record TransferResponse(
+			long id,
+			long childId,
+			String firstName,
+			String lastName,
+			String message,
+			@Schema(description = "Vrai si ce parent peut accepter ou refuser.")
+			boolean incoming) {
+	}
+
+	@Schema(name = "AcceptShareRequestBody")
+	public record AcceptShareRequestBody(long childId) {
+	}
+
+	@Schema(name = "InviteParentRequest")
+	public record InviteParentRequest(String email) {
+	}
+
+	@Schema(name = "InvitationReceiptResponse")
+	public record InvitationReceiptResponse(String message) {
+	}
+
+	@Schema(name = "PendingInvitationResponse")
+	public record PendingInvitationResponse(long id, long childId, String firstName, String lastName) {
+	}
+
+	@Schema(name = "CreateParentChildRequest")
+	public record CreateParentChildRequest(
+			String firstName,
+			String lastName,
+			@Schema(description = "GARCON, FILLE ou NON_GENRE")
+			String sex,
+			String age,
+			String country,
+			String grade,
+			Long schoolId,
+			String avatarCode,
+			String photoBase64,
+			String photoContentType,
+			String pin,
+			String pinConfirmation,
+			@Schema(description = "Enfant de départ. Absent pour un formulaire vide.")
+			Long fromChildId,
+			@Schema(description = "AUCUN, FRERE, SOEUR, DEMI_FRERE, DEMI_SOEUR, JUMEAU, JUMELLE, COUSIN ou COUSINE.")
+			String link,
+			@Schema(description = "Centres d'intérêt envoyés avec la fiche. Absent : refus. Vide : efface.")
+			List<String> interests) {
+	}
+}

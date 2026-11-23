@@ -32,19 +32,9 @@ com.appv4
 |-- shared/
 |   |-- domain/                    DomainException, ErrorCode
 |   `-- infrastructure/            (erreurs HTTP, OpenAPI, CORS — à venir)
-|-- hello/                         Première feature (MVP)
-|   |-- domain/model/
-|   |-- application/
-|   |   |-- port/in/               UseCase
-|   |   |-- port/out/              Repository (interface)
-|   |   |-- command/
-|   |   |-- result/
-|   |   `-- service/
-|   `-- infrastructure/
-|       |-- adapter/in/web/ext     → /api/ext/**
-|       |-- adapter/in/web/intapi  → /api/int/**
-|       |-- adapter/out/persistence/  Entity, JpaRepository, Adapter, Mapper
-|       `-- config/                HelloConfiguration
+`-- auth/                           Fonctionnalites metier et adaptateurs
+    |-- application/                Services et ports
+    `-- infrastructure/             Controleurs et persistance
 ```
 
 Une feature ne contient que ce dont elle a besoin. Pas de dossiers vides “pour la forme” au-delà des placeholders MVP.
@@ -62,8 +52,8 @@ Une feature ne contient que ce dont elle a besoin. Pas de dossiers vides “pour
 
 | App Angular | Préfixe HTTP | Package controllers |
 |-------------|--------------|---------------------|
-| `learning` | `/api/ext/**` | `hello.infrastructure.adapter.in.web.ext` |
-| `admin` | `/api/int/**` | `hello.infrastructure.adapter.in.web.intapi` |
+| `learning` | `/api/ext/**` | Reserve pour les API learning |
+| `admin` | `/api/int/**` | `auth.infrastructure.adapter.in.web` |
 
 | Données DB | Préfixe table |
 |------------|---------------|
@@ -72,25 +62,19 @@ Une feature ne contient que ce dont elle a besoin. Pas de dossiers vides “pour
 
 > Le sous-package s’appelle `intapi` car `int` est un mot réservé Java. Les URLs restent `/api/int/**`.
 
+## Contrat des erreurs HTTP
+
+Dans les parcours auth, Learning et Teacher gérés par `AuthExceptionHandler`, les erreurs
+métier exposent `AuthErrorBody` avec les champs `message` et `code`. Le front affiche
+`message` et utilise notamment `code` pour les actions de restauration et de partage.
+Une évolution vers `ProblemDetail` doit préserver ces usages et être vérifiée avec le
+contrat OpenAPI et les deux clients Angular.
+
 ## Persistance
 
 - **JPA** (`spring-boot-starter-data-jpa`) + **Flyway** (autorité du schéma).
 - `spring.jpa.hibernate.ddl-auto=validate` — Hibernate ne crée pas les tables.
 - Forme attendue par feature : `Entity` → `JpaRepository` → `PersistenceAdapter` (impl du port out) → `PersistenceMapper`.
-
-## Feature hello (MVP)
-
-| Élément | Emplacement |
-|---------|-------------|
-| Value object | `hello.domain.model.HelloMessage` |
-| Audience | `hello.domain.model.HelloAudience` |
-| Port in | `hello.application.port.in.GetHelloMessageUseCase` |
-| Port out | `hello.application.port.out.HelloMessageRepository` |
-| Command / Result | `GetHelloMessageCommand` / `HelloMessageResult` |
-| Service | `hello.application.service.GetHelloMessageService` |
-| Adapter JPA | `HelloMessagePersistenceAdapter` (+ Entity / JpaRepository / Mapper) |
-| Controllers | `ExtHelloController` `/api/ext/hello`, `IntHelloController` `/api/int/hello` |
-| Migration | `V1__create_hello_messages.sql` |
 
 ## Point d’entrée
 

@@ -1,0 +1,95 @@
+package com.appv4.auth.infrastructure.adapter.out.facebook;
+
+import java.net.URI;
+
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.out.FacebookOAuthClient;
+import com.appv4.auth.infrastructure.adapter.out.oauth.OAuthRestClientErrors;
+import com.appv4.auth.infrastructure.config.FacebookOAuthProperties;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Adaptateur HTTP Facebook Graph — token + {@code /me} (SCRUM-99).
+ *
+ * <p><b>Technique :</b> Facebook échange le code via GET (query params), pas un form POST.
+ */
+public class HttpFacebookOAuthClient implements FacebookOAuthClient {
+
+	private final FacebookOAuthProperties properties;
+	private final RestClient restClient;
+
+	public HttpFacebookOAuthClient(FacebookOAuthProperties properties, RestClient.Builder restClientBuilder) {
+		this.properties = properties;
+		this.restClient = restClientBuilder.build();
+	}
+
+	@Override
+	public FacebookUserProfile exchangeCode(String authorizationCode, String redirectUri) {
+		if (!properties.isConfigured()) {
+			throw new AuthDomainException(AuthErrorCode.SERVICE_UNAVAILABLE,
+					"Facebook OAuth non configuré (FACEBOOK_APP_ID / FACEBOOK_APP_SECRET)");
+		}
+		try {
+			String accessToken = requestAccessToken(authorizationCode, redirectUri);
+			return fetchUserInfo(accessToken);
+		} catch (RestClientException ex) {
+			throw OAuthRestClientErrors.map(ex, "Facebook");
+		}
+	}
+
+	private String requestAccessToken(String authorizationCode, String redirectUri) {
+		URI uri = UriComponentsBuilder.fromUriString(properties.getTokenUri())
+				.queryParam("client_id", properties.getAppId())
+				.queryParam("client_secret", properties.getAppSecret())
+				.queryParam("redirect_uri", redirectUri)
+				.queryParam("code", authorizationCode)
+				.build()
+				.toUri();
+
+		TokenResponse token = restClient.get()
+				.uri(uri)
+				.retrieve()
+				.body(TokenResponse.class);
+
+		if (token == null || token.accessToken() == null || token.accessToken().isBlank()) {
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED,
+					"Réponse token Facebook invalide");
+		}
+		return token.accessToken();
+	}
+
+	private FacebookUserProfile fetchUserInfo(String accessToken) {
+		// Bearer header — pas d'access_token en query (logs / RFC 9700, issue #54)
+		URI uri = UriComponentsBuilder.fromUriString(properties.getUserInfoUri())
+				.queryParam("fields", "id,name,email")
+				.build()
+				.toUri();
+
+		UserInfoResponse info = restClient.get()
+				.uri(uri)
+				.headers(h -> h.setBearerAuth(accessToken))
+				.retrieve()
+				.body(UserInfoResponse.class);
+
+		if (info == null || info.id() == null || info.id().isBlank()) {
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED,
+					"Profil Facebook invalide");
+		}
+		String name = info.name() != null ? info.name() : "";
+		return new FacebookUserProfile(info.id(), info.email(), name);
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record TokenResponse(@JsonProperty("access_token") String accessToken) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record UserInfoResponse(String id, String email, String name) {
+	}
+}

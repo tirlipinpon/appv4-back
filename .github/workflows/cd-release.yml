@@ -51,14 +51,14 @@ jobs:
       - name: Make Maven wrapper executable
         run: chmod +x mvnw
 
-      - name: Lint (Checkstyle)
-        run: ./mvnw -B checkstyle:check
-
-      - name: Run tests
-        run: ./mvnw -B test
-
-      - name: Package
-        run: ./mvnw -B -DskipTests package
+      - name: Verify backend with PostgreSQL
+        env:
+          APPV4_PERSISTENCE_TEST_URL: ${{ env.SPRING_DATASOURCE_URL }}
+          APPV4_PERSISTENCE_TEST_USER: ${{ env.SPRING_DATASOURCE_USERNAME }}
+          APPV4_PERSISTENCE_TEST_PASSWORD: ${{ env.SPRING_DATASOURCE_PASSWORD }}
+        run: |
+          : "${APPV4_PERSISTENCE_TEST_URL:?PostgreSQL test database required}"
+          ./mvnw -B verify
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4

@@ -29,7 +29,36 @@ public interface SejourPort {
 			Instant startedAt,
 			Instant endedAt);
 
-	void close(long sejourId, Instant closedAt);
+	/**
+	 * Ferme le séjour ouvert.
+	 *
+	 * <p><b>Business :</b> un départ ou la Nuit laissent l'enfant revenir.
+	 * L'oubli, lui, attend une nouvelle entrée de jour.
+	 * <p><b>Technique :</b> {@code endedBy} vaut {@code leave}, {@code nuit} ou {@code idle}.
+	 * <p><b>Métier / flow :</b> le cas d'usage décide la raison, l'adapter l'écrit avec {@code closed_at}.
+	 *
+	 * @param endedBy raison de la fermeture
+	 */
+	void close(long sejourId, Instant closedAt, String endedBy);
+
+	/**
+	 * Dernier séjour de l'enfant, sans ses intervalles.
+	 *
+	 * <p><b>Business :</b> dit si l'oubli attend encore une nouvelle entrée.
+	 * <p><b>Technique :</b> une seule ligne, la plus récente.
+	 * <p><b>Métier / flow :</b> avant d'accepter un appel enfant.
+	 */
+	Optional<StayEnd> latestEnd(long childId);
+
+	/**
+	 * Fin du dernier séjour, ouverte ou fermée.
+	 *
+	 * @param open vrai tant que le séjour n'est pas fermé
+	 * @param closedAt instant de fermeture, absent si le séjour est ouvert
+	 * @param endedBy raison, absente si le séjour est ouvert
+	 */
+	record StayEnd(boolean open, Instant closedAt, String endedBy) {
+	}
 
 	List<StoredSejour> list(long childId);
 
@@ -75,6 +104,8 @@ public interface SejourPort {
 	 * @param questionId question de la tranche ouverte, absente sur un écran
 	 * @param prompt énoncé déjà copié sur la tranche ouverte
 	 * @param subjectName nom de matière déjà copié sur la tranche ouverte
+	 * @param closedAt instant de fermeture, absent tant que le séjour est ouvert
+	 * @param endedBy raison de la fermeture, absente tant que le séjour est ouvert
 	 */
 	record StoredSejour(
 			long id,
@@ -89,6 +120,8 @@ public interface SejourPort {
 			Instant sliceStartedAt,
 			Instant lastConfirmedAt,
 			Instant lastGestureAt,
-			List<StoredInterval> intervals) {
+			List<StoredInterval> intervals,
+			Instant closedAt,
+			String endedBy) {
 	}
 }

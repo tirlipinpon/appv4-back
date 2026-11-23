@@ -8,12 +8,14 @@ import com.appv4.auth.application.port.in.SejourUseCase;
 import com.appv4.auth.infrastructure.adapter.in.web.ChildNuitInterceptor;
 
 /**
- * Branche la Nuit sur toutes les routes enfant.
+ * Branche la Nuit et l'oubli sur toutes les routes enfant.
  *
  * <p><b>Business :</b> de 22 h à 6 h, une app modifiée ne continue pas à jouer.
+ * Après un séjour oublié non plus, jusqu'à une nouvelle entrée.
  * Le parent et le professeur ne sont pas fermés.
  * <p><b>Technique :</b> intercepteur MVC sur {@code /api/ext/**}.
- * <p><b>Métier / flow :</b> avant le controller enfant → {@link SejourUseCase#refuseDuringNuit}.
+ * <p><b>Métier / flow :</b> avant le controller enfant → {@link SejourUseCase#refuseDuringNuit},
+ * puis {@link SejourUseCase#refuseAfterIdle}. L'entrée reste possible.
  */
 @Configuration
 public class ChildNuitConfiguration implements WebMvcConfigurer {

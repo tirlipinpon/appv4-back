@@ -3,11 +3,14 @@ package com.appv4.auth.application.port.in;
 import java.util.List;
 
 /**
- * Séjour de l'enfant : signaux, lecture enfant, lecture parent (BACK-38, question BACK-79).
+ * Séjour de l'enfant : signaux, lecture enfant, lecture parent
+ * (BACK-38, question BACK-79, Nuit BACK-80, popup BACK-81).
  *
  * <p><b>Business :</b> l'enfant envoie des signaux. Le jeu compte sur la question,
  * avec l'énoncé et la matière copiés. Le parent lit le temps confirmé, déjà libellé.
- * De 22 h à 6 h, la route enfant est refusée avec une seule phrase. L'écran n'ajoute pas de secondes.
+ * De 22 h à 6 h, la route enfant est refusée avec une seule phrase.
+ * À vingt minutes sans geste, la lecture envoie la popup. Sans bouton à vingt-cinq, elle refuse.
+ * L'écran n'ajoute pas de secondes.
  * <p><b>Technique :</b> un seul cas d'usage. L'horloge est celle du bean, en Europe/Paris.
  * <p><b>Métier / flow :</b> {@code POST /api/ext/sejour/signals}, {@code GET /api/ext/sejour},
  * les autres routes {@code /api/ext/**}, et {@code GET /api/int/parent/children/{childId}/sejours}.
@@ -23,12 +26,26 @@ public interface SejourUseCase {
 	void refuseDuringNuit(String rawToken);
 
 	/**
+	 * Ferme le séjour oublié à vingt-cinq minutes, puis refuse jusqu'à une nouvelle entrée.
+	 *
+	 * <p><b>Business :</b> sans « Je continue », l'enfant revient à l'entrée.
+	 * Une connexion de jour plus tardive ouvre un autre séjour. Le parent n'est pas fermé.
+	 * <p><b>Technique :</b> la phrase est unique. Le jeton émis avant la fin ne passe plus.
+	 * Un jeton émis après, si.
+	 * <p><b>Métier / flow :</b> routes {@code /api/ext/**} sauf l'entrée, après la Nuit.
+	 * La Nuit gagne si les deux tombent ensemble.
+	 *
+	 * @param rawToken jeton enfant, vide si l'appel n'en a pas
+	 */
+	void refuseAfterIdle(String rawToken);
+
+	/**
 	 * @param questionId identifiant de la question jouée, seulement pour un signal question
 	 */
 	void signal(String rawToken, String kind, String deviceId, String screen, Long questionId);
 
 	/**
-	 * Signal d'écran, de geste, de présence ou de départ, sans question.
+	 * Signal d'écran, de geste, de présence, de départ ou de réactivation, sans question.
 	 */
 	default void signal(String rawToken, String kind, String deviceId, String screen) {
 		signal(rawToken, kind, deviceId, screen, null);
@@ -41,7 +58,24 @@ public interface SejourUseCase {
 
 	List<ParentSejour> readParent(long parentUserId, String activeRole, long childId);
 
-	record ChildSejour(boolean holds) {
+	/**
+	 * Ce que cet appareil doit afficher maintenant.
+	 *
+	 * <p><b>Business :</b> la phrase et le bouton n'apparaissent que lorsque la popup
+	 * est due. L'écran les recopie, il ne les invente pas.
+	 * <p><b>Technique :</b> {@code message} et {@code button} sont absents tant que
+	 * vingt minutes ne se sont pas écoulées depuis le dernier geste.
+	 * <p><b>Métier / flow :</b> résultat de {@link #readChild}.
+	 *
+	 * @param holds vrai si cet appareil tient le séjour ouvert
+	 * @param message phrase de la popup, absente sinon
+	 * @param button libellé du bouton, absent sinon
+	 */
+	record ChildSejour(boolean holds, String message, String button) {
+
+		public ChildSejour(boolean holds) {
+			this(holds, null, null);
+		}
 	}
 
 	/**

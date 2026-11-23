@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.SejourUseCase;
 import com.appv4.auth.application.port.in.SejourUseCase.ChildSejour;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -20,10 +21,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Signaux et lecture du séjour pour l'enfant (BACK-38, question BACK-79).
+ * Signaux et lecture du séjour pour l'enfant (BACK-38, question BACK-79, popup BACK-81).
  *
- * <p><b>Business :</b> l'app envoie un signal. Un jeu porte l'identifiant de la
- * question. Elle lit ensuite si cet appareil tient encore le séjour. Elle ne compte pas.
+ * <p><b>Business :</b> l'app envoie un signal, y compris « Je continue ».
+ * Un jeu porte l'identifiant de la question. Elle lit ensuite la popup,
+ * et si cet appareil tient encore le séjour. Elle ne compte pas.
  * <p><b>Technique :</b> {@code POST /api/ext/sejour/signals} et {@code GET /api/ext/sejour}
  * avec Bearer enfant. L'appareil est un identifiant opaque.
  * <p><b>Métier / flow :</b> adapter in → {@link SejourUseCase}.
@@ -59,8 +61,8 @@ public class ChildSejourController {
 	}
 
 	@GetMapping
-	@Operation(operationId = "readChildSejour", summary = "Savoir si cet appareil tient le séjour")
-	@ApiResponse(responseCode = "200", description = "L'appareil tient le séjour, ou non")
+	@Operation(operationId = "readChildSejour", summary = "Lire la popup et si cet appareil tient le séjour")
+	@ApiResponse(responseCode = "200", description = "Popup due, ou seulement qui tient le séjour")
 	@ApiResponse(
 			responseCode = "400",
 			description = "Appareil absent",
@@ -73,7 +75,7 @@ public class ChildSejourController {
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
 			@RequestParam(name = "deviceId", required = false) String deviceId) {
 		ChildSejour view = sejourUseCase.readChild(bearer(authorization), deviceId);
-		return ResponseEntity.ok(new ChildSejourResponse(view.holds()));
+		return ResponseEntity.ok(new ChildSejourResponse(view.holds(), view.message(), view.button()));
 	}
 
 	private static String bearer(String authorization) {
@@ -90,7 +92,19 @@ public class ChildSejourController {
 	public record ChildSejourSignalRequest(String kind, String deviceId, String screen, Long questionId) {
 	}
 
+	/**
+	 * Réponse de la lecture enfant.
+	 *
+	 * <p><b>Business :</b> l'app affiche la phrase et le bouton tels quels, seulement
+	 * quand la popup est due.
+	 * <p><b>Technique :</b> {@code message} et {@code button} sont absents hors popup.
+	 * <p><b>Métier / flow :</b> corps de {@code GET /api/ext/sejour}.
+	 *
+	 * @param message phrase de la popup, absente sinon
+	 * @param button libellé du bouton, absent sinon
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
 	@Schema(name = "ChildSejourResponse")
-	public record ChildSejourResponse(boolean holds) {
+	public record ChildSejourResponse(boolean holds, String message, String button) {
 	}
 }

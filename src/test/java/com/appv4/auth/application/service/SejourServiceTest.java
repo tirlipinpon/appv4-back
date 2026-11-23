@@ -645,6 +645,155 @@ class SejourServiceTest {
 	}
 
 	@Test
+	void laPopupArriveAVingtMinutesEtPasADeux() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+
+		clock.at(AT_16.plusSeconds(120));
+		ChildSejour tropTot = sejour.readChild("akira", "tablette");
+		assertThat(tropTot.holds()).isTrue();
+		assertThat(tropTot.message()).isNull();
+		assertThat(tropTot.button()).isNull();
+
+		clock.at(AT_16.plusSeconds(20 * 60));
+		ChildSejour due = sejour.readChild("akira", "tablette");
+		assertThat(due.holds()).isTrue();
+		assertThat(due.message()).isEqualTo("Tu es encore là ?");
+		assertThat(due.button()).isEqualTo("Je continue");
+	}
+
+	@Test
+	void unGestePendantLaPopupNeProlongePasLeSejour() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(120));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		clock.at(AT_16.plusSeconds(22 * 60));
+		sejour.signal("akira", "gesture", "tablette", null);
+
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("2 min");
+		clock.at(AT_16.plusSeconds(24 * 60));
+		ChildSejour encore = sejour.readChild("akira", "tablette");
+		assertThat(encore.message()).isEqualTo("Tu es encore là ?");
+		assertThat(encore.button()).isEqualTo("Je continue");
+	}
+
+	@Test
+	void jeContinueASeizeHeuresVingtQuatreGardeLeMemeSejourSansLeTrou() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(120));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		clock.at(AT_16.plusSeconds(24 * 60));
+		sejour.signal("akira", "reactivate", "tablette", null);
+
+		ParentSejour row = seul(sejour.readParent(1L, "parent", 7L));
+		assertThat(row.timeLabel()).isEqualTo("16:00");
+		assertThat(row.durationLabel()).isEqualTo("2 min");
+		assertThat(sejour.readParent(1L, "parent", 7L)).hasSize(1);
+
+		clock.at(AT_16.plusSeconds(25 * 60));
+		sejour.signal("akira", "presence", "tablette", null);
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("3 min");
+
+		clock.at(AT_16.plusSeconds(26 * 60));
+		ChildSejour apres = sejour.readChild("akira", "tablette");
+		assertThat(apres.message()).isNull();
+		assertThat(apres.button()).isNull();
+	}
+
+	@Test
+	void jeContinueAvantLaPopupEstRefuseEtNEcritRien() {
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(120));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		clock.at(AT_16.plusSeconds(10 * 60));
+		assertThatThrownBy(() -> sejour.signal("akira", "reactivate", "tablette", null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(SejourService.SIGNAL_REFUSED);
+
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("2 min");
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).timeLabel()).isEqualTo("16:00");
+		assertThat(sejour.readParent(1L, "parent", 7L)).hasSize(1);
+
+		clock.at(AT_16.plusSeconds(20 * 60));
+		ChildSejour due = sejour.readChild("akira", "tablette");
+		assertThat(due.message()).isEqualTo("Tu es encore là ?");
+		assertThat(due.button()).isEqualTo("Je continue");
+	}
+
+	@Test
+	void sansBoutonAVingtCinqMinutesLeSejourFinitEtUneNouvelleEntreeEnOuvreUnAutre() {
+		when(sessions.issuedAt("akira")).thenReturn(Optional.of(AT_16.minusSeconds(60)));
+		clock.at(AT_16);
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(120));
+		sejour.signal("akira", "presence", "tablette", null);
+		clock.at(AT_16.plusSeconds(22 * 60));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		clock.at(AT_16.plusSeconds(25 * 60));
+		assertThatThrownBy(() -> sejour.readChild("akira", "tablette"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("Tu as été déconnecté.");
+
+		ParentSejour ferme = seul(sejour.readParent(1L, "parent", 7L));
+		assertThat(ferme.timeLabel()).isEqualTo("16:00");
+		assertThat(ferme.durationLabel()).isEqualTo("2 min");
+
+		clock.at(AT_16.plusSeconds(26 * 60));
+		assertThatThrownBy(() -> sejour.signal("akira", "reactivate", "tablette", null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("Tu as été déconnecté.");
+		assertThat(sejour.readParent(1L, "parent", 7L)).hasSize(1);
+		assertThat(seul(sejour.readParent(1L, "parent", 7L)).durationLabel()).isEqualTo("2 min");
+
+		when(sessions.issuedAt("akira")).thenReturn(Optional.of(AT_16.plusSeconds(30 * 60)));
+		clock.at(AT_16.plusSeconds(30 * 60));
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+		clock.at(AT_16.plusSeconds(30 * 60 + 30));
+		sejour.signal("akira", "presence", "tablette", null);
+
+		List<ParentSejour> apres = sejour.readParent(1L, "parent", 7L);
+		assertThat(apres).hasSize(2);
+		assertThat(apres.get(0).timeLabel()).isEqualTo("16:30");
+		assertThat(apres.get(0).durationLabel()).isEqualTo("30 s");
+		assertThat(apres.get(1).timeLabel()).isEqualTo("16:00");
+		assertThat(apres.get(1).durationLabel()).isEqualTo("2 min");
+	}
+
+	@Test
+	void laNuitGagneSurLaPopupEncoreOuverte() {
+		clock.at(paris(2026, 11, 22, 21, 35));
+		sejour.signal("akira", "screen", "tablette", "accueil");
+		sejour.signal("akira", "gesture", "tablette", null);
+
+		clock.at(paris(2026, 11, 22, 21, 55));
+		ChildSejour popup = sejour.readChild("akira", "tablette");
+		assertThat(popup.message()).isEqualTo("Tu es encore là ?");
+		assertThat(popup.button()).isEqualTo("Je continue");
+
+		clock.at(paris(2026, 11, 22, 22, 0));
+		assertThatThrownBy(() -> sejour.readChild("akira", "tablette"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("L'app est fermée jusqu'à 6 h.");
+
+		ParentSejour row = seul(sejour.readParent(1L, "parent", 7L));
+		assertThat(row.timeLabel()).isEqualTo("21:35");
+		assertThat(row.durationLabel()).isEqualTo("2 min");
+	}
+
+	@Test
 	void unSignalA6hOuvreANouveau() {
 		clock.at(paris(2026, 11, 22, 21, 59));
 		sejour.signal("akira", "screen", "tablette", "accueil");
@@ -665,7 +814,7 @@ class SejourServiceTest {
 		Instant end = paris(2026, 11, 23, 0, 10);
 		OpenSlice opened = store.open(7L, start, "tablette", "accueil");
 		store.appendInterval(opened.id(), "accueil", null, null, null, start, end);
-		store.close(opened.id(), end);
+		store.close(opened.id(), end, "leave");
 
 		clock.at(paris(2026, 11, 23, 16, 0));
 		ParentSejour row = seul(sejour.readParent(1L, "parent", 7L));
@@ -806,10 +955,29 @@ class SejourServiceTest {
 		}
 
 		@Override
-		public void close(long sejourId, Instant closedAt) {
+		public Optional<SejourPort.StayEnd> latestEnd(long childId) {
+			Row found = null;
+			for (Row row : rows) {
+				if (row.childId != childId) {
+					continue;
+				}
+				if (found == null || row.startedAt.isAfter(found.startedAt)
+						|| (row.startedAt.equals(found.startedAt) && row.id > found.id)) {
+					found = row;
+				}
+			}
+			if (found == null) {
+				return Optional.empty();
+			}
+			return Optional.of(new SejourPort.StayEnd(found.open, found.closedAt, found.endedBy));
+		}
+
+		@Override
+		public void close(long sejourId, Instant closedAt, String endedBy) {
 			Row row = byId(sejourId);
 			row.open = false;
 			row.closedAt = closedAt;
+			row.endedBy = endedBy;
 			row.deviceId = null;
 			row.screen = null;
 			row.questionId = null;
@@ -834,6 +1002,7 @@ class SejourServiceTest {
 			private long childId;
 			private Instant startedAt;
 			private Instant closedAt;
+			private String endedBy;
 			private boolean open;
 			private String deviceId;
 			private String screen;
@@ -865,7 +1034,9 @@ class SejourServiceTest {
 						sliceStartedAt,
 						lastConfirmedAt,
 						lastGestureAt,
-						List.copyOf(intervals));
+						List.copyOf(intervals),
+						closedAt,
+						endedBy);
 			}
 		}
 	}

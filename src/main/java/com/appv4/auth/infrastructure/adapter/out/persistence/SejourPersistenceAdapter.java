@@ -14,6 +14,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
 import com.appv4.auth.application.port.out.SejourPort;
+import com.appv4.auth.application.port.out.SejourPort.StayEnd;
 
 /**
  * Séjours en base (BACK-38).
@@ -129,10 +130,11 @@ public class SejourPersistenceAdapter implements SejourPort {
 	}
 
 	@Override
-	public void close(long sejourId, Instant closedAt) {
+	public void close(long sejourId, Instant closedAt, String endedBy) {
 		jdbc.sql("""
 				update back_sejours
 				set closed_at = :closedAt,
+				    ended_by = :endedBy,
 				    holding_device_id = null,
 				    slice_screen = null,
 				    slice_question_id = null,
@@ -144,14 +146,32 @@ public class SejourPersistenceAdapter implements SejourPort {
 				where id = :id
 				""")
 				.param("closedAt", Timestamp.from(closedAt))
+				.param("endedBy", endedBy)
 				.param("id", sejourId)
 				.update();
 	}
 
 	@Override
+	public Optional<StayEnd> latestEnd(long childId) {
+		return jdbc.sql("""
+				select closed_at, ended_by
+				from back_sejours
+				where child_id = :childId
+				order by started_at desc, id desc
+				limit 1
+				""")
+				.param("childId", childId)
+				.query((rs, row) -> {
+					Instant closedAt = instant(rs.getTimestamp("closed_at"));
+					return new StayEnd(closedAt == null, closedAt, rs.getString("ended_by"));
+				})
+				.optional();
+	}
+
+	@Override
 	public List<StoredSejour> list(long childId) {
 		List<SejourRow> rows = jdbc.sql("""
-				select id, child_id, started_at, closed_at, holding_device_id, slice_screen,
+				select id, child_id, started_at, closed_at, ended_by, holding_device_id, slice_screen,
 				       slice_question_id, slice_prompt, slice_subject_name,
 				       slice_started_at, last_confirmed_at, last_gesture_at
 				from back_sejours
@@ -163,7 +183,8 @@ public class SejourPersistenceAdapter implements SejourPort {
 						rs.getLong("id"),
 						rs.getLong("child_id"),
 						rs.getTimestamp("started_at").toInstant(),
-						rs.getTimestamp("closed_at") == null,
+						instant(rs.getTimestamp("closed_at")),
+						rs.getString("ended_by"),
 						rs.getString("holding_device_id"),
 						rs.getString("slice_screen"),
 						rs.getObject("slice_question_id", Long.class),
@@ -211,7 +232,7 @@ public class SejourPersistenceAdapter implements SejourPort {
 					row.id(),
 					row.childId(),
 					row.startedAt(),
-					row.open(),
+					row.closedAt() == null,
 					row.deviceId(),
 					row.screen(),
 					row.questionId(),
@@ -220,7 +241,9 @@ public class SejourPersistenceAdapter implements SejourPort {
 					row.sliceStartedAt(),
 					row.lastConfirmedAt(),
 					row.lastGestureAt(),
-					List.copyOf(intervals.get(row.id()))));
+					List.copyOf(intervals.get(row.id())),
+					row.closedAt(),
+					row.endedBy()));
 		}
 		return List.copyOf(stored);
 	}
@@ -247,7 +270,8 @@ public class SejourPersistenceAdapter implements SejourPort {
 			long id,
 			long childId,
 			Instant startedAt,
-			boolean open,
+			Instant closedAt,
+			String endedBy,
 			String deviceId,
 			String screen,
 			Long questionId,

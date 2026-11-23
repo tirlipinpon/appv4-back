@@ -27,17 +27,19 @@ import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.SejourPort;
 import com.appv4.auth.application.port.out.SejourPort.OpenSlice;
+import com.appv4.auth.application.port.out.SejourPort.StayEnd;
 import com.appv4.auth.application.port.out.SejourPort.StoredInterval;
 import com.appv4.auth.application.port.out.SejourPort.StoredSejour;
 import com.appv4.auth.application.port.out.SejourQuestionPort;
 import com.appv4.auth.application.port.out.SejourQuestionPort.QuestionCaption;
 
 /**
- * Compte le séjour à partir des signaux, et ferme l'app enfant pendant la Nuit
- * (BACK-38, question BACK-79, Nuit BACK-80).
+ * Compte le séjour à partir des signaux, ferme l'app enfant pendant la Nuit,
+ * et demande si l'enfant est encore là (BACK-38, question BACK-79, Nuit BACK-80, popup BACK-81).
  *
  * <p><b>Business :</b> seul le temps confirmé par un signal compte, jamais après 22 h.
- * De 22 h à 6 h l'enfant n'entre plus. La phrase de la Nuit est celle-ci, une seule fois.
+ * De 22 h à 6 h l'enfant n'entre plus. À vingt minutes sans geste, la lecture envoie
+ * la popup. Sans « Je continue » à vingt-cinq minutes, le séjour finit.
  * <p><b>Technique :</b> l'horloge injectée est lue en Europe/Paris, le même fuseau que
  * la progression. La tranche ouverte s'arrête au plus tôt entre le dernier geste plus
  * deux minutes et 22 h.
@@ -53,9 +55,23 @@ public class SejourService implements SejourUseCase {
 	/** Phrase unique renvoyée par l'API pendant la Nuit. */
 	public static final String NUIT_MESSAGE = "L'app est fermée jusqu'à 6 h.";
 
+	/** Phrase de la popup, renvoyée par la lecture enfant seulement quand elle est due. */
+	public static final String POPUP_MESSAGE = "Tu es encore là ?";
+
+	/** Bouton de la popup, le seul geste qui relance le séjour. */
+	public static final String POPUP_BUTTON = "Je continue";
+
+	/** Phrase unique après vingt-cinq minutes sans « Je continue ». */
+	public static final String DISCONNECT_MESSAGE = "Tu as été déconnecté.";
+
 	private static final LocalTime NUIT_START = LocalTime.of(22, 0);
 	private static final LocalTime NUIT_END = LocalTime.of(6, 0);
 	private static final Duration LECTURE = Duration.ofMinutes(2);
+	private static final Duration POPUP = Duration.ofMinutes(20);
+	private static final Duration IDLE = Duration.ofMinutes(25);
+	private static final String ENDED_LEAVE = "leave";
+	private static final String ENDED_NUIT = "nuit";
+	private static final String ENDED_IDLE = "idle";
 
 	private static final ZoneId PARIS = ReadChildProgressService.PROGRESS_ZONE;
 	private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
@@ -111,6 +127,7 @@ public class SejourService implements SejourUseCase {
 		if (deviceId == null || deviceId.isBlank()) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, DEVICE_REQUIRED);
 		}
+		settleIdle(childId, rawToken);
 		if ("question".equals(kind)) {
 			if (questionId == null) {
 				throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, SIGNAL_REFUSED);
@@ -118,7 +135,8 @@ public class SejourService implements SejourUseCase {
 			openQuestion(childId, deviceId, questionId);
 			return;
 		}
-		if (!"screen".equals(kind) && !"gesture".equals(kind) && !"presence".equals(kind) && !"leave".equals(kind)) {
+		if (!"screen".equals(kind) && !"gesture".equals(kind) && !"presence".equals(kind)
+				&& !"leave".equals(kind) && !"reactivate".equals(kind)) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, SIGNAL_REFUSED);
 		}
 		if ("screen".equals(kind)) {
@@ -135,7 +153,9 @@ public class SejourService implements SejourUseCase {
 		}
 		if ("leave".equals(kind)) {
 			leave(childId, deviceId);
+			return;
 		}
+		reactivate(childId, deviceId);
 	}
 
 	@Override
@@ -146,8 +166,12 @@ public class SejourService implements SejourUseCase {
 		if (deviceId == null || deviceId.isBlank()) {
 			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, DEVICE_REQUIRED);
 		}
+		settleIdle(childId, rawToken);
 		OpenSlice open = sejours.findOpen(childId).orElse(null);
 		boolean holds = open != null && deviceId != null && deviceId.equals(open.deviceId());
+		if (holds && popupDue(open, clock.instant())) {
+			return new ChildSejour(true, POPUP_MESSAGE, POPUP_BUTTON);
+		}
 		return new ChildSejour(holds);
 	}
 
@@ -228,6 +252,9 @@ public class SejourService implements SejourUseCase {
 	private void markGesture(long childId, String deviceId) {
 		OpenSlice open = sejours.findOpen(childId).orElse(null);
 		Instant now = clock.instant();
+		if (open != null && popupDue(open, now)) {
+			return;
+		}
 		if (open == null) {
 			OpenSlice created = sejours.open(childId, now, deviceId, null);
 			save(copy(created, now, now));
@@ -246,6 +273,20 @@ public class SejourService implements SejourUseCase {
 		save(copy(open, confirmedUntil(open, now), now));
 	}
 
+	/**
+	 * « Je continue » garde le même séjour et relance l'horloge du geste.
+	 * Le trou depuis la fin des deux minutes n'est pas de l'activité.
+	 */
+	private void reactivate(long childId, String deviceId) {
+		OpenSlice open = sejours.findOpen(childId).orElse(null);
+		Instant now = clock.instant();
+		if (open == null || !holds(open, deviceId) || !popupDue(open, now)) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, SIGNAL_REFUSED);
+		}
+		remember(open, confirmedUntil(open, now));
+		save(slice(open, deviceId, open.screen(), open.questionId(), now, now, now));
+	}
+
 	private void leave(long childId, String deviceId) {
 		OpenSlice open = sejours.findOpen(childId).orElse(null);
 		if (open == null || !holds(open, deviceId)) {
@@ -253,7 +294,7 @@ public class SejourService implements SejourUseCase {
 		}
 		Instant confirmed = confirmedUntil(open, clock.instant());
 		remember(open, confirmed);
-		sejours.close(open.id(), clock.instant());
+		sejours.close(open.id(), clock.instant(), ENDED_LEAVE);
 	}
 
 	private void confirmPresence(long childId, String deviceId) {
@@ -284,6 +325,47 @@ public class SejourService implements SejourUseCase {
 		throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, NUIT_MESSAGE);
 	}
 
+	/**
+	 * Vingt-cinq minutes après le dernier geste, le séjour se ferme.
+	 * Les appels suivants refusent jusqu'à un jeton émis après cette fin.
+	 */
+	@Override
+	@Transactional(noRollbackFor = AuthDomainException.class)
+	public void refuseAfterIdle(String rawToken) {
+		long childId;
+		try {
+			childId = requireChild(rawToken);
+		} catch (AuthDomainException ex) {
+			return;
+		}
+		settleIdle(childId, rawToken);
+	}
+
+	/** Ferme l'oubli une fois, puis refuse sans rien écrire de plus. */
+	private void settleIdle(long childId, String rawToken) {
+		Instant now = clock.instant();
+		OpenSlice open = sejours.findOpen(childId).orElse(null);
+		if (open != null && idleDue(open, now)) {
+			remember(open, open.lastConfirmedAt());
+			sejours.close(open.id(), open.lastGestureAt().plus(IDLE), ENDED_IDLE);
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, DISCONNECT_MESSAGE);
+		}
+		StayEnd latest = sejours.latestEnd(childId).orElse(null);
+		if (latest == null || latest.open() || !ENDED_IDLE.equals(latest.endedBy())) {
+			return;
+		}
+		if (latest.closedAt() != null && renewedSince(rawToken, latest.closedAt())) {
+			return;
+		}
+		throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, DISCONNECT_MESSAGE);
+	}
+
+	/** Vrai si ce jeton a été émis après la fin : c'est une nouvelle entrée de jour. */
+	private boolean renewedSince(String rawToken, Instant closedAt) {
+		Optional<Instant> issued = sessions.issuedAt(rawToken);
+		return issued != null && issued.isPresent() && issued.get().isAfter(closedAt);
+	}
+
 	/** Confirme le délai de lecture au plus jusqu'à 22 h, puis ferme. Sans geste, rien de plus. */
 	private void endOpenSejour(String rawToken, Instant cut) {
 		long childId;
@@ -298,7 +380,7 @@ public class SejourService implements SejourUseCase {
 		}
 		Instant end = open.lastGestureAt() == null ? open.lastConfirmedAt() : confirmedUntil(open, cut);
 		remember(open, end);
-		sejours.close(open.id(), cut);
+		sejours.close(open.id(), cut, ENDED_NUIT);
 	}
 
 	/** 22 h inclus, 6 h exclus, sur l'horloge de la progression. */
@@ -315,6 +397,20 @@ public class SejourService implements SejourUseCase {
 			day = day.minusDays(1);
 		}
 		return day.atTime(NUIT_START).atZone(PARIS).toInstant();
+	}
+
+	/** Vrai de vingt minutes après le dernier geste jusqu'à la fin, à vingt-cinq. */
+	private static boolean popupDue(OpenSlice open, Instant now) {
+		if (open.lastGestureAt() == null) {
+			return false;
+		}
+		Instant popupAt = open.lastGestureAt().plus(POPUP);
+		return !now.isBefore(popupAt) && now.isBefore(open.lastGestureAt().plus(IDLE));
+	}
+
+	/** Vrai à partir de vingt-cinq minutes après le dernier geste, sans réactivation. */
+	private static boolean idleDue(OpenSlice open, Instant now) {
+		return open.lastGestureAt() != null && !now.isBefore(open.lastGestureAt().plus(IDLE));
 	}
 
 	/** Dernier instant confirmable : pas après le dernier geste plus deux minutes. */

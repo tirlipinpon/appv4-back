@@ -19,6 +19,7 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import com.appv4.ai.application.port.in.ConnexionModeleUseCase;
+import com.appv4.ai.application.port.in.ReglerBesoinUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.RecoveryAccountPort;
@@ -266,6 +267,12 @@ public class TestProfileConfiguration {
 	@Bean
 	ConnexionModeleUseCase connexionModeleUseCase() {
 		return mock(ConnexionModeleUseCase.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	/** Réglage des besoins (BACK-32). Pas de Postgres dans les tests web. */
+	@Bean
+	ReglerBesoinUseCase reglerBesoinUseCase() {
+		return mock(ReglerBesoinUseCase.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
 	/**

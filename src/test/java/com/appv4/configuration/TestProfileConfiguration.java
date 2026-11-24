@@ -18,6 +18,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
+import com.appv4.ai.application.port.in.ConnexionModeleUseCase;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.RecoveryAccountPort;
@@ -259,6 +260,12 @@ public class TestProfileConfiguration {
 		when(port.findByChildId(anyLong())).thenReturn(Optional.empty());
 		when(port.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 		return port;
+	}
+
+	/** Connexions IA (BACK-84). Pas de Postgres dans les tests web. */
+	@Bean
+	ConnexionModeleUseCase connexionModeleUseCase() {
+		return mock(ConnexionModeleUseCase.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
 	/**

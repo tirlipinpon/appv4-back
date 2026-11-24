@@ -77,4 +77,8 @@ appv4:
     modele: ${APPV4_AI_MODEL:depart}
     openai-base-url: ${APPV4_OPENAI_BASE_URL:https://api.openai.com/v1}
     openai-api-key: ${APPV4_OPENAI_API_KEY:}
+    openrouter-url: https://openrouter.ai/api/v1/models
+    models-dev-url: https://models.dev/api.json
+    artificial-analysis-url: https://artificialanalysis.ai/api/v2/language/models/free
+    artificial-analysis-key: ${APPV4_ARTIFICIAL_ANALYSIS_API_KEY:}
 

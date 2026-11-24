@@ -1,23 +1,28 @@
 package com.appv4.ai.infrastructure.config;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.RestClient;
 
 import com.appv4.ai.application.port.in.ConnexionModeleUseCase;
 import com.appv4.ai.application.port.in.DemanderBesoinUseCase;
+import com.appv4.ai.application.port.in.LireCatalogueUseCase;
 import com.appv4.ai.application.port.out.FournisseurIaPort;
 import com.appv4.ai.application.port.out.RouteBesoin;
 import com.appv4.ai.application.port.out.RouteBesoinPort;
 import com.appv4.ai.application.port.out.UsageBesoinPort;
 import com.appv4.ai.application.service.ConnexionModeleService;
 import com.appv4.ai.application.service.DemanderBesoinService;
+import com.appv4.ai.application.service.LireCatalogueService;
 import com.appv4.ai.infrastructure.adapter.out.openai.OpenAiFournisseurAdapter;
 import com.appv4.ai.infrastructure.adapter.out.persistence.BackAiCallJpaRepository;
 import com.appv4.ai.infrastructure.adapter.out.persistence.BackAiConnectionJpaRepository;
@@ -26,6 +31,7 @@ import com.appv4.ai.infrastructure.adapter.out.persistence.BackAiUsageDayJpaRepo
 import com.appv4.ai.infrastructure.adapter.out.persistence.ConnexionModelePersistenceAdapter;
 import com.appv4.ai.infrastructure.adapter.out.persistence.RouteBesoinPersistenceAdapter;
 import com.appv4.ai.infrastructure.adapter.out.persistence.UsageBesoinPersistenceAdapter;
+import com.appv4.ai.infrastructure.catalogue.SourcesHttpCatalogue;
 import com.appv4.auth.application.port.out.ActiveRolePort;
 
 /**
@@ -89,6 +95,21 @@ public class AiConfiguration {
 		return new ConnexionModeleService(roles, new ConnexionModelePersistenceAdapter(connexions), fournisseurs);
 	}
 
+	@Bean
+	LireCatalogueUseCase lireCatalogueUseCase(ActiveRolePort roles, AiProperties properties) {
+		SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+		factory.setConnectTimeout(Duration.ofSeconds(3));
+		factory.setReadTimeout(Duration.ofSeconds(8));
+		RestClient client = RestClient.builder().requestFactory(factory).build();
+		return new LireCatalogueService(roles, List.of(
+				SourcesHttpCatalogue.openRouter(client, properties.getOpenrouterUrl()),
+				SourcesHttpCatalogue.modelsDev(client, properties.getModelsDevUrl()),
+				SourcesHttpCatalogue.artificialAnalysis(
+						client,
+						properties.getArtificialAnalysisUrl(),
+						properties.getArtificialAnalysisKey())));
+	}
+
 	/**
 	 * Départ des trois besoins (BACK-30).
 	 *
@@ -102,6 +123,10 @@ public class AiConfiguration {
 		private String modele = "depart";
 		private String openaiBaseUrl = "https://api.openai.com/v1";
 		private String openaiApiKey = "";
+		private String openrouterUrl = "https://openrouter.ai/api/v1/models";
+		private String modelsDevUrl = "https://models.dev/api.json";
+		private String artificialAnalysisUrl = "https://artificialanalysis.ai/api/v2/language/models/free";
+		private String artificialAnalysisKey = "";
 
 		public List<RouteBesoin> depart() {
 			return List.of(
@@ -140,6 +165,38 @@ public class AiConfiguration {
 
 		public void setOpenaiApiKey(String openaiApiKey) {
 			this.openaiApiKey = openaiApiKey;
+		}
+
+		public String getOpenrouterUrl() {
+			return openrouterUrl;
+		}
+
+		public void setOpenrouterUrl(String openrouterUrl) {
+			this.openrouterUrl = openrouterUrl;
+		}
+
+		public String getModelsDevUrl() {
+			return modelsDevUrl;
+		}
+
+		public void setModelsDevUrl(String modelsDevUrl) {
+			this.modelsDevUrl = modelsDevUrl;
+		}
+
+		public String getArtificialAnalysisUrl() {
+			return artificialAnalysisUrl;
+		}
+
+		public void setArtificialAnalysisUrl(String artificialAnalysisUrl) {
+			this.artificialAnalysisUrl = artificialAnalysisUrl;
+		}
+
+		public String getArtificialAnalysisKey() {
+			return artificialAnalysisKey;
+		}
+
+		public void setArtificialAnalysisKey(String artificialAnalysisKey) {
+			this.artificialAnalysisKey = artificialAnalysisKey;
 		}
 	}
 }

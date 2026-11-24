@@ -12,7 +12,7 @@ python scripts/front-demo/demo.py reset     # Supprimer puis recréer en une tra
 
 Le script cible uniquement le service PostgreSQL du Compose de ce dépôt. Aucun
 serveur distant, aucune variable JDBC, aucun envoi d'e-mail. Le backend doit avoir
-appliqué les migrations jusqu'à V93. Une nouvelle version de schéma exige une
+appliqué les migrations jusqu'à V94. Une nouvelle version de schéma exige une
 revue du générateur avant de modifier sa garde. Ce n'est pas une migration Flyway
 ni un seed exécuté au démarrage.
 

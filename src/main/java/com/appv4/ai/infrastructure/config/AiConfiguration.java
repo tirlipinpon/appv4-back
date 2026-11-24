@@ -16,23 +16,29 @@ import org.springframework.web.client.RestClient;
 import com.appv4.ai.application.port.in.ConnexionModeleUseCase;
 import com.appv4.ai.application.port.in.DemanderBesoinUseCase;
 import com.appv4.ai.application.port.in.LireCatalogueUseCase;
+import com.appv4.ai.application.port.in.ReglerBesoinUseCase;
 import com.appv4.ai.application.port.out.FournisseurIaPort;
+import com.appv4.ai.application.port.out.HistoriqueBesoinPort;
 import com.appv4.ai.application.port.out.RouteBesoin;
 import com.appv4.ai.application.port.out.RouteBesoinPort;
 import com.appv4.ai.application.port.out.UsageBesoinPort;
 import com.appv4.ai.application.service.ConnexionModeleService;
 import com.appv4.ai.application.service.DemanderBesoinService;
 import com.appv4.ai.application.service.LireCatalogueService;
+import com.appv4.ai.application.service.ReglerBesoinService;
 import com.appv4.ai.infrastructure.adapter.out.openai.OpenAiFournisseurAdapter;
 import com.appv4.ai.infrastructure.adapter.out.persistence.BackAiCallJpaRepository;
 import com.appv4.ai.infrastructure.adapter.out.persistence.BackAiConnectionJpaRepository;
+import com.appv4.ai.infrastructure.adapter.out.persistence.BackAiRouteChangeJpaRepository;
 import com.appv4.ai.infrastructure.adapter.out.persistence.BackAiTaskRouteJpaRepository;
 import com.appv4.ai.infrastructure.adapter.out.persistence.BackAiUsageDayJpaRepository;
 import com.appv4.ai.infrastructure.adapter.out.persistence.ConnexionModelePersistenceAdapter;
+import com.appv4.ai.infrastructure.adapter.out.persistence.HistoriqueBesoinPersistenceAdapter;
 import com.appv4.ai.infrastructure.adapter.out.persistence.RouteBesoinPersistenceAdapter;
 import com.appv4.ai.infrastructure.adapter.out.persistence.UsageBesoinPersistenceAdapter;
 import com.appv4.ai.infrastructure.catalogue.SourcesHttpCatalogue;
 import com.appv4.auth.application.port.out.ActiveRolePort;
+import com.appv4.auth.application.port.out.AuthUserAccountPort;
 
 /**
  * Branche le module IA (BACK-30).
@@ -95,6 +101,23 @@ public class AiConfiguration {
 			BackAiConnectionJpaRepository connexions,
 			List<FournisseurIaPort> fournisseurs) {
 		return new ConnexionModeleService(roles, new ConnexionModelePersistenceAdapter(connexions), fournisseurs);
+	}
+
+	@Bean
+	@Profile("!test")
+	ReglerBesoinUseCase reglerBesoinUseCase(
+			ActiveRolePort roles,
+			AuthUserAccountPort comptes,
+			BackAiTaskRouteJpaRepository routes,
+			BackAiRouteChangeJpaRepository changements,
+			UsageBesoinPort usage,
+			List<FournisseurIaPort> fournisseurs,
+			AiProperties properties,
+			Clock clock) {
+		RouteBesoinPort routePort = new RouteBesoinPersistenceAdapter(routes);
+		HistoriqueBesoinPort historique = new HistoriqueBesoinPersistenceAdapter(changements);
+		return new ReglerBesoinService(
+				roles, comptes, routePort, historique, usage, fournisseurs, properties.depart(), clock);
 	}
 
 	@Bean

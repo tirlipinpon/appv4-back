@@ -99,7 +99,8 @@ public class SejourPersistenceAdapter implements SejourPort {
 				.param("subjectName", slice.subjectName())
 				.param("sliceStartedAt", Timestamp.from(slice.sliceStartedAt()))
 				.param("lastConfirmedAt", Timestamp.from(slice.lastConfirmedAt()))
-				.param("lastGestureAt", timestamp(slice.lastGestureAt()), Types.TIMESTAMP_WITH_TIMEZONE)
+				// Timestamp + TIMESTAMP_WITH_TIMEZONE est refusé par Postgres : le geste répondait 500.
+				.param("lastGestureAt", timestamp(slice.lastGestureAt()), Types.TIMESTAMP)
 				.param("id", slice.id())
 				.update();
 	}

@@ -71,4 +71,10 @@ appv4:
       # Return URL HTTPS enregistrée chez Apple (form_post, issue #33)
       callback-uri: ${APPLE_CALLBACK_URI:}
       # allowed-return-uri-prefixes: défaut localhost:4200/4201 (voir AppleOAuthProperties)
+  # Modèles IA (BACK-30) — la clé reste hors du dépôt
+  ai:
+    fournisseur: openai
+    modele: ${APPV4_AI_MODEL:depart}
+    openai-base-url: ${APPV4_OPENAI_BASE_URL:https://api.openai.com/v1}
+    openai-api-key: ${APPV4_OPENAI_API_KEY:}
 

@@ -5,11 +5,11 @@ import java.time.Duration;
 import java.util.List;
 
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
@@ -39,14 +39,16 @@ import com.appv4.auth.application.port.out.ActiveRolePort;
  *
  * <p><b>Business :</b> au premier démarrage, les trois besoins partent sur le modèle de la config.
  * <p><b>Technique :</b> la clé OpenAI vient de l'environnement. Elle n'est pas dans le dépôt.
- * <p><b>Métier / flow :</b> pas de route HTTP ici. Le port de besoin est prêt pour les tickets suivants.
+ * Les beans qui lisent Postgres sont {@code !test} : un {@code ConditionalOnBean} sur un
+ * dépôt JPA est évalué avant que Spring Data n'enregistre ce dépôt, et le service manque au démarrage.
+ * <p><b>Métier / flow :</b> profil réel → dépôts JPA → services. Profil test → faux port dans la config de test.
  */
 @Configuration
 @EnableConfigurationProperties(AiConfiguration.AiProperties.class)
 public class AiConfiguration {
 
 	@Bean
-	@ConditionalOnBean(BackAiTaskRouteJpaRepository.class)
+	@Profile("!test")
 	RouteBesoinPort routeBesoinPort(BackAiTaskRouteJpaRepository routes) {
 		return new RouteBesoinPersistenceAdapter(routes);
 	}
@@ -57,13 +59,13 @@ public class AiConfiguration {
 	}
 
 	@Bean
-	@ConditionalOnBean(BackAiCallJpaRepository.class)
+	@Profile("!test")
 	UsageBesoinPort usageBesoinPort(BackAiCallJpaRepository calls, BackAiUsageDayJpaRepository days) {
 		return new UsageBesoinPersistenceAdapter(calls, days);
 	}
 
 	@Bean
-	@ConditionalOnBean({BackAiTaskRouteJpaRepository.class, BackAiCallJpaRepository.class})
+	@Profile("!test")
 	DemanderBesoinUseCase demanderBesoinUseCase(
 			RouteBesoinPort routes,
 			List<FournisseurIaPort> fournisseurs,
@@ -74,7 +76,7 @@ public class AiConfiguration {
 	}
 
 	@Bean
-	@ConditionalOnBean(BackAiTaskRouteJpaRepository.class)
+	@Profile("!test")
 	ApplicationRunner poserLesBesoinsDeDepart(RouteBesoinPort routes, AiProperties properties) {
 		return args -> {
 			if (!routes.toutes().isEmpty()) {
@@ -87,7 +89,7 @@ public class AiConfiguration {
 	}
 
 	@Bean
-	@ConditionalOnBean(BackAiConnectionJpaRepository.class)
+	@Profile("!test")
 	ConnexionModeleUseCase connexionModeleUseCase(
 			ActiveRolePort roles,
 			BackAiConnectionJpaRepository connexions,

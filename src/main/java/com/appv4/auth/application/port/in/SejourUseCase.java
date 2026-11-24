@@ -60,6 +60,20 @@ public interface SejourUseCase {
 	List<ParentSejour> readParent(long parentUserId, String activeRole, long childId);
 
 	/**
+	 * Mois lu par la page Temps : une journée par date, sans plafond.
+	 *
+	 * <p><b>Business :</b> plusieurs séjours du même jour ne font qu'une journée.
+	 * La Nuit, de 22 h à 6 h, n'ajoute rien. Un mois futur est refusé.
+	 * <p><b>Technique :</b> {@code year} et {@code month} vides veulent dire le mois de l'horloge.
+	 * Chaque ligne porte un code d'espace et des secondes entières.
+	 * <p><b>Métier / flow :</b> {@code GET /api/int/parent/children/{childId}/sejours}.
+	 *
+	 * @param year année demandée, vide pour le mois en cours
+	 * @param month mois de 1 à 12, vide pour le mois en cours
+	 */
+	JourneeMonth readParentMonth(long parentUserId, String activeRole, long childId, Integer year, Integer month);
+
+	/**
 	 * Même détail que {@link #readParent}, une fois la classe contrôlée.
 	 *
 	 * <p><b>Business :</b> chaque professeur de la classe voit les mêmes séjours,
@@ -71,6 +85,15 @@ public interface SejourUseCase {
 	 * après {@link TeacherStudentsUseCase#requireInClass}.
 	 */
 	List<ParentSejour> readTeacher(long teacherUserId, String activeRole, long childId);
+
+	/**
+	 * Même mois que {@link #readParentMonth}, une fois la classe contrôlée.
+	 *
+	 * <p><b>Business :</b> le professeur voit les mêmes journées, sans plafond.
+	 * <p><b>Technique :</b> pas d'autre calcul que la lecture parent.
+	 * <p><b>Métier / flow :</b> {@code GET /api/int/teacher/students/{childId}/sejours}.
+	 */
+	JourneeMonth readTeacherMonth(long teacherUserId, String activeRole, long childId, Integer year, Integer month);
 
 	/**
 	 * Ce que cet appareil doit afficher maintenant.
@@ -103,5 +126,38 @@ public interface SejourUseCase {
 	 * @param subjectName nom de matière de la question, absent pour un écran
 	 */
 	record Line(String label, String subjectName, String durationLabel) {
+	}
+
+	/**
+	 * @param monthLabel libellé du mois, par exemple « novembre 2026 »
+	 * @param currentMonth vrai quand ce mois est celui de l'horloge
+	 * @param journees journées qui ont au moins une seconde, de la plus récente à la plus ancienne
+	 */
+	record JourneeMonth(
+			String monthLabel, int year, int month, boolean currentMonth, List<Journee> journees) {
+	}
+
+	/**
+	 * @param today vrai seulement pour la date de l'horloge
+	 * @param durationSeconds secondes confirmées de la journée, hors Nuit
+	 */
+	record Journee(
+			int year,
+			int month,
+			int day,
+			boolean today,
+			String dateLabel,
+			String durationLabel,
+			long durationSeconds,
+			List<JourneeLine> lines) {
+	}
+
+	/**
+	 * @param space code d'écran, ou {@code question}
+	 * @param label libellé d'écran, ou énoncé copié
+	 * @param subjectName nom de matière copié, absent pour un écran
+	 */
+	record JourneeLine(
+			String space, String label, String subjectName, String durationLabel, long durationSeconds) {
 	}
 }

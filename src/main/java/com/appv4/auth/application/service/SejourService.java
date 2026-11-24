@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -78,7 +79,10 @@ public class SejourService implements SejourUseCase {
 
 	private static final ZoneId PARIS = ReadChildProgressService.PROGRESS_ZONE;
 	private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
+	private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.FRENCH);
 	private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm", Locale.FRENCH);
+	private static final LocalTime NUIT_DEBUT = LocalTime.of(22, 0);
+	private static final LocalTime NUIT_FIN = LocalTime.of(6, 0);
 	private static final Map<String, String> LABELS = Map.of(
 			"accueil", "Accueil",
 			"matieres", "Matières",
@@ -207,9 +211,183 @@ public class SejourService implements SejourUseCase {
 
 	@Override
 	@Transactional(readOnly = true)
+	public JourneeMonth readParentMonth(
+			long parentUserId, String activeRole, long childId, Integer year, Integer month) {
+		if (!ActiveRoles.PARENT.equals(activeRole)) {
+			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, SpaceAccess.DENIED);
+		}
+		children.findOwned(parentUserId, childId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, ParentChildrenService.CHILD_UNKNOWN));
+		return monthOf(childId, year, month);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
 	public List<ParentSejour> readTeacher(long teacherUserId, String activeRole, long childId) {
 		students.requireInClass(teacherUserId, activeRole, childId);
 		return confirmed(childId);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public JourneeMonth readTeacherMonth(
+			long teacherUserId, String activeRole, long childId, Integer year, Integer month) {
+		students.requireInClass(teacherUserId, activeRole, childId);
+		return monthOf(childId, year, month);
+	}
+
+	/**
+	 * Journées d'un mois. La Nuit ne compte pas. Un mois futur est refusé.
+	 *
+	 * <p><b>Business :</b> le parent et le professeur lisent le même regroupement.
+	 * <p><b>Technique :</b> les intervalles fermés et la tranche ouverte confirmée.
+	 * <p><b>Métier / flow :</b> après le contrôle d'accès de la lecture du mois.
+	 */
+	private JourneeMonth monthOf(long childId, Integer year, Integer month) {
+		ZonedDateTime now = clock.instant().atZone(PARIS);
+		YearMonth asked = askedMonth(year, month, now);
+		YearMonth current = YearMonth.from(now);
+		if (asked.isAfter(current)) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, "Ce mois n'est pas encore là.");
+		}
+		List<Journee> journees = assemble(childId, asked, now.toLocalDate());
+		return new JourneeMonth(
+				MONTH.format(asked.atDay(1)),
+				asked.getYear(),
+				asked.getMonthValue(),
+				asked.equals(current),
+				journees);
+	}
+
+	private static YearMonth askedMonth(Integer year, Integer month, ZonedDateTime now) {
+		if (year == null && month == null) {
+			return YearMonth.from(now);
+		}
+		if (year == null || month == null || month < 1 || month > 12) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, "Mois inconnu.");
+		}
+		return YearMonth.of(year, month);
+	}
+
+	private List<Journee> assemble(long childId, YearMonth month, LocalDate today) {
+		Map<LocalDate, Map<String, Piece>> days = new LinkedHashMap<>();
+		for (StoredSejour stored : sejours.list(childId)) {
+			for (StoredInterval interval : stored.intervals()) {
+				pour(days, interval.screen(), interval.questionId(), interval.prompt(), interval.subjectName(),
+						interval.startedAt(), interval.endedAt());
+			}
+			pourOuvert(days, stored);
+		}
+		List<Journee> rows = new ArrayList<>();
+		for (Map.Entry<LocalDate, Map<String, Piece>> entry : days.entrySet()) {
+			if (!YearMonth.from(entry.getKey()).equals(month)) {
+				continue;
+			}
+			Journee journee = toJournee(entry.getKey(), entry.getValue(), today);
+			if (journee != null) {
+				rows.add(journee);
+			}
+		}
+		rows.sort(Comparator.comparing(Journee::year).thenComparing(Journee::month).thenComparing(Journee::day)
+				.reversed());
+		return List.copyOf(rows);
+	}
+
+	private void pourOuvert(Map<LocalDate, Map<String, Piece>> days, StoredSejour stored) {
+		if (!stored.open() || stored.sliceStartedAt() == null || stored.lastConfirmedAt() == null) {
+			return;
+		}
+		Instant end = stored.lastConfirmedAt();
+		if (stored.lastGestureAt() != null) {
+			Instant cap = stored.lastGestureAt().plus(LECTURE);
+			if (end.isAfter(cap)) {
+				end = cap;
+			}
+		}
+		if (end.isAfter(stored.sliceStartedAt())) {
+			pour(days, stored.screen(), stored.questionId(), stored.prompt(), stored.subjectName(),
+					stored.sliceStartedAt(), end);
+		}
+	}
+
+	private void pour(
+			Map<LocalDate, Map<String, Piece>> days,
+			String screen,
+			Long questionId,
+			String prompt,
+			String subjectName,
+			Instant startedAt,
+			Instant endedAt) {
+		if (startedAt == null || endedAt == null || !endedAt.isAfter(startedAt)) {
+			return;
+		}
+		if (screen == null && questionId == null) {
+			return;
+		}
+		ZonedDateTime cursor = startedAt.atZone(PARIS);
+		ZonedDateTime end = endedAt.atZone(PARIS);
+		while (cursor.isBefore(end)) {
+			if (nuit(cursor.toLocalTime())) {
+				LocalDate wakeDay = cursor.toLocalTime().isBefore(NUIT_FIN)
+						? cursor.toLocalDate()
+						: cursor.toLocalDate().plusDays(1);
+				ZonedDateTime wake = wakeDay.atTime(NUIT_FIN).atZone(PARIS);
+				cursor = wake.isAfter(end) ? end : wake;
+				continue;
+			}
+			ZonedDateTime night = cursor.toLocalDate().atTime(NUIT_DEBUT).atZone(PARIS);
+			ZonedDateTime next = night.isBefore(end) ? night : end;
+			long millis = Duration.between(cursor, next).toMillis();
+			if (millis > 0) {
+				String key = questionId != null ? "q" + questionId : "s" + screen;
+				Instant started = cursor.toInstant();
+				LocalDate day = cursor.toLocalDate();
+				Piece piece = days.computeIfAbsent(day, ignored -> new LinkedHashMap<>())
+						.computeIfAbsent(key, ignored -> new Piece(screen, questionId, started));
+				if (started.isBefore(piece.firstAt)) {
+					piece.firstAt = started;
+				}
+				piece.millis += millis;
+				if (piece.prompt == null && prompt != null) {
+					piece.prompt = prompt;
+					piece.subjectName = subjectName;
+				}
+			}
+			cursor = next;
+		}
+	}
+
+	private static boolean nuit(LocalTime time) {
+		return !time.isBefore(NUIT_DEBUT) || time.isBefore(NUIT_FIN);
+	}
+
+	private Journee toJournee(LocalDate date, Map<String, Piece> pieces, LocalDate today) {
+		List<Piece> ordered = new ArrayList<>(pieces.values());
+		ordered.sort(Comparator.comparing(piece -> piece.firstAt));
+		List<JourneeLine> lines = new ArrayList<>();
+		long total = 0;
+		for (Piece piece : ordered) {
+			long seconds = piece.millis / 1000L;
+			if (seconds < 1) {
+				continue;
+			}
+			total += seconds;
+			String space = piece.questionId != null ? "question" : piece.screen;
+			String label = piece.questionId != null ? piece.prompt : LABELS.get(piece.screen);
+			lines.add(new JourneeLine(space, label, piece.subjectName, durationLabel(seconds), seconds));
+		}
+		if (total < 1) {
+			return null;
+		}
+		return new Journee(
+				date.getYear(),
+				date.getMonthValue(),
+				date.getDayOfMonth(),
+				date.equals(today),
+				DATE.format(date),
+				durationLabel(total),
+				total,
+				List.copyOf(lines));
 	}
 
 	/** Séjours confirmés, du plus récent au plus ancien. Le parent et le professeur lisent ici. */
@@ -659,6 +837,22 @@ public class SejourService implements SejourUseCase {
 				open.sliceStartedAt(),
 				lastConfirmedAt,
 				lastGestureAt);
+	}
+
+	/** Morceau d'une journée, avant le passage en secondes entières. */
+	private static final class Piece {
+		private final String screen;
+		private final Long questionId;
+		private Instant firstAt;
+		private String prompt;
+		private String subjectName;
+		private long millis;
+
+		private Piece(String screen, Long questionId, Instant firstAt) {
+			this.screen = screen;
+			this.questionId = questionId;
+			this.firstAt = firstAt;
+		}
 	}
 
 	/** Un écran ou une question, dans l'ordre de la première visite. */

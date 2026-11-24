@@ -24,6 +24,9 @@ import org.junit.jupiter.api.Test;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.SejourUseCase.ChildSejour;
+import com.appv4.auth.application.port.in.SejourUseCase.Journee;
+import com.appv4.auth.application.port.in.SejourUseCase.JourneeLine;
+import com.appv4.auth.application.port.in.SejourUseCase.JourneeMonth;
 import com.appv4.auth.application.port.in.SejourUseCase.Line;
 import com.appv4.auth.application.port.in.SejourUseCase.ParentSejour;
 import com.appv4.auth.application.port.out.ChildLoginPort;
@@ -872,6 +875,103 @@ class SejourServiceTest {
 	}
 
 	@Test
+	void troisSejoursLeVingtQuatreNovembreFontUneJourneeDeSeptMinutes() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("profil", paris(2026, 11, 24, 9, 19, 0), paris(2026, 11, 24, 9, 19, 3));
+		fermer("accueil", paris(2026, 11, 24, 9, 19, 3), paris(2026, 11, 24, 9, 19, 7));
+		fermer("matieres", paris(2026, 11, 24, 9, 19, 7), paris(2026, 11, 24, 9, 19, 10));
+		fermer("recompenses", paris(2026, 11, 24, 9, 19, 10), paris(2026, 11, 24, 9, 19, 14));
+		fermer("classement", paris(2026, 11, 24, 9, 19, 14), paris(2026, 11, 24, 9, 19, 19));
+		fermer("accueil", paris(2026, 11, 24, 9, 22, 0), paris(2026, 11, 24, 9, 23, 4));
+		fermer("accueil", paris(2026, 11, 24, 9, 31, 0), paris(2026, 11, 24, 9, 36, 37));
+
+		JourneeMonth mois = sejour.readParentMonth(1L, "parent", 7L, 2026, 11);
+
+		assertThat(mois.monthLabel()).isEqualTo("novembre 2026");
+		assertThat(mois.currentMonth()).isTrue();
+		assertThat(mois.journees()).hasSize(1);
+		Journee jour = mois.journees().get(0);
+		assertThat(jour.day()).isEqualTo(24);
+		assertThat(jour.today()).isTrue();
+		assertThat(jour.dateLabel()).isEqualTo("24 novembre 2026");
+		assertThat(jour.durationLabel()).isEqualTo("7 min");
+		assertThat(jour.durationSeconds()).isEqualTo(420);
+		assertThat(jour.lines()).extracting(
+				JourneeLine::space, JourneeLine::label, JourneeLine::durationLabel, JourneeLine::durationSeconds)
+				.containsExactly(
+						tuple("profil", "Profil", "3 s", 3L),
+						tuple("accueil", "Accueil", "6 min 45", 405L),
+						tuple("matieres", "Matières", "3 s", 3L),
+						tuple("recompenses", "Récompenses", "4 s", 4L),
+						tuple("classement", "Classement", "5 s", 5L));
+	}
+
+	@Test
+	void unProfesseurLitLesMemesJourneesSansPlafond() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("accueil", paris(2026, 11, 24, 9, 0, 0), paris(2026, 11, 24, 9, 0, 40));
+		SejourService jeu = new SejourService(
+				sessions, logins, children, store, clock, new MemoryQuestions(), classesDeAkira());
+
+		assertThat(jeu.readTeacherMonth(4L, "teacher", 7L, 2026, 11))
+				.isEqualTo(sejour.readParentMonth(1L, "parent", 7L, 2026, 11));
+		assertThatThrownBy(() -> jeu.readTeacherMonth(9L, "teacher", 7L, 2026, 11))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("Cet élève n'est pas dans tes classes.");
+	}
+
+	@Test
+	void deuxVisitesDeLaMemeQuestionFontUneLigne() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		question(42L, "Combien font 2 + 2 ?", "Maths", paris(2026, 11, 24, 10, 0, 0), paris(2026, 11, 24, 10, 1, 0));
+		question(42L, "Autre énoncé", "Maths", paris(2026, 11, 24, 11, 0, 0), paris(2026, 11, 24, 11, 2, 0));
+		question(43L, "Quelle est la capitale ?", "Histoire", paris(2026, 11, 24, 12, 0, 0), paris(2026, 11, 24, 12, 1, 0));
+
+		Journee jour = sejour.readParentMonth(1L, "parent", 7L, 2026, 11).journees().get(0);
+
+		assertThat(jour.lines()).extracting(JourneeLine::space, JourneeLine::label, JourneeLine::durationSeconds)
+				.containsExactly(
+						tuple("question", "Combien font 2 + 2 ?", 180L),
+						tuple("question", "Quelle est la capitale ?", 60L));
+	}
+
+	@Test
+	void unMoisFuturEstRefuseEtNEcritRien() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("accueil", paris(2026, 11, 24, 9, 0, 0), paris(2026, 11, 24, 9, 1, 0));
+
+		assertThatThrownBy(() -> sejour.readParentMonth(1L, "parent", 7L, 2026, 12))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("Ce mois n'est pas encore là.");
+		assertThat(sejour.readParentMonth(1L, "parent", 7L, 2026, 11).journees()).hasSize(1);
+	}
+
+	@Test
+	void laNuitNeComptePasMemeAChevalSurMinuit() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("accueil", paris(2026, 11, 24, 21, 50, 0), paris(2026, 11, 24, 22, 10, 0));
+		fermer("accueil", paris(2026, 11, 22, 23, 50, 0), paris(2026, 11, 23, 0, 10, 0));
+
+		JourneeMonth mois = sejour.readParentMonth(1L, "parent", 7L, 2026, 11);
+
+		assertThat(mois.journees()).extracting(Journee::day, Journee::durationLabel)
+				.containsExactly(tuple(24, "10 min"));
+	}
+
+	@Test
+	void sansMoisLaLecturePrendLeMoisDeLHorloge() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("accueil", paris(2026, 11, 24, 9, 0, 0), paris(2026, 11, 24, 9, 0, 30));
+
+		JourneeMonth mois = sejour.readParentMonth(1L, "parent", 7L, null, null);
+
+		assertThat(mois.year()).isEqualTo(2026);
+		assertThat(mois.month()).isEqualTo(11);
+		assertThat(mois.currentMonth()).isTrue();
+		assertThat(mois.journees()).hasSize(1);
+	}
+
+	@Test
 	void unIntervalleStockeQuiTraverseMinuitResteUnSeulSejour() {
 		Instant start = paris(2026, 11, 22, 23, 50);
 		Instant end = paris(2026, 11, 23, 0, 10);
@@ -890,8 +990,24 @@ class SejourServiceTest {
 	}
 
 	private static Instant paris(int year, int month, int day, int hour, int minute) {
-		return ZonedDateTime.of(year, month, day, hour, minute, 0, 0, ReadChildProgressService.PROGRESS_ZONE)
+		return paris(year, month, day, hour, minute, 0);
+	}
+
+	private static Instant paris(int year, int month, int day, int hour, int minute, int second) {
+		return ZonedDateTime.of(year, month, day, hour, minute, second, 0, ReadChildProgressService.PROGRESS_ZONE)
 				.toInstant();
+	}
+
+	private void fermer(String screen, Instant start, Instant end) {
+		OpenSlice opened = store.open(7L, start, "tablette", screen);
+		store.appendInterval(opened.id(), screen, null, null, null, start, end);
+		store.close(opened.id(), end, "leave");
+	}
+
+	private void question(long questionId, String prompt, String subject, Instant start, Instant end) {
+		OpenSlice opened = store.open(7L, start, "tablette", null);
+		store.appendInterval(opened.id(), null, questionId, prompt, subject, start, end);
+		store.close(opened.id(), end, "leave");
 	}
 
 	/** Présences toutes les deux minutes, avec un geste pour que la lecture continue. */

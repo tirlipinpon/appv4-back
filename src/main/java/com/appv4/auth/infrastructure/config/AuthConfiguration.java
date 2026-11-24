@@ -731,9 +731,10 @@ public class AuthConfiguration {
 			SejourPort sejourPort,
 			SejourQuestionPort questions,
 			java.time.Clock clock,
-			TeacherStudentsUseCase teacherStudentsUseCase) {
+			TeacherStudentsUseCase teacherStudentsUseCase,
+			com.appv4.auth.application.port.out.ChildSharePort childSharePort) {
 		return new SejourService(
-				sessions, logins, childPort, sejourPort, clock, questions, teacherStudentsUseCase);
+				sessions, logins, childPort, sejourPort, clock, questions, teacherStudentsUseCase, childSharePort);
 	}
 
 	@Bean

@@ -3,9 +3,13 @@ package com.appv4.auth.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -28,11 +32,13 @@ import com.appv4.auth.application.port.in.SejourUseCase.Journee;
 import com.appv4.auth.application.port.in.SejourUseCase.JourneeLine;
 import com.appv4.auth.application.port.in.SejourUseCase.JourneeMonth;
 import com.appv4.auth.application.port.in.SejourUseCase.Line;
+import com.appv4.auth.application.port.in.SejourUseCase.Plafond;
 import com.appv4.auth.application.port.in.SejourUseCase.ParentSejour;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
+import com.appv4.auth.application.port.out.ChildSharePort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort.ChildSession;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
@@ -58,13 +64,21 @@ class SejourServiceTest {
 	private final ChildPort children = mock(ChildPort.class);
 	private final MemorySejours store = new MemorySejours();
 	private final MoveableClock clock = new MoveableClock(AT_16);
+	private final Map<Long, Integer> plafonds = new HashMap<>();
 	private SejourService sejour;
 
 	@BeforeEach
 	void akira() {
+		plafonds.clear();
 		when(sessions.read("akira")).thenReturn(Optional.of(new ChildSession(7L)));
 		when(logins.findActiveById(7L)).thenReturn(Optional.of(new ChildLoginCandidate(7L, "Akira", "hash")));
 		when(children.findOwned(1L, 7L)).thenReturn(Optional.of(child(7L, 1L, true)));
+		when(children.findPlafond(anyLong()))
+				.thenAnswer(call -> Optional.ofNullable(plafonds.get(call.getArgument(0))));
+		doAnswer(call -> {
+			plafonds.put(call.getArgument(0), call.getArgument(1));
+			return null;
+		}).when(children).savePlafond(anyLong(), nullable(Integer.class));
 		sejour = new SejourService(sessions, logins, children, store, clock);
 	}
 
@@ -913,8 +927,13 @@ class SejourServiceTest {
 		SejourService jeu = new SejourService(
 				sessions, logins, children, store, clock, new MemoryQuestions(), classesDeAkira());
 
-		assertThat(jeu.readTeacherMonth(4L, "teacher", 7L, 2026, 11))
-				.isEqualTo(sejour.readParentMonth(1L, "parent", 7L, 2026, 11));
+		JourneeMonth parent = sejour.readParentMonth(1L, "parent", 7L, 2026, 11);
+		JourneeMonth teacher = jeu.readTeacherMonth(4L, "teacher", 7L, 2026, 11);
+		assertThat(teacher.journees()).isEqualTo(parent.journees());
+		assertThat(teacher.monthLabel()).isEqualTo(parent.monthLabel());
+		assertThat(teacher.plafond()).isNull();
+		assertThat(parent.plafond().limitMinutes()).isNull();
+		assertThat(parent.plafond().message()).isEmpty();
 		assertThatThrownBy(() -> jeu.readTeacherMonth(9L, "teacher", 7L, 2026, 11))
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage("Cet élève n'est pas dans tes classes.");
@@ -969,6 +988,158 @@ class SejourServiceTest {
 		assertThat(mois.month()).isEqualTo(11);
 		assertThat(mois.currentMonth()).isTrue();
 		assertThat(mois.journees()).hasSize(1);
+	}
+
+	@Test
+	void sansPlafondLaLectureDitLimiteVide() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+
+		var plafond = sejour.readParentMonth(1L, "parent", 7L, null, null).plafond();
+
+		assertThat(plafond.limitMinutes()).isNull();
+		assertThat(plafond.exceeded()).isFalse();
+		assertThat(plafond.message()).isEmpty();
+		assertThat(plafond.editable()).isTrue();
+	}
+
+	@Test
+	void trenteMinutesEtPile1800SecondesNeSontPasDepassees() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("accueil", paris(2026, 11, 24, 9, 0, 0), paris(2026, 11, 24, 9, 30, 0));
+
+		Plafond plafond = sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("30"));
+
+		assertThat(plafond.limitMinutes()).isEqualTo(30);
+		assertThat(plafond.exceeded()).isFalse();
+		assertThat(plafond.message()).isEmpty();
+	}
+
+	@Test
+	void uneSecondeAuDessusDitLaPhraseExacte() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("accueil", paris(2026, 11, 24, 9, 0, 0), paris(2026, 11, 24, 9, 30, 1));
+
+		Plafond plafond = sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("30"));
+
+		assertThat(plafond.exceeded()).isTrue();
+		assertThat(plafond.message()).isEqualTo("Plafond du jour dépassé.");
+	}
+
+	@Test
+	void retirerLePlafondEnleveLeMessage() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("accueil", paris(2026, 11, 24, 9, 0, 0), paris(2026, 11, 24, 9, 30, 1));
+		sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("30"));
+
+		Plafond plafond = sejour.saveParentPlafond(1L, "parent", 7L, null);
+
+		assertThat(plafond.limitMinutes()).isNull();
+		assertThat(plafond.exceeded()).isFalse();
+		assertThat(plafond.message()).isEmpty();
+	}
+
+	@Test
+	void unNombreRefuseLaisseLePlafondDejaGarde() {
+		sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("30"));
+
+		assertThatThrownBy(() -> sejour.saveParentPlafond(1L, "parent", 7L, BigDecimal.ZERO))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("Le plafond est entre 1 et 960 minutes.");
+		assertThatThrownBy(() -> sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("-1")))
+				.hasMessage("Le plafond est entre 1 et 960 minutes.");
+		assertThatThrownBy(() -> sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("30.5")))
+				.hasMessage("Le plafond est entre 1 et 960 minutes.");
+		assertThatThrownBy(() -> sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("961")))
+				.hasMessage("Le plafond est entre 1 et 960 minutes.");
+		assertThat(sejour.readParentMonth(1L, "parent", 7L, null, null).plafond().limitMinutes()).isEqualTo(30);
+	}
+
+	@Test
+	void unEt960MinutesSontAcceptes() {
+		assertThat(sejour.saveParentPlafond(1L, "parent", 7L, BigDecimal.ONE).limitMinutes()).isEqualTo(1);
+		assertThat(sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("960")).limitMinutes()).isEqualTo(960);
+	}
+
+	@Test
+	void unMoisPasseGardeLAlerteDAujourdhui() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("accueil", paris(2026, 11, 24, 9, 0, 0), paris(2026, 11, 24, 9, 30, 1));
+		sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("30"));
+
+		Plafond plafond = sejour.readParentMonth(1L, "parent", 7L, 2026, 10).plafond();
+
+		assertThat(sejour.readParentMonth(1L, "parent", 7L, 2026, 10).journees()).isEmpty();
+		assertThat(plafond.exceeded()).isTrue();
+		assertThat(plafond.message()).isEqualTo("Plafond du jour dépassé.");
+	}
+
+	@Test
+	void monterLePlafondEnleveLAlerteToutDeSuite() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("accueil", paris(2026, 11, 24, 9, 0, 0), paris(2026, 11, 24, 9, 30, 1));
+		assertThat(sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("30")).exceeded()).isTrue();
+
+		Plafond plafond = sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("31"));
+
+		assertThat(plafond.exceeded()).isFalse();
+		assertThat(plafond.message()).isEmpty();
+	}
+
+	@Test
+	void laNuitNeComptePasDansLePlafond() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("accueil", paris(2026, 11, 24, 21, 50, 0), paris(2026, 11, 24, 22, 10, 0));
+
+		Plafond plafond = sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("10"));
+
+		assertThat(plafond.exceeded()).isFalse();
+	}
+
+	@Test
+	void unParentEnPartageLitLePlafondSansPouvoirLEcrire() {
+		when(children.findOwned(2L, 7L)).thenReturn(Optional.of(child(7L, 2L, true)));
+		ChildSharePort shares = mock(ChildSharePort.class);
+		when(shares.holds(2L, 7L)).thenReturn(true);
+		when(shares.isReferent(2L, 7L)).thenReturn(false);
+		SejourService partage = new SejourService(
+				sessions, logins, children, store, clock, new MemoryQuestions(), null, shares);
+		sejour.saveParentPlafond(1L, "parent", 7L, new BigDecimal("30"));
+
+		Plafond lu = partage.readParentMonth(2L, "parent", 7L, null, null).plafond();
+		assertThat(lu.limitMinutes()).isEqualTo(30);
+		assertThat(lu.editable()).isFalse();
+		assertThatThrownBy(() -> partage.saveParentPlafond(2L, "parent", 7L, new BigDecimal("10")))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(ParentChildrenService.ONLY_REFERENT);
+		assertThat(sejour.readParentMonth(1L, "parent", 7L, null, null).plafond().limitMinutes()).isEqualTo(30);
+	}
+
+	@Test
+	void unEnfantInconnuRefuseAussiLePlafond() {
+		when(children.findOwned(9L, 7L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> sejour.saveParentPlafond(9L, "parent", 7L, new BigDecimal("30")))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage(ParentChildrenService.CHILD_UNKNOWN);
+	}
+
+	@Test
+	void unMauvaisRoleNePosePasLePlafond() {
+		assertThatThrownBy(() -> sejour.saveParentPlafond(1L, "teacher", 7L, new BigDecimal("30")))
+				.isInstanceOf(AuthDomainException.class)
+				.extracting(ex -> ((AuthDomainException) ex).getErrorCode())
+				.isEqualTo(AuthErrorCode.FORBIDDEN);
+	}
+
+	@Test
+	void depasserLePlafondNeFermePasLeSejour() {
+		clock.at(paris(2026, 11, 24, 16, 0));
+		fermer("accueil", paris(2026, 11, 24, 9, 0, 0), paris(2026, 11, 24, 9, 2, 0));
+		sejour.saveParentPlafond(1L, "parent", 7L, BigDecimal.ONE);
+
+		sejour.signal("akira", "gesture", "tablette", null);
+
+		assertThat(sejour.readChild("akira", "tablette").holds()).isTrue();
 	}
 
 	@Test

@@ -77,6 +77,32 @@ public class ChildPersistenceAdapter implements ChildPort, ChildInterestSuggesti
 		return visibleTo(parentUserId, childId).map(ChildPersistenceAdapter::toSaved);
 	}
 
+	/**
+	 * Minutes du plafond, vide si la fiche n'en a pas.
+	 *
+	 * <p><b>Business :</b> la lecture parent compare ce nombre à la journée d'aujourd'hui.
+	 * <p><b>Technique :</b> {@code daily_limit_minutes}. Un vide JDBC reste vide.
+	 * <p><b>Métier / flow :</b> adapter out, appelé par le cas d'usage Séjour.
+	 */
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<Integer> findPlafond(long childId) {
+		return childRepository.findById(childId).map(BackChildEntity::getDailyLimitMinutes);
+	}
+
+	/**
+	 * Écrit le plafond déjà accepté.
+	 *
+	 * <p><b>Business :</b> le référent a déjà été contrôlé. Vide retire la limite.
+	 * <p><b>Technique :</b> met à jour la fiche. Pas de seconde table.
+	 * <p><b>Métier / flow :</b> après {@code saveParentPlafond}.
+	 */
+	@Override
+	@Transactional
+	public void savePlafond(long childId, Integer minutes) {
+		childRepository.findById(childId).ifPresent(child -> child.setDailyLimitMinutes(minutes));
+	}
+
 	@Override
 	@Transactional
 	public Optional<ChildSaved> update(long parentUserId, long childId, ChildChanges changes) {

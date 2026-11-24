@@ -27,7 +27,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * journées que le parent. Pas de plafond ici. Un élève hors classe est refusé
  * avec la phrase déjà connue.
  * <p><b>Technique :</b> {@code GET /api/int/teacher/students/{childId}/sejours}.
- * Le corps est celui de la lecture parent. Rien n'est recompté ici.
+ * Le corps reprend les journées. Le plafond du parent n'est pas copié.
  * <p><b>Métier / flow :</b> filtre JWT → ce controller → {@link SejourUseCase#readTeacherMonth}.
  */
 @RestController

@@ -72,6 +72,15 @@ public class BackChildEntity {
 	@Column(nullable = false)
 	private boolean hidden;
 
+	/**
+	 * Plafond de la journée, en minutes. Vide : pas de limite.
+	 *
+	 * <p><b>Business :</b> posé par le parent référent. La Nuit n'est pas dedans.
+	 * <p><b>Technique :</b> colonne nullable, entre 1 et 960 quand elle est remplie.
+	 */
+	@Column(name = "daily_limit_minutes")
+	private Integer dailyLimitMinutes;
+
 	protected BackChildEntity() {
 	}
 
@@ -196,6 +205,15 @@ public class BackChildEntity {
 	 */
 	public void assignParent(long parentUserId) {
 		this.parentUserId = parentUserId;
+	}
+
+	public Integer getDailyLimitMinutes() {
+		return dailyLimitMinutes;
+	}
+
+	/** Remplace le plafond. Vide le retire. */
+	public void setDailyLimitMinutes(Integer dailyLimitMinutes) {
+		this.dailyLimitMinutes = dailyLimitMinutes;
 	}
 
 	/**

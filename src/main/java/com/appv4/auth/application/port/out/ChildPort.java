@@ -36,6 +36,28 @@ public interface ChildPort {
 	Optional<ChildSaved> findOwned(long parentUserId, long childId);
 
 	/**
+	 * Minutes du plafond, vide s'il n'y en a pas.
+	 *
+	 * <p><b>Business :</b> une fiche peut n'avoir aucune limite.
+	 * <p><b>Technique :</b> colonne nullable. Ce n'est pas une durée déjà comptée.
+	 * <p><b>Métier / flow :</b> relu par le cas d'usage Séjour, pour le parent.
+	 */
+	default Optional<Integer> findPlafond(long childId) {
+		return Optional.empty();
+	}
+
+	/**
+	 * Remplace le plafond. {@code minutes} vide le retire.
+	 *
+	 * <p><b>Business :</b> le cas d'usage a déjà vérifié le parent référent et le nombre.
+	 * <p><b>Technique :</b> une colonne sur la fiche. Pas d'historique.
+	 * <p><b>Métier / flow :</b> après un enregistrement accepté.
+	 */
+	default void savePlafond(long childId, Integer minutes) {
+		// Les doubles de test n'ont pas la colonne. L'adapter réel écrit.
+	}
+
+	/**
 	 * Met à jour la fiche de ce parent. {@code pinHash} null garde l'ancien hash.
 	 * {@code replaceImage} faux garde la photo ou l'avatar déjà enregistré.
 	 */

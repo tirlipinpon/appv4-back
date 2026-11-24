@@ -1,5 +1,6 @@
 package com.appv4.auth.application.port.in;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -60,10 +61,11 @@ public interface SejourUseCase {
 	List<ParentSejour> readParent(long parentUserId, String activeRole, long childId);
 
 	/**
-	 * Mois lu par la page Temps : une journée par date, sans plafond.
+	 * Mois lu par la page Temps : une journée par date, et le plafond du jour.
 	 *
 	 * <p><b>Business :</b> plusieurs séjours du même jour ne font qu'une journée.
 	 * La Nuit, de 22 h à 6 h, n'ajoute rien. Un mois futur est refusé.
+	 * Le plafond compare toujours aujourd'hui, même si le mois lu est passé.
 	 * <p><b>Technique :</b> {@code year} et {@code month} vides veulent dire le mois de l'horloge.
 	 * Chaque ligne porte un code d'espace et des secondes entières.
 	 * <p><b>Métier / flow :</b> {@code GET /api/int/parent/children/{childId}/sejours}.
@@ -72,6 +74,20 @@ public interface SejourUseCase {
 	 * @param month mois de 1 à 12, vide pour le mois en cours
 	 */
 	JourneeMonth readParentMonth(long parentUserId, String activeRole, long childId, Integer year, Integer month);
+
+	/**
+	 * Pose ou retire le plafond du parent référent.
+	 *
+	 * <p><b>Business :</b> un entier de 1 à 960 minutes, ou vide pour retirer la limite.
+	 * Le parent en partage voit le même plafond et ne peut pas l'écrire. L'enfant continue.
+	 * <p><b>Technique :</b> une fraction, 0, un négatif ou plus de 960 est refusé.
+	 * La valeur déjà gardée ne bouge pas.
+	 * <p><b>Métier / flow :</b> {@code PUT /api/int/parent/children/{childId}/sejours/plafond}.
+	 * La lecture du mois renvoie ensuite le même objet.
+	 *
+	 * @param limitMinutes minutes entières, ou vide pour retirer le plafond
+	 */
+	Plafond saveParentPlafond(long parentUserId, String activeRole, long childId, BigDecimal limitMinutes);
 
 	/**
 	 * Même détail que {@link #readParent}, une fois la classe contrôlée.
@@ -129,12 +145,35 @@ public interface SejourUseCase {
 	}
 
 	/**
+	 * Plafond comparé à la journée d'aujourd'hui.
+	 *
+	 * <p><b>Business :</b> vide veut dire pas de limite. La phrase n'existe que si
+	 * les secondes confirmées d'aujourd'hui dépassent strictement les minutes.
+	 * <p><b>Technique :</b> {@code message} est exactement {@code Plafond du jour dépassé.}
+	 * ou une chaîne vide. {@code editable} est vrai pour le parent référent.
+	 * <p><b>Métier / flow :</b> porté par la lecture parent du mois, et par l'enregistrement.
+	 *
+	 * @param limitMinutes minutes posées, vide s'il n'y a pas de plafond
+	 * @param exceeded vrai seulement au-dessus du plafond
+	 * @param message phrase exacte, ou vide
+	 * @param editable vrai quand ce parent gère la fiche
+	 */
+	record Plafond(Integer limitMinutes, boolean exceeded, String message, boolean editable) {
+	}
+
+	/**
 	 * @param monthLabel libellé du mois, par exemple « novembre 2026 »
 	 * @param currentMonth vrai quand ce mois est celui de l'horloge
 	 * @param journees journées qui ont au moins une seconde, de la plus récente à la plus ancienne
+	 * @param plafond plafond du parent, absent pour le professeur
 	 */
 	record JourneeMonth(
-			String monthLabel, int year, int month, boolean currentMonth, List<Journee> journees) {
+			String monthLabel,
+			int year,
+			int month,
+			boolean currentMonth,
+			List<Journee> journees,
+			Plafond plafond) {
 	}
 
 	/**

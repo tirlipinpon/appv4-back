@@ -1,5 +1,6 @@
 package com.appv4.auth.application.service;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -24,8 +25,10 @@ import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.SejourUseCase;
 import com.appv4.auth.application.port.in.TeacherStudentsUseCase;
+import com.appv4.auth.application.port.in.SejourUseCase.Plafond;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildSharePort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.SejourPort;
 import com.appv4.auth.application.port.out.SejourPort.OpenSlice;
@@ -98,7 +101,11 @@ public class SejourService implements SejourUseCase {
 	private final SejourPort sejours;
 	private final SejourQuestionPort questions;
 	private final TeacherStudentsUseCase students;
+	private final ChildSharePort shares;
 	private final Clock clock;
+
+	static final String PLAFOND_RANGE = "Le plafond est entre 1 et 960 minutes.";
+	static final String PLAFOND_EXCEEDED = "Plafond du jour dépassé.";
 
 	public SejourService(
 			ChildSessionTokenPort sessions,
@@ -133,12 +140,28 @@ public class SejourService implements SejourUseCase {
 			Clock clock,
 			SejourQuestionPort questions,
 			TeacherStudentsUseCase students) {
+		this(sessions, logins, children, sejours, clock, questions, students, null);
+	}
+
+	/**
+	 * @param shares détenteurs de la fiche, pour savoir qui peut écrire le plafond
+	 */
+	public SejourService(
+			ChildSessionTokenPort sessions,
+			ChildLoginPort logins,
+			ChildPort children,
+			SejourPort sejours,
+			Clock clock,
+			SejourQuestionPort questions,
+			TeacherStudentsUseCase students,
+			ChildSharePort shares) {
 		this.sessions = sessions;
 		this.logins = logins;
 		this.children = children;
 		this.sejours = sejours;
 		this.questions = questions;
 		this.students = students;
+		this.shares = shares;
 		this.clock = clock;
 	}
 
@@ -218,7 +241,31 @@ public class SejourService implements SejourUseCase {
 		}
 		children.findOwned(parentUserId, childId)
 				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, ParentChildrenService.CHILD_UNKNOWN));
-		return monthOf(childId, year, month);
+		JourneeMonth shown = monthOf(childId, year, month);
+		return new JourneeMonth(
+				shown.monthLabel(),
+				shown.year(),
+				shown.month(),
+				shown.currentMonth(),
+				shown.journees(),
+				plafondOf(parentUserId, childId));
+	}
+
+	@Override
+	@Transactional
+	public Plafond saveParentPlafond(
+			long parentUserId, String activeRole, long childId, BigDecimal limitMinutes) {
+		if (!ActiveRoles.PARENT.equals(activeRole)) {
+			throw new AuthDomainException(AuthErrorCode.FORBIDDEN, SpaceAccess.DENIED);
+		}
+		children.findOwned(parentUserId, childId)
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, ParentChildrenService.CHILD_UNKNOWN));
+		if (!referent(parentUserId, childId)) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, ParentChildrenService.ONLY_REFERENT);
+		}
+		Integer minutes = wholeMinutes(limitMinutes);
+		children.savePlafond(childId, minutes);
+		return plafondOf(parentUserId, childId);
 	}
 
 	@Override
@@ -256,7 +303,64 @@ public class SejourService implements SejourUseCase {
 				asked.getYear(),
 				asked.getMonthValue(),
 				asked.equals(current),
-				journees);
+				journees,
+				null);
+	}
+
+	/**
+	 * Plafond de cette fiche, comparé aux secondes confirmées d'aujourd'hui.
+	 *
+	 * <p><b>Business :</b> égal au plafond, ce n'est pas dépassé. La Nuit ne compte pas.
+	 * Un mois passé n'efface pas l'alerte du jour en cours.
+	 * <p><b>Technique :</b> les minutes stockées fois 60. La phrase est fixe.
+	 * <p><b>Métier / flow :</b> après le contrôle d'accès de la lecture ou de l'enregistrement.
+	 */
+	private Plafond plafondOf(long parentUserId, long childId) {
+		Integer limit = storedLimit(childId);
+		long seconds = todaySeconds(childId);
+		boolean exceeded = limit != null && seconds > limit.longValue() * 60L;
+		String message = exceeded ? PLAFOND_EXCEEDED : "";
+		return new Plafond(limit, exceeded, message, referent(parentUserId, childId));
+	}
+
+	private Integer storedLimit(long childId) {
+		Optional<Integer> found = children.findPlafond(childId);
+		if (found == null || found.isEmpty()) {
+			return null;
+		}
+		return found.get();
+	}
+
+	private long todaySeconds(long childId) {
+		ZonedDateTime now = clock.instant().atZone(PARIS);
+		LocalDate today = now.toLocalDate();
+		return assemble(childId, YearMonth.from(today), today).stream()
+				.filter(Journee::today)
+				.mapToLong(Journee::durationSeconds)
+				.findFirst()
+				.orElse(0L);
+	}
+
+	private boolean referent(long userId, long childId) {
+		if (shares != null && shares.isReferent(userId, childId)) {
+			return true;
+		}
+		if (shares != null && shares.holds(userId, childId)) {
+			return false;
+		}
+		return children.findOwned(userId, childId).isPresent();
+	}
+
+	private static Integer wholeMinutes(BigDecimal raw) {
+		if (raw == null) {
+			return null;
+		}
+		boolean fraction = raw.stripTrailingZeros().scale() > 0;
+		boolean outside = raw.compareTo(BigDecimal.ONE) < 0 || raw.compareTo(new BigDecimal("960")) > 0;
+		if (fraction || outside) {
+			throw new AuthDomainException(AuthErrorCode.BAD_REQUEST, PLAFOND_RANGE);
+		}
+		return raw.intValue();
 	}
 
 	private static YearMonth askedMonth(Integer year, Integer month, ZonedDateTime now) {

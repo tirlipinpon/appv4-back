@@ -12,7 +12,7 @@ python scripts/front-demo/demo.py reset     # Supprimer puis recréer en une tra
 
 Le script cible uniquement le service PostgreSQL du Compose de ce dépôt. Aucun
 serveur distant, aucune variable JDBC, aucun envoi d'e-mail. Le backend doit avoir
-appliqué les migrations jusqu'à V94. Une nouvelle version de schéma exige une
+appliqué les migrations jusqu'à V95. Une nouvelle version de schéma exige une
 revue du générateur avant de modifier sa garde. Ce n'est pas une migration Flyway
 ni un seed exécuté au démarrage.
 
@@ -33,6 +33,7 @@ ni un seed exécuté au démarrage.
 - Fratries, demi-fratries, cousins, jumeaux, écoles et années identiques ou différentes,
   quelques enfants sans école, masqués ou désactivés, matières scolaires exclues
   et matières supplémentaires hors classe.
+- Les horaires d'ouverture restent ceux de la migration : début 6 h, fin 22 h. Ce jeu ne les réécrit pas.
 - Noms accentués et longs, six avatars, énoncés courts, longs ou facultatifs vides,
   tailles de réponses variables, QCM à réponses simples/multiples, images WebP valides.
 

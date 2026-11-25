@@ -45,6 +45,7 @@ import com.appv4.auth.application.port.in.ConnectedAccountUseCase;
 import com.appv4.auth.application.port.in.ForgotPasswordUseCase;
 import com.appv4.auth.application.port.in.RecoverIdentifierUseCase;
 import com.appv4.auth.application.port.in.RecoveryPromptUseCase;
+import com.appv4.auth.application.port.in.AppHoursUseCase;
 import com.appv4.auth.application.port.in.AskChildHumeurUseCase;
 import com.appv4.auth.application.port.in.HumeurLibraryUseCase;
 import com.appv4.auth.application.port.in.IssueJwtUseCase;
@@ -90,6 +91,7 @@ import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
+import com.appv4.auth.application.port.out.AppHoursPort;
 import com.appv4.auth.application.port.out.HumeurAnswerPort;
 import com.appv4.auth.application.port.out.HumeurChoicePort;
 import com.appv4.auth.application.port.out.PasswordResetMailPort;
@@ -129,6 +131,7 @@ import com.appv4.auth.application.service.SuggestChildInterestsService;
 import com.appv4.auth.application.service.ResetPasswordService;
 import com.appv4.auth.application.service.SignupWithEmailService;
 import com.appv4.auth.application.service.SwitchActiveRoleService;
+import com.appv4.auth.application.service.AppHoursService;
 import com.appv4.auth.application.service.AskChildHumeurService;
 import com.appv4.auth.application.service.ReadParentHumeursService;
 import com.appv4.auth.application.service.SejourService;
@@ -401,8 +404,10 @@ public class AuthConfiguration {
 			ChildLoginPort childLoginPort,
 			PasswordEncoder passwordEncoder,
 			ChildSessionTokenPort childSessionTokenPort,
-			java.time.Clock clock) {
-		return new LoginChildService(childLoginPort, passwordEncoder, childSessionTokenPort, clock);
+			java.time.Clock clock,
+			AppHoursPort appHoursPort) {
+		return new LoginChildService(
+				childLoginPort, passwordEncoder, childSessionTokenPort, clock, appHoursPort);
 	}
 
 	/**
@@ -690,6 +695,15 @@ public class AuthConfiguration {
 	}
 
 	/**
+	 * Horaires de l'app enfant.
+	 * Seul l'admin les change. Le login et le séjour lisent la même ligne.
+	 */
+	@Bean
+	AppHoursUseCase appHoursUseCase(ActiveRolePort activeRolePort, AppHoursPort appHoursPort) {
+		return new AppHoursService(activeRolePort, appHoursPort);
+	}
+
+	/**
 	 * Demande d'humeur (BACK-69).
 	 * La tendance se lit sur les essais déjà enregistrés. L'horloge est celle du bean.
 	 */
@@ -732,9 +746,11 @@ public class AuthConfiguration {
 			SejourQuestionPort questions,
 			java.time.Clock clock,
 			TeacherStudentsUseCase teacherStudentsUseCase,
-			com.appv4.auth.application.port.out.ChildSharePort childSharePort) {
+			com.appv4.auth.application.port.out.ChildSharePort childSharePort,
+			AppHoursPort appHoursPort) {
 		return new SejourService(
-				sessions, logins, childPort, sejourPort, clock, questions, teacherStudentsUseCase, childSharePort);
+				sessions, logins, childPort, sejourPort, clock, questions, teacherStudentsUseCase, childSharePort,
+				appHoursPort);
 	}
 
 	@Bean

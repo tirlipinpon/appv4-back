@@ -5,7 +5,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -21,9 +20,11 @@ import java.util.Optional;
 
 import org.springframework.transaction.annotation.Transactional;
 
+import com.appv4.auth.application.AppHours;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.SejourUseCase;
+import com.appv4.auth.application.port.out.AppHoursPort;
 import com.appv4.auth.application.port.in.TeacherStudentsUseCase;
 import com.appv4.auth.application.port.in.SejourUseCase.Plafond;
 import com.appv4.auth.application.port.out.ChildLoginPort;
@@ -43,12 +44,12 @@ import com.appv4.auth.application.port.out.SejourQuestionPort.QuestionCaption;
  * et demande si l'enfant est encore là
  * (BACK-38, question BACK-79, Nuit BACK-80, popup BACK-81, professeur BACK-82).
  *
- * <p><b>Business :</b> seul le temps confirmé par un signal compte, jamais après 22 h.
- * De 22 h à 6 h l'enfant n'entre plus. À vingt minutes sans geste, la lecture envoie
- * la popup. Sans « Je continue » à vingt-cinq minutes, le séjour finit.
+ * <p><b>Business :</b> seul le temps confirmé par un signal compte.
+ * De l'heure de fin à l'heure de début, l'enfant n'entre plus. Au départ, 22 h et 6 h.
+ * L'admin change ces deux heures pour tous les enfants. À vingt minutes sans geste,
+ * la lecture envoie la popup. Sans « Je continue » à vingt-cinq minutes, le séjour finit.
  * <p><b>Technique :</b> l'horloge injectée est lue en Europe/Paris, le même fuseau que
- * la progression. La tranche ouverte s'arrête au plus tôt entre le dernier geste plus
- * deux minutes et 22 h.
+ * la progression. Les heures viennent de {@link AppHoursPort}.
  * <p><b>Métier / flow :</b> port in Séjour. Les routes enfant appellent ici et reçoivent
  * la phrase. La lecture parent et la lecture professeur restent ouvertes pendant la Nuit.
  * Les deux lisent la même liste, après leur propre contrôle d'accès.
@@ -59,9 +60,6 @@ public class SejourService implements SejourUseCase {
 	static final String SIGNAL_REFUSED = "Ce signal est refusé.";
 	static final String DEVICE_REQUIRED = "Il manque l'appareil.";
 
-	/** Phrase unique renvoyée par l'API pendant la Nuit. */
-	public static final String NUIT_MESSAGE = "L'app est fermée jusqu'à 6 h.";
-
 	/** Phrase de la popup, renvoyée par la lecture enfant seulement quand elle est due. */
 	public static final String POPUP_MESSAGE = "Tu es encore là ?";
 
@@ -71,8 +69,6 @@ public class SejourService implements SejourUseCase {
 	/** Phrase unique après vingt-cinq minutes sans « Je continue ». */
 	public static final String DISCONNECT_MESSAGE = "Tu as été déconnecté.";
 
-	private static final LocalTime NUIT_START = LocalTime.of(22, 0);
-	private static final LocalTime NUIT_END = LocalTime.of(6, 0);
 	private static final Duration LECTURE = Duration.ofMinutes(2);
 	private static final Duration POPUP = Duration.ofMinutes(20);
 	private static final Duration IDLE = Duration.ofMinutes(25);
@@ -84,8 +80,6 @@ public class SejourService implements SejourUseCase {
 	private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
 	private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.FRENCH);
 	private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm", Locale.FRENCH);
-	private static final LocalTime NUIT_DEBUT = LocalTime.of(22, 0);
-	private static final LocalTime NUIT_FIN = LocalTime.of(6, 0);
 	private static final Map<String, String> LABELS = Map.of(
 			"accueil", "Accueil",
 			"matieres", "Matières",
@@ -102,6 +96,7 @@ public class SejourService implements SejourUseCase {
 	private final SejourQuestionPort questions;
 	private final TeacherStudentsUseCase students;
 	private final ChildSharePort shares;
+	private final AppHoursPort appHours;
 	private final Clock clock;
 
 	static final String PLAFOND_RANGE = "Le plafond est entre 1 et 960 minutes.";
@@ -155,6 +150,23 @@ public class SejourService implements SejourUseCase {
 			SejourQuestionPort questions,
 			TeacherStudentsUseCase students,
 			ChildSharePort shares) {
+		this(sessions, logins, children, sejours, clock, questions, students, shares,
+				AppHoursPort.fixed(AppHours.defaults()));
+	}
+
+	/**
+	 * @param appHours heure de début et heure de fin, lues à chaque appel enfant
+	 */
+	public SejourService(
+			ChildSessionTokenPort sessions,
+			ChildLoginPort logins,
+			ChildPort children,
+			SejourPort sejours,
+			Clock clock,
+			SejourQuestionPort questions,
+			TeacherStudentsUseCase students,
+			ChildSharePort shares,
+			AppHoursPort appHours) {
 		this.sessions = sessions;
 		this.logins = logins;
 		this.children = children;
@@ -162,6 +174,7 @@ public class SejourService implements SejourUseCase {
 		this.questions = questions;
 		this.students = students;
 		this.shares = shares;
+		this.appHours = appHours;
 		this.clock = clock;
 	}
 
@@ -374,13 +387,14 @@ public class SejourService implements SejourUseCase {
 	}
 
 	private List<Journee> assemble(long childId, YearMonth month, LocalDate today) {
+		AppHours window = hours();
 		Map<LocalDate, Map<String, Piece>> days = new LinkedHashMap<>();
 		for (StoredSejour stored : sejours.list(childId)) {
 			for (StoredInterval interval : stored.intervals()) {
-				pour(days, interval.screen(), interval.questionId(), interval.prompt(), interval.subjectName(),
-						interval.startedAt(), interval.endedAt());
+				pour(window, days, interval.screen(), interval.questionId(), interval.prompt(),
+						interval.subjectName(), interval.startedAt(), interval.endedAt());
 			}
-			pourOuvert(days, stored);
+			pourOuvert(window, days, stored);
 		}
 		List<Journee> rows = new ArrayList<>();
 		for (Map.Entry<LocalDate, Map<String, Piece>> entry : days.entrySet()) {
@@ -397,7 +411,7 @@ public class SejourService implements SejourUseCase {
 		return List.copyOf(rows);
 	}
 
-	private void pourOuvert(Map<LocalDate, Map<String, Piece>> days, StoredSejour stored) {
+	private void pourOuvert(AppHours window, Map<LocalDate, Map<String, Piece>> days, StoredSejour stored) {
 		if (!stored.open() || stored.sliceStartedAt() == null || stored.lastConfirmedAt() == null) {
 			return;
 		}
@@ -409,12 +423,13 @@ public class SejourService implements SejourUseCase {
 			}
 		}
 		if (end.isAfter(stored.sliceStartedAt())) {
-			pour(days, stored.screen(), stored.questionId(), stored.prompt(), stored.subjectName(),
+			pour(window, days, stored.screen(), stored.questionId(), stored.prompt(), stored.subjectName(),
 					stored.sliceStartedAt(), end);
 		}
 	}
 
 	private void pour(
+			AppHours window,
 			Map<LocalDate, Map<String, Piece>> days,
 			String screen,
 			Long questionId,
@@ -431,15 +446,15 @@ public class SejourService implements SejourUseCase {
 		ZonedDateTime cursor = startedAt.atZone(PARIS);
 		ZonedDateTime end = endedAt.atZone(PARIS);
 		while (cursor.isBefore(end)) {
-			if (nuit(cursor.toLocalTime())) {
-				LocalDate wakeDay = cursor.toLocalTime().isBefore(NUIT_FIN)
+			if (window.closed(cursor.toLocalTime())) {
+				LocalDate wakeDay = cursor.toLocalTime().isBefore(window.opensAt())
 						? cursor.toLocalDate()
 						: cursor.toLocalDate().plusDays(1);
-				ZonedDateTime wake = wakeDay.atTime(NUIT_FIN).atZone(PARIS);
+				ZonedDateTime wake = wakeDay.atTime(window.opensAt()).atZone(PARIS);
 				cursor = wake.isAfter(end) ? end : wake;
 				continue;
 			}
-			ZonedDateTime night = cursor.toLocalDate().atTime(NUIT_DEBUT).atZone(PARIS);
+			ZonedDateTime night = cursor.toLocalDate().atTime(window.closesAt()).atZone(PARIS);
 			ZonedDateTime next = night.isBefore(end) ? night : end;
 			long millis = Duration.between(cursor, next).toMillis();
 			if (millis > 0) {
@@ -459,10 +474,6 @@ public class SejourService implements SejourUseCase {
 			}
 			cursor = next;
 		}
-	}
-
-	private static boolean nuit(LocalTime time) {
-		return !time.isBefore(NUIT_DEBUT) || time.isBefore(NUIT_FIN);
 	}
 
 	private Journee toJournee(LocalDate date, Map<String, Piece> pieces, LocalDate today) {
@@ -623,7 +634,7 @@ public class SejourService implements SejourUseCase {
 	}
 
 	/**
-	 * Pendant la Nuit, le séjour ouvert se ferme à 22 h et la route enfant refuse.
+	 * Pendant la fermeture, le séjour ouvert se termine à l'heure de fin et la route enfant refuse.
 	 * La fermeture est conservée même si l'appel se termine par le refus.
 	 * La lecture parent ne passe pas ici.
 	 */
@@ -631,11 +642,12 @@ public class SejourService implements SejourUseCase {
 	@Transactional(noRollbackFor = AuthDomainException.class)
 	public void refuseDuringNuit(String rawToken) {
 		Instant now = clock.instant();
-		if (!isNuit(now)) {
+		AppHours window = hours();
+		if (!window.closedAt(now, PARIS)) {
 			return;
 		}
-		endOpenSejour(rawToken, nuitCut(now));
-		throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, NUIT_MESSAGE);
+		endOpenSejour(rawToken, window.closedSince(now, PARIS));
+		throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, window.closedMessage());
 	}
 
 	/**
@@ -679,7 +691,7 @@ public class SejourService implements SejourUseCase {
 		return issued != null && issued.isPresent() && issued.get().isAfter(closedAt);
 	}
 
-	/** Confirme le délai de lecture au plus jusqu'à 22 h, puis ferme. Sans geste, rien de plus. */
+	/** Confirme le délai de lecture, puis ferme à l'heure de fin. Sans geste, rien de plus. */
 	private void endOpenSejour(String rawToken, Instant cut) {
 		long childId;
 		try {
@@ -696,20 +708,8 @@ public class SejourService implements SejourUseCase {
 		sejours.close(open.id(), cut, ENDED_NUIT);
 	}
 
-	/** 22 h inclus, 6 h exclus, sur l'horloge de la progression. */
-	static boolean isNuit(Instant instant) {
-		LocalTime time = instant.atZone(PARIS).toLocalTime();
-		return !time.isBefore(NUIT_START) || time.isBefore(NUIT_END);
-	}
-
-	/** Le 22 h qui a ouvert la Nuit en cours. */
-	private static Instant nuitCut(Instant instant) {
-		ZonedDateTime paris = instant.atZone(PARIS);
-		LocalDate day = paris.toLocalDate();
-		if (paris.toLocalTime().isBefore(NUIT_END)) {
-			day = day.minusDays(1);
-		}
-		return day.atTime(NUIT_START).atZone(PARIS).toInstant();
+	private AppHours hours() {
+		return appHours.current();
 	}
 
 	/** Vrai de vingt minutes après le dernier geste jusqu'à la fin, à vingt-cinq. */

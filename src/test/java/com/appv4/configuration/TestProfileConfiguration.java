@@ -20,7 +20,9 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import com.appv4.ai.application.port.in.ConnexionModeleUseCase;
 import com.appv4.ai.application.port.in.ReglerBesoinUseCase;
+import com.appv4.auth.application.AppHours;
 import com.appv4.auth.application.port.out.ActiveRolePort;
+import com.appv4.auth.application.port.out.AppHoursPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.RecoveryAccountPort;
 import com.appv4.auth.application.port.out.RecoveryPromptPort;
@@ -135,6 +137,14 @@ public class TestProfileConfiguration {
 	@Bean
 	SejourPort sejourPort() {
 		return mock(SejourPort.class, withSettings().strictness(Strictness.LENIENT));
+	}
+
+	/** Horaires de l'app enfant. Le défaut des tests web reste 6 h–22 h. */
+	@Bean
+	AppHoursPort appHoursPort() {
+		AppHoursPort port = mock(AppHoursPort.class, withSettings().strictness(Strictness.LENIENT));
+		when(port.current()).thenReturn(AppHours.defaults());
+		return port;
 	}
 
 	/** Énoncé et matière d'une question (BACK-79). Pas de Postgres dans les tests web. */

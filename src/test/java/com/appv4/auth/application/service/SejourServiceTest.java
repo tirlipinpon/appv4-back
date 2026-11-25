@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -25,6 +26,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.appv4.auth.application.AppHours;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.SejourUseCase.ChildSejour;
@@ -34,6 +36,7 @@ import com.appv4.auth.application.port.in.SejourUseCase.JourneeMonth;
 import com.appv4.auth.application.port.in.SejourUseCase.Line;
 import com.appv4.auth.application.port.in.SejourUseCase.Plafond;
 import com.appv4.auth.application.port.in.SejourUseCase.ParentSejour;
+import com.appv4.auth.application.port.out.AppHoursPort;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildPort;
@@ -712,6 +715,26 @@ class SejourServiceTest {
 				.hasMessage("L'app est fermée jusqu'à 6 h.");
 
 		assertThat(sejour.readParent(1L, "parent", 7L)).isEmpty();
+	}
+
+	@Test
+	void uneFermetureRegleeA20hRefuseA20hAvecLaPhraseDe8h() {
+		AppHours hours = new AppHours(LocalTime.of(8, 0), LocalTime.of(20, 0));
+		SejourService regle = new SejourService(
+				sessions, logins, children, new MemorySejours(), clock,
+				ignored -> Optional.empty(), null, null, AppHoursPort.fixed(hours));
+		clock.at(paris(2026, 11, 22, 19, 59));
+		regle.signal("akira", "screen", "tablette", "accueil");
+		regle.signal("akira", "gesture", "tablette", null);
+
+		clock.at(paris(2026, 11, 22, 20, 0));
+		assertThatThrownBy(() -> regle.signal("akira", "presence", "tablette", null))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("L'app est fermée jusqu'à 8 h.");
+
+		ParentSejour row = seul(regle.readParent(1L, "parent", 7L));
+		assertThat(row.timeLabel()).isEqualTo("19:59");
+		assertThat(row.durationLabel()).isEqualTo("1 min");
 	}
 
 	@Test

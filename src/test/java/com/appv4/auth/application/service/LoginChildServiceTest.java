@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -22,8 +23,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.appv4.auth.application.AppHours;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
+import com.appv4.auth.application.port.out.AppHoursPort;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
@@ -50,9 +53,14 @@ class LoginChildServiceTest {
 	}
 
 	private LoginChildService childLoginAt(int hour, int minute) {
+		return childLoginAt(hour, minute, AppHours.defaults());
+	}
+
+	private LoginChildService childLoginAt(int hour, int minute, AppHours hours) {
 		var instant = ZonedDateTime.of(2026, 11, 22, hour, minute, 0, 0, ZoneId.of("Europe/Paris")).toInstant();
 		return new LoginChildService(
-				childLoginPort, passwordEncoder, childSessionTokenPort, Clock.fixed(instant, ZoneOffset.UTC));
+				childLoginPort, passwordEncoder, childSessionTokenPort, Clock.fixed(instant, ZoneOffset.UTC),
+				AppHoursPort.fixed(hours));
 	}
 
 	@Test
@@ -92,6 +100,30 @@ class LoginChildServiceTest {
 				.isInstanceOf(AuthDomainException.class)
 				.hasMessage("L'app est fermée jusqu'à 6 h.");
 		verify(childSessionTokenPort, never()).issue(anyLong(), anyString());
+	}
+
+	@Test
+	void loginAt1800IsRefusedWhenTheAppClosesAt1800() {
+		service = childLoginAt(18, 0, new AppHours(LocalTime.of(8, 0), LocalTime.of(18, 0)));
+		when(childLoginPort.findActiveByFirstName("léa"))
+				.thenReturn(List.of(new ChildLoginCandidate(7L, "Léa", "hash")));
+		when(passwordEncoder.matches("1234", "hash")).thenReturn(true);
+
+		assertThatThrownBy(() -> service.login("Léa", "1234"))
+				.isInstanceOf(AuthDomainException.class)
+				.hasMessage("L'app est fermée jusqu'à 8 h.");
+		verify(childSessionTokenPort, never()).issue(anyLong(), anyString());
+	}
+
+	@Test
+	void loginAt0800IssuesATokenWhenTheAppOpensAt0800() {
+		service = childLoginAt(8, 0, new AppHours(LocalTime.of(8, 0), LocalTime.of(18, 0)));
+		when(childLoginPort.findActiveByFirstName("léa"))
+				.thenReturn(List.of(new ChildLoginCandidate(7L, "Léa", "hash")));
+		when(passwordEncoder.matches("1234", "hash")).thenReturn(true);
+		when(childSessionTokenPort.issue(7L, "Léa")).thenReturn(new JwtTokenResult("child-jwt", 99L));
+
+		assertThat(service.login("Léa", "1234").token()).isEqualTo("child-jwt");
 	}
 
 	@Test

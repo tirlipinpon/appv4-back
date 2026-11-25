@@ -8,9 +8,11 @@ import java.util.Locale;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.appv4.auth.application.AppHours;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.LoginChildUseCase;
+import com.appv4.auth.application.port.out.AppHoursPort;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildLoginPort.ChildLoginCandidate;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
@@ -23,13 +25,13 @@ import com.appv4.auth.application.result.JwtTokenResult;
  *
  * <p><b>Business :</b> l'enfant entre dans son app. Prénom inconnu, code faux,
  * fiche arrêtée, ou deux fiches avec le même prénom et le même code : le même refus.
- * Pendant la Nuit, l'entrée et la relecture de session sont fermées : pas de jeton, pas de séjour.
- * On n'ouvre pas l'admin.
+ * Pendant la fermeture, l'entrée et la relecture de session sont fermées : pas de jeton, pas de séjour.
+ * Les heures sont celles choisies par l'admin. Au départ, de 22 h à 6 h. On n'ouvre pas l'admin.
  * <p><b>Technique :</b> {@code matches} est toujours appelé, y compris sur un hash factice
  * quand aucune fiche ne correspond, pour ne pas rendre l'absence plus rapide.
  * La limite HTTP sur {@code POST /api/ext/auth/login} freine les essais des 10 000 codes.
  * L'horloge injectée est lue dans le fuseau de la progression.
- * <p><b>Métier / flow :</b> port in → si la Nuit, la phrase du séjour, sans jeton ;
+ * <p><b>Métier / flow :</b> port in → si l'app est fermée, la phrase des horaires, sans jeton ;
  * sinon port out fiches actives → port out jeton enfant.
  */
 public class LoginChildService implements LoginChildUseCase {
@@ -43,16 +45,27 @@ public class LoginChildService implements LoginChildUseCase {
 	private final PasswordEncoder passwordEncoder;
 	private final ChildSessionTokenPort childSessionTokenPort;
 	private final Clock clock;
+	private final AppHoursPort appHours;
 
 	public LoginChildService(
 			ChildLoginPort childLoginPort,
 			PasswordEncoder passwordEncoder,
 			ChildSessionTokenPort childSessionTokenPort,
 			Clock clock) {
+		this(childLoginPort, passwordEncoder, childSessionTokenPort, clock, AppHoursPort.fixed(AppHours.defaults()));
+	}
+
+	public LoginChildService(
+			ChildLoginPort childLoginPort,
+			PasswordEncoder passwordEncoder,
+			ChildSessionTokenPort childSessionTokenPort,
+			Clock clock,
+			AppHoursPort appHours) {
 		this.childLoginPort = childLoginPort;
 		this.passwordEncoder = passwordEncoder;
 		this.childSessionTokenPort = childSessionTokenPort;
 		this.clock = clock;
+		this.appHours = appHours;
 	}
 
 	@Override
@@ -82,9 +95,7 @@ public class LoginChildService implements LoginChildUseCase {
 		}
 
 		ChildLoginCandidate child = matches.get(0);
-		if (SejourService.isNuit(clock.instant())) {
-			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, SejourService.NUIT_MESSAGE);
-		}
+		refuseWhenClosed();
 		JwtTokenResult token = childSessionTokenPort.issue(child.id(), child.firstName());
 		return new ChildLoginResult(token.token(), token.expiresAtEpochSeconds(), child.firstName());
 	}
@@ -92,15 +103,21 @@ public class LoginChildService implements LoginChildUseCase {
 	@Override
 	@Transactional(readOnly = true)
 	public ChildSessionView session(String rawToken) {
-		if (SejourService.isNuit(clock.instant())) {
-			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, SejourService.NUIT_MESSAGE);
-		}
+		refuseWhenClosed();
 		long childId = childSessionTokenPort.read(rawToken)
 				.orElseThrow(this::invalidSession)
 				.childId();
 		ChildLoginCandidate child = childLoginPort.findActiveById(childId)
 				.orElseThrow(this::invalidSession);
 		return new ChildSessionView(child.id(), child.firstName());
+	}
+
+	/** Pendant la fermeture : la phrase des horaires, sans jeton. */
+	private void refuseWhenClosed() {
+		AppHours hours = appHours.current();
+		if (hours.closedAt(clock.instant(), ReadChildProgressService.PROGRESS_ZONE)) {
+			throw new AuthDomainException(AuthErrorCode.UNAUTHORIZED, hours.closedMessage());
+		}
 	}
 
 	private boolean pinMatches(String pin, String hash) {

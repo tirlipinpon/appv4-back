@@ -22,6 +22,20 @@ public interface ParentChildrenUseCase {
 
 	ParentChildrenView.ChildCard update(long parentUserId, String activeRole, long childId, NewChildCommand command);
 
+	/**
+	 * Enregistre les six cases de classement.
+	 *
+	 * <p><b>Business :</b> le parent référent et un parent en partage peuvent les changer.
+	 * Un parent qui n'a pas la fiche ne la voit pas.
+	 * <p><b>Technique :</b> n'écrit pas le prénom, l'école ni le code.
+	 * <p><b>Métier / flow :</b> après la lecture de la fiche, {@code PUT /ranking}.
+	 */
+	ParentChildrenView.ChildCard saveRanking(
+			long parentUserId,
+			String activeRole,
+			long childId,
+			com.appv4.auth.application.port.out.ChildRankingCasesPort.RankingSelection selection);
+
 	void deactivate(long parentUserId, String activeRole, long childId);
 
 	void reactivate(long parentUserId, String activeRole, long childId);

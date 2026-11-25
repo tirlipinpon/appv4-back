@@ -2,6 +2,7 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.clearInvocations;
@@ -51,6 +52,9 @@ import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.FollowingChild;
 import com.appv4.auth.application.port.out.ChildSubjectPort.SubjectChildLink;
 import com.appv4.auth.application.port.out.ChildProgressPort;
+import com.appv4.auth.application.port.out.ChildRankingCasesPort;
+import com.appv4.auth.application.port.out.ChildRankingCasesPort.RankingSelection;
+import com.appv4.auth.application.result.ParentChildrenView.RankingCase;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort.ChildSession;
 import com.appv4.auth.application.port.out.SchoolCatalogPort.CatalogSchool;
@@ -97,7 +101,8 @@ class ParentChildrenServiceTest {
 				CharacterAvatarCatalog.load(),
 				clock,
 				children,
-				accounts);
+				accounts,
+				new MemoryRanking());
 	}
 
 	@Test
@@ -148,6 +153,36 @@ class ParentChildrenServiceTest {
 		assertThat(defaultProfile.styleCode()).isEqualTo(family.getLast().character().styleCode());
 		assertThat(defaultProfile.presetId()).isNull();
 		assertThat(defaultProfile.zones()).allMatch(zone -> zone.selectedCode() == null);
+	}
+
+	@Test
+	void rankingCasesStartCheckedAndAHolderCanTurnOneOff() {
+		ChildCard created = service.add(1L, "parent", command("Léa", "Martin", "7", "France", "CE1", null, "fox", "4821", "4821"));
+
+		assertThat(created.ranking()).extracting(RankingCase::code, RankingCase::label, RankingCase::checked)
+				.containsExactly(
+						tuple("classe", "Ma classe", true),
+						tuple("annee", "Mon année", true),
+						tuple("pays", "Mon pays", true),
+						tuple("tous", "Tout le monde", true),
+						tuple("age", "Mon âge", true),
+						tuple("amitie", "Amitié", true));
+
+		ChildCard hidden = service.saveRanking(
+				1L, "parent", created.id(), new RankingSelection(false, true, true, true, true, true));
+		assertThat(hidden.ranking()).extracting(RankingCase::code, RankingCase::checked)
+				.containsExactly(
+						tuple("classe", false),
+						tuple("annee", true),
+						tuple("pays", true),
+						tuple("tous", true),
+						tuple("age", true),
+						tuple("amitie", true));
+
+		assertThatThrownBy(() -> service.saveRanking(9L, "parent", created.id(), RankingSelection.shown()))
+				.hasMessage(ParentChildrenService.CHILD_UNKNOWN);
+		assertThatThrownBy(() -> service.saveRanking(1L, "child", created.id(), RankingSelection.shown()))
+				.hasMessage(SpaceAccess.DENIED);
 	}
 
 	@Test
@@ -861,6 +896,29 @@ class ParentChildrenServiceTest {
 				null,
 				null,
 				words == null ? null : List.of(words));
+	}
+
+	private static final class MemoryRanking implements ChildRankingCasesPort {
+		private final Map<Long, RankingSelection> saved = new LinkedHashMap<>();
+
+		@Override
+		public RankingSelection selection(long childId) {
+			return saved.getOrDefault(childId, RankingSelection.shown());
+		}
+
+		@Override
+		public Map<Long, RankingSelection> selection(java.util.Collection<Long> childIds) {
+			Map<Long, RankingSelection> found = new LinkedHashMap<>();
+			for (Long childId : childIds) {
+				found.put(childId, selection(childId));
+			}
+			return found;
+		}
+
+		@Override
+		public void save(long childId, RankingSelection selection) {
+			saved.put(childId, selection);
+		}
 	}
 
 	private static final class MemoryChildren implements ChildPort, ChildSharePort {

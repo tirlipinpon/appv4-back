@@ -274,6 +274,25 @@ public class TestProfileConfiguration {
 		return port;
 	}
 
+	/** Cases de classement (BACK-22). Pas de Postgres dans les tests web. */
+	@Bean
+	com.appv4.auth.application.port.out.ChildRankingCasesPort childRankingCasesPort() {
+		var port = mock(
+				com.appv4.auth.application.port.out.ChildRankingCasesPort.class,
+				withSettings().strictness(Strictness.LENIENT));
+		when(port.selection(anyLong()))
+				.thenReturn(com.appv4.auth.application.port.out.ChildRankingCasesPort.RankingSelection.shown());
+		return port;
+	}
+
+	/** Enfants visibles du classement (BACK-22). Pas de Postgres dans les tests web. */
+	@Bean
+	com.appv4.auth.application.port.out.ChildRankingRosterPort childRankingRosterPort() {
+		return mock(
+				com.appv4.auth.application.port.out.ChildRankingRosterPort.class,
+				withSettings().strictness(Strictness.LENIENT));
+	}
+
 	/** Progression enfant (BACK-17). Pas de Postgres dans les tests web. */
 	@Bean
 	ChildProgressPort childProgressPort() {

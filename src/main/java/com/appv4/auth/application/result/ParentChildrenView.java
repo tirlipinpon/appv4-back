@@ -50,13 +50,24 @@ public record ParentChildrenView(
 			boolean referent,
 			int pendingInvitationCount,
 			int pendingDemandeCount,
-			int pendingTransferCount) {
+			int pendingTransferCount,
+			List<RankingCase> ranking) {
 
 		public ChildCard {
 			linkPhrases = linkPhrases == null ? List.of() : List.copyOf(linkPhrases);
 			links = links == null ? List.of() : List.copyOf(links);
 			interests = interests == null ? List.of() : List.copyOf(interests);
+			ranking = ranking == null ? List.of() : List.copyOf(ranking);
 		}
+	}
+
+	/**
+	 * Une case du classement sur la fiche.
+	 *
+	 * <p><b>Business :</b> cochée, l'enfant peut apparaître dans ce groupe.
+	 * <p><b>Technique :</b> le code est stable, le libellé est celui de l'écran.
+	 */
+	public record RankingCase(String code, String label, boolean checked) {
 	}
 
 	/**

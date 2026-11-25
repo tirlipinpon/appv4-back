@@ -166,6 +166,32 @@ public class ParentChildrenController {
 		return ResponseEntity.noContent().build();
 	}
 
+	@PutMapping("/{id}/ranking")
+	@Operation(operationId = "saveParentChildRanking", summary = "Choisir dans quels classements l'enfant apparaît")
+	@ApiResponse(responseCode = "200", description = "Cases enregistrées, fiche relue")
+	@ApiResponse(
+			responseCode = "404",
+			description = "Enfant introuvable pour ce parent",
+			content = @Content(schema = @Schema(implementation = AuthExceptionHandler.ErrorBody.class)))
+	public ResponseEntity<ParentChildResponse> saveRanking(
+			@AuthenticationPrincipal AuthenticatedUser principal,
+			@PathVariable long id,
+			@RequestBody SaveParentRankingRequest request) {
+		AuthenticatedUser user = CurrentAuth.require(principal);
+		ChildCard card = parentChildrenUseCase.saveRanking(
+				user.userId(),
+				user.activeRole(),
+				id,
+				new com.appv4.auth.application.port.out.ChildRankingCasesPort.RankingSelection(
+						request.classe(),
+						request.annee(),
+						request.pays(),
+						request.tous(),
+						request.age(),
+						request.amitie()));
+		return ResponseEntity.ok(toChild(card));
+	}
+
 	@PostMapping("/{id}/reactivate")
 	@Operation(operationId = "reactivateParentChild", summary = "Réactiver un enfant du parent connecté")
 	@ApiResponse(responseCode = "204", description = "De nouveau proposé dans le reste de l'application")
@@ -434,7 +460,10 @@ public class ParentChildrenController {
 				card.referent(),
 				card.pendingInvitationCount(),
 				card.pendingDemandeCount(),
-				card.pendingTransferCount());
+				card.pendingTransferCount(),
+				card.ranking().stream()
+						.map(item -> new ParentRankingCase(item.code(), item.label(), item.checked()))
+						.toList());
 	}
 
 	@Schema(name = "ParentChildrenResponse")
@@ -484,7 +513,13 @@ public class ParentChildrenController {
 			@Schema(description = "Demandes de partage encore en attente pour ce nom. Zéro si ce parent ne gère pas la fiche.")
 			int pendingDemandeCount,
 			@Schema(description = "Un transfert en attente vaut 1. Zéro si ce parent ne gère pas la fiche.")
-			int pendingTransferCount) {
+			int pendingTransferCount,
+			@Schema(description = "Où l'enfant apparaît. Toutes les cases sont cochées tant que rien n'est enregistré.")
+			List<ParentRankingCase> ranking) {
+	}
+
+	@Schema(name = "ParentRankingCase")
+	public record ParentRankingCase(String code, String label, boolean checked) {
 	}
 
 	@Schema(name = "ParentChildCharacter")
@@ -555,6 +590,16 @@ public class ParentChildrenController {
 
 	@Schema(name = "PendingInvitationResponse")
 	public record PendingInvitationResponse(long id, long childId, String firstName, String lastName) {
+	}
+
+	@Schema(name = "SaveParentRankingRequest")
+	public record SaveParentRankingRequest(
+			boolean classe,
+			boolean annee,
+			boolean pays,
+			boolean tous,
+			boolean age,
+			boolean amitie) {
 	}
 
 	@Schema(name = "CreateParentChildRequest")

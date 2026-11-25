@@ -82,6 +82,18 @@ class ChildProgressRulesTest {
 	}
 
 	@Test
+	void weekYellowCountsKeepOneQuestionPerDayAndHideTheFuture() {
+		LocalDate wednesday = LocalDate.of(2026, 11, 18);
+		List<ChildProgressRules.YellowGain> gains = List.of(
+				new ChildProgressRules.YellowGain(11L, LocalDate.of(2026, 11, 16)),
+				new ChildProgressRules.YellowGain(12L, wednesday),
+				new ChildProgressRules.YellowGain(12L, wednesday));
+
+		assertThat(ChildProgressRules.weekYellowCounts(gains, wednesday))
+				.containsExactly(1, 0, 1, null, null, null, null);
+	}
+
+	@Test
 	void toViewExposesSevenBooleans() {
 		StoredProgress stored = new StoredProgress(
 				7L, 60, 2, LocalDate.of(2026, 11, 18), LocalDate.of(2026, 11, 16), "0010000");

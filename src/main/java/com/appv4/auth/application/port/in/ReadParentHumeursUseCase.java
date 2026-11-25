@@ -15,9 +15,12 @@ public interface ReadParentHumeursUseCase {
 	List<ParentChildHumeur> list(long parentUserId, String activeRole);
 
 	/**
-	 * @param humeur absente s'il n'y a jamais eu de réponse
+	 * @param humeurs de la plus récente à la plus ancienne. Vide s'il n'y a jamais eu de réponse
 	 */
-	record ParentChildHumeur(long id, String firstName, String lastName, Humeur humeur) {
+	record ParentChildHumeur(long id, String firstName, String lastName, List<Humeur> humeurs) {
+		public ParentChildHumeur {
+			humeurs = humeurs == null ? List.of() : List.copyOf(humeurs);
+		}
 	}
 
 	/**

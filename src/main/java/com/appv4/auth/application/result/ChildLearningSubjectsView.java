@@ -23,6 +23,8 @@ public record ChildLearningSubjectsView(List<SubjectCard> subjects) {
 			String name,
 			String grade,
 			long questionCount,
-			String iconCode) {
+			String iconCode,
+			long yellowQuestionCount,
+			long notYellowQuestionCount) {
 	}
 }

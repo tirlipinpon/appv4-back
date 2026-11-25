@@ -47,7 +47,7 @@ public class ChildProgressController {
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
 		ChildProgressView view = readChildProgressUseCase.progress(bearer(authorization));
 		return ResponseEntity.ok(new ChildProgressResponse(
-				view.xpTotal(), view.currentStreak(), view.leagueLabel(), view.weekDays()));
+				view.xpTotal(), view.currentStreak(), view.leagueLabel(), view.weekDays(), view.weekYellowCounts()));
 	}
 
 	private static String bearer(String authorization) {
@@ -59,6 +59,11 @@ public class ChildProgressController {
 
 	@Schema(name = "ChildProgressResponse")
 	public record ChildProgressResponse(
-			int xpTotal, int currentStreak, String leagueLabel, List<Boolean> weekDays) {
+			int xpTotal,
+			int currentStreak,
+			String leagueLabel,
+			List<Boolean> weekDays,
+			@Schema(description = "Étoiles jaunes du lundi au dimanche. Null pour un jour encore à venir.")
+			List<Integer> weekYellowCounts) {
 	}
 }

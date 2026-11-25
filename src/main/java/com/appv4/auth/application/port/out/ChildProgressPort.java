@@ -19,6 +19,16 @@ public interface ChildProgressPort {
 
 	StoredProgress save(StoredProgress progress);
 
+	/**
+	 * Ajoute des XP sans toucher à la série ni à la semaine.
+	 *
+	 * <p><b>Business :</b> le bonus sans faute s'ajoute au total déjà gagné.
+	 * <p><b>Technique :</b> relit la fiche, puis la réécrit avec le total augmenté.
+	 * <p><b>Métier / flow :</b> une fois, quand la mission du jour se ferme sans faute.
+	 */
+	default void addXp(long childId, int amount) {
+	}
+
 	record StoredProgress(
 			long childId,
 			int xpTotal,

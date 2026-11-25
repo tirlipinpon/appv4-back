@@ -46,12 +46,13 @@ class ReadParentHumeursServiceTest {
 		List<ParentChildHumeur> rows = humeurs.list(1L, "parent");
 
 		assertThat(rows).extracting(ParentChildHumeur::firstName).containsExactly("Akira", "Nao");
-		assertThat(rows.get(0).humeur().icon()).isEqualTo("🙂");
-		assertThat(rows.get(0).humeur().word()).isEqualTo("joie");
-		assertThat(rows.get(0).humeur().label()).isNull();
-		assertThat(rows.get(0).humeur().dateLabel()).isEqualTo("22 novembre 2026");
-		assertThat(rows.get(0).humeur().timeLabel()).isEqualTo("09:51");
-		assertThat(rows.get(1).humeur()).isNull();
+		assertThat(rows.get(0).humeurs()).hasSize(1);
+		assertThat(rows.get(0).humeurs().get(0).icon()).isEqualTo("🙂");
+		assertThat(rows.get(0).humeurs().get(0).word()).isEqualTo("joie");
+		assertThat(rows.get(0).humeurs().get(0).label()).isNull();
+		assertThat(rows.get(0).humeurs().get(0).dateLabel()).isEqualTo("22 novembre 2026");
+		assertThat(rows.get(0).humeurs().get(0).timeLabel()).isEqualTo("09:51");
+		assertThat(rows.get(1).humeurs()).isEmpty();
 	}
 
 	@Test
@@ -60,19 +61,19 @@ class ReadParentHumeursServiceTest {
 
 		ParentChildHumeur row = humeurs.list(1L, "parent").get(0);
 
-		assertThat(row.humeur().label()).isEqualTo("Fermée sans réponse");
-		assertThat(row.humeur().icon()).isNull();
-		assertThat(row.humeur().word()).isNull();
-		assertThat(row.humeur().dateLabel()).isEqualTo("22 novembre 2026");
-		assertThat(row.humeur().timeLabel()).isEqualTo("09:51");
+		assertThat(row.humeurs().get(0).label()).isEqualTo("Fermée sans réponse");
+		assertThat(row.humeurs().get(0).icon()).isNull();
+		assertThat(row.humeurs().get(0).word()).isNull();
+		assertThat(row.humeurs().get(0).dateLabel()).isEqualTo("22 novembre 2026");
+		assertThat(row.humeurs().get(0).timeLabel()).isEqualTo("09:51");
 	}
 
 	@Test
 	void unMotSeulNeGagnePasDIcone() {
 		answers.insert(2L, 4L, null, "calme", false, ANSWERED);
 
-		assertThat(humeurs.list(1L, "parent").get(0).humeur().icon()).isNull();
-		assertThat(humeurs.list(1L, "parent").get(0).humeur().word()).isEqualTo("calme");
+		assertThat(humeurs.list(1L, "parent").get(0).humeurs().get(0).icon()).isNull();
+		assertThat(humeurs.list(1L, "parent").get(0).humeurs().get(0).word()).isEqualTo("calme");
 	}
 
 	@Test
@@ -97,9 +98,34 @@ class ReadParentHumeursServiceTest {
 		return new ChildSaved(id, 1L, firstName, "Iris", "F", 8, "FR", "CE1", null, "cat", false, active);
 	}
 
+	@Test
+	void lesAnciennesHumeursRestentDeLaPlusRecenteALaPlusAncienne() {
+		answers.insert(2L, 1L, "😴", "fatigue", false, ANSWERED.minusSeconds(3600));
+		answers.insert(2L, null, null, null, true, ANSWERED);
+
+		var rows = humeurs.list(1L, "parent").get(0).humeurs();
+
+		assertThat(rows).hasSize(2);
+		assertThat(rows.get(0).label()).isEqualTo("Fermée sans réponse");
+		assertThat(rows.get(0).timeLabel()).isEqualTo("09:51");
+		assertThat(rows.get(1).word()).isEqualTo("fatigue");
+		assertThat(rows.get(1).icon()).isEqualTo("😴");
+		assertThat(rows.get(1).timeLabel()).isEqualTo("08:51");
+	}
+
 	private static final class MemoryAnswers implements HumeurAnswerPort {
 		private final List<StoredAnswer> rows = new ArrayList<>();
 		private long nextId = 1L;
+
+		@Override
+		public List<StoredAnswer> history(long childId) {
+			return rows.stream()
+					.filter(row -> row.childId() == childId)
+					.sorted(Comparator.comparing(StoredAnswer::answeredAt)
+							.thenComparingLong(StoredAnswer::id)
+							.reversed())
+					.toList();
+		}
 
 		@Override
 		public Optional<StoredAnswer> latest(long childId) {

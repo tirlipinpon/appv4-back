@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.ChildProgressPort;
+import com.appv4.auth.application.service.ChildProgressRules;
 
 /**
  * Persiste la progression enfant (BACK-17).
@@ -38,6 +39,22 @@ public class ChildProgressPersistenceAdapter implements ChildProgressPort {
 	public Optional<StoredProgress> findForUpdate(long childId) {
 		children.lockForProgressUpdate(childId);
 		return findByChildId(childId);
+	}
+
+	@Override
+	@Transactional
+	public void addXp(long childId, int amount) {
+		if (amount <= 0) {
+			return;
+		}
+		StoredProgress current = findForUpdate(childId).orElseGet(() -> ChildProgressRules.empty(childId));
+		save(new StoredProgress(
+				childId,
+				current.xpTotal() + amount,
+				current.currentStreak(),
+				current.lastPlayDate(),
+				current.weekStartDate(),
+				current.weekDays()));
 	}
 
 	@Override

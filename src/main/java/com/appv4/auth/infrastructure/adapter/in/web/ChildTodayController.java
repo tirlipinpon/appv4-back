@@ -82,7 +82,11 @@ public class ChildTodayController {
 			@Schema(nullable = true) Long playSubjectId,
 			@Schema(nullable = true) Long playQuestionId,
 			boolean playable,
-			List<ChildTodayTask> tasks) {
+			List<ChildTodayTask> tasks,
+			@Schema(nullable = true, description = "XP en plus si la mission est, ou reste, sans faute.")
+			Integer sansFauteBonusXp,
+			@Schema(nullable = true, description = "XP en plus de la prochaine mission si celle-ci finit sans faute.")
+			Integer nextSansFauteBonusXp) {
 
 		static ChildTodayMission from(Mission mission) {
 			return new ChildTodayMission(
@@ -97,7 +101,9 @@ public class ChildTodayController {
 					mission.playSubjectId(),
 					mission.playQuestionId(),
 					mission.playable(),
-					mission.tasks().stream().map(ChildTodayTask::from).toList());
+					mission.tasks().stream().map(ChildTodayTask::from).toList(),
+					mission.sansFauteBonusXp(),
+					mission.nextSansFauteBonusXp());
 		}
 	}
 

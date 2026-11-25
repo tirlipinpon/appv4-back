@@ -3,7 +3,10 @@ package com.appv4.auth.application.service;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.appv4.auth.application.port.out.ChildProgressPort.StoredProgress;
 
@@ -96,6 +99,39 @@ public final class ChildProgressRules {
 			return 0;
 		}
 		return Math.max(storedStreak, 0);
+	}
+
+	/**
+	 * Nombre d'étoiles jaunes gagnées chaque jour de la semaine en cours.
+	 *
+	 * <p><b>Business :</b> un jour déjà commencé montre un nombre, même zéro.
+	 * Un jour encore à venir n'a pas de nombre. Une question rejouée le même jour compte 1.
+	 * <p><b>Technique :</b> {@code null} pour un jour futur. Les dates sont déjà en Europe/Paris.
+	 * <p><b>Métier / flow :</b> GET progress, après la lecture des premières étoiles jaunes.
+	 */
+	public static List<Integer> weekYellowCounts(List<YellowGain> gains, LocalDate today) {
+		LocalDate monday = mondayOf(today);
+		List<Integer> counts = new ArrayList<>(7);
+		for (int i = 0; i < 7; i++) {
+			LocalDate day = monday.plusDays(i);
+			if (day.isAfter(today)) {
+				counts.add(null);
+				continue;
+			}
+			Set<Long> questions = new HashSet<>();
+			if (gains != null) {
+				for (YellowGain gain : gains) {
+					if (gain != null && day.equals(gain.day())) {
+						questions.add(gain.questionId());
+					}
+				}
+			}
+			counts.add(questions.size());
+		}
+		return Collections.unmodifiableList(counts);
+	}
+
+	public record YellowGain(long questionId, LocalDate day) {
 	}
 
 	public static List<Boolean> weekDaysForDisplay(

@@ -42,8 +42,8 @@ public class ParentHumeursController {
 	}
 
 	@GetMapping
-	@Operation(operationId = "listParentHumeurs", summary = "Lire la dernière humeur de chaque enfant")
-	@ApiResponse(responseCode = "200", description = "Enfants du parent, avec ou sans humeur")
+	@Operation(operationId = "listParentHumeurs", summary = "Lire les humeurs de chaque enfant")
+	@ApiResponse(responseCode = "200", description = "Enfants du parent, avec leur historique d'humeurs")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace parent",
@@ -57,13 +57,11 @@ public class ParentHumeursController {
 	}
 
 	private static ParentHumeurChildItem toItem(ParentChildHumeur child) {
-		return new ParentHumeurChildItem(child.id(), child.firstName(), child.lastName(), toHumeur(child.humeur()));
+		List<ParentHumeurItem> humeurs = child.humeurs().stream().map(ParentHumeursController::toHumeur).toList();
+		return new ParentHumeurChildItem(child.id(), child.firstName(), child.lastName(), humeurs);
 	}
 
 	private static ParentHumeurItem toHumeur(Humeur humeur) {
-		if (humeur == null) {
-			return null;
-		}
 		return new ParentHumeurItem(humeur.icon(), humeur.word(), humeur.label(), humeur.dateLabel(), humeur.timeLabel());
 	}
 
@@ -74,7 +72,7 @@ public class ParentHumeursController {
 
 	@JsonInclude(JsonInclude.Include.NON_NULL)
 	@Schema(name = "ParentHumeurChildItem")
-	public record ParentHumeurChildItem(long id, String firstName, String lastName, ParentHumeurItem humeur) {
+	public record ParentHumeurChildItem(long id, String firstName, String lastName, List<ParentHumeurItem> humeurs) {
 	}
 
 	@Schema(name = "ParentHumeurListResponse")

@@ -126,6 +126,54 @@ public class ChildDailyMissionPersistenceAdapter implements ChildDailyMissionPor
 
 	@Override
 	@Transactional
+	public void setBonus(long missionId, int bonusXp) {
+		entityManager.createNativeQuery("""
+				UPDATE back_child_daily_missions
+				SET bonus_xp = :bonusXp
+				WHERE id = :id AND bonus_xp IS NULL
+				""")
+				.setParameter("bonusXp", bonusXp)
+				.setParameter("id", missionId)
+				.executeUpdate();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Integer bonusOf(long missionId) {
+		List<?> rows = entityManager.createNativeQuery("""
+				SELECT bonus_xp FROM back_child_daily_missions WHERE id = :id
+				""")
+				.setParameter("id", missionId)
+				.getResultList();
+		if (rows.isEmpty() || rows.get(0) == null) {
+			return null;
+		}
+		return ((Number) rows.get(0)).intValue();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<LocalDate> sansFauteDates(long childId) {
+		List<?> rows = entityManager.createNativeQuery("""
+				SELECT mission_date FROM back_child_daily_missions
+				WHERE child_id = :childId AND bonus_xp > 0
+				ORDER BY mission_date
+				""")
+				.setParameter("childId", childId)
+				.getResultList();
+		List<LocalDate> days = new ArrayList<>();
+		for (Object row : rows) {
+			if (row instanceof LocalDate date) {
+				days.add(date);
+			} else if (row instanceof java.sql.Date date) {
+				days.add(date.toLocalDate());
+			}
+		}
+		return days;
+	}
+
+	@Override
+	@Transactional
 	public void setProgress(long taskId, int progressCount) {
 		BackChildDailyTaskEntity task = tasks.findById(taskId)
 				.orElseThrow(() -> new IllegalStateException("Tâche introuvable."));

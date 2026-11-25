@@ -545,9 +545,10 @@ public class AuthConfiguration {
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildProgressPort childProgressPort,
+			com.appv4.auth.application.port.out.ChildQuestionAttemptPort childQuestionAttemptPort,
 			java.time.Clock clock) {
 		return new ReadChildProgressService(
-				childLoginPort, childSessionTokenPort, childProgressPort, clock);
+				childLoginPort, childSessionTokenPort, childProgressPort, childQuestionAttemptPort, clock);
 	}
 
 	@Bean
@@ -583,6 +584,8 @@ public class AuthConfiguration {
 			ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
 			ChildDailyMissionPort childDailyMissionPort,
+			com.appv4.auth.application.port.out.ChildQuestionAttemptPort childQuestionAttemptPort,
+			com.appv4.auth.application.port.out.ChildProgressPort childProgressPort,
 			java.time.Clock clock) {
 		return new ChildDailyMissionService(
 				childLoginPort,
@@ -590,6 +593,8 @@ public class AuthConfiguration {
 				childSubjectPort,
 				teacherQuestionPort,
 				childDailyMissionPort,
+				childQuestionAttemptPort,
+				childProgressPort,
 				clock);
 	}
 

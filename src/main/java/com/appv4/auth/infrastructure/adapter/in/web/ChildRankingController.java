@@ -92,7 +92,8 @@ public class ChildRankingController {
 						card.options(),
 						card.pins().stream()
 								.map(pin -> new ChildRankingPinResponse(pin.zoneCode(), pin.variantCode()))
-								.toList()))
+								.toList(),
+						card.childId()))
 				.toList();
 		return new ChildRankingResponse(scopes, view.scope(), view.groupLabel(), view.phrase(), cards);
 	}
@@ -129,7 +130,8 @@ public class ChildRankingController {
 			String avatarCode,
 			String styleCode,
 			java.util.Map<String, Object> options,
-			List<ChildRankingPinResponse> pins) {
+			List<ChildRankingPinResponse> pins,
+			long childId) {
 	}
 
 	@Schema(name = "ChildRankingPinResponse")

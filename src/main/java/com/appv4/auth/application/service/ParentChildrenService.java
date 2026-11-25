@@ -11,6 +11,7 @@ import java.util.Set;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.appv4.auth.application.RankingGroups;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ParentChildrenUseCase;
@@ -23,6 +24,8 @@ import com.appv4.auth.application.port.in.ParentChildrenUseCase.TransferView;
 import com.appv4.auth.application.port.out.AuthUserAccountPort;
 import com.appv4.auth.application.port.out.AuthUserAccountPort.AuthUserAccount;
 import com.appv4.auth.application.port.out.ChildAvatarPort;
+import com.appv4.auth.application.port.out.ChildRankingCasesPort;
+import com.appv4.auth.application.port.out.ChildRankingCasesPort.RankingSelection;
 import com.appv4.auth.application.port.out.ChildSharePort;
 import com.appv4.auth.application.port.out.ChildSharePort.StoredDemande;
 import com.appv4.auth.application.port.out.ChildSharePort.StoredInvitation;
@@ -43,6 +46,7 @@ import com.appv4.auth.application.result.ParentChildrenView;
 import com.appv4.auth.application.result.ParentChildrenView.CharacterFace;
 import com.appv4.auth.application.result.ParentChildrenView.CharacterPin;
 import com.appv4.auth.application.result.ParentChildrenView.ChildCard;
+import com.appv4.auth.application.result.ParentChildrenView.RankingCase;
 import com.appv4.auth.application.result.ParentChildrenView.GradeList;
 import com.appv4.auth.application.result.ParentChildrenView.KinshipMark;
 import com.appv4.auth.application.result.ParentChildrenView.SchoolChoice;
@@ -108,6 +112,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 	private final Clock clock;
 	private final ChildSharePort childSharePort;
 	private final AuthUserAccountPort accounts;
+	private final ChildRankingCasesPort rankingCases;
 
 	public ParentChildrenService(
 			ChildPort childPort,
@@ -119,7 +124,8 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 			CharacterAvatarCatalog avatarCatalog,
 			Clock clock,
 			ChildSharePort childSharePort,
-			AuthUserAccountPort accounts) {
+			AuthUserAccountPort accounts,
+			ChildRankingCasesPort rankingCases) {
 		this.childPort = childPort;
 		this.schoolCatalogPort = schoolCatalogPort;
 		this.passwordEncoder = passwordEncoder;
@@ -130,6 +136,7 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 		this.clock = clock;
 		this.childSharePort = childSharePort;
 		this.accounts = accounts;
+		this.rankingCases = rankingCases;
 	}
 
 	/**
@@ -264,6 +271,30 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				childAvatarPort.findByChildId(saved.id()).orElse(null),
 				ChildInterestList.spellings(interests),
 				parentUserId);
+	}
+
+	/**
+	 * Enregistre où l'enfant apparaît.
+	 *
+	 * <p><b>Business :</b> le parent référent et un parent en partage cochent les six cases.
+	 * Quelqu'un qui n'a pas la fiche reçoit le même refus qu'une fiche inconnue.
+	 * <p><b>Technique :</b> n'écrit pas le reste de la fiche.
+	 * <p><b>Métier / flow :</b> {@code PUT /api/int/parent/children/{id}/ranking}.
+	 */
+	@Override
+	@Transactional
+	public ChildCard saveRanking(
+			long parentUserId, String activeRole, long childId, RankingSelection selection) {
+		requireParent(activeRole);
+		requireHolder(parentUserId, childId);
+		if (selection == null) {
+			throw bad(RankingGroups.UNKNOWN);
+		}
+		rankingCases.save(childId, selection);
+		return list(parentUserId, activeRole).children().stream()
+				.filter(child -> child.id() == childId)
+				.findFirst()
+				.orElseThrow(() -> new AuthDomainException(AuthErrorCode.NOT_FOUND, CHILD_UNKNOWN));
 	}
 
 	@Override
@@ -795,7 +826,19 @@ public class ParentChildrenService implements ParentChildrenUseCase {
 				manages,
 				manages ? childSharePort.pendingCount(child.id()) : 0,
 				manages ? childSharePort.pendingDemandesForChild(viewerId, child.firstName(), child.lastName()) : 0,
-				manages && childSharePort.pendingTransfer(child.id()).isPresent() ? 1 : 0);
+				manages && childSharePort.pendingTransfer(child.id()).isPresent() ? 1 : 0,
+				rankingOf(child.id()));
+	}
+
+	private List<RankingCase> rankingOf(long childId) {
+		RankingSelection selection = rankingCases.selection(childId);
+		if (selection == null) {
+			selection = RankingSelection.shown();
+		}
+		RankingSelection stored = selection;
+		return RankingGroups.parentCases().stream()
+				.map(group -> new RankingCase(group.code(), group.label(), stored.on(group.code())))
+				.toList();
 	}
 
 	private CharacterFace characterOf(StoredAvatar saved) {

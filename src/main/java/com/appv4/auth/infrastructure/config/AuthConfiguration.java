@@ -88,6 +88,7 @@ import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.in.SuggestChildInterestsUseCase;
 import com.appv4.auth.application.port.out.ChildInterestSuggestionPort;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildRankingCasesPort;
 import com.appv4.auth.application.port.out.EnrolledChildPort;
 import com.appv4.auth.application.port.out.FacebookOAuthClient;
 import com.appv4.auth.application.port.out.GoogleOAuthClient;
@@ -999,7 +1000,8 @@ public class AuthConfiguration {
 			ChildAvatarPort childAvatarPort,
 			CharacterAvatarCatalog characterAvatarCatalog,
 			com.appv4.auth.application.port.out.ChildSharePort childSharePort,
-			com.appv4.auth.application.port.out.AuthUserAccountPort authUserAccountPort) {
+			com.appv4.auth.application.port.out.AuthUserAccountPort authUserAccountPort,
+			ChildRankingCasesPort childRankingCasesPort) {
 		return new ParentChildrenService(
 				childPort,
 				schoolCatalogPort,
@@ -1010,7 +1012,30 @@ public class AuthConfiguration {
 				characterAvatarCatalog,
 				Clock.systemUTC(),
 				childSharePort,
-				authUserAccountPort);
+				authUserAccountPort,
+				childRankingCasesPort);
+	}
+
+	/**
+	 * Classement de l'enfant (BACK-22).
+	 *
+	 * <p><b>Business :</b> la place vient de l'XP déjà stocké. L'écran ne la recalcule pas.
+	 * <p><b>Technique :</b> même jeton que le profil.
+	 * <p><b>Métier / flow :</b> {@code GET /api/ext/ranking}.
+	 */
+	@Bean
+	com.appv4.auth.application.port.in.ReadChildRankingUseCase readChildRankingUseCase(
+			com.appv4.auth.application.port.out.ChildSessionTokenPort childSessionTokenPort,
+			com.appv4.auth.application.port.out.ChildRankingRosterPort childRankingRosterPort,
+			ChildRankingCasesPort childRankingCasesPort,
+			com.appv4.auth.application.port.out.ChildAvatarPort childAvatarPort,
+			com.appv4.auth.application.service.CharacterAvatarCatalog characterAvatarCatalog) {
+		return new com.appv4.auth.application.service.ReadChildRankingService(
+				childSessionTokenPort,
+				childRankingRosterPort,
+				childRankingCasesPort,
+				childAvatarPort,
+				characterAvatarCatalog);
 	}
 
 	/**

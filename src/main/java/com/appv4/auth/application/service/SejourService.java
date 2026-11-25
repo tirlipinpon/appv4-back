@@ -505,6 +505,48 @@ public class SejourService implements SejourUseCase {
 				List.copyOf(lines));
 	}
 
+	/**
+	 * Durées d'activité déjà confirmée, une par séjour qui compte.
+	 *
+	 * <p><b>Business :</b> la moyenne du suivi ne recompte pas l'activité.
+	 * La Nuit ne fait pas partie de ces secondes.
+	 * <p><b>Technique :</b> le même découpage que la journée. Un séjour sous une
+	 * seconde est absent. Un séjour ouvert ne donne que ses secondes confirmées.
+	 * <p><b>Métier / flow :</b> lecture du suivi, après le calcul du séjour.
+	 */
+	@Override
+	public List<Long> countableSeconds(long childId) {
+		AppHours window = hours();
+		List<Long> found = new ArrayList<>();
+		for (StoredSejour stored : sejours.list(childId)) {
+			long seconds = activiteSeconds(window, stored);
+			if (seconds >= 1) {
+				found.add(seconds);
+			}
+		}
+		return List.copyOf(found);
+	}
+
+	/** Secondes d'activité hors Nuit de ce séjour. Les tranches sous une seconde ne comptent pas. */
+	private long activiteSeconds(AppHours window, StoredSejour stored) {
+		Map<LocalDate, Map<String, Piece>> days = new LinkedHashMap<>();
+		for (StoredInterval interval : stored.intervals()) {
+			pour(window, days, interval.screen(), interval.questionId(), interval.prompt(), interval.subjectName(),
+					interval.startedAt(), interval.endedAt());
+		}
+		pourOuvert(window, days, stored);
+		long total = 0;
+		for (Map<String, Piece> pieces : days.values()) {
+			for (Piece piece : pieces.values()) {
+				long seconds = piece.millis / 1000L;
+				if (seconds >= 1) {
+					total += seconds;
+				}
+			}
+		}
+		return total;
+	}
+
 	/** Séjours confirmés, du plus récent au plus ancien. Le parent et le professeur lisent ici. */
 	private List<ParentSejour> confirmed(long childId) {
 		List<StoredSejour> stored = new ArrayList<>(sejours.list(childId));
@@ -742,6 +784,17 @@ public class SejourService implements SejourUseCase {
 	}
 
 	private ParentSejour toParent(StoredSejour stored) {
+		Built built = build(stored);
+		if (built == null) {
+			return null;
+		}
+		var when = stored.startedAt().atZone(PARIS);
+		return new ParentSejour(
+				DATE.format(when), TIME.format(when), durationLabel(built.total), List.copyOf(built.lines));
+	}
+
+	/** Séjour regroupé pour la ligne parent. Une seconde au moins, sinon absent. */
+	private Built build(StoredSejour stored) {
 		Map<String, Visit> visits = new LinkedHashMap<>();
 		for (StoredInterval interval : stored.intervals()) {
 			long span = Duration.between(interval.startedAt(), interval.endedAt()).toMillis();
@@ -773,8 +826,10 @@ public class SejourService implements SejourUseCase {
 		if (total < 1) {
 			return null;
 		}
-		var when = stored.startedAt().atZone(PARIS);
-		return new ParentSejour(DATE.format(when), TIME.format(when), durationLabel(total), List.copyOf(lines));
+		return new Built(total, lines);
+	}
+
+	private record Built(long total, List<Line> lines) {
 	}
 
 	private Line lineOf(Visit visit, long seconds) {

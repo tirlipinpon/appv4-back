@@ -36,13 +36,9 @@ public class AskChildHumeurService implements AskChildHumeurUseCase {
 	static final String ONE_SHAPE = "Un envoi est un choix ou une fermeture.";
 	static final String MESSAGE = "Comment tu te sens ?";
 
-	private static final Duration WEEK = Duration.ofHours(7 * 24);
 	private static final Duration SOON = Duration.ofHours(24);
 	private static final Duration RISE = Duration.ofHours(72);
 	private static final Duration STEADY = Duration.ofHours(100);
-	private static final long THOUSANDTHS = 100_000L;
-	private static final long EIGHT_POINTS = 8_000L;
-
 	private final ChildSessionTokenPort sessions;
 	private final ChildLoginPort children;
 	private final ChildQuestionAttemptPort attempts;
@@ -111,48 +107,23 @@ public class AskChildHumeurService implements AskChildHumeurUseCase {
 	}
 
 	private Trend trend(long childId, Instant now) {
-		Instant cut = now.minus(WEEK);
-		Instant older = cut.minus(WEEK);
-		int recentPassed = 0;
-		int recentTotal = 0;
-		int previousPassed = 0;
-		int previousTotal = 0;
 		List<AttemptTrace> rows = attempts.traces(childId);
 		if (rows == null) {
 			rows = List.of();
 		}
+		List<SuccessWindows.Sample> samples = new java.util.ArrayList<>();
 		for (AttemptTrace trace : rows) {
-			Instant at = trace.createdAt();
-			if (at == null || at.isAfter(now)) {
-				continue;
-			}
-			if (at.isAfter(cut)) {
-				recentTotal++;
-				if (trace.passed()) {
-					recentPassed++;
-				}
-			} else if (at.isAfter(older)) {
-				previousTotal++;
-				if (trace.passed()) {
-					previousPassed++;
-				}
-			}
+			samples.add(new SuccessWindows.Sample(trace.createdAt(), trace.passed()));
 		}
-		if (recentTotal == 0 || previousTotal == 0) {
+		SuccessWindows.Result result = SuccessWindows.at(samples, now);
+		if (!result.present()) {
 			return Trend.NONE;
 		}
-		long delta = points(recentPassed, recentTotal) - points(previousPassed, previousTotal);
-		if (delta <= -EIGHT_POINTS) {
-			return Trend.DROP;
-		}
-		if (delta >= EIGHT_POINTS) {
-			return Trend.RISE;
-		}
-		return Trend.STEADY;
-	}
-
-	private static long points(int passed, int total) {
-		return passed * THOUSANDTHS / total;
+		return switch (result.direction()) {
+			case "hausse" -> Trend.RISE;
+			case "baisse" -> Trend.DROP;
+			default -> Trend.STEADY;
+		};
 	}
 
 	private Optional<Instant> connectedAt(String rawToken) {

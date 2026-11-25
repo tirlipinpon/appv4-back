@@ -105,6 +105,17 @@ public interface ChildQuestionAttemptPort {
 	}
 
 	/**
+	 * Essais lus par le suivi parent.
+	 *
+	 * <p><b>Business :</b> le créneau, la tendance et les formes ratées partent de ces essais.
+	 * <p><b>Technique :</b> {@code back_child_attempts}, du plus ancien au plus récent.
+	 * <p><b>Métier / flow :</b> lecture parent du suivi, sans réécrire l'essai.
+	 */
+	default List<LectureEssai> lectureEssais(long childId) {
+		return List.of();
+	}
+
+	/**
 	 * Essais d'une matière, du plus ancien au plus récent.
 	 *
 	 * <p><b>Business :</b> la leçon se lit sur les pages déjà jouées, pas sur une leçon saisie par le professeur.
@@ -128,6 +139,14 @@ public interface ChildQuestionAttemptPort {
 			QuestionMark markCode,
 			boolean passed,
 			Boolean pay) {
+	}
+
+	/**
+	 * @param createdAt instant de l'essai, vide s'il n'est pas daté
+	 * @param passed vrai si l'essai est réussi
+	 * @param formCode code catalogue de la forme, tel qu'il a été joué
+	 */
+	record LectureEssai(Instant createdAt, boolean passed, String formCode) {
 	}
 
 	/** Rang 1 = premier essai de la page. {@code attemptsRemaining} est ce qu'il reste après celui-ci. */

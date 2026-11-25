@@ -753,6 +753,25 @@ public class AuthConfiguration {
 				appHoursPort);
 	}
 
+	/**
+	 * Suivi parent : créneau, minutes, tendance, formes ratées (BACK-40).
+	 *
+	 * <p><b>Business :</b> le parent qui a la fiche lit ces quatre blocs, rien d'autre.
+	 * <p><b>Technique :</b> l'horloge du bean fixe les fenêtres de 7×24 h.
+	 * <p><b>Métier / flow :</b> {@code GET /api/int/parent/children/{childId}/progress}.
+	 */
+	@Bean
+	com.appv4.auth.application.port.in.ReadParentProgressUseCase readParentProgressUseCase(
+			ChildPort childPort,
+			com.appv4.auth.application.port.out.ChildQuestionAttemptPort attempts,
+			SejourUseCase sejourUseCase,
+			AppHoursPort appHoursPort,
+			com.appv4.auth.application.service.question.QuestionFormRegistry questionFormRegistry,
+			java.time.Clock clock) {
+		return new com.appv4.auth.application.service.ReadParentProgressService(
+				childPort, attempts, sejourUseCase, appHoursPort, questionFormRegistry, clock);
+	}
+
 	@Bean
 	TeacherModerationUseCase teacherModerationUseCase(
 			ActiveRolePort activeRolePort,

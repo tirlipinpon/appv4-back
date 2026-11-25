@@ -76,6 +76,17 @@ public interface SejourUseCase {
 	JourneeMonth readParentMonth(long parentUserId, String activeRole, long childId, Integer year, Integer month);
 
 	/**
+	 * Secondes confirmées de chaque séjour qui compte déjà.
+	 *
+	 * <p><b>Business :</b> la moyenne du suivi parent s'appuie sur l'activité confirmée,
+	 * pas sur une nouvelle façon de compter. La Nuit n'entre pas.
+	 * <p><b>Technique :</b> un séjour sous une seconde est absent. Un séjour ouvert
+	 * ne donne que ses secondes déjà confirmées.
+	 * <p><b>Métier / flow :</b> lecture du suivi, après le calcul du séjour.
+	 */
+	List<Long> countableSeconds(long childId);
+
+	/**
 	 * Pose ou retire le plafond du parent référent.
 	 *
 	 * <p><b>Business :</b> un entier de 1 à 960 minutes, ou vide pour retirer la limite.

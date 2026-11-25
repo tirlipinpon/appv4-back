@@ -1183,6 +1183,20 @@ class SejourServiceTest {
 				.containsExactly(tuple("Accueil", "20 min"));
 	}
 
+	@Test
+	void laNuitNeComptePasDansLesSecondesDuSuivi() {
+		fermer("accueil", paris(2026, 11, 22, 21, 50, 0), paris(2026, 11, 22, 22, 10, 0));
+
+		assertThat(sejour.countableSeconds(7L)).containsExactly(600L);
+	}
+
+	@Test
+	void unSejourEntierementDansLaNuitNeComptePas() {
+		fermer("accueil", paris(2026, 11, 22, 23, 50, 0), paris(2026, 11, 23, 0, 10, 0));
+
+		assertThat(sejour.countableSeconds(7L)).isEmpty();
+	}
+
 	private static Instant paris(int year, int month, int day, int hour, int minute) {
 		return paris(year, month, day, hour, minute, 0);
 	}

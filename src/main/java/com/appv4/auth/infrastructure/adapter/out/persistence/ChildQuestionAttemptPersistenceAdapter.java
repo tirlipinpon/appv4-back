@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.AttemptTrace;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.LectureEssai;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.MissionEssai;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageAttempt;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
@@ -207,6 +208,26 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 						rs.getString("form_code"),
 						rs.getInt("score_percent"),
 						(Boolean) rs.getObject("pay")))
+				.list();
+	}
+
+	@Override
+	public List<MissionEssai> missionEssais(long childId) {
+		return jdbc.sql("""
+				select id, question_id, passed, created_at
+				from back_child_attempts
+				where child_id = :childId
+				order by created_at, id
+				""")
+				.param("childId", childId)
+				.query((rs, row) -> {
+					var created = rs.getTimestamp("created_at");
+					return new MissionEssai(
+							rs.getLong("id"),
+							rs.getLong("question_id"),
+							rs.getBoolean("passed"),
+							created == null ? null : created.toInstant());
+				})
 				.list();
 	}
 

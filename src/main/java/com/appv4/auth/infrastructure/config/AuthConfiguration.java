@@ -765,12 +765,22 @@ public class AuthConfiguration {
 			ChildPort childPort,
 			com.appv4.auth.application.port.out.ChildProgressPort childProgressPort,
 			com.appv4.auth.application.port.out.ChildQuestionAttemptPort attempts,
+			com.appv4.auth.application.port.out.ChildDailyMissionPort missions,
+			com.appv4.auth.application.port.out.QuestionTextPort questionTexts,
 			SejourUseCase sejourUseCase,
 			AppHoursPort appHoursPort,
 			com.appv4.auth.application.service.question.QuestionFormRegistry questionFormRegistry,
 			java.time.Clock clock) {
 		return new com.appv4.auth.application.service.ReadParentProgressService(
-				childPort, childProgressPort, attempts, sejourUseCase, appHoursPort, questionFormRegistry, clock);
+				childPort,
+				childProgressPort,
+				attempts,
+				missions,
+				questionTexts,
+				sejourUseCase,
+				appHoursPort,
+				questionFormRegistry,
+				clock);
 	}
 
 	@Bean

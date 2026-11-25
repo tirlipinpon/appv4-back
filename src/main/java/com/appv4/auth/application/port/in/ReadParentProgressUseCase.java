@@ -1,6 +1,7 @@
 package com.appv4.auth.application.port.in;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -35,6 +36,8 @@ public interface ReadParentProgressUseCase {
 	 * @param leagueLabel Bronze, Argent, Or ou Diamant
 	 * @param recentSuccess réussite des 3×24 h, ou absente
 	 * @param days un jour du premier essai jusqu'à aujourd'hui, vide s'il n'y a aucun essai
+	 * @param dailyMissionSummary mission du jour de Paris, absente s'il n'y a pas de ligne
+	 * @param dailyMissionDays jours des semaines, du lundi de la première mission au dimanche courant
 	 */
 	record ParentProgress(
 			String bestTimeSlotLabel,
@@ -45,12 +48,46 @@ public interface ReadParentProgressUseCase {
 			int currentStreak,
 			String leagueLabel,
 			RecentSuccess recentSuccess,
-			List<ProgressDay> days) {
+			List<ProgressDay> days,
+			MissionDay dailyMissionSummary,
+			List<MissionDay> dailyMissionDays) {
 
 		public ParentProgress {
 			repeatedErrorPatterns = repeatedErrorPatterns == null ? List.of() : List.copyOf(repeatedErrorPatterns);
 			days = days == null ? List.of() : List.copyOf(days);
+			dailyMissionDays = dailyMissionDays == null ? List.of() : List.copyOf(dailyMissionDays);
 		}
+	}
+
+	/**
+	 * Un jour de mission, lu tel qu'il est gardé.
+	 *
+	 * @param failedEssais essais ratés encore là, absent s'il n'y a pas de mission
+	 */
+	record MissionDay(
+			LocalDate date,
+			String objective,
+			Integer progress,
+			Integer target,
+			String status,
+			String statusLabel,
+			List<FailedEssai> failedEssais) {
+
+		public MissionDay {
+			if (failedEssais != null) {
+				failedEssais = List.copyOf(failedEssais);
+			}
+		}
+	}
+
+	/**
+	 * Essai raté d'une question de la mission.
+	 *
+	 * @param subjectLabel matière figée sur la tâche
+	 * @param prompt texte actuel de la question, absent s'il est vide en base
+	 * @param at instant de l'essai
+	 */
+	record FailedEssai(String subjectLabel, String prompt, Instant at) {
 	}
 
 	/**

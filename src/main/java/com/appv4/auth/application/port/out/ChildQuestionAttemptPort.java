@@ -116,6 +116,17 @@ public interface ChildQuestionAttemptPort {
 	}
 
 	/**
+	 * Essais d'un enfant, avec la question, pour la mission du suivi parent.
+	 *
+	 * <p><b>Business :</b> un essai raté se relit avec sa question et son instant.
+	 * <p><b>Technique :</b> {@code back_child_attempts}, du plus ancien au plus récent, puis id.
+	 * <p><b>Métier / flow :</b> lecture parent du suivi. Rien n'est écrit.
+	 */
+	default List<MissionEssai> missionEssais(long childId) {
+		return List.of();
+	}
+
+	/**
 	 * Essais d'une matière, du plus ancien au plus récent.
 	 *
 	 * <p><b>Business :</b> la leçon se lit sur les pages déjà jouées, pas sur une leçon saisie par le professeur.
@@ -148,6 +159,15 @@ public interface ChildQuestionAttemptPort {
 	 * @param scorePercent score 0–100, pour l'XP du jour quand l'essai est payé
 	 * @param pay vrai si cet essai a ajouté de l'XP. Vide : essai non payé
 	 */
+	/**
+	 * @param id identifiant stocké, pour départager deux essais au même instant
+	 * @param questionId question jouée
+	 * @param passed vrai si l'essai est réussi
+	 * @param createdAt instant de l'essai, vide s'il n'est pas daté
+	 */
+	record MissionEssai(long id, long questionId, boolean passed, Instant createdAt) {
+	}
+
 	record LectureEssai(Instant createdAt, boolean passed, String formCode, int scorePercent, Boolean pay) {
 
 		/** Essai lu pour le créneau, la tendance ou les formes, sans XP. */

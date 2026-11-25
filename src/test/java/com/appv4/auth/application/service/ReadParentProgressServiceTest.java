@@ -2,7 +2,12 @@ package com.appv4.auth.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -13,7 +18,9 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -21,9 +28,16 @@ import org.junit.jupiter.api.Test;
 
 import com.appv4.auth.application.AppHours;
 import com.appv4.auth.application.exception.AuthDomainException;
+import com.appv4.auth.application.port.in.ReadParentProgressUseCase.FailedEssai;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.FormeRatee;
+import com.appv4.auth.application.port.in.ReadParentProgressUseCase.MissionDay;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.ParentProgress;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.ProgressDay;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredMission;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredTask;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.MissionEssai;
+import com.appv4.auth.application.port.out.QuestionTextPort;
 import com.appv4.auth.application.port.in.SejourUseCase;
 import com.appv4.auth.application.port.out.AppHoursPort;
 import com.appv4.auth.application.port.out.ChildPort;
@@ -45,8 +59,14 @@ class ReadParentProgressServiceTest {
 	private final ChildPort children = mock(ChildPort.class);
 	private final ChildProgressPort progress = mock(ChildProgressPort.class);
 	private final ChildQuestionAttemptPort attempts = mock(ChildQuestionAttemptPort.class);
+	private final ChildDailyMissionPort missionPort = mock(ChildDailyMissionPort.class);
+	private final QuestionTextPort questionTexts = mock(QuestionTextPort.class);
 	private final SejourUseCase sejours = mock(SejourUseCase.class);
 	private final List<LectureEssai> essais = new ArrayList<>();
+	private final List<StoredMission> storedMissions = new ArrayList<>();
+	private final List<LocalDate> finishedMissionDays = new ArrayList<>();
+	private final List<MissionEssai> missionEssais = new ArrayList<>();
+	private final Map<Long, String> prompts = new HashMap<>();
 	private final List<Long> seconds = new ArrayList<>();
 	private ReadParentProgressService service;
 
@@ -54,6 +74,14 @@ class ReadParentProgressServiceTest {
 	void akira() {
 		essais.clear();
 		seconds.clear();
+		storedMissions.clear();
+		finishedMissionDays.clear();
+		missionEssais.clear();
+		prompts.clear();
+		when(missionPort.missionsOf(7L)).thenAnswer(call -> List.copyOf(storedMissions));
+		when(missionPort.finishedDays(7L)).thenAnswer(call -> List.copyOf(finishedMissionDays));
+		when(attempts.missionEssais(7L)).thenAnswer(call -> List.copyOf(missionEssais));
+		when(questionTexts.promptsOf(any())).thenAnswer(call -> Map.copyOf(prompts));
 		when(children.findOwned(1L, 7L)).thenReturn(Optional.of(child(true)));
 		when(progress.findByChildId(7L)).thenReturn(Optional.empty());
 		when(attempts.lectureEssais(7L)).thenAnswer(call -> List.copyOf(essais));
@@ -397,6 +425,186 @@ class ReadParentProgressServiceTest {
 		assertThat(success.windowLabel()).isEqualTo("3 jours");
 	}
 
+	@Test
+	void sansMissionLaSemaineDuDimancheEstVide() {
+		ParentProgress progress = service.read(1L, "parent", 7L);
+
+		assertThat(progress.dailyMissionSummary()).isNull();
+		assertThat(progress.dailyMissionDays()).extracting(MissionDay::date).containsExactly(
+				LocalDate.of(2026, 11, 16),
+				LocalDate.of(2026, 11, 17),
+				LocalDate.of(2026, 11, 18),
+				LocalDate.of(2026, 11, 19),
+				LocalDate.of(2026, 11, 20),
+				LocalDate.of(2026, 11, 21),
+				LocalDate.of(2026, 11, 22));
+		assertThat(progress.dailyMissionDays()).allSatisfy(day -> {
+			assertThat(day.status()).isNull();
+			assertThat(day.objective()).isNull();
+			assertThat(day.progress()).isNull();
+			assertThat(day.target()).isNull();
+			assertThat(day.failedEssais()).isNull();
+		});
+		assertThat(progress.bestTimeSlotLabel()).isNull();
+		verify(missionPort, never()).insert(any());
+		verify(missionPort, never()).setProgress(anyLong(), anyInt());
+		verify(missionPort, never()).rememberFinishedDay(anyLong(), any());
+	}
+
+	@Test
+	void missionEnCoursPorteLesEssaisRatesDeSesQuestions() {
+		storedMissions.add(mission(
+				LocalDate.of(2026, 11, 22),
+				"Joue 3 questions aujourd'hui",
+				task(1, "Maths", 1, 1, 11),
+				task(2, "Français", 1, 1, 12),
+				task(3, "Anglais", 0, 1, 13)));
+		prompts.put(11L, "Exemple de texte : 3 + 4");
+		missionEssais.add(new MissionEssai(2, 11, false, paris(18, 5)));
+		missionEssais.add(new MissionEssai(1, 11, false, paris(18, 0)));
+		missionEssais.add(new MissionEssai(3, 11, true, paris(18, 10)));
+		missionEssais.add(new MissionEssai(4, 99, false, paris(18, 2)));
+		missionEssais.add(new MissionEssai(5, 11, false, parisOn(15, 23, 30)));
+		missionEssais.add(new MissionEssai(6, 11, false, NOW.plusSeconds(1)));
+
+		ParentProgress progress = service.read(1L, "parent", 7L);
+		MissionDay today = progress.dailyMissionSummary();
+
+		assertThat(today).isEqualTo(progress.dailyMissionDays().get(6));
+		assertThat(today.objective()).isEqualTo("Joue 3 questions aujourd'hui");
+		assertThat(today.progress()).isEqualTo(2);
+		assertThat(today.target()).isEqualTo(3);
+		assertThat(today.status()).isEqualTo("en_cours");
+		assertThat(today.statusLabel()).isEqualTo("En cours");
+		assertThat(today.failedEssais()).containsExactly(
+				new FailedEssai("Maths", "Exemple de texte : 3 + 4", paris(18, 0)),
+				new FailedEssai("Maths", "Exemple de texte : 3 + 4", paris(18, 5)));
+	}
+
+	@Test
+	void missionTermineeSansEchecAUneListeVide() {
+		storedMissions.add(mission(
+				LocalDate.of(2026, 11, 22),
+				"Joue 3 questions aujourd'hui",
+				task(1, "Maths", 1, 1, 11),
+				task(2, "Français", 1, 1, 12),
+				task(3, "Anglais", 1, 1, 13)));
+
+		MissionDay today = service.read(1L, "parent", 7L).dailyMissionSummary();
+
+		assertThat(today.status()).isEqualTo("terminee");
+		assertThat(today.statusLabel()).isEqualTo("Terminée");
+		assertThat(today.progress()).isEqualTo(3);
+		assertThat(today.target()).isEqualTo(3);
+		assertThat(today.failedEssais()).isEmpty();
+	}
+
+	@Test
+	void unJourPasseNonFiniResteEnCours() {
+		storedMissions.add(mission(
+				LocalDate.of(2026, 11, 21),
+				"Joue 1 question aujourd'hui",
+				task(1, "Maths", 0, 1, 11)));
+
+		MissionDay day = service.read(1L, "parent", 7L).dailyMissionDays().get(5);
+
+		assertThat(day.date()).isEqualTo(LocalDate.of(2026, 11, 21));
+		assertThat(day.progress()).isZero();
+		assertThat(day.target()).isEqualTo(1);
+		assertThat(day.status()).isEqualTo("en_cours");
+		assertThat(service.read(1L, "parent", 7L).dailyMissionSummary()).isNull();
+	}
+
+	@Test
+	void uneMissionPlusAncienneOuvreLaSemainePrecedente() {
+		storedMissions.add(mission(
+				LocalDate.of(2026, 11, 12),
+				"Joue 2 questions aujourd'hui",
+				task(1, "Maths", 2, 2, 11)));
+
+		assertThat(service.read(1L, "parent", 7L).dailyMissionDays()).extracting(MissionDay::date)
+				.containsExactly(
+						LocalDate.of(2026, 11, 9),
+						LocalDate.of(2026, 11, 10),
+						LocalDate.of(2026, 11, 11),
+						LocalDate.of(2026, 11, 12),
+						LocalDate.of(2026, 11, 13),
+						LocalDate.of(2026, 11, 14),
+						LocalDate.of(2026, 11, 15),
+						LocalDate.of(2026, 11, 16),
+						LocalDate.of(2026, 11, 17),
+						LocalDate.of(2026, 11, 18),
+						LocalDate.of(2026, 11, 19),
+						LocalDate.of(2026, 11, 20),
+						LocalDate.of(2026, 11, 21),
+						LocalDate.of(2026, 11, 22));
+	}
+
+	@Test
+	void questionSupprimeeRecalculeEtLeJourFiniSansTacheResteTermine() {
+		storedMissions.add(mission(
+				LocalDate.of(2026, 11, 22),
+				"Joue 3 questions aujourd'hui",
+				task(1, "Maths", 1, 1, 11),
+				task(2, "Français", 1, 1, 12)));
+		finishedMissionDays.add(LocalDate.of(2026, 11, 21));
+		storedMissions.add(new StoredMission(2, 7, LocalDate.of(2026, 11, 21), "Joue 1 question aujourd'hui", List.of()));
+		storedMissions.add(new StoredMission(3, 7, LocalDate.of(2026, 11, 20), "Joue 1 question aujourd'hui", List.of()));
+
+		List<MissionDay> days = service.read(1L, "parent", 7L).dailyMissionDays();
+
+		assertThat(days.get(6).status()).isEqualTo("terminee");
+		assertThat(days.get(6).progress()).isEqualTo(2);
+		assertThat(days.get(6).target()).isEqualTo(2);
+		assertThat(days.get(5).status()).isEqualTo("terminee");
+		assertThat(days.get(5).progress()).isNull();
+		assertThat(days.get(5).target()).isNull();
+		assertThat(days.get(5).objective()).isEqualTo("Joue 1 question aujourd'hui");
+		assertThat(days.get(5).failedEssais()).isEmpty();
+		assertThat(days.get(4).status()).isEqualTo("en_cours");
+		assertThat(days.get(4).progress()).isZero();
+		assertThat(days.get(4).target()).isZero();
+	}
+
+	@Test
+	void unMercrediSansMissionCouvreLeLundiAuDimanche() {
+		Clock wednesday = Clock.fixed(parisOn(25, 12, 0), ZoneOffset.UTC);
+		ReadParentProgressService midweek = new ReadParentProgressService(
+				children,
+				progress,
+				attempts,
+				missionPort,
+				questionTexts,
+				sejours,
+				hours(),
+				new QuestionFormRegistry(List.of(new QcmQuestionForm())),
+				wednesday);
+
+		assertThat(midweek.read(1L, "parent", 7L).dailyMissionDays()).extracting(MissionDay::date)
+				.containsExactly(
+						LocalDate.of(2026, 11, 23),
+						LocalDate.of(2026, 11, 24),
+						LocalDate.of(2026, 11, 25),
+						LocalDate.of(2026, 11, 26),
+						LocalDate.of(2026, 11, 27),
+						LocalDate.of(2026, 11, 28),
+						LocalDate.of(2026, 11, 29));
+	}
+
+	private AppHoursPort hours() {
+		AppHoursPort port = mock(AppHoursPort.class);
+		when(port.current()).thenReturn(AppHours.defaults());
+		return port;
+	}
+
+	private static StoredMission mission(LocalDate date, String objective, StoredTask... tasks) {
+		return new StoredMission(1, 7, date, objective, List.of(tasks));
+	}
+
+	private static StoredTask task(long id, String label, int progress, int target, long questionId) {
+		return new StoredTask(id, 1, label, target, progress, 10, 3, questionId);
+	}
+
 	private ReadParentProgressService service(AppHours hours) {
 		AppHoursPort port = mock(AppHoursPort.class);
 		when(port.current()).thenReturn(hours);
@@ -404,6 +612,8 @@ class ReadParentProgressServiceTest {
 				children,
 				progress,
 				attempts,
+				missionPort,
+				questionTexts,
 				sejours,
 				port,
 				new QuestionFormRegistry(List.of(

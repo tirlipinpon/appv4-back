@@ -3,15 +3,22 @@ package com.appv4.auth.application.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.text.Collator;
 
@@ -23,13 +30,20 @@ import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase;
 import com.appv4.auth.application.port.in.SejourUseCase;
 import com.appv4.auth.application.port.out.AppHoursPort;
+import com.appv4.auth.application.port.in.ReadParentProgressUseCase.FailedEssai;
+import com.appv4.auth.application.port.in.ReadParentProgressUseCase.MissionDay;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.ProgressDay;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.RecentSuccess;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredMission;
+import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredTask;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildProgressPort.StoredProgress;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.LectureEssai;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.MissionEssai;
+import com.appv4.auth.application.port.out.QuestionTextPort;
 import com.appv4.auth.application.service.SuccessWindows.Result;
 import com.appv4.auth.application.service.SuccessWindows.Sample;
 import com.appv4.auth.application.service.question.QuestionFormRegistry;
@@ -53,6 +67,8 @@ public class ReadParentProgressService implements ReadParentProgressUseCase {
 	private final ChildPort children;
 	private final ChildProgressPort progress;
 	private final ChildQuestionAttemptPort attempts;
+	private final ChildDailyMissionPort missions;
+	private final QuestionTextPort questionTexts;
 	private final SejourUseCase sejours;
 	private final AppHoursPort hours;
 	private final QuestionFormRegistry forms;
@@ -62,6 +78,8 @@ public class ReadParentProgressService implements ReadParentProgressUseCase {
 			ChildPort children,
 			ChildProgressPort progress,
 			ChildQuestionAttemptPort attempts,
+			ChildDailyMissionPort missions,
+			QuestionTextPort questionTexts,
 			SejourUseCase sejours,
 			AppHoursPort hours,
 			QuestionFormRegistry forms,
@@ -69,6 +87,8 @@ public class ReadParentProgressService implements ReadParentProgressUseCase {
 		this.children = children;
 		this.progress = progress;
 		this.attempts = attempts;
+		this.missions = missions;
+		this.questionTexts = questionTexts;
 		this.sejours = sejours;
 		this.hours = hours;
 		this.forms = forms;
@@ -100,6 +120,13 @@ public class ReadParentProgressService implements ReadParentProgressUseCase {
 		LocalDate today = LocalDate.now(clock.withZone(ReadChildProgressService.PROGRESS_ZONE));
 		StoredProgress stored = progress.findByChildId(childId).orElse(ChildProgressRules.empty(childId));
 		var photo = ChildProgressRules.toView(stored, today);
+		List<MissionDay> missionDays = missionDays(childId, now, today);
+		MissionDay todayMission = null;
+		for (MissionDay day : missionDays) {
+			if (day.date().equals(today) && day.status() != null) {
+				todayMission = day;
+			}
+		}
 		return new ParentProgress(
 				creneau(essais, window, now),
 				minutes(sejours.countableSeconds(childId)),
@@ -109,7 +136,9 @@ public class ReadParentProgressService implements ReadParentProgressUseCase {
 				photo.currentStreak(),
 				photo.leagueLabel(),
 				reussite(essais, now),
-				jours(essais, now, today, photo.xpTotal()));
+				jours(essais, now, today, photo.xpTotal()),
+				todayMission,
+				missionDays);
 	}
 
 	private RecentSuccess reussite(List<LectureEssai> essais, Instant now) {
@@ -332,6 +361,117 @@ public class ReadParentProgressService implements ReadParentProgressUseCase {
 			this.label = label;
 			this.rank = rank;
 		}
+	}
+
+	private List<MissionDay> missionDays(long childId, Instant now, LocalDate today) {
+		List<StoredMission> stored = missions.missionsOf(childId);
+		if (stored == null) {
+			stored = List.of();
+		}
+		List<LocalDate> finished = missions.finishedDays(childId);
+		Set<LocalDate> finishedDays = finished == null ? Set.of() : new HashSet<>(finished);
+		Map<LocalDate, StoredMission> byDate = new HashMap<>();
+		LocalDate firstMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+		for (StoredMission mission : stored) {
+			if (mission == null || mission.missionDate() == null) {
+				continue;
+			}
+			byDate.put(mission.missionDate(), mission);
+			LocalDate monday = mission.missionDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+			if (monday.isBefore(firstMonday)) {
+				firstMonday = monday;
+			}
+		}
+		LocalDate sunday = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+		List<MissionEssai> essais = attempts.missionEssais(childId);
+		if (essais == null) {
+			essais = List.of();
+		}
+		essais = new ArrayList<>(essais);
+		essais.sort(Comparator
+				.comparing(MissionEssai::createdAt, Comparator.nullsLast(Comparator.naturalOrder()))
+				.thenComparingLong(MissionEssai::id));
+		Map<Long, String> prompts = questionTexts.promptsOf(questionIds(byDate.values()));
+		if (prompts == null) {
+			prompts = Map.of();
+		}
+		List<MissionDay> days = new ArrayList<>();
+		for (LocalDate date = firstMonday; !date.isAfter(sunday); date = date.plusDays(1)) {
+			days.add(missionDay(date, byDate.get(date), finishedDays.contains(date), essais, prompts, now));
+		}
+		return days;
+	}
+
+	private static Collection<Long> questionIds(Collection<StoredMission> missions) {
+		Set<Long> ids = new HashSet<>();
+		for (StoredMission mission : missions) {
+			if (mission.tasks() == null) {
+				continue;
+			}
+			for (StoredTask task : mission.tasks()) {
+				ids.add(task.questionId());
+			}
+		}
+		return ids;
+	}
+
+	private static MissionDay missionDay(
+			LocalDate date,
+			StoredMission mission,
+			boolean rememberedFinished,
+			List<MissionEssai> essais,
+			Map<Long, String> prompts,
+			Instant now) {
+		if (mission == null) {
+			return new MissionDay(date, null, null, null, null, null, null);
+		}
+		List<StoredTask> tasks = mission.tasks() == null ? List.of() : mission.tasks();
+		List<FailedEssai> failed = failedEssais(date, tasks, essais, prompts, now);
+		if (tasks.isEmpty()) {
+			if (rememberedFinished) {
+				return new MissionDay(date, mission.objective(), null, null, "terminee", "Terminée", List.of());
+			}
+			return new MissionDay(date, mission.objective(), 0, 0, "en_cours", "En cours", failed);
+		}
+		int progress = 0;
+		int target = 0;
+		boolean open = false;
+		for (StoredTask task : tasks) {
+			progress += task.progressCount();
+			target += task.targetCount();
+			if (task.progressCount() < task.targetCount()) {
+				open = true;
+			}
+		}
+		if (open) {
+			return new MissionDay(date, mission.objective(), progress, target, "en_cours", "En cours", failed);
+		}
+		return new MissionDay(date, mission.objective(), progress, target, "terminee", "Terminée", failed);
+	}
+
+	private static List<FailedEssai> failedEssais(
+			LocalDate date,
+			List<StoredTask> tasks,
+			List<MissionEssai> essais,
+			Map<Long, String> prompts,
+			Instant now) {
+		Map<Long, String> labels = new HashMap<>();
+		for (StoredTask task : tasks) {
+			labels.putIfAbsent(task.questionId(), task.label());
+		}
+		List<FailedEssai> failed = new ArrayList<>();
+		for (MissionEssai essai : essais) {
+			Instant at = essai.createdAt();
+			if (essai.passed() || at == null || at.isAfter(now) || !labels.containsKey(essai.questionId())) {
+				continue;
+			}
+			LocalDate day = at.atZone(ReadChildProgressService.PROGRESS_ZONE).toLocalDate();
+			if (!day.equals(date)) {
+				continue;
+			}
+			failed.add(new FailedEssai(labels.get(essai.questionId()), prompts.get(essai.questionId()), at));
+		}
+		return failed;
 	}
 
 	private record Tally(int passed, int total) {

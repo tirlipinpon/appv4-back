@@ -235,6 +235,16 @@ public class TestProfileConfiguration {
 		return mock(ChildSimonChallengePort.class, withSettings().strictness(Strictness.LENIENT));
 	}
 
+	/** Texte actuel des questions (BACK-41). Pas de Postgres dans les tests web. */
+	@Bean
+	com.appv4.auth.application.port.out.QuestionTextPort questionTextPort() {
+		com.appv4.auth.application.port.out.QuestionTextPort port = mock(
+				com.appv4.auth.application.port.out.QuestionTextPort.class,
+				withSettings().strictness(Strictness.LENIENT));
+		when(port.promptsOf(any())).thenReturn(java.util.Map.of());
+		return port;
+	}
+
 	/** Mission du jour (BACK-18). Pas de Postgres dans les tests web. */
 	@Bean
 	ChildDailyMissionPort childDailyMissionPort() {

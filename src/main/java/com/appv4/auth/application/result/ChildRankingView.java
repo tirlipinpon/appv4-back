@@ -39,7 +39,8 @@ public record ChildRankingView(
 			String avatarCode,
 			String styleCode,
 			Map<String, Object> options,
-			List<Pin> pins) {
+			List<Pin> pins,
+			long childId) {
 
 		public RankingCard {
 			options = options == null ? Map.of() : Map.copyOf(options);

@@ -208,21 +208,21 @@ public class ReadChildRankingService implements ReadChildRankingUseCase {
 					.toList();
 			return new RankingCard(
 					row.place, child.firstName(), child.xp(), mine, pinned,
-					"personnage", null, resolved.style().code(), options, pins);
+					"personnage", null, resolved.style().code(), options, pins, child.id());
 		}
 		if (child.hasPhoto()) {
 			return new RankingCard(
 					row.place, child.firstName(), child.xp(), mine, pinned,
-					"photo", null, null, Map.of(), List.of());
+					"photo", null, null, Map.of(), List.of(), child.id());
 		}
 		if (child.avatarCode() != null && !child.avatarCode().isBlank()) {
 			return new RankingCard(
 					row.place, child.firstName(), child.xp(), mine, pinned,
-					"animal", child.avatarCode(), null, Map.of(), List.of());
+					"animal", child.avatarCode(), null, Map.of(), List.of(), child.id());
 		}
 		return new RankingCard(
 				row.place, child.firstName(), child.xp(), mine, pinned,
-				"aucun", null, null, Map.of(), List.of());
+				"aucun", null, null, Map.of(), List.of(), child.id());
 	}
 
 	private AuthDomainException invalid() {

@@ -68,6 +68,7 @@ class ReadChildRankingServiceTest {
 						org.assertj.core.groups.Tuple.tuple("Lina", 1, false, "animal"),
 						org.assertj.core.groups.Tuple.tuple("Akira", 2, true, "animal"),
 						org.assertj.core.groups.Tuple.tuple("Noé", 2, false, "animal"));
+		assertThat(view.cards().get(1).childId()).isEqualTo(2L);
 	}
 
 	@Test

@@ -763,13 +763,14 @@ public class AuthConfiguration {
 	@Bean
 	com.appv4.auth.application.port.in.ReadParentProgressUseCase readParentProgressUseCase(
 			ChildPort childPort,
+			com.appv4.auth.application.port.out.ChildProgressPort childProgressPort,
 			com.appv4.auth.application.port.out.ChildQuestionAttemptPort attempts,
 			SejourUseCase sejourUseCase,
 			AppHoursPort appHoursPort,
 			com.appv4.auth.application.service.question.QuestionFormRegistry questionFormRegistry,
 			java.time.Clock clock) {
 		return new com.appv4.auth.application.service.ReadParentProgressService(
-				childPort, attempts, sejourUseCase, appHoursPort, questionFormRegistry, clock);
+				childPort, childProgressPort, attempts, sejourUseCase, appHoursPort, questionFormRegistry, clock);
 	}
 
 	@Bean

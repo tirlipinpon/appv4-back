@@ -3,13 +3,16 @@ package com.appv4.auth.application.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.TreeMap;
 import java.text.Collator;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +23,11 @@ import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase;
 import com.appv4.auth.application.port.in.SejourUseCase;
 import com.appv4.auth.application.port.out.AppHoursPort;
+import com.appv4.auth.application.port.in.ReadParentProgressUseCase.ProgressDay;
+import com.appv4.auth.application.port.in.ReadParentProgressUseCase.RecentSuccess;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildProgressPort;
+import com.appv4.auth.application.port.out.ChildProgressPort.StoredProgress;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.LectureEssai;
 import com.appv4.auth.application.service.SuccessWindows.Result;
@@ -38,10 +45,13 @@ import com.appv4.auth.application.service.question.QuestionFormRegistry;
 public class ReadParentProgressService implements ReadParentProgressUseCase {
 
 	static final String WINDOW_LABEL = "7 jours";
+	static final String SUCCESS_LABEL = "3 jours";
+	static final Duration THREE_DAYS = Duration.ofHours(3 * 24);
 
 	private static final LocalTime NOON = LocalTime.of(12, 0);
 	private static final LocalTime EVENING = LocalTime.of(18, 0);
 	private final ChildPort children;
+	private final ChildProgressPort progress;
 	private final ChildQuestionAttemptPort attempts;
 	private final SejourUseCase sejours;
 	private final AppHoursPort hours;
@@ -50,12 +60,14 @@ public class ReadParentProgressService implements ReadParentProgressUseCase {
 
 	public ReadParentProgressService(
 			ChildPort children,
+			ChildProgressPort progress,
 			ChildQuestionAttemptPort attempts,
 			SejourUseCase sejours,
 			AppHoursPort hours,
 			QuestionFormRegistry forms,
 			Clock clock) {
 		this.children = children;
+		this.progress = progress;
 		this.attempts = attempts;
 		this.sejours = sejours;
 		this.hours = hours;
@@ -85,11 +97,99 @@ public class ReadParentProgressService implements ReadParentProgressUseCase {
 		}
 		AppHours current = hours.current();
 		AppHours window = current == null ? AppHours.defaults() : current;
+		LocalDate today = LocalDate.now(clock.withZone(ReadChildProgressService.PROGRESS_ZONE));
+		StoredProgress stored = progress.findByChildId(childId).orElse(ChildProgressRules.empty(childId));
+		var photo = ChildProgressRules.toView(stored, today);
 		return new ParentProgress(
 				creneau(essais, window, now),
 				minutes(sejours.countableSeconds(childId)),
 				tendance(essais, now),
-				formes(essais, now));
+				formes(essais, now),
+				photo.xpTotal(),
+				photo.currentStreak(),
+				photo.leagueLabel(),
+				reussite(essais, now),
+				jours(essais, now, today, photo.xpTotal()));
+	}
+
+	private RecentSuccess reussite(List<LectureEssai> essais, Instant now) {
+		Instant cut = now.minus(THREE_DAYS);
+		int passed = 0;
+		int total = 0;
+		for (LectureEssai essai : essais) {
+			Instant at = essai.createdAt();
+			if (at == null || at.isAfter(now) || !at.isAfter(cut)) {
+				continue;
+			}
+			total++;
+			if (essai.passed()) {
+				passed++;
+			}
+		}
+		BigDecimal rate = SuccessWindows.rate(passed, total);
+		if (rate == null) {
+			return null;
+		}
+		return new RecentSuccess(rate, total, SUCCESS_LABEL);
+	}
+
+	/**
+	 * Jours du premier essai jusqu'à aujourd'hui.
+	 *
+	 * <p><b>Business :</b> l'XP d'un jour est celui que l'accueil a vraiment ajouté.
+	 * Le dernier total rejoint l'XP déjà gardé. Un jour sans essai n'a pas de compte.
+	 */
+	private List<ProgressDay> jours(List<LectureEssai> essais, Instant now, LocalDate today, int xpTotal) {
+		TreeMap<LocalDate, DayCount> counts = new TreeMap<>();
+		for (LectureEssai essai : essais) {
+			Instant at = essai.createdAt();
+			if (at == null || at.isAfter(now)) {
+				continue;
+			}
+			LocalDate day = at.atZone(ReadChildProgressService.PROGRESS_ZONE).toLocalDate();
+			if (day.isAfter(today)) {
+				continue;
+			}
+			counts.computeIfAbsent(day, ignored -> new DayCount()).add(essai);
+		}
+		if (counts.isEmpty()) {
+			return List.of();
+		}
+		int reconstructed = 0;
+		for (DayCount count : counts.values()) {
+			reconstructed += count.xpGained;
+		}
+		int running = Math.max(0, xpTotal - reconstructed);
+		List<ProgressDay> days = new ArrayList<>();
+		for (LocalDate cursor = counts.firstKey(); !cursor.isAfter(today); cursor = cursor.plusDays(1)) {
+			DayCount count = counts.get(cursor);
+			int gained = count == null ? 0 : count.xpGained;
+			running += gained;
+			days.add(new ProgressDay(
+					cursor,
+					gained,
+					running,
+					count == null ? null : count.passed,
+					count == null ? null : count.failed));
+		}
+		return days;
+	}
+
+	private static final class DayCount {
+		private int xpGained;
+		private int passed;
+		private int failed;
+
+		private void add(LectureEssai essai) {
+			if (essai.passed()) {
+				passed++;
+			} else {
+				failed++;
+			}
+			if (Boolean.TRUE.equals(essai.pay())) {
+				xpGained += ChildProgressRules.xpGain(essai.scorePercent());
+			}
+		}
 	}
 
 	private String creneau(List<LectureEssai> essais, AppHours window, Instant now) {

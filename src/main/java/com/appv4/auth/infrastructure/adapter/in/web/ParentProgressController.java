@@ -1,6 +1,7 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.FormeRatee;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.ParentProgress;
+import com.appv4.auth.application.port.in.ReadParentProgressUseCase.ProgressDay;
+import com.appv4.auth.application.port.in.ReadParentProgressUseCase.RecentSuccess;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.Trend;
 import com.appv4.auth.application.port.out.JwtTokenDecoder.AuthenticatedUser;
 import com.appv4.configuration.OpenApiConfiguration;
@@ -52,8 +55,8 @@ public class ParentProgressController {
 	 * <p><b>Métier / flow :</b> JWT → {@link ReadParentProgressUseCase}.
 	 */
 	@GetMapping
-	@Operation(operationId = "readParentProgress", summary = "Lire le créneau, les minutes, la tendance et les formes ratées")
-	@ApiResponse(responseCode = "200", description = "Quatre blocs, absents quand il n'y a pas de donnée")
+	@Operation(operationId = "readParentProgress", summary = "Lire la photo, les jours d'XP et les quatre lectures")
+	@ApiResponse(responseCode = "200", description = "Photo, jours, réussite, et les quatre blocs déjà connus")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace parent",
@@ -74,7 +77,23 @@ public class ParentProgressController {
 				progress.bestTimeSlotLabel(),
 				progress.averageSessionMinutes(),
 				toTrend(progress.trend()),
-				progress.repeatedErrorPatterns().stream().map(ParentProgressController::toForme).toList());
+				progress.repeatedErrorPatterns().stream().map(ParentProgressController::toForme).toList(),
+				progress.xpTotal(),
+				progress.currentStreak(),
+				progress.leagueLabel(),
+				toSuccess(progress.recentSuccess()),
+				progress.days().stream().map(ParentProgressController::toDay).toList());
+	}
+
+	private static RecentSuccessResponse toSuccess(RecentSuccess success) {
+		if (success == null) {
+			return null;
+		}
+		return new RecentSuccessResponse(success.successRate(), success.attemptCount(), success.windowLabel());
+	}
+
+	private static ProgressDayResponse toDay(ProgressDay day) {
+		return new ProgressDayResponse(day.date(), day.xpGained(), day.xpTotal(), day.passed(), day.failed());
 	}
 
 	private static TrendResponse toTrend(Trend trend) {
@@ -92,7 +111,19 @@ public class ParentProgressController {
 			String bestTimeSlotLabel,
 			Integer averageSessionMinutes,
 			TrendResponse trend,
-			List<FormeResponse> repeatedErrorPatterns) {
+			List<FormeResponse> repeatedErrorPatterns,
+			int xpTotal,
+			int currentStreak,
+			String leagueLabel,
+			RecentSuccessResponse recentSuccess,
+			List<ProgressDayResponse> days) {
+	}
+
+	public record RecentSuccessResponse(BigDecimal successRate, int attemptCount, String windowLabel) {
+	}
+
+	public record ProgressDayResponse(
+			LocalDate date, int xpGained, int xpTotal, Integer passed, Integer failed) {
 	}
 
 	public record TrendResponse(String direction, BigDecimal deltaSuccessPoints, String windowLabel) {

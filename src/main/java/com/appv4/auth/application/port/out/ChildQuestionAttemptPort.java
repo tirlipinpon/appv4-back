@@ -145,8 +145,15 @@ public interface ChildQuestionAttemptPort {
 	 * @param createdAt instant de l'essai, vide s'il n'est pas daté
 	 * @param passed vrai si l'essai est réussi
 	 * @param formCode code catalogue de la forme, tel qu'il a été joué
+	 * @param scorePercent score 0–100, pour l'XP du jour quand l'essai est payé
+	 * @param pay vrai si cet essai a ajouté de l'XP. Vide : essai non payé
 	 */
-	record LectureEssai(Instant createdAt, boolean passed, String formCode) {
+	record LectureEssai(Instant createdAt, boolean passed, String formCode, int scorePercent, Boolean pay) {
+
+		/** Essai lu pour le créneau, la tendance ou les formes, sans XP. */
+		public LectureEssai(Instant createdAt, boolean passed, String formCode) {
+			this(createdAt, passed, formCode, 0, null);
+		}
 	}
 
 	/** Rang 1 = premier essai de la page. {@code attemptsRemaining} est ce qu'il reste après celui-ci. */

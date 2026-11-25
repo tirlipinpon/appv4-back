@@ -1,6 +1,7 @@
 package com.appv4.auth.application.port.in;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -29,16 +30,45 @@ public interface ReadParentProgressUseCase {
 	 * @param averageSessionMinutes moyenne arrondie, 0 compris, ou absente
 	 * @param trend tendance publiée, ou absente
 	 * @param repeatedErrorPatterns formes ratées, vide s'il n'y en a pas
+	 * @param xpTotal XP déjà accumulé, le même que l'accueil
+	 * @param currentStreak série visible, le même compte que l'accueil
+	 * @param leagueLabel Bronze, Argent, Or ou Diamant
+	 * @param recentSuccess réussite des 3×24 h, ou absente
+	 * @param days un jour du premier essai jusqu'à aujourd'hui, vide s'il n'y a aucun essai
 	 */
 	record ParentProgress(
 			String bestTimeSlotLabel,
 			Integer averageSessionMinutes,
 			Trend trend,
-			List<FormeRatee> repeatedErrorPatterns) {
+			List<FormeRatee> repeatedErrorPatterns,
+			int xpTotal,
+			int currentStreak,
+			String leagueLabel,
+			RecentSuccess recentSuccess,
+			List<ProgressDay> days) {
 
 		public ParentProgress {
 			repeatedErrorPatterns = repeatedErrorPatterns == null ? List.of() : List.copyOf(repeatedErrorPatterns);
+			days = days == null ? List.of() : List.copyOf(days);
 		}
+	}
+
+	/**
+	 * @param successRate part des essais réussis, au dixième
+	 * @param attemptCount nombre de ces essais
+	 * @param windowLabel phrase {@code 3 jours}
+	 */
+	record RecentSuccess(BigDecimal successRate, int attemptCount, String windowLabel) {
+	}
+
+	/**
+	 * @param date jour à l'heure de la progression
+	 * @param xpGained XP payé ce jour-là
+	 * @param xpTotal XP accumulé à la fin de ce jour
+	 * @param passed essais réussis, absent s'il n'y a aucun essai
+	 * @param failed essais ratés, absent s'il n'y a aucun essai
+	 */
+	record ProgressDay(LocalDate date, int xpGained, int xpTotal, Integer passed, Integer failed) {
 	}
 
 	/**

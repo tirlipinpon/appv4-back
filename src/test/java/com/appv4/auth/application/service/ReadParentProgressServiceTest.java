@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -22,9 +23,12 @@ import com.appv4.auth.application.AppHours;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.FormeRatee;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.ParentProgress;
+import com.appv4.auth.application.port.in.ReadParentProgressUseCase.ProgressDay;
 import com.appv4.auth.application.port.in.SejourUseCase;
 import com.appv4.auth.application.port.out.AppHoursPort;
 import com.appv4.auth.application.port.out.ChildPort;
+import com.appv4.auth.application.port.out.ChildProgressPort;
+import com.appv4.auth.application.port.out.ChildProgressPort.StoredProgress;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.LectureEssai;
@@ -39,6 +43,7 @@ class ReadParentProgressServiceTest {
 			.toInstant();
 
 	private final ChildPort children = mock(ChildPort.class);
+	private final ChildProgressPort progress = mock(ChildProgressPort.class);
 	private final ChildQuestionAttemptPort attempts = mock(ChildQuestionAttemptPort.class);
 	private final SejourUseCase sejours = mock(SejourUseCase.class);
 	private final List<LectureEssai> essais = new ArrayList<>();
@@ -50,6 +55,7 @@ class ReadParentProgressServiceTest {
 		essais.clear();
 		seconds.clear();
 		when(children.findOwned(1L, 7L)).thenReturn(Optional.of(child(true)));
+		when(progress.findByChildId(7L)).thenReturn(Optional.empty());
 		when(attempts.lectureEssais(7L)).thenAnswer(call -> List.copyOf(essais));
 		when(sejours.countableSeconds(7L)).thenAnswer(call -> List.copyOf(seconds));
 		service = service(AppHours.defaults());
@@ -307,17 +313,107 @@ class ReadParentProgressServiceTest {
 		assertThat(service.read(1L, "parent", 7L).repeatedErrorPatterns()).isEmpty();
 	}
 
+	@Test
+	void sansProgressionLaPhotoEstVideEtLesJoursAussi() {
+		ParentProgress progress = service.read(1L, "parent", 7L);
+
+		assertThat(progress.xpTotal()).isZero();
+		assertThat(progress.currentStreak()).isZero();
+		assertThat(progress.leagueLabel()).isEqualTo("Bronze");
+		assertThat(progress.days()).isEmpty();
+		assertThat(progress.recentSuccess()).isNull();
+		assertThat(progress.bestTimeSlotLabel()).isNull();
+	}
+
+	@Test
+	void cinquanteXpSansEssaiResteArgent() {
+		fiche(50, 4, LocalDate.of(2026, 11, 22));
+
+		ParentProgress read = service.read(1L, "parent", 7L);
+
+		assertThat(read.xpTotal()).isEqualTo(50);
+		assertThat(read.leagueLabel()).isEqualTo("Argent");
+		assertThat(read.currentStreak()).isEqualTo(4);
+		assertThat(read.days()).isEmpty();
+	}
+
+	@Test
+	void quaranteNeufXpRestentBronzeEtTroisCentCinquanteSontDiamant() {
+		fiche(49, 1, LocalDate.of(2026, 11, 22));
+		assertThat(service.read(1L, "parent", 7L).leagueLabel()).isEqualTo("Bronze");
+
+		fiche(350, 1, LocalDate.of(2026, 11, 22));
+		assertThat(service.read(1L, "parent", 7L).leagueLabel()).isEqualTo("Diamant");
+	}
+
+	@Test
+	void unRetourAvantHierRameneLaSerieAZero() {
+		fiche(10, 4, LocalDate.of(2026, 11, 20));
+
+		assertThat(service.read(1L, "parent", 7L).currentStreak()).isZero();
+	}
+
+	@Test
+	void unEssaiPayeEtUnRateFontLeJour() {
+		fiche(8, 1, LocalDate.of(2026, 11, 22));
+		essais.add(new LectureEssai(paris(20, 0), true, "qcm", 80, true));
+		essais.add(new LectureEssai(paris(21, 0), false, "qcm", 40, false));
+
+		assertThat(service.read(1L, "parent", 7L).days())
+				.containsExactly(new ProgressDay(LocalDate.of(2026, 11, 22), 8, 8, 1, 1));
+	}
+
+	@Test
+	void leJourVideEntreDeuxEssaisNaPasDeCompte() {
+		fiche(10, 1, LocalDate.of(2026, 11, 22));
+		essais.add(new LectureEssai(parisOn(20, 10, 0), true, "qcm", 100, true));
+
+		assertThat(service.read(1L, "parent", 7L).days()).containsExactly(
+				new ProgressDay(LocalDate.of(2026, 11, 20), 10, 10, 1, 0),
+				new ProgressDay(LocalDate.of(2026, 11, 21), 0, 10, null, null),
+				new ProgressDay(LocalDate.of(2026, 11, 22), 0, 10, null, null));
+	}
+
+	@Test
+	void lXpDejaStockeCompleteLePremierJour() {
+		fiche(20, 1, LocalDate.of(2026, 11, 22));
+		essais.add(new LectureEssai(paris(18, 0), true, "qcm", 80, true));
+
+		assertThat(service.read(1L, "parent", 7L).days())
+				.containsExactly(new ProgressDay(LocalDate.of(2026, 11, 22), 8, 20, 1, 0));
+	}
+
+	@Test
+	void deuxReussisSurTroisFontSoixanteSixSixSurTroisJours() {
+		essais.add(new LectureEssai(paris(20, 0), true, "qcm", 0, false));
+		essais.add(new LectureEssai(paris(21, 0), true, "qcm", 0, false));
+		essais.add(new LectureEssai(paris(22, 0), false, "qcm", 0, false));
+		essais.add(new LectureEssai(NOW.minus(ReadParentProgressService.THREE_DAYS), true, "qcm", 0, false));
+
+		var success = service.read(1L, "parent", 7L).recentSuccess();
+
+		assertThat(success.successRate()).isEqualByComparingTo("66.6");
+		assertThat(success.attemptCount()).isEqualTo(3);
+		assertThat(success.windowLabel()).isEqualTo("3 jours");
+	}
+
 	private ReadParentProgressService service(AppHours hours) {
 		AppHoursPort port = mock(AppHoursPort.class);
 		when(port.current()).thenReturn(hours);
 		return new ReadParentProgressService(
 				children,
+				progress,
 				attempts,
 				sejours,
 				port,
 				new QuestionFormRegistry(List.of(
 						new QcmQuestionForm(), new MemoryQuestionForm(), new ClassificationQuestionForm())),
 				Clock.fixed(NOW, ZoneOffset.UTC));
+	}
+
+	private void fiche(int xp, int streak, LocalDate lastPlay) {
+		when(progress.findByChildId(7L)).thenReturn(Optional.of(
+				new StoredProgress(7L, xp, streak, lastPlay, LocalDate.of(2026, 11, 16), "0000000")));
 	}
 
 	private static ChildSaved child(boolean active) {
@@ -350,6 +446,10 @@ class ReadParentProgressServiceTest {
 	}
 
 	private static Instant paris(int hour, int minute) {
-		return ZonedDateTime.of(2026, 11, 22, hour, minute, 0, 0, ReadChildProgressService.PROGRESS_ZONE).toInstant();
+		return parisOn(22, hour, minute);
+	}
+
+	private static Instant parisOn(int day, int hour, int minute) {
+		return ZonedDateTime.of(2026, 11, day, hour, minute, 0, 0, ReadChildProgressService.PROGRESS_ZONE).toInstant();
 	}
 }

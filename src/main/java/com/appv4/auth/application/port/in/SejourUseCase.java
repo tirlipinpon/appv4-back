@@ -78,8 +78,8 @@ public interface SejourUseCase {
 	/**
 	 * Secondes confirmées de chaque séjour qui compte déjà.
 	 *
-	 * <p><b>Business :</b> la moyenne du suivi parent s'appuie sur ces durées,
-	 * pas sur une nouvelle façon de compter l'activité.
+	 * <p><b>Business :</b> la moyenne du suivi parent s'appuie sur l'activité confirmée,
+	 * pas sur une nouvelle façon de compter. La Nuit n'entre pas.
 	 * <p><b>Technique :</b> un séjour sous une seconde est absent. Un séjour ouvert
 	 * ne donne que ses secondes déjà confirmées.
 	 * <p><b>Métier / flow :</b> lecture du suivi, après le calcul du séjour.

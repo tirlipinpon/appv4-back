@@ -185,6 +185,13 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				.list();
 	}
 
+	/**
+	 * Essais du suivi parent.
+	 *
+	 * <p><b>Business :</b> le créneau, la tendance et les formes ratées lisent ces essais.
+	 * <p><b>Technique :</b> {@code created_at}, {@code passed}, {@code form_code}, du plus ancien.
+	 * <p><b>Métier / flow :</b> adapter out, appelé par la lecture du suivi. Rien n'est écrit.
+	 */
 	@Override
 	public List<LectureEssai> lectureEssais(long childId) {
 		return jdbc.sql("""

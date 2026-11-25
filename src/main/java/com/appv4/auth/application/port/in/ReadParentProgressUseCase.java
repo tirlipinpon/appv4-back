@@ -14,6 +14,14 @@ import java.util.List;
  */
 public interface ReadParentProgressUseCase {
 
+	/**
+	 * Quatre blocs du suivi.
+	 *
+	 * <p><b>Business :</b> le parent voit où l'enfant réussit, combien dure un séjour,
+	 * si les 7 jours montent, et quelles formes il rate.
+	 * <p><b>Technique :</b> rôle parent, fiche visible. Sinon le refus déjà connu.
+	 * <p><b>Métier / flow :</b> controller parent → ce port. Rien n'est écrit.
+	 */
 	ParentProgress read(long parentUserId, String activeRole, long childId);
 
 	/**

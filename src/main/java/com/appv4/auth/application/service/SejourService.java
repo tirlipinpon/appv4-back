@@ -506,22 +506,45 @@ public class SejourService implements SejourUseCase {
 	}
 
 	/**
-	 * Durées déjà confirmées, une par séjour qui compte.
+	 * Durées d'activité déjà confirmée, une par séjour qui compte.
 	 *
 	 * <p><b>Business :</b> la moyenne du suivi ne recompte pas l'activité.
-	 * <p><b>Technique :</b> le même total que la ligne parent, en secondes.
-	 * <p><b>Métier / flow :</b> appelé par la lecture du suivi.
+	 * La Nuit ne fait pas partie de ces secondes.
+	 * <p><b>Technique :</b> le même découpage que la journée. Un séjour sous une
+	 * seconde est absent. Un séjour ouvert ne donne que ses secondes confirmées.
+	 * <p><b>Métier / flow :</b> lecture du suivi, après le calcul du séjour.
 	 */
 	@Override
 	public List<Long> countableSeconds(long childId) {
+		AppHours window = hours();
 		List<Long> found = new ArrayList<>();
 		for (StoredSejour stored : sejours.list(childId)) {
-			Built built = build(stored);
-			if (built != null) {
-				found.add(built.total);
+			long seconds = activiteSeconds(window, stored);
+			if (seconds >= 1) {
+				found.add(seconds);
 			}
 		}
 		return List.copyOf(found);
+	}
+
+	/** Secondes d'activité hors Nuit de ce séjour. Les tranches sous une seconde ne comptent pas. */
+	private long activiteSeconds(AppHours window, StoredSejour stored) {
+		Map<LocalDate, Map<String, Piece>> days = new LinkedHashMap<>();
+		for (StoredInterval interval : stored.intervals()) {
+			pour(window, days, interval.screen(), interval.questionId(), interval.prompt(), interval.subjectName(),
+					interval.startedAt(), interval.endedAt());
+		}
+		pourOuvert(window, days, stored);
+		long total = 0;
+		for (Map<String, Piece> pieces : days.values()) {
+			for (Piece piece : pieces.values()) {
+				long seconds = piece.millis / 1000L;
+				if (seconds >= 1) {
+					total += seconds;
+				}
+			}
+		}
+		return total;
 	}
 
 	/** Séjours confirmés, du plus récent au plus ancien. Le parent et le professeur lisent ici. */
@@ -770,7 +793,7 @@ public class SejourService implements SejourUseCase {
 				DATE.format(when), TIME.format(when), durationLabel(built.total), List.copyOf(built.lines));
 	}
 
-	/** Visites d'un séjour dont chaque ligne fait au moins une seconde. Vide si le total ne compte pas. */
+	/** Séjour regroupé pour la ligne parent. Une seconde au moins, sinon absent. */
 	private Built build(StoredSejour stored) {
 		Map<String, Visit> visits = new LinkedHashMap<>();
 		for (StoredInterval interval : stored.intervals()) {

@@ -62,7 +62,7 @@ final class SuccessWindows {
 		return new Result(true, direction, shown(delta));
 	}
 
-	static long rate(int passed, int total) {
+	static long thousandths(int passed, int total) {
 		return points(passed, total);
 	}
 

@@ -44,6 +44,13 @@ public class ParentProgressController {
 		this.readParentProgressUseCase = readParentProgressUseCase;
 	}
 
+	/**
+	 * Lecture du suivi.
+	 *
+	 * <p><b>Business :</b> le parent qui a la fiche reçoit les quatre blocs.
+	 * <p><b>Technique :</b> 200, 403 ou 404. Les nuls restent dans le JSON.
+	 * <p><b>Métier / flow :</b> JWT → {@link ReadParentProgressUseCase}.
+	 */
 	@GetMapping
 	@Operation(operationId = "readParentProgress", summary = "Lire le créneau, les minutes, la tendance et les formes ratées")
 	@ApiResponse(responseCode = "200", description = "Quatre blocs, absents quand il n'y a pas de donnée")

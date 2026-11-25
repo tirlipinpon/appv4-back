@@ -737,6 +737,22 @@ public class AuthConfiguration {
 	 * <p><b>Métier / flow :</b> routes enfant, parent et professeur → ce cas d'usage.
 	 * Le professeur passe par le contrôle de classe déjà utilisé pour ses élèves.
 	 */
+	@Bean
+	SejourUseCase sejourUseCase(
+			com.appv4.auth.application.port.out.ChildSessionTokenPort sessions,
+			com.appv4.auth.application.port.out.ChildLoginPort logins,
+			ChildPort childPort,
+			SejourPort sejourPort,
+			SejourQuestionPort questions,
+			java.time.Clock clock,
+			TeacherStudentsUseCase teacherStudentsUseCase,
+			com.appv4.auth.application.port.out.ChildSharePort childSharePort,
+			AppHoursPort appHoursPort) {
+		return new SejourService(
+				sessions, logins, childPort, sejourPort, clock, questions, teacherStudentsUseCase, childSharePort,
+				appHoursPort);
+	}
+
 	/**
 	 * Suivi parent : créneau, minutes, tendance, formes ratées (BACK-40).
 	 *
@@ -754,22 +770,6 @@ public class AuthConfiguration {
 			java.time.Clock clock) {
 		return new com.appv4.auth.application.service.ReadParentProgressService(
 				childPort, attempts, sejourUseCase, appHoursPort, questionFormRegistry, clock);
-	}
-
-	@Bean
-	SejourUseCase sejourUseCase(
-			com.appv4.auth.application.port.out.ChildSessionTokenPort sessions,
-			com.appv4.auth.application.port.out.ChildLoginPort logins,
-			ChildPort childPort,
-			SejourPort sejourPort,
-			SejourQuestionPort questions,
-			java.time.Clock clock,
-			TeacherStudentsUseCase teacherStudentsUseCase,
-			com.appv4.auth.application.port.out.ChildSharePort childSharePort,
-			AppHoursPort appHoursPort) {
-		return new SejourService(
-				sessions, logins, childPort, sejourPort, clock, questions, teacherStudentsUseCase, childSharePort,
-				appHoursPort);
 	}
 
 	@Bean

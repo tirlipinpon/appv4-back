@@ -63,6 +63,13 @@ public class ReadParentProgressService implements ReadParentProgressUseCase {
 		this.clock = clock;
 	}
 
+	/**
+	 * Quatre blocs pour ce parent et cet enfant.
+	 *
+	 * <p><b>Business :</b> fiche visible seulement. La Nuit n'empêche pas le parent de lire.
+	 * <p><b>Technique :</b> les essais, les secondes d'activité et les heures de l'admin.
+	 * <p><b>Métier / flow :</b> après le filtre JWT, avant la réponse HTTP.
+	 */
 	@Override
 	@Transactional(readOnly = true)
 	public ParentProgress read(long parentUserId, String activeRole, long childId) {
@@ -230,8 +237,8 @@ public class ReadParentProgressService implements ReadParentProgressUseCase {
 	private record Tally(int passed, int total) {
 
 		private boolean beats(Tally other, Slot slot, Slot otherSlot) {
-			long mine = SuccessWindows.rate(passed, total);
-			long theirs = SuccessWindows.rate(other.passed, other.total);
+			long mine = SuccessWindows.thousandths(passed, total);
+			long theirs = SuccessWindows.thousandths(other.passed, other.total);
 			if (mine != theirs) {
 				return mine > theirs;
 			}

@@ -1,6 +1,7 @@
 package com.appv4.auth.infrastructure.adapter.in.web;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -12,7 +13,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase;
+import com.appv4.auth.application.port.in.ReadParentProgressUseCase.FailedEssai;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.FormeRatee;
+import com.appv4.auth.application.port.in.ReadParentProgressUseCase.MissionDay;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.ParentProgress;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.ProgressDay;
 import com.appv4.auth.application.port.in.ReadParentProgressUseCase.RecentSuccess;
@@ -55,8 +58,8 @@ public class ParentProgressController {
 	 * <p><b>Métier / flow :</b> JWT → {@link ReadParentProgressUseCase}.
 	 */
 	@GetMapping
-	@Operation(operationId = "readParentProgress", summary = "Lire la photo, les jours d'XP et les quatre lectures")
-	@ApiResponse(responseCode = "200", description = "Photo, jours, réussite, et les quatre blocs déjà connus")
+	@Operation(operationId = "readParentProgress", summary = "Lire la photo, les jours d'XP, la mission et les quatre lectures")
+	@ApiResponse(responseCode = "200", description = "Photo, jours, mission du jour, réussite, et les quatre blocs déjà connus")
 	@ApiResponse(
 			responseCode = "403",
 			description = "Le jeton n'est pas dans l'espace parent",
@@ -82,7 +85,25 @@ public class ParentProgressController {
 				progress.currentStreak(),
 				progress.leagueLabel(),
 				toSuccess(progress.recentSuccess()),
-				progress.days().stream().map(ParentProgressController::toDay).toList());
+				progress.days().stream().map(ParentProgressController::toDay).toList(),
+				toMission(progress.dailyMissionSummary()),
+				progress.dailyMissionDays().stream().map(ParentProgressController::toMission).toList());
+	}
+
+	private static MissionDayResponse toMission(MissionDay day) {
+		if (day == null) {
+			return null;
+		}
+		List<FailedEssaiResponse> failed = null;
+		if (day.failedEssais() != null) {
+			failed = day.failedEssais().stream().map(ParentProgressController::toFailed).toList();
+		}
+		return new MissionDayResponse(
+				day.date(), day.objective(), day.progress(), day.target(), day.status(), day.statusLabel(), failed);
+	}
+
+	private static FailedEssaiResponse toFailed(FailedEssai essai) {
+		return new FailedEssaiResponse(essai.subjectLabel(), essai.prompt(), essai.at());
 	}
 
 	private static RecentSuccessResponse toSuccess(RecentSuccess success) {
@@ -116,7 +137,22 @@ public class ParentProgressController {
 			int currentStreak,
 			String leagueLabel,
 			RecentSuccessResponse recentSuccess,
-			List<ProgressDayResponse> days) {
+			List<ProgressDayResponse> days,
+			MissionDayResponse dailyMissionSummary,
+			List<MissionDayResponse> dailyMissionDays) {
+	}
+
+	public record MissionDayResponse(
+			LocalDate date,
+			String objective,
+			Integer progress,
+			Integer target,
+			String status,
+			String statusLabel,
+			List<FailedEssaiResponse> failedEssais) {
+	}
+
+	public record FailedEssaiResponse(String subjectLabel, String prompt, Instant at) {
 	}
 
 	public record RecentSuccessResponse(BigDecimal successRate, int attemptCount, String windowLabel) {

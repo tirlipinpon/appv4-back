@@ -66,6 +66,14 @@ final class SuccessWindows {
 		return points(passed, total);
 	}
 
+	/** Taux 0–100 coupé vers zéro au dixième. Vide s'il n'y a aucun essai. */
+	static BigDecimal rate(int passed, int total) {
+		if (total <= 0) {
+			return null;
+		}
+		return shown(points(passed, total));
+	}
+
 	private static long points(int passed, int total) {
 		return passed * THOUSANDTHS / total;
 	}

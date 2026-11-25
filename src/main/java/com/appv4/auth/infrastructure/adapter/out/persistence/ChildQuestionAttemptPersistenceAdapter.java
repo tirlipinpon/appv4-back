@@ -195,7 +195,7 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 	@Override
 	public List<LectureEssai> lectureEssais(long childId) {
 		return jdbc.sql("""
-				select created_at, passed, form_code
+				select created_at, passed, form_code, score_percent, pay
 				from back_child_attempts
 				where child_id = :childId
 				order by created_at, id
@@ -204,7 +204,9 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 				.query((rs, row) -> new LectureEssai(
 						rs.getTimestamp("created_at").toInstant(),
 						rs.getBoolean("passed"),
-						rs.getString("form_code")))
+						rs.getString("form_code"),
+						rs.getInt("score_percent"),
+						(Boolean) rs.getObject("pay")))
 				.list();
 	}
 

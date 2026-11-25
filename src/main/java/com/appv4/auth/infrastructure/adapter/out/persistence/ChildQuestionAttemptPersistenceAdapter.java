@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.AttemptTrace;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.LectureEssai;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageAttempt;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageClaim;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.StoredMark;
@@ -181,6 +182,22 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 						rs.getObject("play_id", UUID.class),
 						rs.getBoolean("passed"),
 						(Integer) rs.getObject("attempts_remaining")))
+				.list();
+	}
+
+	@Override
+	public List<LectureEssai> lectureEssais(long childId) {
+		return jdbc.sql("""
+				select created_at, passed, form_code
+				from back_child_attempts
+				where child_id = :childId
+				order by created_at, id
+				""")
+				.param("childId", childId)
+				.query((rs, row) -> new LectureEssai(
+						rs.getTimestamp("created_at").toInstant(),
+						rs.getBoolean("passed"),
+						rs.getString("form_code")))
 				.list();
 	}
 

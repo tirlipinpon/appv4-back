@@ -505,6 +505,25 @@ public class SejourService implements SejourUseCase {
 				List.copyOf(lines));
 	}
 
+	/**
+	 * Durées déjà confirmées, une par séjour qui compte.
+	 *
+	 * <p><b>Business :</b> la moyenne du suivi ne recompte pas l'activité.
+	 * <p><b>Technique :</b> le même total que la ligne parent, en secondes.
+	 * <p><b>Métier / flow :</b> appelé par la lecture du suivi.
+	 */
+	@Override
+	public List<Long> countableSeconds(long childId) {
+		List<Long> found = new ArrayList<>();
+		for (StoredSejour stored : sejours.list(childId)) {
+			Built built = build(stored);
+			if (built != null) {
+				found.add(built.total);
+			}
+		}
+		return List.copyOf(found);
+	}
+
 	/** Séjours confirmés, du plus récent au plus ancien. Le parent et le professeur lisent ici. */
 	private List<ParentSejour> confirmed(long childId) {
 		List<StoredSejour> stored = new ArrayList<>(sejours.list(childId));
@@ -742,6 +761,17 @@ public class SejourService implements SejourUseCase {
 	}
 
 	private ParentSejour toParent(StoredSejour stored) {
+		Built built = build(stored);
+		if (built == null) {
+			return null;
+		}
+		var when = stored.startedAt().atZone(PARIS);
+		return new ParentSejour(
+				DATE.format(when), TIME.format(when), durationLabel(built.total), List.copyOf(built.lines));
+	}
+
+	/** Visites d'un séjour dont chaque ligne fait au moins une seconde. Vide si le total ne compte pas. */
+	private Built build(StoredSejour stored) {
 		Map<String, Visit> visits = new LinkedHashMap<>();
 		for (StoredInterval interval : stored.intervals()) {
 			long span = Duration.between(interval.startedAt(), interval.endedAt()).toMillis();
@@ -773,8 +803,10 @@ public class SejourService implements SejourUseCase {
 		if (total < 1) {
 			return null;
 		}
-		var when = stored.startedAt().atZone(PARIS);
-		return new ParentSejour(DATE.format(when), TIME.format(when), durationLabel(total), List.copyOf(lines));
+		return new Built(total, lines);
+	}
+
+	private record Built(long total, List<Line> lines) {
 	}
 
 	private Line lineOf(Visit visit, long seconds) {

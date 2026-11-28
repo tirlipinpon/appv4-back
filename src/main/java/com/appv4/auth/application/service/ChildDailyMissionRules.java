@@ -60,7 +60,8 @@ public final class ChildDailyMissionRules {
 		return Math.max(Duration.between(zoned, end).getSeconds(), 0);
 	}
 
-	public static ChildTodayView toView(StoredMission stored, long secondsRemaining) {
+	public static ChildTodayView toView(
+			StoredMission stored, long secondsRemaining, Integer sansFauteBonusXp, Integer nextSansFauteBonusXp) {
 		List<Task> tasks = new ArrayList<>();
 		int progress = 0;
 		int target = 0;
@@ -87,7 +88,9 @@ public final class ChildDailyMissionRules {
 				playable ? next.subjectId() : null,
 				playable ? next.questionId() : null,
 				playable,
-				tasks));
+				tasks,
+				sansFauteBonusXp,
+				nextSansFauteBonusXp));
 	}
 
 	private static Task toTask(StoredTask row) {

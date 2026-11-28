@@ -28,7 +28,9 @@ public record ChildTodayView(Mission mission) {
 			Long playSubjectId,
 			Long playQuestionId,
 			boolean playable,
-			List<Task> tasks) {
+			List<Task> tasks,
+			Integer sansFauteBonusXp,
+			Integer nextSansFauteBonusXp) {
 		public Mission {
 			tasks = tasks == null ? List.of() : List.copyOf(tasks);
 		}

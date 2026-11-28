@@ -1,6 +1,7 @@
 package com.appv4.auth.application.service;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,8 @@ import com.appv4.auth.application.port.out.ChildDailyMissionPort.NewTask;
 import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredMission;
 import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredTask;
 import com.appv4.auth.application.port.out.ChildLoginPort;
+import com.appv4.auth.application.port.out.ChildProgressPort;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort;
 import com.appv4.auth.application.port.out.ChildSubjectPort.CatalogSubject;
@@ -42,6 +45,8 @@ public class ChildDailyMissionService implements ReadChildTodayUseCase {
 	private final ChildSubjectPort childSubjectPort;
 	private final TeacherQuestionPort teacherQuestionPort;
 	private final ChildDailyMissionPort childDailyMissionPort;
+	private final ChildQuestionAttemptPort childQuestionAttemptPort;
+	private final ChildProgressPort childProgressPort;
 	private final Clock clock;
 
 	public ChildDailyMissionService(
@@ -50,12 +55,16 @@ public class ChildDailyMissionService implements ReadChildTodayUseCase {
 			ChildSubjectPort childSubjectPort,
 			TeacherQuestionPort teacherQuestionPort,
 			ChildDailyMissionPort childDailyMissionPort,
+			ChildQuestionAttemptPort childQuestionAttemptPort,
+			ChildProgressPort childProgressPort,
 			Clock clock) {
 		this.childLoginPort = childLoginPort;
 		this.childSessionTokenPort = childSessionTokenPort;
 		this.childSubjectPort = childSubjectPort;
 		this.teacherQuestionPort = teacherQuestionPort;
 		this.childDailyMissionPort = childDailyMissionPort;
+		this.childQuestionAttemptPort = childQuestionAttemptPort;
+		this.childProgressPort = childProgressPort;
 		this.clock = clock;
 	}
 
@@ -120,6 +129,8 @@ public class ChildDailyMissionService implements ReadChildTodayUseCase {
 			if (next != task.progressCount()) {
 				childDailyMissionPort.setProgress(task.id(), next);
 			}
+			childDailyMissionPort.findByChildAndDate(childId, today())
+					.ifPresent(updated -> settleBonus(childId, updated, today()));
 			return;
 		}
 	}
@@ -131,7 +142,9 @@ public class ChildDailyMissionService implements ReadChildTodayUseCase {
 		}
 		long seconds = ChildDailyMissionRules.secondsRemaining(
 				clock.instant(), ReadChildProgressService.PROGRESS_ZONE);
-		return ChildDailyMissionRules.toView(mission.get(), seconds);
+		StoredMission stored = mission.get();
+		BonusPreview preview = preview(childId, stored, today());
+		return ChildDailyMissionRules.toView(stored, seconds, preview.current(), preview.next());
 	}
 
 	private Optional<StoredMission> ensure(long childId, LocalDate day) {
@@ -146,6 +159,65 @@ public class ChildDailyMissionService implements ReadChildTodayUseCase {
 		StoredMission created = childDailyMissionPort.insert(new NewMission(
 				childId, day, ChildDailyMissionRules.objective(tasks.size()), tasks));
 		return Optional.of(created);
+	}
+
+	private void settleBonus(long childId, StoredMission mission, LocalDate day) {
+		if (mission.tasks() == null || mission.tasks().isEmpty()) {
+			return;
+		}
+		boolean complete = mission.tasks().stream().allMatch(task -> task.progressCount() >= task.targetCount());
+		if (!complete || childDailyMissionPort.bonusOf(mission.id()) != null) {
+			return;
+		}
+		if (failedToday(childId, mission, day)) {
+			childDailyMissionPort.setBonus(mission.id(), 0);
+			return;
+		}
+		int streak = SansFauteRules.streakBefore(dates(childId), day);
+		int bonus = SansFauteRules.bonusXp(mission.tasks().size(), streak);
+		childDailyMissionPort.setBonus(mission.id(), bonus);
+		childProgressPort.addXp(childId, bonus);
+	}
+
+	private BonusPreview preview(long childId, StoredMission mission, LocalDate day) {
+		boolean complete = mission.tasks() != null
+				&& !mission.tasks().isEmpty()
+				&& mission.tasks().stream().allMatch(task -> task.progressCount() >= task.targetCount());
+		Integer stored = childDailyMissionPort.bonusOf(mission.id());
+		if (complete) {
+			if (stored != null && stored > 0) {
+				return new BonusPreview(stored, null);
+			}
+			return new BonusPreview(null, null);
+		}
+		if (failedToday(childId, mission, day)) {
+			return new BonusPreview(null, null);
+		}
+		int questions = mission.tasks() == null ? 0 : mission.tasks().size();
+		int streak = SansFauteRules.streakBefore(dates(childId), day);
+		return new BonusPreview(
+				SansFauteRules.bonusXp(questions, streak),
+				SansFauteRules.bonusXp(questions, streak + 1));
+	}
+
+	private boolean failedToday(long childId, StoredMission mission, LocalDate day) {
+		List<Long> questionIds = new ArrayList<>();
+		if (mission.tasks() != null) {
+			for (StoredTask task : mission.tasks()) {
+				questionIds.add(task.questionId());
+			}
+		}
+		Instant from = day.atStartOfDay(ReadChildProgressService.PROGRESS_ZONE).toInstant();
+		Instant to = day.plusDays(1).atStartOfDay(ReadChildProgressService.PROGRESS_ZONE).toInstant();
+		return childQuestionAttemptPort.failedBetween(childId, questionIds, from, to);
+	}
+
+	private List<LocalDate> dates(long childId) {
+		List<LocalDate> dates = childDailyMissionPort.sansFauteDates(childId);
+		return dates == null ? List.of() : dates;
+	}
+
+	private record BonusPreview(Integer current, Integer next) {
 	}
 
 	private List<NewTask> plan(long childId) {

@@ -27,6 +27,34 @@ public interface ChildDailyMissionPort {
 	void setProgress(long taskId, int progressCount);
 
 	/**
+	 * Fige le bonus sans faute de la mission, une seule fois.
+	 *
+	 * <p><b>Business :</b> 0 veut dire mission finie avec une erreur. Un montant
+	 * positif est le bonus déjà ajouté aux XP. Vide : mission ancienne ou pas encore finie.
+	 * <p><b>Technique :</b> {@code bonus_xp}, écrit seulement s'il est encore vide.
+	 * <p><b>Métier / flow :</b> au moment où la dernière tâche de la mission se termine.
+	 */
+	default void setBonus(long missionId, int bonusXp) {
+	}
+
+	/** Bonus déjà figé, ou vide s'il ne l'est pas. */
+	default Integer bonusOf(long missionId) {
+		return null;
+	}
+
+	/**
+	 * Jours dont la mission a été finie sans faute.
+	 *
+	 * <p><b>Business :</b> seuls les jours figés après cette règle comptent.
+	 * Une mission plus ancienne, sans bonus, n'allonge pas la chaîne.
+	 * <p><b>Technique :</b> {@code bonus_xp > 0}.
+	 * <p><b>Métier / flow :</b> calcul du bonus du jour, avant de l'annoncer.
+	 */
+	default List<LocalDate> sansFauteDates(long childId) {
+		return List.of();
+	}
+
+	/**
 	 * Missions encore en base pour cet enfant.
 	 *
 	 * <p><b>Business :</b> une mission dont toutes les tâches sont encore là et finies compte une fois.

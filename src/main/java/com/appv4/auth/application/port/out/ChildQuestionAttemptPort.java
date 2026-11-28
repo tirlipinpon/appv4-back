@@ -105,6 +105,34 @@ public interface ChildQuestionAttemptPort {
 	}
 
 	/**
+	 * Premier passage en étoile jaune de chaque question.
+	 *
+	 * <p><b>Business :</b> la semaine compte une question une fois, le jour où elle devient jaune.
+	 * <p><b>Technique :</b> essai {@code yellow} avec {@code yellow_count = 1}.
+	 * <p><b>Métier / flow :</b> GET progress, pour les nombres sous L M M J V S D.
+	 */
+	default List<FirstYellow> firstYellows(long childId) {
+		return List.of();
+	}
+
+	/**
+	 * Vrai s'il existe un essai raté sur ces questions dans la fenêtre.
+	 *
+	 * <p><b>Business :</b> un essai raté retire le sans faute de la mission du jour.
+	 * <p><b>Technique :</b> {@code passed = false} entre deux instants, questions de la mission.
+	 * <p><b>Métier / flow :</b> lecture et clôture de la mission.
+	 */
+	default boolean failedBetween(long childId, List<Long> questionIds, Instant from, Instant to) {
+		return false;
+	}
+
+	/**
+	 * @param at instant du premier essai jaune
+	 */
+	record FirstYellow(long questionId, Instant at) {
+	}
+
+	/**
 	 * Essais lus par le suivi parent.
 	 *
 	 * <p><b>Business :</b> le créneau, la tendance et les formes ratées partent de ces essais.

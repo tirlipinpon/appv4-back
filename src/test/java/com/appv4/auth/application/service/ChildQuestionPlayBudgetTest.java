@@ -147,7 +147,8 @@ class ChildQuestionPlayBudgetTest {
 		when(questions.firstQuestionIdByForm(5L, PlayableQuestionForm.codes())).thenReturn(Optional.of(21L));
 		CountingMissionPort missions = new CountingMissionPort();
 		ChildDailyMissionService realMission = new ChildDailyMissionService(
-				child, session, subjects, questions, missions, Clock.systemUTC());
+				child, session, subjects, questions, missions, attempts,
+				mock(com.appv4.auth.application.port.out.ChildProgressPort.class), Clock.systemUTC());
 		ChildQuestionPlayService played = new ChildQuestionPlayService(
 				child, session, subjects, questions, attempts, mock(ChildSimonChallengePort.class),
 				progress, realMission, mock(ChildBadgeProgress.class),

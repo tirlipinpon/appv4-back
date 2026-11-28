@@ -9,8 +9,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -19,6 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import com.appv4.auth.application.port.out.ChildDailyMissionPort;
+import com.appv4.auth.application.port.out.ChildProgressPort;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildDailyMissionPort.NewMission;
 import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredMission;
 import com.appv4.auth.application.port.out.ChildDailyMissionPort.StoredTask;
@@ -42,6 +47,9 @@ class ChildDailyMissionServiceTest {
 	private final ChildSubjectPort childSubjectPort = Mockito.mock(ChildSubjectPort.class);
 	private final TeacherQuestionPort teacherQuestionPort = Mockito.mock(TeacherQuestionPort.class);
 	private final MemoryMissionPort missionPort = new MemoryMissionPort();
+	private final ChildQuestionAttemptPort attempts = Mockito.mock(ChildQuestionAttemptPort.class);
+	private final ChildProgressPort progress = Mockito.mock(ChildProgressPort.class);
+	private final AtomicInteger addedXp = new AtomicInteger();
 	private final AtomicReference<Instant> now = new AtomicReference<>();
 	private ChildDailyMissionService service;
 
@@ -64,6 +72,10 @@ class ChildDailyMissionServiceTest {
 				return now.get();
 			}
 		};
+		Mockito.doAnswer(invocation -> {
+			addedXp.addAndGet(invocation.getArgument(1));
+			return null;
+		}).when(progress).addXp(Mockito.anyLong(), Mockito.anyInt());
 		when(childSessionTokenPort.read("token")).thenReturn(Optional.of(new ChildSession(7L)));
 		when(childLoginPort.findActiveById(7L)).thenReturn(Optional.of(new ChildLoginCandidate(7L, "Léa", "x")));
 		service = new ChildDailyMissionService(
@@ -72,6 +84,8 @@ class ChildDailyMissionServiceTest {
 				childSubjectPort,
 				teacherQuestionPort,
 				missionPort,
+				attempts,
+				progress,
 				clock);
 	}
 
@@ -145,6 +159,54 @@ class ChildDailyMissionServiceTest {
 	}
 
 	@Test
+	void openMissionAnnouncesTheSansFauteBonus() {
+		stubMathAndWords();
+
+		ChildTodayView view = service.today("token");
+
+		assertThat(view.mission().sansFauteBonusXp()).isEqualTo(20);
+		assertThat(view.mission().nextSansFauteBonusXp()).isEqualTo(30);
+	}
+
+	@Test
+	void finishingCleanAddsTheBonusOnceAndTheNextDayClimbs() {
+		stubMathAndWords();
+		service.today("token");
+		service.recordUsefulAttempt(7L, 4L, 100, true);
+		service.recordUsefulAttempt(7L, 5L, 100, true);
+
+		ChildTodayView done = service.today("token");
+		assertThat(done.mission().status()).isEqualTo(ChildDailyMissionRules.STATUS_MISSION_DONE);
+		assertThat(done.mission().sansFauteBonusXp()).isEqualTo(20);
+		assertThat(done.mission().nextSansFauteBonusXp()).isNull();
+		assertThat(addedXp.get()).isEqualTo(20);
+
+		service.recordUsefulAttempt(7L, 4L, 100, true);
+		assertThat(addedXp.get()).isEqualTo(20);
+
+		now.set(LocalDate.of(2026, 11, 19).atTime(9, 0).atZone(ZONE).toInstant());
+		ChildTodayView next = service.today("token");
+		assertThat(next.mission().sansFauteBonusXp()).isEqualTo(30);
+		assertThat(next.mission().nextSansFauteBonusXp()).isEqualTo(40);
+	}
+
+	@Test
+	void aFailedAttemptRemovesTheAnnouncementAndTheBonus() {
+		stubMathAndWords();
+		service.today("token");
+		when(attempts.failedBetween(Mockito.anyLong(), Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(true);
+
+		assertThat(service.today("token").mission().sansFauteBonusXp()).isNull();
+		assertThat(service.today("token").mission().nextSansFauteBonusXp()).isNull();
+
+		service.recordUsefulAttempt(7L, 4L, 100, true);
+		service.recordUsefulAttempt(7L, 5L, 100, true);
+
+		assertThat(service.today("token").mission().sansFauteBonusXp()).isNull();
+		assertThat(addedXp.get()).isZero();
+	}
+
+	@Test
 	void finishedMissionHasNoPlayLink() {
 		stubMathAndWords();
 		service.today("token");
@@ -172,6 +234,7 @@ class ChildDailyMissionServiceTest {
 	private static final class MemoryMissionPort implements ChildDailyMissionPort {
 
 		private final List<StoredMission> rows = new ArrayList<>();
+		private final Map<Long, Integer> bonuses = new HashMap<>();
 		private final AtomicLong ids = new AtomicLong(1);
 		private int inserts;
 
@@ -205,6 +268,28 @@ class ChildDailyMissionServiceTest {
 					ids.getAndIncrement(), mission.childId(), mission.missionDate(), mission.objective(), tasks);
 			rows.add(stored);
 			return stored;
+		}
+
+		@Override
+		public void setBonus(long missionId, int bonusXp) {
+			bonuses.putIfAbsent(missionId, bonusXp);
+		}
+
+		@Override
+		public Integer bonusOf(long missionId) {
+			return bonuses.get(missionId);
+		}
+
+		@Override
+		public List<LocalDate> sansFauteDates(long childId) {
+			List<LocalDate> days = new ArrayList<>();
+			for (StoredMission mission : rows) {
+				Integer bonus = bonuses.get(mission.id());
+				if (mission.childId() == childId && bonus != null && bonus > 0) {
+					days.add(mission.missionDate());
+				}
+			}
+			return days;
 		}
 
 		@Override

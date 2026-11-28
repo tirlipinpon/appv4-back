@@ -54,7 +54,8 @@ public class ChildLearningSubjectsController {
 		List<ChildLearningSubjectItem> items = view.subjects().stream()
 				.map(s -> new ChildLearningSubjectItem(
 						s.subjectId(), s.name(), s.grade(), s.questionCount(), s.iconCode(),
-						SubjectIcons.accentOf(s.iconCode())))
+						SubjectIcons.accentOf(s.iconCode()),
+						s.yellowQuestionCount(), s.notYellowQuestionCount()))
 				.toList();
 		return ResponseEntity.ok(new ChildLearningSubjectsResponse(items));
 	}
@@ -105,7 +106,11 @@ public class ChildLearningSubjectsController {
 			long questionCount,
 			String iconCode,
 			@Schema(description = "Teinte #rrggbb de l'icône, ou null.", nullable = true)
-			String accentColor) {
+			String accentColor,
+			@Schema(description = "Questions de la matière déjà en étoile jaune.")
+			long yellowQuestionCount,
+			@Schema(description = "Questions de la matière qui ne sont pas en étoile jaune.")
+			long notYellowQuestionCount) {
 	}
 
 	@Schema(name = "ChildLearningQuestionsResponse")

@@ -1,5 +1,7 @@
 package com.appv4.auth.infrastructure.adapter.out.persistence;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -14,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.AttemptTrace;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.FirstYellow;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.LectureEssai;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.MissionEssai;
 import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.PageAttempt;
@@ -229,6 +232,45 @@ public class ChildQuestionAttemptPersistenceAdapter implements ChildQuestionAtte
 							created == null ? null : created.toInstant());
 				})
 				.list();
+	}
+
+	@Override
+	public List<FirstYellow> firstYellows(long childId) {
+		return jdbc.sql("""
+				select question_id, created_at
+				from back_child_attempts
+				where child_id = :childId
+				  and mark_code = 'yellow'
+				  and yellow_count = 1
+				""")
+				.param("childId", childId)
+				.query((rs, row) -> new FirstYellow(
+						rs.getLong("question_id"),
+						rs.getTimestamp("created_at").toInstant()))
+				.list();
+	}
+
+	@Override
+	public boolean failedBetween(long childId, List<Long> questionIds, Instant from, Instant to) {
+		if (questionIds == null || questionIds.isEmpty() || from == null || to == null) {
+			return false;
+		}
+		Integer count = jdbc.sql("""
+				select count(*)
+				from back_child_attempts
+				where child_id = :childId
+				  and question_id in (:questionIds)
+				  and passed = false
+				  and created_at >= :from
+				  and created_at < :to
+				""")
+				.param("childId", childId)
+				.param("questionIds", questionIds)
+				.param("from", Timestamp.from(from))
+				.param("to", Timestamp.from(to))
+				.query(Integer.class)
+				.single();
+		return count != null && count > 0;
 	}
 
 	@Override

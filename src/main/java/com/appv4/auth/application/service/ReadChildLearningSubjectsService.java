@@ -76,14 +76,22 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 		}
 		List<CatalogSubject> catalog = childSubjectPort.visibleByIds(chosenIds);
 		Map<Long, Long> counts = teacherQuestionPort.countBySubjectIds(chosenIds);
+		Map<Long, StoredMark> marks = childQuestionAttemptPort.allMarks(childId);
+		if (marks == null) {
+			marks = Map.of();
+		}
 		List<SubjectCard> cards = new ArrayList<>();
 		for (CatalogSubject subject : catalog) {
+			long total = counts.getOrDefault(subject.id(), 0L);
+			long yellow = yellowQuestions(marks, teacherQuestionPort.questionIds(subject.id()));
 			cards.add(new SubjectCard(
 					subject.id(),
 					subject.name(),
 					subject.grade(),
-					counts.getOrDefault(subject.id(), 0L),
-					subject.iconCode()));
+					total,
+					subject.iconCode(),
+					yellow,
+					Math.max(0, total - yellow)));
 		}
 		return new ChildLearningSubjectsView(cards);
 	}
@@ -124,6 +132,20 @@ public class ReadChildLearningSubjectsService implements ReadChildLearningSubjec
 				})
 				.toList();
 		return new ChildLearningQuestionsView(subject.id(), subject.name(), cards, nextCursor);
+	}
+
+	private static long yellowQuestions(Map<Long, StoredMark> marks, List<Long> questionIds) {
+		if (questionIds == null) {
+			return 0;
+		}
+		long yellow = 0;
+		for (Long questionId : questionIds) {
+			StoredMark mark = marks.get(questionId);
+			if (mark != null && mark.code() == QuestionMark.YELLOW) {
+				yellow++;
+			}
+		}
+		return yellow;
 	}
 
 	private long requireActiveChild(String rawToken) {

@@ -3,6 +3,8 @@ package com.appv4.auth.application.service;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,7 +14,10 @@ import com.appv4.auth.application.port.in.ReadChildProgressUseCase;
 import com.appv4.auth.application.port.out.ChildLoginPort;
 import com.appv4.auth.application.port.out.ChildProgressPort;
 import com.appv4.auth.application.port.out.ChildProgressPort.StoredProgress;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort;
+import com.appv4.auth.application.port.out.ChildQuestionAttemptPort.FirstYellow;
 import com.appv4.auth.application.port.out.ChildSessionTokenPort;
+import com.appv4.auth.application.service.ChildProgressRules.YellowGain;
 import com.appv4.auth.application.result.ChildProgressView;
 import com.appv4.auth.application.service.ChildProgressRules.ChildProgressViewSnapshot;
 
@@ -33,16 +38,19 @@ public class ReadChildProgressService implements ReadChildProgressUseCase {
 	private final ChildLoginPort childLoginPort;
 	private final ChildSessionTokenPort childSessionTokenPort;
 	private final ChildProgressPort childProgressPort;
+	private final ChildQuestionAttemptPort childQuestionAttemptPort;
 	private final Clock clock;
 
 	public ReadChildProgressService(
 			ChildLoginPort childLoginPort,
 			ChildSessionTokenPort childSessionTokenPort,
 			ChildProgressPort childProgressPort,
+			ChildQuestionAttemptPort childQuestionAttemptPort,
 			Clock clock) {
 		this.childLoginPort = childLoginPort;
 		this.childSessionTokenPort = childSessionTokenPort;
 		this.childProgressPort = childProgressPort;
+		this.childQuestionAttemptPort = childQuestionAttemptPort;
 		this.clock = clock;
 	}
 
@@ -55,7 +63,26 @@ public class ReadChildProgressService implements ReadChildProgressUseCase {
 				.orElseGet(() -> ChildProgressRules.empty(childId));
 		ChildProgressViewSnapshot snap = ChildProgressRules.toView(stored, today);
 		return new ChildProgressView(
-				snap.xpTotal(), snap.currentStreak(), snap.leagueLabel(), snap.weekDays());
+				snap.xpTotal(),
+				snap.currentStreak(),
+				snap.leagueLabel(),
+				snap.weekDays(),
+				ChildProgressRules.weekYellowCounts(yellowGains(childId), today));
+	}
+
+	private List<YellowGain> yellowGains(long childId) {
+		List<FirstYellow> rows = childQuestionAttemptPort.firstYellows(childId);
+		if (rows == null) {
+			return List.of();
+		}
+		List<YellowGain> gains = new ArrayList<>();
+		for (FirstYellow row : rows) {
+			if (row == null || row.at() == null) {
+				continue;
+			}
+			gains.add(new YellowGain(row.questionId(), row.at().atZone(PROGRESS_ZONE).toLocalDate()));
+		}
+		return gains;
 	}
 
 	private long requireActiveChild(String rawToken) {

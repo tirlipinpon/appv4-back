@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.appv4.auth.application.exception.AuthDomainException;
 import com.appv4.auth.application.exception.AuthErrorCode;
 import com.appv4.auth.application.port.in.ReadParentHumeursUseCase;
+import com.appv4.auth.application.port.in.ReadParentHumeursUseCase.Humeur;
 import com.appv4.auth.application.port.out.ChildPort;
 import com.appv4.auth.application.port.out.ChildPort.ChildSaved;
 import com.appv4.auth.application.port.out.HumeurAnswerPort;
@@ -48,8 +49,12 @@ public class ReadParentHumeursService implements ReadParentHumeursUseCase {
 	}
 
 	private ParentChildHumeur toChild(ChildSaved child) {
-		Humeur humeur = answers.latest(child.id()).map(this::toHumeur).orElse(null);
-		return new ParentChildHumeur(child.id(), child.firstName(), child.lastName(), humeur);
+		List<StoredAnswer> rows = answers.history(child.id());
+		if (rows == null) {
+			rows = List.of();
+		}
+		List<Humeur> humeurs = rows.stream().map(this::toHumeur).toList();
+		return new ParentChildHumeur(child.id(), child.firstName(), child.lastName(), humeurs);
 	}
 
 	private Humeur toHumeur(StoredAnswer answer) {
